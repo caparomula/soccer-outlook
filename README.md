@@ -12,7 +12,7 @@ Open **Lineup & filters** on the page and tap the services you have. Every match
 
 ## How it runs
 
-`build.py` is a single Python script with no dependencies beyond the standard library and `curl`; `story.py` adds the Anthropic Python SDK. It fetches eleven days of fixtures and the current standings from ESPN's public scoreboard API, maps each listed broadcaster to the streaming services that carry it (`OUTLETS`), applies each league's usual home when channels are not posted yet (`LEAGUES`), and writes one HTML file. The page's own script does the rest in the browser: bucketing by the viewer's clock, the lineup, filters and the countdown.
+`build.py` is a single Python script with no dependencies beyond the standard library and `curl`; `story.py` adds the Anthropic Python SDK. It fetches eleven days of fixtures and the current standings from ESPN's public scoreboard API, maps each listed broadcaster to the streaming services that carry it (`OUTLETS`), applies each league's usual home when channels are not posted yet (`LEAGUES`), and writes one HTML file. The page's own script does the rest in the browser: bucketing by the viewer's clock, the lineup, filters, the countdown and live scores.
 
 The workflow in `.github/workflows/refresh.yml` runs the script three times a day and publishes the page to the `gh-pages` branch, which GitHub Pages serves. It can also be run by hand from the Actions tab (**Refresh outlook**, then **Run workflow**), and it runs on every change to `build.py`.
 
@@ -23,6 +23,15 @@ python3 build.py --out site/index.html
 ```
 
 Add `--date YYYY-MM-DD` to build as of another day. Open the page with `#at-YYYYMMDD-HHMM` on the URL to preview it as of another local time.
+
+## Live scores
+
+The page is rebuilt three times a day, but scores don't wait for a rebuild. From 15 minutes before a kickoff until ESPN calls the match over, the viewer's browser asks ESPN's public scoreboard for that competition's day once a minute and updates the score, the clock, half time and full time, the scorers, the "Live now" group, the countdown band, the picks and the forecast. A match that finished since the last rebuild is asked about once when the page opens, so "Earlier today" carries its result.
+
+- **Loading stays fast.** The requests start after the page has drawn, run in parallel (one per competition and day, not one per match), and each is abandoned after 8 seconds. Nothing waits on them.
+- **Failing quietly.** A request that fails or times out leaves the page as it was built. After a failure the page waits longer before trying again, doubling up to ten minutes, and the line under the forecast says when the scores were last checked.
+- **Not wasteful.** Nothing is asked while the tab is hidden, while no match is near its kickoff, or for competitions switched off in the filters.
+- **Testing.** Served from `localhost`, the page accepts `?scoresbase=http://localhost:PORT/some/path/` to read scoreboards from a local stand-in for ESPN instead.
 
 ## Storylines
 

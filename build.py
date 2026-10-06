@@ -461,6 +461,14 @@ def luminance(hex6):
     return 0.2126 * r + 0.7152 * g + 0.0722 * b
 
 
+VOID_STATUSES = ("canceled", "cancelled", "postponed")
+
+
+def called_off(state, status):
+    """A match ESPN has closed without playing it; its 0-0 is a placeholder, not a score."""
+    return state == "post" and status.lower() in VOID_STATUSES
+
+
 def interpret(league, ev):
     comp = ev["competitions"][0]
     info = LEAGUES[league]
@@ -560,7 +568,7 @@ def interpret(league, ev):
 
     goals = []
     for d in comp.get("details") or []:
-        if not d.get("scoringPlay"):
+        if not d.get("scoringPlay") or d.get("shootout"):
             continue
         who = (d.get("athletesInvolved") or [{}])[0]
         note = "pen" if d.get("penaltyKick") else ("og" if d.get("ownGoal") else "")
@@ -589,7 +597,7 @@ def interpret(league, ev):
             score += 45
     else:
         score += 25 * len(names & MARQUEE_CLUBS)
-    if state == "post" and status.lower() in ("canceled", "cancelled", "postponed"):
+    if called_off(state, status):
         score = 0
 
     return Match(id=ev["id"], utc=datetime.fromisoformat(ev["date"].replace("Z", "+00:00")),
@@ -842,9 +850,10 @@ def row_html(m, cache):
     tv = "1" if m.time_valid else "0"
     time_html = (f'<span class="t" data-t>{t}</span><span class="ap" data-ap>{ap}</span>' if m.time_valid
                  else '<span class="t t--tbd">TBD</span><span class="ap">time</span>')
-    score_h = f'<b class="score">{esc(m.home.score)}</b>' if m.state != "pre" and m.home.score != "" else ""
-    score_a = f'<b class="score">{esc(m.away.score)}</b>' if m.state != "pre" and m.away.score != "" else ""
-    status = f'<span class="row__status">{esc(m.status)}</span>' if m.status else ""
+    played = m.state != "pre" and not called_off(m.state, m.status)
+    score_h, score_a = (f'<b class="score"{"" if played and t.score != "" else " hidden"}>{esc(t.score) if played else ""}</b>'
+                        for t in (m.home, m.away))
+    status = f'<span class="row__status"{"" if m.status else " hidden"}>{esc(m.status)}</span>'
     lgkey = logo_key(LEAGUE_LOGOS.get(m.league, "")) if LEAGUE_LOGOS.get(m.league) else ""
     lglogo = f'<i class="lg l-{lgkey}"></i>' if lgkey and lgkey in cache else ""
     meta = [f'<span class="comp">{lglogo}{esc(m.comp)}</span>']
@@ -1271,7 +1280,7 @@ a { color: inherit; }
 .detail__recap { color: var(--fg); }
 .detail__links a { margin-right: 14px; }
 .row--off .detail__name { color: var(--fg); }
-.score { font-family: var(--display); font-size: 20px; font-weight: 700; margin-left: 2px; font-variant-numeric: tabular-nums; }
+.score { font-family: var(--display); font-size: 20px; font-weight: 700; margin-left: 2px; padding: 0 3px; border-radius: 4px; font-variant-numeric: tabular-nums; }
 .vs { color: var(--muted); font-family: var(--display); font-size: 16px; }
 .logo { width: 32px; height: 32px; flex: none; display: inline-block; background: var(--logo-pad) center / contain no-repeat; border-radius: 6px; }
 .logo--lg { width: 44px; height: 44px; }
@@ -1359,7 +1368,11 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
   .hdr__tally { text-align: left; }
   .controls__lbl { min-width: 0; width: 100%; }
 }
-@media (prefers-reduced-motion: no-preference) { .pick { transition: border-color 120ms ease; } }
+@media (prefers-reduced-motion: no-preference) {
+  .pick { transition: border-color 120ms ease; }
+  .score--new { animation: goal 3s ease-out; }
+  @keyframes goal { 0%, 40% { background: var(--amber-soft); color: var(--amber); } 100% { background: transparent; } }
+}
 </style>
 <style id="logos">@@LOGO_CSS@@</style>
 <script type="application/json" id="league-meta">@@LEAGUE_META@@</script>
@@ -1381,6 +1394,7 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
   </section>
   <div class="forecast" id="forecast"><p>Matches on HBO Max, Fox One, Paramount+, ESPN Unlimited, Apple TV, USA Network, Prime Video, Netflix and Disney+, from the moment you open this page through the week ahead.</p></div>
   <p class="fresh" id="fresh">Fixtures and broadcasters from ESPN as of @@BUILT_ET@@. Rebuilt early morning, midday and evening. Times shown in Eastern.</p>
+  <p class="fresh" id="livenote" hidden></p>
   <div class="stale" id="stale" hidden></div>
   <div class="nextup" id="nextup" hidden>
     <div class="nextup__left"><div class="nextup__status" id="nextup-status">Kickoff in</div><div class="nextup__count" id="nextup-count">–</div></div>
@@ -1432,7 +1446,7 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
   <footer class="foot">
     <p>A colored pill means the broadcaster is inside one of the services you have selected; a grey pill is one you don't have; a dashed pill marks the league's usual home when ESPN has not listed the channel yet, which is normal more than a few days out. Fox One includes FOX, FS1, FS2, Big Ten Network and Fox Deportes but not Fox Soccer Plus. ESPN Unlimited includes every ESPN network, ESPN on ABC and ESPN+. TNT and TBS matches stream on HBO Max; CBS matches stream on Paramount+ Premium. Assignments can move on the day, so a glance at the app before kickoff is still worth it.</p>
     @@FAILED@@
-    <p>Fixtures, scores, broadcasters and logos from ESPN's public scoreboard. Rights notes from Fox Sports, CBS Sports, ESPN and World Soccer Talk. Built by <a href="https://github.com/caparomula/soccer-outlook">a small open generator</a> on GitHub. Storylines are researched on the web and written by Claude once a day; they can be wrong, so each one links its sources.</p>
+    <p>Fixtures, scores, broadcasters and logos from ESPN's public scoreboard; while matches are on, your browser checks the scores there once a minute. Rights notes from Fox Sports, CBS Sports, ESPN and World Soccer Talk. Built by <a href="https://github.com/caparomula/soccer-outlook">a small open generator</a> on GitHub. Storylines are researched on the web and written by Claude once a day; they can be wrong, so each one links its sources.</p>
   </footer>
 </div>
 
@@ -1590,7 +1604,7 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
     if (idx < 0) return idx === -1 ? 'yesterday' : null;
     if (idx === 0) {
       if (r._state === 'post') return 'earlier';
-      if (r._state === 'in' && now < r._k + LIVE_MS + 30 * 60000) return 'live';
+      if (r._state === 'in' && (now < r._k + LIVE_MS + 30 * 60000 || Date.now() - (r._seen || 0) < 10 * 60000)) return 'live';
       if (r._tv && now >= r._k && now < r._k + LIVE_MS) return 'live';
       if (r._tv && now >= r._k + LIVE_MS) return 'earlier';
       if (!r._tv) return 'tonight';
@@ -1638,6 +1652,8 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
     if (!force && sig === lastSig) { renderLede(groups, all, now); return; }
     lastSig = sig;
 
+    var openFolds = {};
+    body.querySelectorAll('details.fold[open]').forEach(function (d) { openFolds[d.getAttribute('data-b')] = true; });
     var frag = document.createDocumentFragment();
     var current = nowBucketName(now), anyUpcoming = false;
     ORDER.forEach(function (b) {
@@ -1655,7 +1671,7 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
       h.children[1].textContent = when;
       h.children[2].textContent = list.length + (list.length === 1 ? ' match' : ' matches');
       if (FOLDED[b]) {
-        sec = document.createElement('details'); sec.className = 'fold bucket';
+        sec = document.createElement('details'); sec.className = 'fold bucket'; sec.setAttribute('data-b', b); sec.open = !!openFolds[b];
         var sum = document.createElement('summary'); sum.appendChild(h);
         var car = document.createElement('span'); car.className = 'caret'; car.innerHTML = ' <span class="c">show &#9662;</span><span class="o">hide &#9652;</span>'; h.children[2].appendChild(car);
         sec.appendChild(sum); host = sec;
@@ -1715,8 +1731,9 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
     if (!nextRow || nextupEl.hidden) return;
     var now = nowMs(), diff = nextRow._k - now, status, count;
     if (nextLive || diff <= 0) {
-      var mins = Math.floor(-diff / 60000);
-      status = 'Live now'; count = mins < 1 ? 'kicked off' : mins + ' min in';
+      var mins = Math.floor(-diff / 60000), sc = scoreOf(nextRow), clk = clockOf(nextRow);
+      status = 'Live now' + (sc && clk ? ' \u00b7 ' + clk : '');
+      count = sc || (mins < 1 ? 'kicked off' : mins + ' min in');
     } else if (diff < 15 * 60000) { status = 'Starting soon'; count = fmtCount(diff); }
     else if (diff < 24 * 3600000) { status = 'Kickoff in'; count = fmtCount(diff); }
     else { status = 'Next up'; count = fmtShortDay.format(new Date(nextRow._k)) + ' ' + proseTime(nextRow); }
@@ -1750,6 +1767,15 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
   function timeLabel(r) { if (!r._tv) return 'TBD'; var st = splitTime(new Date(r._k)); return st.t + ' ' + st.ap; }
   function dayTag(r, now) { var idx = dayIndex(r._k, now); return idx === 0 ? '' : idx === 1 ? ' tomorrow' : ' ' + fmtShortDay.format(new Date(r._k)); }
 
+  function setPickWhen(when, r, now) {
+    var st = r._tv ? splitTime(new Date(r._k)) : { t: 'TBD', ap: '' }, sc = r._b === 'live' ? scoreOf(r) : '';
+    when.firstChild.textContent = sc || st.t;
+    when.lastChild.textContent = r._b === 'live' ? (sc ? 'live ' + clockOf(r) : 'live now') : st.ap + dayTag(r, now);
+  }
+  function missTime(r, now) {
+    var sc = r._b === 'live' ? scoreOf(r) : '', clk = clockOf(r);
+    return sc ? 'live ' + sc + (clk ? ', ' + clk : '') : timeLabel(r) + dayTag(r, now);
+  }
   function renderPicks(groups, now) {
     var pool = upcoming(groups).filter(function (r) { return r._svc !== 'none'; });
     function pickScore(r) { return r._score + (r._b === 'live' ? 20 : 0); }
@@ -1759,11 +1785,10 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
     picksEl.innerHTML = '';
     document.getElementById('picks-sub').textContent = chosen.some(function (r) { return r._b === 'week'; }) ? 'On your services, looking ahead' : 'On your services, today and tomorrow';
     chosen.forEach(function (r) {
-      var a = document.createElement('a'); a.className = 'pick svc-' + r._svc; a.href = '#outlook';
+      var a = document.createElement('a'); a.className = 'pick svc-' + r._svc; a.href = '#outlook'; a._row = r;
       var when = document.createElement('div'); when.className = 'pick__when';
-      var st = r._tv ? splitTime(new Date(r._k)) : { t: 'TBD', ap: '' };
       when.innerHTML = '<span class="t"></span><span class="ap"></span>';
-      when.firstChild.textContent = st.t; when.lastChild.textContent = (r._b === 'live' ? 'live now' : st.ap + dayTag(r, now));
+      setPickWhen(when, r, now);
       var teams = document.createElement('div'); teams.className = 'pick__teams';
       teams.appendChild(logoClone(r, 0, 'logo logo--lg')); var vs = document.createElement('span'); vs.className = 'pick__vs'; vs.textContent = 'v'; teams.appendChild(vs); teams.appendChild(logoClone(r, 1, 'logo logo--lg'));
       var names = document.createElement('div'); names.className = 'pick__names'; names.textContent = r.getAttribute('data-home') + ' v ' + r.getAttribute('data-away');
@@ -1786,14 +1811,17 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
 
   function renderMisses(groups, now) {
     var pool = upcoming(groups).filter(function (r) { return r._svc === 'none' && r._score >= 85 && !compOff[r._lg]; }).sort(function (a, c) { return c._score - a._score || a._k - c._k; }).slice(0, 4);
+    var open = {};
+    missesEl.querySelectorAll('.miss').forEach(function (m) { var p = m.querySelector('.row__detail'); if (p && !p.hidden) open[m.getAttribute('data-id')] = true; });
     missesEl.innerHTML = '';
     pool.forEach(function (r) {
-      var d = document.createElement('div'); d.className = 'miss';
+      var id = r.getAttribute('data-id');
+      var d = document.createElement('div'); d.className = 'miss'; d.setAttribute('data-id', id); d._row = r;
       var teams = document.createElement('div'); teams.className = 'miss__teams';
       teams.appendChild(logoClone(r, 0, 'logo')); var vs = document.createElement('span'); vs.className = 'miss__vs'; vs.textContent = 'v'; teams.appendChild(vs); teams.appendChild(logoClone(r, 1, 'logo'));
       var bodyEl = document.createElement('div');
       var names = document.createElement('div'); names.className = 'miss__names'; names.textContent = r.getAttribute('data-home') + ' v ' + r.getAttribute('data-away') + ' ';
-      var tm = document.createElement('span'); tm.className = 'miss__time'; tm.textContent = timeLabel(r) + dayTag(r, now); names.appendChild(tm);
+      var tm = document.createElement('span'); tm.className = 'miss__time'; tm.textContent = missTime(r, now); names.appendChild(tm);
       var where = document.createElement('div'); where.className = 'miss__where';
       var pills = r.querySelector('.pills'); if (pills) where.innerHTML = pills.innerHTML;
       var more = where.querySelector('button.more'); if (more) { more.textContent = 'Details'; more.setAttribute('aria-expanded', 'false'); }
@@ -1805,7 +1833,10 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
       // The card gets its own copy of the row's details panel: the row itself is hidden whenever
       // "On my services" is on, which is exactly when these cards matter.
       var detail = r.querySelector('.row__detail');
-      if (detail) { var copy = detail.cloneNode(true); copy.hidden = true; d.appendChild(copy); }
+      if (detail) {
+        var copy = detail.cloneNode(true); copy.hidden = !open[id]; d.appendChild(copy);
+        if (open[id] && more) { more.textContent = 'Hide details'; more.setAttribute('aria-expanded', 'true'); }
+      }
       missesEl.appendChild(d);
     });
   }
@@ -1853,7 +1884,13 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
     return t;
   }
   function slateItem(r) { return matchName(r) + ' at ' + proseTime(r) + ' ' + proseWhere(r); }
-  function liveItem(r) { return matchName(r) + ' ' + proseWhere(r); }
+  function liveItem(r) { var sc = scoreOf(r), clk = clockOf(r); return matchName(r) + (sc ? ' (' + sc + (clk ? ', ' + clk : '') + ')' : '') + ' ' + proseWhere(r); }
+  // What a row shows now: "2–1" and "67'" (each empty before kickoff, or when it isn't known).
+  function scoreOf(r) {
+    var s = r.querySelectorAll('.team .score');
+    return s.length === 2 && !s[0].hidden && !s[1].hidden ? s[0].textContent + '\u2013' + s[1].textContent : '';
+  }
+  function clockOf(r) { var s = r.querySelector('.row__status'); return s && !s.hidden ? s.textContent : ''; }
 
   function composeForecast(groups, all, now) {
     var todayAll = [].concat(all.earlier, all.live, all.morning, all.afternoon, all.evening, all.tonight);
@@ -2016,13 +2053,172 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
       .catch(function () {});
   }
 
+  // ---- live scores: ESPN's scoreboard, read by the browser while matches are on -----------------
+  // The page is rebuilt three times a day, so a match that kicks off between rebuilds would show no
+  // score until the next one. From 15 minutes before a kickoff until ESPN calls the match over, the
+  // page asks ESPN's public scoreboard (which allows any origin) for that competition's day, once a
+  // minute while the tab is visible, and updates the rows in place. A match that finished since the
+  // rebuild is asked about once, so "Earlier today" carries its result; competitions the viewer has
+  // switched off are not asked about. The requests start after the page has drawn, each is abandoned
+  // after 8 seconds, and any failure leaves the page as built; repeated failures back off to one try
+  // in ten minutes.
+  var LIVE = { base: 'https://site.api.espn.com/apis/site/v2/sports/soccer/', everyMs: 60000, timeoutMs: 8000,
+               leadMs: 15 * 60000, tailMs: 4 * 3600000, lookbackMs: 30 * 3600000,
+               busy: false, startedAt: 0, okAt: 0, fails: 0, nextAt: 0 };
+  (function () {   // a test server on this machine may stand in for ESPN: ?scoresbase=http://localhost:8000/espn/
+    var m = /[?&]scoresbase=([^&#]+)/.exec(location.search), b = m ? decodeURIComponent(m[1]) : '';
+    if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname) && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?\//.test(b)) LIVE.base = b;
+  })();
+  // ESPN files a match under its Eastern calendar date (a 9 pm Eastern kickoff is 01:00 UTC the next day).
+  var fmtEtYmd = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' });
+  function etYmd(k) { var p = {}; fmtEtYmd.formatToParts(new Date(k)).forEach(function (x) { p[x.type] = x.value; }); return p.year + p.month + p.day; }
+  function liveDue(r, now) {
+    if (!r._tv || r._state === 'post' || compOff[r._lg] || now < r._k - LIVE.leadMs) return false;
+    if (now < r._k + LIVE.tailMs) return true;
+    return !r._asked && now < r._k + LIVE.lookbackMs;
+  }
+  // Resolves with the parsed body, or rejects on an HTTP error, a network error or the timeout,
+  // whichever comes first; the timeout covers the body as well as the headers.
+  function getJson(url) {
+    return new Promise(function (resolve, reject) {
+      var ctl = window.AbortController ? new AbortController() : null, done = false;
+      function finish(fn, v) { if (done) return; done = true; clearTimeout(timer); fn(v); }
+      var timer = setTimeout(function () { if (ctl) ctl.abort(); finish(reject, new Error('timeout')); }, LIVE.timeoutMs);
+      fetch(url, { cache: 'no-store', credentials: 'omit', signal: ctl ? ctl.signal : undefined })
+        .then(function (res) { if (!res.ok) throw new Error('HTTP ' + res.status); return res.json(); })
+        .then(function (j) { finish(resolve, j); }, function (e) { finish(reject, e); });
+    });
+  }
+  // The same reading of ESPN's status as build.py's interpret().
+  function liveStatus(st) {
+    var t = (st && st.type) || {}, desc = (t.description || '').toLowerCase();
+    if (t.state === 'in') return desc.indexOf('halftime') === 0 ? 'HT' : (st.displayClock || t.shortDetail || 'Live');
+    if (t.state === 'post') return /^(full time|final|full-time)$/.test(desc) ? 'FT' : (t.shortDetail || t.description || 'FT');
+    return '';
+  }
+  function liveGoals(comp, side) {
+    var by = {}, parts = [];
+    (comp.details || []).forEach(function (d) {
+      if (!d || !d.scoringPlay || d.shootout) return;
+      var who = (d.athletesInvolved || [])[0] || {}, note = d.penaltyKick ? 'pen' : d.ownGoal ? 'og' : '';
+      var tid = String((d.team || {}).id || '');
+      (by[tid] = by[tid] || []).push(((who.shortName || who.displayName || '') + ' ' + ((d.clock || {}).displayValue || '')).trim() + (note ? ' (' + note + ')' : ''));
+    });
+    ['home', 'away'].forEach(function (h) {
+      var t = side[h].team || {}, list = by[String(t.id || '')];
+      if (list) parts.push({ team: (t.abbreviation || '').slice(0, 4) || t.displayName || t.name || '', who: list.join(', ') });
+    });
+    return parts;
+  }
+  function setGoals(r, parts) {
+    var el = r.querySelector('.row__goals');
+    if (!el) {
+      var before = r.querySelector('.row__body > .row__note, .row__body > .pills'); if (!before) return;
+      el = document.createElement('div'); el.className = 'row__goals'; before.parentNode.insertBefore(el, before);
+    }
+    el.textContent = '';
+    parts.forEach(function (p, i) {
+      if (i) el.appendChild(document.createTextNode(' · '));
+      var b = document.createElement('b'); b.textContent = p.team; el.appendChild(b);
+      el.appendChild(document.createTextNode(' ' + p.who));
+    });
+  }
+  function flash(el) {
+    el.classList.remove('score--new'); void el.offsetWidth; el.classList.add('score--new');
+    setTimeout(function () { el.classList.remove('score--new'); }, 3200);
+  }
+  // Brings one row up to date with ESPN's event, noting in `changed` what moved.
+  function applyEvent(r, ev, first, changed) {
+    var comp = (ev.competitions || [])[0]; if (!comp) return;
+    var st = comp.status || ev.status || {}, state = (st.type || {}).state;
+    if (state !== 'pre' && state !== 'in' && state !== 'post') return;
+    var side = {};
+    (comp.competitors || []).forEach(function (c) { if (c && (c.homeAway === 'home' || c.homeAway === 'away')) side[c.homeAway] = c; });
+    if (!side.home || !side.away) return;
+    var status = liveStatus(st), off = state === 'post' && /^(canceled|cancelled|postponed)$/i.test(status);
+    var played = state !== 'pre' && !off;
+    var vals = [side.home, side.away].map(function (c) {
+      var v = c.score != null && typeof c.score === 'object' ? c.score.displayValue : c.score;
+      return played && /^\d{1,3}$/.test(String(v)) ? String(v) : '';
+    });
+    r._seen = Date.now();
+    if (state !== r._state) {
+      r._state = state; r.setAttribute('data-state', state); changed.state = true;
+      if (off) { r._score = 0; r.setAttribute('data-score', '0'); }
+    }
+    var els = r.querySelectorAll('.team .score');
+    vals.forEach(function (v, i) {
+      var el = els[i]; if (!el) return;
+      if (el.hidden && v === '' || !el.hidden && el.textContent === v) return;
+      if (!first && !el.hidden && v !== '') flash(el);
+      el.textContent = v; el.hidden = v === ''; changed.score = true;
+    });
+    var s = r.querySelector('.row__status');
+    if (s && s.textContent !== status) { s.textContent = status; s.hidden = !status; changed.clock = true; }
+    // Replace the scorers only with a list, or with nothing at 0-0: a feed that has the score but not
+    // yet the scorer shouldn't wipe the scorers the page was built with.
+    var goals = played ? liveGoals(comp, side) : [], g = r.querySelector('.row__goals');
+    if (goals.length) setGoals(r, goals);
+    else if (g && (!played || vals[0] === '0' && vals[1] === '0')) g.parentNode.removeChild(g);
+  }
+  function showLiveNote() {
+    var el = document.getElementById('livenote');
+    if (!LIVE.okAt && !LIVE.fails) return;
+    var t = LIVE.okAt ? splitTime(new Date(LIVE.okAt)) : null, when = t ? t.t + ' ' + t.ap : '';
+    el.textContent = !LIVE.fails ? 'Scores update live from ESPN while matches are on; last checked at ' + when + '.'
+      : LIVE.okAt ? 'Scores update live from ESPN while matches are on; last checked at ' + when + ', and the latest check didn’t get through, so it will try again shortly.'
+      : 'Couldn’t reach ESPN for live scores just now, so scores are as of the last rebuild; it will try again shortly.';
+    el.hidden = false;
+  }
+  function refreshLiveText() {
+    var now = nowMs();
+    picksEl.querySelectorAll('.pick').forEach(function (a) { var w = a.querySelector('.pick__when'); if (a._row && w) setPickWhen(w, a._row, now); });
+    missesEl.querySelectorAll('.miss').forEach(function (d) { var t = d.querySelector('.miss__time'); if (d._row && t) t.textContent = missTime(d._row, now); });
+  }
+  function pollLive() {
+    if (!window.fetch || !window.Promise || LIVE.busy || document.hidden) return;
+    if (Date.now() < LIVE.nextAt || Date.now() - LIVE.startedAt < 20000) return;
+    var now = nowMs(), groups = {}, keys = [];
+    rows.forEach(function (r) {
+      if (!liveDue(r, now)) return;
+      var key = r._lg + '/' + etYmd(r._k);
+      if (!groups[key]) { groups[key] = []; keys.push(key); }
+      groups[key].push(r);
+    });
+    if (!keys.length) return;
+    LIVE.busy = true; LIVE.startedAt = Date.now();
+    var changed = { state: false, score: false, clock: false }, ok = 0;
+    Promise.all(keys.map(function (key) {
+      var lg = key.split('/')[0], day = key.split('/')[1];
+      return getJson(LIVE.base + encodeURIComponent(lg) + '/scoreboard?dates=' + day + '&limit=200').then(function (data) {
+        ok++;
+        var byId = {};
+        ((data && data.events) || []).forEach(function (ev) { if (ev && ev.id != null) byId[String(ev.id)] = ev; });
+        groups[key].forEach(function (r) {
+          var first = !r._asked, ev = byId[r.getAttribute('data-id')];
+          r._asked = true;
+          try { if (ev) applyEvent(r, ev, first, changed); } catch (e) {}
+        });
+      }).catch(function () {});
+    })).then(function () {
+      LIVE.busy = false;
+      if (ok) { LIVE.okAt = Date.now(); LIVE.fails = 0; LIVE.nextAt = 0; }
+      else { LIVE.fails++; LIVE.nextAt = Date.now() + Math.min(LIVE.everyMs * Math.pow(2, LIVE.fails), 10 * 60000) - 2000; }
+      showLiveNote();
+      if (changed.state || changed.score) render(true);
+      else if (changed.clock) { render(false); refreshLiveText(); }
+    });
+  }
+
   evaluateAll();
   applyFilterUI();
   render(true);
   checkStale();
   loadStory();
+  setTimeout(pollLive, 0);
   setInterval(function () { render(false); checkStale(); }, 60000);
-  document.addEventListener('visibilitychange', function () { if (!document.hidden) { render(false); checkStale(); } });
+  setInterval(pollLive, LIVE.everyMs);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) { render(false); checkStale(); pollLive(); } });
 })();
 </script>
 '''
