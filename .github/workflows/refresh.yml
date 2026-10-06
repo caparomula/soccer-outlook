@@ -1,0 +1,59 @@
+# Rebuilds the page from ESPN's public data and publishes it to GitHub Pages.
+#
+# Pages serves the gh-pages branch. Each run replaces that branch with a single commit holding the
+# new page, so the branch never accumulates history, and the daily push keeps the repository active
+# (GitHub disables scheduled workflows in public repositories after 60 days without activity).
+#
+# Schedules are in UTC and GitHub may start them late when it is busy. The three runs land at about
+# 4:50 am, 12:50 pm and 6:50 pm Eastern daylight time, an hour earlier in standard time.
+name: Refresh outlook
+
+on:
+  schedule:
+    - cron: "50 8 * * *"
+    - cron: "50 16 * * *"
+    - cron: "50 22 * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["build.py", ".github/workflows/refresh.yml"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the page
+        run: python3 build.py --out site/index.html
+
+      - name: Check the page
+        run: |
+          size=$(stat -c %s site/index.html)
+          rows=$(grep -o '<li class="row ' site/index.html | wc -l)
+          echo "page ${size} bytes, ${rows} matches"
+          if [ "$size" -lt 200000 ] || [ "$rows" -lt 50 ]; then
+            echo "::error::The page looks incomplete (${size} bytes, ${rows} matches); keeping the published one."
+            exit 1
+          fi
+
+      - name: Publish to gh-pages
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd site
+          touch .nojekyll
+          git init -q -b gh-pages
+          git add -A
+          git -c user.name="github-actions[bot]" \
+              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit -q -m "Page built $(date -u +%Y-%m-%dT%H:%MZ) from ${GITHUB_SHA::7}"
+          git push -q --force "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" gh-pages
