@@ -807,7 +807,8 @@ def detail_html(m, cache):
         head = f'<i class="head l-{esc(t.head_key)}"></i>' if t.head_key and t.head_key in cache else ""
         facts = []
         if t.rank:
-            facts.append(ordinal(t.rank) + (f" in {t.group}" if t.group and t.group.lower() not in ("overall",) else "") + (f", {t.pts} pt" + ("" if t.pts == "1" else "s") if t.pts else "") + (f", {t.record}" if t.record else ""))
+            grouped = len((STANDINGS.get(m.league) or {}).get("tables") or []) > 1   # name the group only when there are several
+            facts.append(ordinal(t.rank) + (f" in {t.group}" if grouped and t.group else "") + (f", {t.pts} pt" + ("" if t.pts == "1" else "s") if t.pts else "") + (f", {t.record}" if t.record else ""))
         elif t.record:
             facts.append(f"Record {t.record}")
         if t.leader and t.leader_goals not in ("", "0"):
@@ -1256,6 +1257,10 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
 .miss__names { font-weight: 600; line-height: 1.25; }
 .miss__time { font-weight: 400; color: var(--muted); font-size: 14px; white-space: nowrap; }
 .miss__where { color: var(--muted); font-size: 13px; margin-top: 4px; display: flex; flex-wrap: wrap; gap: 4px; }
+.miss { flex-wrap: wrap; }
+.miss__body { flex: 1; min-width: 0; }
+.miss > .row__detail { flex: 1 0 100%; margin-top: 2px; }
+.miss .detail__grid { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
 
 /* Lineup */
 .lineup { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
@@ -1667,7 +1672,8 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
   document.addEventListener('click', function (ev) {
     var btn = ev.target.closest('button.more');
     if (btn) {
-      var panel = btn.closest('.row__body').querySelector('.row__detail'); if (!panel) return;
+      var host = btn.closest('.row__body, .miss'); if (!host) return;
+      var panel = host.querySelector('.row__detail'); if (!panel) return;
       panel.hidden = !panel.hidden; btn.setAttribute('aria-expanded', String(!panel.hidden)); btn.textContent = panel.hidden ? 'Details' : 'Hide details';
       return;
     }
@@ -1723,8 +1729,14 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
       var tm = document.createElement('span'); tm.className = 'miss__time'; tm.textContent = timeLabel(r) + dayTag(r, now); names.appendChild(tm);
       var where = document.createElement('div'); where.className = 'miss__where';
       var pills = r.querySelector('.pills'); if (pills) where.innerHTML = pills.innerHTML;
-      bodyEl.appendChild(names); bodyEl.appendChild(where);
-      d.appendChild(teams); d.appendChild(bodyEl); missesEl.appendChild(d);
+      var more = where.querySelector('button.more'); if (more) { more.textContent = 'Details'; more.setAttribute('aria-expanded', 'false'); }
+      bodyEl.className = 'miss__body'; bodyEl.appendChild(names); bodyEl.appendChild(where);
+      d.appendChild(teams); d.appendChild(bodyEl);
+      // The card gets its own copy of the row's details panel: the row itself is hidden whenever
+      // "On my services" is on, which is exactly when these cards matter.
+      var detail = r.querySelector('.row__detail');
+      if (detail) { var copy = detail.cloneNode(true); copy.hidden = true; d.appendChild(copy); }
+      missesEl.appendChild(d);
     });
   }
 
