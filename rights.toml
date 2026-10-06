@@ -1,0 +1,416 @@
+# Who shows what in the US: the facts behind every "where to watch" on the page.
+#
+# ESPN's listings name each match's broadcasters ("FS2", "USA Net"), usually only a few days out.
+# This file says which streaming services carry each broadcaster, and where a competition usually
+# lives when nothing is listed yet. Rights and carriage change every season and sometimes in the
+# middle of one (a carriage dispute can black a channel out for months), and ESPN's data shows none
+# of that, so every fact names where it came from and the date it was last checked.
+#
+# Each build checks this file and refuses to publish if it contradicts itself. It also warns, on
+# the Actions run page and in a GitHub issue, when ESPN uses a broadcaster name that isn't here,
+# when a competition's usual home disagrees with what ESPN lists or reaches the end of its season,
+# and when an entry hasn't been checked for 180 days.
+#
+# To update: research the change (Claude Code with web search does this well), edit the entry,
+# give its source and today's date as `checked`, and run `python3 -m unittest -v` before pushing
+# (it should report 30 or more tests).
+
+
+# ---- Channels ----------------------------------------------------------------------------------
+# Every broadcaster ESPN lists, under the name the page shows. `espn` holds the other names ESPN
+# uses for it (matched in any case; the name itself always matches). `free` marks one anyone can
+# watch, over the air or in a free app; `es` marks a Spanish-language one. A channel no service
+# carries can stay here so that its name is recognized.
+
+[channels]
+"ESPN+"                     = {}
+"ESPN Unlimited"            = { espn = ["ESPN Unlmtd"] }
+"ESPN"                      = {}
+"ESPN2"                     = {}
+"ESPNU"                     = {}
+"ESPNEWS"                   = {}
+"ESPN Deportes"             = { es = true }
+"ACC Network"               = { espn = ["ACCN"] }
+"SEC Network"               = { espn = ["SECN"] }
+"ABC"                       = { free = true }
+"FS1"                       = {}
+"FS2"                       = {}
+"FOX"                       = { free = true }
+"Fox Deportes"              = { es = true }
+"Big Ten Network"           = { espn = ["BTN"] }
+"Fox Soccer Plus"           = { espn = ["FSP"] }
+"Fox Sports app"            = {}
+"Paramount+"                = {}
+"CBS"                       = { free = true }
+"CBS Sports Network"        = { espn = ["CBSSN"] }
+"CBS Sports Golazo Network" = { espn = ["Golazo"], free = true }
+"Apple TV"                  = { espn = ["Apple TV+", "MLS Season Pass"] }
+"USA Network"               = { espn = ["USA", "USA Net"] }
+"NBC"                       = { free = true }
+"Peacock"                   = {}
+"NBCSN"                     = {}
+"CNBC"                      = {}
+"Telemundo"                 = { espn = ["Tele"], free = true, es = true }
+"Universo"                  = { es = true }
+"HBO Max"                   = { espn = ["Max"] }
+"TNT"                       = {}
+"TBS"                       = {}
+"truTV"                     = {}
+"Prime Video"               = { espn = ["Amazon Prime Video"] }
+"Netflix"                   = {}
+"Disney+"                   = {}
+"ION"                       = { free = true }
+"The Roku Channel"          = { espn = ["Roku"], free = true }
+"Victory+"                  = { free = true }
+"Fandango"                  = { free = true }
+"NWSL+"                     = { free = true }
+"Tubi"                      = { free = true }
+"YouTube"                   = { free = true }
+"The CW"                    = { espn = ["CW"], free = true }
+"TUDN"                      = { es = true }
+"Univision"                 = { free = true, es = true }
+"UniMás"                    = { espn = ["UniMas"], free = true, es = true }
+"ViX"                       = { es = true }
+"Fubo"                      = {}
+"Fubo Sports Network"       = { free = true }
+"beIN Sports"               = {}
+"beIN Sports en Español"    = { es = true }
+"Fanatiz"                   = {}
+"DAZN"                      = {}
+"Hulu"                      = {}
+
+
+# ---- Services ----------------------------------------------------------------------------------
+# What a viewer can say they have, in the order the page prefers when a match is on several of
+# them. `channels` is everything the service carries, by the names above. The id is used in the
+# page's markup and colors, and in viewers' saved lineups, so it never changes.
+
+[services.hbo]
+name = "HBO Max"
+channels = ["HBO Max", "TNT", "TBS", "truTV"]
+source = "TNT Sports' soccer streams on HBO Max (research for the first build of the page)"
+checked = 2026-10-03
+
+[services.fox]
+name = "Fox One"
+channels = ["FOX", "FS1", "FS2", "Fox Deportes", "Big Ten Network"]
+note = "Not Fox Soccer Plus."
+source = "https://www.foxsports.com/stories/nfl/fox-one-launches-today-stream-fox-live-news-sports-entertainment-shows"
+checked = 2026-10-03
+
+[services.para]
+name = "Paramount+"
+channels = ["Paramount+", "CBS"]
+note = "CBS's live matches need the Premium plan. CBS Sports Network streams here only for the competitions under Simulcasts."
+source = "CBS Sports and Paramount+ (research for the first build of the page)"
+checked = 2026-10-03
+
+[services.espn]
+name = "ESPN Unlimited"
+channels = ["ESPN+", "ESPN Unlimited", "ESPN", "ESPN2", "ESPNU", "ESPNEWS", "ESPN Deportes", "ACC Network", "SEC Network", "ABC"]
+source = "ESPN Unlimited includes every ESPN network, ESPN on ABC and ESPN+ (research for the first build of the page)"
+checked = 2026-10-03
+
+[services.espnplus]
+name = "ESPN Select (ESPN+)"
+channels = ["ESPN+"]
+source = "ESPN Select is ESPN+ alone (research for the first build of the page)"
+checked = 2026-10-03
+
+[services.apple]
+name = "Apple TV"
+channels = ["Apple TV"]
+source = "Every MLS match is in the Apple TV subscription from 2026"
+checked = 2026-10-03
+
+[services.usa]
+name = "USA Network"
+channels = ["USA Network"]
+source = "The channel itself"
+checked = 2026-10-03
+
+[services.peacock]
+name = "Peacock"
+channels = ["Peacock", "NBC"]
+note = "Peacock simulcasts NBC's Premier League matches, but not USA Network's or NBCSN's, and only some of Telemundo's."
+source = "https://www.nbcsports.com/pressbox/press-releases/the-premier-league-is-back-the-2026-27-season-begins-in-three-days-across-nbcuniversal-platforms-featuring-nbc-sports-premier-league-live-studio-team-on-the-ground-in-the-u-k"
+checked = 2026-10-06
+
+[services.prime]
+name = "Prime Video"
+channels = ["Prime Video"]
+source = "The service itself"
+checked = 2026-10-03
+
+[services.netflix]
+name = "Netflix"
+channels = ["Netflix"]
+source = "The service itself"
+checked = 2026-10-03
+
+[services.disney]
+name = "Disney+"
+channels = ["Disney+"]
+source = "The service itself"
+checked = 2026-10-03
+
+[services.vix]
+name = "ViX"
+channels = ["ViX", "TUDN", "Univision", "UniMás"]
+note = "ViX Premium streams TUDN's and Univision's matches."
+source = "TelevisaUnivision (research for the first build of the page)"
+checked = 2026-10-03
+
+[services.fubo]
+name = "Fubo"
+channels = ["Fubo", "Fubo Sports Network", "FOX", "FS1", "FS2", "Big Ten Network", "ESPN", "ESPN2", "ACC Network", "SEC Network", "ABC",
+            "CBS", "CBS Sports Network", "NBC", "NBCSN", "USA Network", "CNBC", "Telemundo", "beIN Sports", "beIN Sports en Español", "ION", "The CW"]
+note = """The Pro plan. ESPNU, ESPNEWS and Universo need Elite; ESPN Deportes, Fox Deportes and Fox Soccer Plus the International \
+Sports Plus add-on. No ESPN+, TNT, TBS or truTV, and no TelevisaUnivision networks since December 2024. NBCUniversal's networks \
+returned in June 2026 after a six-month blackout."""
+source = "https://www.cabletv.com/fubotv/channel-lineup (August 2026) and https://www.sportsmediawatch.com/2026/06/nbcuniversal-fubo-reach-distribution-deal/"
+checked = 2026-10-06
+
+[services.fsp]
+name = "Fox Soccer Plus"
+channels = ["Fox Soccer Plus"]
+source = "The channel itself"
+checked = 2026-10-03
+
+[services.bein]
+name = "beIN Sports"
+channels = ["beIN Sports", "beIN Sports en Español"]
+source = "The channels themselves"
+checked = 2026-10-03
+
+[services.fanatiz]
+name = "Fanatiz"
+channels = ["Fanatiz"]
+source = "The service itself"
+checked = 2026-10-03
+
+[services.dazn]
+name = "DAZN"
+channels = ["DAZN"]
+source = "The service itself"
+checked = 2026-10-03
+
+[services.cable]
+name = "Cable or live-TV bundle"
+channels = ["ESPN", "ESPN2", "ESPNU", "ESPNEWS", "ESPN Deportes", "ACC Network", "SEC Network", "ABC", "FS1", "FS2", "FOX",
+            "Fox Deportes", "Big Ten Network", "CBS", "CBS Sports Network", "USA Network", "NBC", "NBCSN", "CNBC", "Telemundo",
+            "Universo", "TNT", "TBS", "truTV", "ION", "The CW", "TUDN", "Univision", "UniMás"]
+note = "A cable package, YouTube TV or Hulu + Live TV. Premium sports channels (beIN Sports, Fox Soccer Plus) are not assumed."
+source = "Typical cable and live-TV bundles (research for the first build of the page)"
+checked = 2026-10-03
+
+[services.ota]
+name = "Local channels (antenna)"
+channels = ["ABC", "FOX", "CBS", "NBC", "Telemundo", "ION", "The CW", "Univision", "UniMás"]
+source = "The broadcast networks"
+checked = 2026-10-03
+
+[services.free]
+name = "Free apps (Fandango, NWSL+, Tubi, Roku)"
+channels = ["Fandango", "NWSL+", "Tubi", "The Roku Channel", "YouTube", "CBS Sports Golazo Network", "Victory+", "Fubo Sports Network"]
+note = "Fandango streams most Bundesliga matches free from 2026-27. Victory+ lost the NWSL in July 2026."
+source = "https://www.usanetwork.com/usa-insider/how-to-watch-bundesliga-on-usa-network-streaming-on-fandango and NWSL+ (nwslsoccer.com)"
+checked = 2026-10-06
+
+
+# ---- Simulcasts --------------------------------------------------------------------------------
+# A channel that a service streams for some competitions only.
+
+[[simulcasts]]
+channel = "CBS Sports Network"
+service = "para"
+leagues = ["ita.1", "eng.w.1", "uefa.champions", "uefa.europa", "uefa.europa.conf", "uefa.wchampions", "sco.1",
+           "eng.league_cup", "ita.coppa_italia", "eng.2"]
+note = "Every match of these competitions streams on Paramount+. Not confirmed for the NWSL."
+source = "ESPN listings, Sept 1 to Oct 16 2026: every Serie A, Champions League, Europa League and Women's Super League match on CBSSN was also listed on Paramount+"
+checked = 2026-10-06
+
+
+# ---- Competitions ------------------------------------------------------------------------------
+# By ESPN's league id (the competitions themselves are listed in build.py). `usual` is the channel
+# that carries every match ESPN hasn't listed yet, shown as "usually ..." on the page. It holds
+# for one `season` and lapses after `until`, so that a rights change at the turn of a season can't
+# leave a wrong claim standing: after that the page shows no usual home until the entry is
+# confirmed again. `hint` is free text for where a competition lives otherwise.
+
+[leagues."eng.1"]
+hint = "NBC, USA Network or Peacock · channel posted a few days out"
+source = "https://www.nbcsports.com/pressbox/press-releases/the-premier-league-is-back-the-2026-27-season-begins-in-three-days-across-nbcuniversal-platforms-featuring-nbc-sports-premier-league-live-studio-team-on-the-ground-in-the-u-k"
+checked = 2026-10-06
+
+[leagues."esp.1"]
+usual = "ESPN+"
+season = "2026-27"
+until = 2027-06-30
+source = "ESPN listings, Sept 1 to Oct 16 2026: all 50 listed matches on ESPN+"
+checked = 2026-10-06
+
+[leagues."ger.1"]
+usual = "Fandango"
+season = "2026-27"
+until = 2027-06-30
+note = "Versant's five-year deal from 2026-27: 30-odd matches a season on USA Network (ESPN lists those), the rest free on Fandango."
+source = "https://www.usanetwork.com/usa-insider/how-to-watch-bundesliga-on-usa-network-streaming-on-fandango"
+checked = 2026-10-06
+
+[leagues."ita.1"]
+usual = "Paramount+"
+season = "2026-27"
+until = 2027-06-30
+source = "ESPN listings, Sept 1 to Oct 16 2026: all 41 listed matches on Paramount+"
+checked = 2026-10-06
+
+[leagues."fra.1"]
+hint = "beIN Sports"
+source = "ESPN listings, Sept 1 to Oct 16 2026: all 5 listed matches on beIN Sports"
+checked = 2026-10-06
+
+[leagues."usa.1"]
+usual = "Apple TV"
+season = "2026"
+until = 2026-12-31
+source = "ESPN listings, Sept 1 to Oct 16 2026: all 106 listed matches on Apple TV"
+checked = 2026-10-06
+
+[leagues."mex.1"]
+hint = "TUDN, Univision or ViX · a few clubs on FS1, FS2 or Fox Deportes"
+source = "Research for the first build of the page; ESPN lists no Liga MX broadcasters"
+checked = 2026-10-03
+
+[leagues."usa.nwsl"]
+hint = "CBS or Paramount+, ESPN, Prime Video, ION, Roku or NWSL+"
+source = "ESPN listings, Sept 1 to Oct 16 2026; Victory+ lost its NWSL rights in July 2026"
+checked = 2026-10-06
+
+[leagues."eng.w.1"]
+usual = "Paramount+"
+season = "2026-27"
+until = 2027-06-30
+source = "ESPN listings, Sept 1 to Oct 16 2026: all 35 listed matches on Paramount+"
+checked = 2026-10-06
+
+[leagues."uefa.champions"]
+usual = "Paramount+"
+season = "2026-27"
+until = 2027-06-30
+source = "ESPN listings, Sept 1 to Oct 16 2026: all 36 listed matches on Paramount+"
+checked = 2026-10-06
+
+[leagues."uefa.europa"]
+usual = "Paramount+"
+season = "2026-27"
+until = 2027-06-30
+source = "ESPN listings, Sept 1 to Oct 16 2026: all 36 listed matches on Paramount+"
+checked = 2026-10-06
+
+[leagues."uefa.europa.conf"]
+usual = "Paramount+"
+season = "2026-27"
+until = 2027-06-30
+source = "ESPN listings, Sept 1 to Oct 16 2026: all 18 listed matches on Paramount+"
+checked = 2026-10-06
+
+[leagues."uefa.wchampions"]
+usual = "Paramount+"
+season = "2026-27"
+until = 2027-06-30
+source = "ESPN listings, Sept 1 to Oct 16 2026: all 18 listed matches on Paramount+"
+checked = 2026-10-06
+
+[leagues."uefa.nations"]
+hint = "Fox Sports family · FS1 and FS2 are in Fox One and Fubo; Fox Soccer Plus and Tubi are separate"
+source = "https://www.foxsports.com/soccer/nations-league/schedule"
+checked = 2026-10-03
+
+[leagues."concacaf.nations.league"]
+hint = "Paramount+ has carried Concacaf; not confirmed for this match"
+source = "Research for the first build of the page"
+checked = 2026-10-03
+
+[leagues."eng.2"]
+hint = "Select matches on Paramount+ or CBS Sports Golazo"
+source = "ESPN listings, Sept 1 to Oct 16 2026: 31 of 84 matches listed on Paramount+"
+checked = 2026-10-06
+
+[leagues."eng.fa"]
+usual = "ESPN+"
+season = "2026-27"
+until = 2027-06-30
+source = "Research for the first build of the page; no FA Cup matches listed yet this season"
+checked = 2026-10-03
+
+[leagues."eng.league_cup"]
+usual = "Paramount+"
+season = "2026-27"
+until = 2027-06-30
+source = "ESPN listings, Sept 1 to Oct 16 2026: all 11 listed matches on Paramount+"
+checked = 2026-10-06
+
+[leagues."esp.copa_del_rey"]
+usual = "ESPN+"
+season = "2026-27"
+until = 2027-06-30
+note = "ESPN's deal runs through the 2026-27 edition."
+source = "https://www.sportcal.com/news/media/espn-retains-us-rights-to-copa-del-rey-and-spanish-super-cup/"
+checked = 2026-10-06
+
+[leagues."ger.dfb_pokal"]
+hint = "ESPN's rights ended in 2026 · this season's US home not confirmed"
+source = "https://espnpressroom.com/press-release/espn-renews-dfb-pokal-rights-through-2026/"
+checked = 2026-10-06
+
+[leagues."ita.coppa_italia"]
+usual = "Paramount+"
+season = "2026-27"
+until = 2027-06-30
+source = "Research for the first build of the page; no Coppa Italia matches listed yet this season"
+checked = 2026-10-03
+
+[leagues."ned.1"]
+usual = "ESPN+"
+season = "2026-27"
+until = 2027-06-30
+source = "ESPN listings, Sept 1 to Oct 16 2026: all 17 listed matches on ESPN+"
+checked = 2026-10-06
+
+[leagues."sco.1"]
+usual = "Paramount+"
+season = "2026-27"
+until = 2027-06-30
+note = "CBS renewed after 2024-25; most matches on Paramount+, a few on CBS's channels. ESPN lists them late."
+source = "https://sports.yahoo.com/articles/watch-scottish-premiership-live-streams-100001093.html"
+checked = 2026-10-06
+
+[leagues."usa.usl.1"]
+usual = "ESPN+"
+season = "2026"
+until = 2026-12-31
+source = "ESPN listings, Sept 1 to Oct 16 2026: 63 of 64 listed matches on ESPN+"
+checked = 2026-10-06
+
+[leagues."usa.usl.l1"]
+usual = "ESPN+"
+season = "2026"
+until = 2026-12-31
+source = "ESPN listings, Sept 1 to Oct 16 2026: 60 of 61 listed matches on ESPN+"
+checked = 2026-10-06
+
+[leagues."bra.1"]
+hint = "Fanatiz or TV Globo Internacional"
+source = "Research for the first build of the page; ESPN lists no Brasileirão broadcasters"
+checked = 2026-10-03
+
+[leagues."arg.1"]
+hint = "Fanatiz, ViX or TyC Sports · Paramount+ no longer confirmed"
+source = "https://worldsoccertalk.com/superliga-argentina-tv-schedule/"
+checked = 2026-10-03
+
+[leagues."caf.nations"]
+hint = "beIN Sports"
+source = "Research for the first build of the page"
+checked = 2026-10-03

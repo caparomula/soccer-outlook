@@ -4,11 +4,13 @@ viewer's streaming services.
 
 Data comes from ESPN's public scoreboard and standings APIs, one scoreboard request per league per
 day (the API rejects date ranges for soccer). Each match's listed US broadcasters are mapped to
-streaming services through OUTLETS; when ESPN has not listed broadcasters yet (common more than a
-few days out) a per-league rule in LEAGUES names the league's usual US home, and the page marks
-that basis as "usually" rather than "listed". The page carries every outlet's service mapping, so
-the viewer's own lineup, chosen in the page and kept in that browser, decides what counts as
-available; OWNER is the default lineup.
+streaming services through rights.toml, which also names each competition's usual US home for when
+ESPN has not listed broadcasters yet (common more than a few days out); the page marks that basis
+as "usually" rather than "listed". Every fact in rights.toml carries its source and check date, the
+build refuses a file that contradicts itself, and each build reports what it couldn't map or vouch
+for (--warnings). The page carries every outlet's service mapping, so the viewer's own lineup,
+chosen in the page and kept in that browser, decides what counts as available; OWNER is the
+default lineup.
 
 The page's own script re-buckets the matches by the viewer's clock ("Live now", "This morning",
 "This afternoon", "This evening", "Tonight", "Tomorrow", "Later this week") and refreshes that
@@ -20,7 +22,7 @@ By default the page links team and league images from ESPN's image server, which
 --embed-images embeds them as data URIs instead (a page that must work with no network access),
 cached in --logos between runs and trimmed to PAGE_BUDGET when the page runs large.
 
-Usage: python3 build.py --out site/index.html [--days-ahead 9] [--days-back 1]
+Usage: python3 build.py --out site/index.html [--days-ahead 9] [--days-back 1] [--warnings FILE]
                         [--date YYYY-MM-DD] [--embed-images --logos logos.json] [--fragment] [--workers 6]
 
 Exit status is non-zero when no fixtures could be fetched at all, or when more than half of the
@@ -38,9 +40,10 @@ import re
 import subprocess
 import sys
 import time
+import tomllib
 import urllib.parse
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 ET = ZoneInfo("America/New_York")
@@ -54,172 +57,261 @@ PAGE_BUDGET = 3_300_000  # bytes
 LIVE_MINUTES = 125
 
 # ----------------------------------------------------------------------------------------------
-# Streaming services a viewer can say they have. The order is the preference when a match is on
-# several of them. OWNER is the page owner's lineup, the default for every viewer until they pick
-# their own in the page; the choice stays in that viewer's browser.
+# Leagues to track, by ESPN's league id. tier: 1 marquee, 2 solid, 3 background. default_off:
+# hidden until the viewer turns the competition pill on. Where each one is shown in the US (its
+# usual home, or a hint) is in rights.toml.
 # ----------------------------------------------------------------------------------------------
-SERVICES = {
-    "hbo": "HBO Max",
-    "fox": "Fox One",
-    "para": "Paramount+",
-    "espn": "ESPN Unlimited",
-    "espnplus": "ESPN Select (ESPN+)",
-    "apple": "Apple TV",
-    "usa": "USA Network",
-    "peacock": "Peacock",
-    "prime": "Prime Video",
-    "netflix": "Netflix",
-    "disney": "Disney+",
-    "vix": "ViX",
-    "fubo": "Fubo",
-    "fsp": "Fox Soccer Plus",
-    "bein": "beIN Sports",
-    "fanatiz": "Fanatiz",
-    "dazn": "DAZN",
-    "cable": "Cable or live-TV bundle",
-    "ota": "Local channels (antenna)",
-    "free": "Free apps (Fandango, NWSL+, Tubi, Roku)",
+LEAGUES = {
+    "eng.1": dict(name="Premier League", tier=1),
+    "esp.1": dict(name="La Liga", tier=1),
+    "ger.1": dict(name="Bundesliga", tier=1),   # Versant from 2026-27: 30+ on USA Network, the rest free on Fandango
+    "ita.1": dict(name="Serie A", tier=1),
+    "fra.1": dict(name="Ligue 1", tier=2),
+    "usa.1": dict(name="MLS", tier=2),
+    "mex.1": dict(name="Liga MX", tier=2),
+    "usa.nwsl": dict(name="NWSL", tier=2),
+    "eng.w.1": dict(name="Women's Super League", tier=2),
+    "uefa.champions": dict(name="Champions League", tier=1),
+    "uefa.europa": dict(name="Europa League", tier=2),
+    "uefa.europa.conf": dict(name="Conference League", tier=3),
+    "uefa.wchampions": dict(name="Women's Champions League", tier=2),
+    "uefa.nations": dict(name="Nations League", tier=2),
+    "fifa.friendly": dict(name="Men's friendly", tier=2),
+    "fifa.friendly.w": dict(name="Women's friendly", tier=2),
+    "concacaf.nations.league": dict(name="Concacaf Nations League", tier=3),
+    "eng.2": dict(name="Championship", tier=3),
+    "eng.fa": dict(name="FA Cup", tier=2),
+    "eng.league_cup": dict(name="Carabao Cup", tier=2),
+    "esp.copa_del_rey": dict(name="Copa del Rey", tier=2),
+    "ger.dfb_pokal": dict(name="DFB-Pokal", tier=2),
+    "ita.coppa_italia": dict(name="Coppa Italia", tier=2),
+    "ned.1": dict(name="Eredivisie", tier=2),
+    "por.1": dict(name="Primeira Liga", tier=3),
+    "sco.1": dict(name="Scottish Premiership", tier=3),
+    "usa.usl.1": dict(name="USL Championship", tier=3, default_off=True),
+    "usa.usl.l1": dict(name="USL League One", tier=3, default_off=True),
+    "bra.1": dict(name="Brasileirão", tier=3),
+    "arg.1": dict(name="Liga Profesional (Argentina)", tier=3),
+    "ksa.1": dict(name="Saudi Pro League", tier=3),
+    "concacaf.champions": dict(name="Concacaf Champions Cup", tier=2),
+    "usa.open": dict(name="U.S. Open Cup", tier=3),
+    "caf.nations": dict(name="Africa Cup of Nations", tier=2),
 }
-SERVICE_RANK = list(SERVICES)
-OWNER = ["hbo", "fox", "para", "espn", "apple", "usa", "prime", "netflix", "disney", "free"]
 
 # ----------------------------------------------------------------------------------------------
-# ESPN broadcaster short names (lower case) -> the outlet's label and the services that carry it.
-# Facts behind the mapping: Fox One includes FOX, FS1, FS2, BTN and Fox Deportes but not Fox
-# Soccer Plus; ESPN Unlimited includes every ESPN network, ESPN on ABC and ESPN+, while ESPN
-# Select is ESPN+ alone; TNT Sports' soccer streams on HBO Max; CBS matches stream on Paramount+
-# Premium and NBC's on Peacock; ViX Premium streams TUDN and Univision's matches; a cable or
-# live-TV bundle carries the cable channels and the local stations; "free" is a free app.
-# "fubo" is Fubo's Pro plan as of October 2026: FOX, FS1, FS2, BTN, ESPN, ESPN2, ACC and SEC
-# Network, ABC, CBS, CBS Sports Network, NBC, USA Network, CNBC, Telemundo, beIN Sports (both
-# languages), ION and The CW (NBCUniversal's networks returned in June 2026 after a six-month
-# blackout). Not in Pro: ESPNU, ESPNews and Universo (Elite plan); ESPN Deportes, Fox Deportes and
-# Fox Soccer Plus (International Sports Plus add-on); ESPN+. Not on Fubo at all: TNT, TBS, truTV,
-# and the TelevisaUnivision networks (gone since December 2024).
-# NBCSN (relaunched in 2025 for Premier League overflow) is a cable channel; Peacock does not carry
-# it, nor USA Network's matches. Fandango streams most Bundesliga matches free from 2026-27; NWSL+
-# is the NWSL's free app. A name ESPN uses that is missing here counts as on no service, so the
-# build reports every unknown name (see audit()).
+# Who shows what. The facts (which services carry which channels, the names ESPN uses for each
+# channel, and where each competition usually lives) are in rights.toml, each with its source and
+# the date it was checked, because they change with every season's rights deals and carriage
+# disputes. load_rights() reads and checks that file and the tables below are derived from it, so
+# a fact lives in one place. OWNER is the page owner's lineup, the default for every viewer until
+# they pick their own in the page; the choice stays in that viewer's browser.
 # ----------------------------------------------------------------------------------------------
+RIGHTS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "rights.toml")
+OWNER = ["hbo", "fox", "para", "espn", "apple", "usa", "prime", "netflix", "disney", "free"]
+STALE_AFTER_DAYS = 180      # an entry in rights.toml not checked for this long is reported
+LAPSE_NOTICE_DAYS = 30      # a usual home is reported this long before its season ends
+TODAY = datetime.now(ET).date()   # the build's Eastern date; main() sets it, --date included
+
+
+class RightsError(ValueError):
+    """rights.toml contradicts itself or this script; the message lists every problem found."""
+
+
+@dataclass(frozen=True)
+class UsualHome:
+    channel: str
+    season: str
+    until: date
+
+
+@dataclass(frozen=True)
+class LeagueRights:
+    usual: object        # a UsualHome, or None
+    hint: str
+
+
+@dataclass(frozen=True)
+class Rights:
+    services: dict       # service id -> display name, in order of preference
+    outlets: dict        # every name ESPN may use for a channel, lower case -> _o(label, via, free, es)
+    simulcasts: tuple    # (channel, service id, frozenset of league ids)
+    leagues: dict        # league id -> LeagueRights
+    checked: tuple       # (what, date last checked) for every entry that carries a date
+
+
 def _o(label, via, free=False, es=False):
     return dict(label=label, via=via, free=free, es=es)
 
 
-OUTLETS = {
-    "espn+": _o("ESPN+", ["espn", "espnplus"]),
-    "espn unlmtd": _o("ESPN Unlimited", ["espn"]),
-    "espn": _o("ESPN", ["espn", "cable", "fubo"]),
-    "espn2": _o("ESPN2", ["espn", "cable", "fubo"]),
-    "espnu": _o("ESPNU", ["espn", "cable"]),
-    "espnews": _o("ESPNEWS", ["espn", "cable"]),
-    "espn deportes": _o("ESPN Deportes", ["espn", "cable"], es=True),
-    "accn": _o("ACC Network", ["espn", "cable", "fubo"]),
-    "secn": _o("SEC Network", ["espn", "cable", "fubo"]),
-    "abc": _o("ABC", ["espn", "ota", "cable", "fubo"], free=True),
-    "fs1": _o("FS1", ["fox", "cable", "fubo"]),
-    "fs2": _o("FS2", ["fox", "cable", "fubo"]),
-    "fox": _o("FOX", ["fox", "ota", "cable", "fubo"], free=True),
-    "fox deportes": _o("Fox Deportes", ["fox", "cable"], es=True),
-    "btn": _o("Big Ten Network", ["fox", "cable", "fubo"]),
-    "fox soccer plus": _o("Fox Soccer Plus", ["fsp"]),
-    "fsp": _o("Fox Soccer Plus", ["fsp"]),
-    "fox sports app": _o("Fox Sports app", []),
-    "paramount+": _o("Paramount+", ["para"]),
-    "cbs": _o("CBS", ["para", "ota", "cable", "fubo"], free=True),
-    "cbssn": _o("CBS Sports Network", ["cable", "fubo"]),   # plus Paramount+ for all-match leagues
-    "cbs sports network": _o("CBS Sports Network", ["cable", "fubo"]),
-    "golazo": _o("CBS Sports Golazo Network", ["free"], free=True),
-    "cbs sports golazo network": _o("CBS Sports Golazo Network", ["free"], free=True),
-    "apple tv": _o("Apple TV", ["apple"]),
-    "apple tv+": _o("Apple TV", ["apple"]),
-    "mls season pass": _o("Apple TV", ["apple"]),
-    "usa": _o("USA Network", ["usa", "cable", "fubo"]),
-    "usa net": _o("USA Network", ["usa", "cable", "fubo"]),
-    "usa network": _o("USA Network", ["usa", "cable", "fubo"]),
-    "nbc": _o("NBC", ["peacock", "ota", "cable", "fubo"], free=True),
-    "peacock": _o("Peacock", ["peacock"]),
-    "nbcsn": _o("NBCSN", ["cable", "fubo"]),
-    "cnbc": _o("CNBC", ["cable", "fubo"]),
-    "tele": _o("Telemundo", ["ota", "cable", "fubo"], free=True, es=True),
-    "telemundo": _o("Telemundo", ["ota", "cable", "fubo"], free=True, es=True),
-    "universo": _o("Universo", ["cable"], es=True),
-    "hbo max": _o("HBO Max", ["hbo"]),
-    "max": _o("HBO Max", ["hbo"]),
-    "tnt": _o("TNT", ["hbo", "cable"]),
-    "tbs": _o("TBS", ["hbo", "cable"]),
-    "trutv": _o("truTV", ["hbo", "cable"]),
-    "prime video": _o("Prime Video", ["prime"]),
-    "amazon prime video": _o("Prime Video", ["prime"]),
-    "netflix": _o("Netflix", ["netflix"]),
-    "disney+": _o("Disney+", ["disney"]),
-    "ion": _o("ION", ["ota", "cable", "fubo"], free=True),
-    "roku": _o("The Roku Channel", ["free"], free=True),
-    "victory+": _o("Victory+", ["free"], free=True),
-    "fandango": _o("Fandango", ["free"], free=True),
-    "nwsl+": _o("NWSL+", ["free"], free=True),
-    "tubi": _o("Tubi", ["free"], free=True),
-    "youtube": _o("YouTube", ["free"], free=True),
-    "cw": _o("The CW", ["ota", "cable", "fubo"], free=True),
-    "tudn": _o("TUDN", ["vix", "cable"], es=True),
-    "univision": _o("Univision", ["vix", "ota", "cable"], free=True, es=True),
-    "unimas": _o("UniMás", ["vix", "ota", "cable"], free=True, es=True),
-    "unimás": _o("UniMás", ["vix", "ota", "cable"], free=True, es=True),
-    "vix": _o("ViX", ["vix"], es=True),
-    "fubo": _o("Fubo", ["fubo"]),
-    "fubo sports network": _o("Fubo Sports Network", ["fubo", "free"], free=True),
-    "bein sports": _o("beIN Sports", ["bein", "fubo"]),
-    "bein sports en español": _o("beIN Sports en Español", ["bein", "fubo"], es=True),
-    "fanatiz": _o("Fanatiz", ["fanatiz"]),
-    "dazn": _o("DAZN", ["dazn"]),
-    "hulu": _o("Hulu", []),
-}
-# Leagues whose every match streams on Paramount+, so a CBS Sports Network listing is also a
-# Paramount+ stream. For other leagues (the NWSL) that simulcast is not confirmed.
-PARAMOUNT_EVERY_MATCH = {"ita.1", "eng.w.1", "uefa.champions", "uefa.europa", "uefa.europa.conf",
-                         "uefa.wchampions", "sco.1", "eng.league_cup", "ita.coppa_italia", "eng.2"}
+def load_rights(path, leagues):
+    """Reads rights.toml and checks it against itself and against `leagues`, the tracked ids.
 
-# ----------------------------------------------------------------------------------------------
-# Leagues to track. tier: 1 marquee, 2 solid, 3 background. rule: the household service that
-# carries every match of the league when ESPN lists nothing yet (basis "usually"); hint: where
-# the league lives when it is not on any of the household's services. default_off: hidden until
-# the viewer turns the competition pill on.
-# ----------------------------------------------------------------------------------------------
-LEAGUES = {
-    "eng.1": dict(name="Premier League", tier=1, hint="NBC, USA Network or Peacock · channel posted a few days out"),
-    "esp.1": dict(name="La Liga", tier=1, rule="espn", rule_outlet="ESPN+"),
-    "ger.1": dict(name="Bundesliga", tier=1, rule="free", rule_outlet="Fandango"),   # Versant from 2026-27: 30+ on USA Network, the rest free on Fandango
-    "ita.1": dict(name="Serie A", tier=1, rule="para", rule_outlet="Paramount+"),
-    "fra.1": dict(name="Ligue 1", tier=2, hint="beIN Sports"),
-    "usa.1": dict(name="MLS", tier=2, rule="apple", rule_outlet="Apple TV"),
-    "mex.1": dict(name="Liga MX", tier=2, hint="TUDN, Univision or ViX · a few clubs on FS1, FS2 or Fox Deportes"),
-    "usa.nwsl": dict(name="NWSL", tier=2, hint="CBS or Paramount+, ESPN, Prime Video, ION or Victory+"),
-    "eng.w.1": dict(name="Women's Super League", tier=2, rule="para", rule_outlet="Paramount+"),
-    "uefa.champions": dict(name="Champions League", tier=1, rule="para", rule_outlet="Paramount+"),
-    "uefa.europa": dict(name="Europa League", tier=2, rule="para", rule_outlet="Paramount+"),
-    "uefa.europa.conf": dict(name="Conference League", tier=3, rule="para", rule_outlet="Paramount+"),
-    "uefa.wchampions": dict(name="Women's Champions League", tier=2, rule="para", rule_outlet="Paramount+"),
-    "uefa.nations": dict(name="Nations League", tier=2, hint="Fox Sports family · FS1 and FS2 are in Fox One and Fubo; Fox Soccer Plus and Tubi are separate"),
-    "fifa.friendly": dict(name="Men's friendly", tier=2),
-    "fifa.friendly.w": dict(name="Women's friendly", tier=2),
-    "concacaf.nations.league": dict(name="Concacaf Nations League", tier=3, hint="Paramount+ has carried Concacaf; not confirmed for this match"),
-    "eng.2": dict(name="Championship", tier=3, hint="Select matches on Paramount+ or CBS Sports Golazo"),
-    "eng.fa": dict(name="FA Cup", tier=2, rule="espn", rule_outlet="ESPN+"),
-    "eng.league_cup": dict(name="Carabao Cup", tier=2, rule="para", rule_outlet="Paramount+"),
-    "esp.copa_del_rey": dict(name="Copa del Rey", tier=2, rule="espn", rule_outlet="ESPN+"),
-    "ger.dfb_pokal": dict(name="DFB-Pokal", tier=2, hint="ESPN's rights ended in 2026 · this season's US home not confirmed"),
-    "ita.coppa_italia": dict(name="Coppa Italia", tier=2, rule="para", rule_outlet="Paramount+"),
-    "ned.1": dict(name="Eredivisie", tier=2, rule="espn", rule_outlet="ESPN+"),
-    "por.1": dict(name="Primeira Liga", tier=3),
-    "sco.1": dict(name="Scottish Premiership", tier=3, rule="para", rule_outlet="Paramount+"),
-    "usa.usl.1": dict(name="USL Championship", tier=3, rule="espn", rule_outlet="ESPN+", default_off=True),
-    "usa.usl.l1": dict(name="USL League One", tier=3, rule="espn", rule_outlet="ESPN+", default_off=True),
-    "bra.1": dict(name="Brasileirão", tier=3, hint="Fanatiz or TV Globo Internacional"),
-    "arg.1": dict(name="Liga Profesional (Argentina)", tier=3, hint="Fanatiz, ViX or TyC Sports · Paramount+ no longer confirmed"),
-    "ksa.1": dict(name="Saudi Pro League", tier=3),
-    "concacaf.champions": dict(name="Concacaf Champions Cup", tier=2),
-    "usa.open": dict(name="U.S. Open Cup", tier=3),
-    "caf.nations": dict(name="Africa Cup of Nations", tier=2, hint="beIN Sports"),
-}
+    Every problem is collected before raising, so one run lists them all. The checks are the ways
+    an edit can quietly break the page: a service naming a channel that isn't defined, two channels
+    claiming the same ESPN name, a usual home no service carries or with no season end, a misspelt
+    key that would otherwise be ignored, and a fact with no source or check date."""
+    with open(path, "rb") as f:
+        try:
+            data = tomllib.load(f)
+        except tomllib.TOMLDecodeError as e:
+            raise RightsError(f"{os.path.basename(path)}: {e}") from None
+    problems = []
+    real_today = datetime.now(ET).date()
+
+    def keys(where, entry, allowed):
+        extra = sorted(set(entry) - allowed)
+        if extra:
+            problems.append(f"{where}: unknown key {', '.join(extra)} (expected {', '.join(sorted(allowed))})")
+
+    def text(where, entry, key, required=True):
+        v = entry.get(key)
+        if v is None:
+            if required:
+                problems.append(f"{where}: missing {key}")
+            return ""
+        if not isinstance(v, str) or not v.strip():
+            problems.append(f"{where}: {key} must be text")
+            return ""
+        return v.strip()
+
+    def day(where, entry, key):
+        v = entry.get(key)
+        if not isinstance(v, date) or isinstance(v, datetime):
+            problems.append(f"{where}: {key} must be a date such as 2026-10-06")
+            return None
+        if key == "checked" and v > real_today + timedelta(days=1):
+            problems.append(f"{where}: checked {v} is in the future")
+        return v
+
+    def table(where, v):
+        if not isinstance(v, dict):
+            problems.append(f"{where}: must be a table")
+            return False
+        return True
+
+    keys("rights.toml", data, {"channels", "services", "simulcasts", "leagues"})
+
+    channels = data.get("channels") or {}
+    names = {}                                  # lower-case name -> channel
+    for label, ch in channels.items():
+        where = f"channels.{label!r}"
+        if not table(where, ch):
+            continue
+        keys(where, ch, {"espn", "free", "es"})
+        for flag in ("free", "es"):
+            if flag in ch and not isinstance(ch[flag], bool):
+                problems.append(f"{where}: {flag} must be true or false")
+        aliases = ch.get("espn", [])
+        if not isinstance(aliases, list) or not all(isinstance(a, str) and a.strip() for a in aliases):
+            problems.append(f"{where}: espn must be a list of names")
+            aliases = []
+        for n in [label, *aliases]:
+            key = n.strip().lower()
+            if names.get(key, label) != label:
+                problems.append(f"{where}: the name {n!r} also belongs to {names[key]!r}")
+            names[key] = label
+
+    services = data.get("services") or {}
+    if not services:
+        problems.append("no [services]")
+    carried = {label: [] for label in channels}  # channel -> service ids, in order of preference
+    checked = []
+    for sid, svc in services.items():
+        where = f"services.{sid}"
+        if not re.fullmatch(r"[a-z][a-z0-9]*", sid):
+            problems.append(f"{where}: an id is lower-case letters and digits")
+        if not table(where, svc):
+            continue
+        keys(where, svc, {"name", "channels", "note", "source", "checked"})
+        text(where, svc, "name")
+        text(where, svc, "note", required=False)
+        text(where, svc, "source")
+        when = day(where, svc, "checked")
+        if when:
+            checked.append((f"{svc.get('name', sid)} (services.{sid})", when))
+        chs = svc.get("channels")
+        if not isinstance(chs, list) or not chs:
+            problems.append(f"{where}: channels must be a list of channel names")
+            continue
+        if len(set(chs)) != len(chs):
+            problems.append(f"{where}: a channel is listed twice")
+        for c in chs:
+            if c not in channels:
+                problems.append(f"{where}: no channel {c!r} under [channels]")
+            elif sid not in carried[c]:
+                carried[c].append(sid)
+
+    simulcasts = []
+    for i, sc in enumerate(data.get("simulcasts") or []):
+        where = f"simulcasts[{i}]"
+        if not table(where, sc):
+            continue
+        keys(where, sc, {"channel", "service", "leagues", "note", "source", "checked"})
+        c, sid = text(where, sc, "channel"), text(where, sc, "service")
+        text(where, sc, "note", required=False)
+        text(where, sc, "source")
+        when = day(where, sc, "checked")
+        if when:
+            checked.append((f"{c} on {sid} (simulcasts)", when))
+        lgs = sc.get("leagues")
+        if c and c not in channels:
+            problems.append(f"{where}: no channel {c!r} under [channels]")
+        if sid and sid not in services:
+            problems.append(f"{where}: no service {sid!r}")
+        if not isinstance(lgs, list) or not lgs:
+            problems.append(f"{where}: leagues must be a list of league ids")
+            lgs = []
+        for lg in lgs:
+            if lg not in leagues:
+                problems.append(f"{where}: {lg!r} is not a competition build.py tracks")
+        simulcasts.append((c, sid, frozenset(lgs)))
+
+    league_rights = {}
+    for lg, e in (data.get("leagues") or {}).items():
+        where = f"leagues.{lg!r}"
+        if lg not in leagues:
+            problems.append(f"{where}: not a competition build.py tracks")
+        if not table(where, e):
+            continue
+        keys(where, e, {"usual", "season", "until", "hint", "note", "source", "checked"})
+        hint = text(where, e, "hint", required=False)
+        text(where, e, "note", required=False)
+        text(where, e, "source")
+        when = day(where, e, "checked")
+        if when:
+            checked.append((f"{leagues.get(lg, {}).get('name', lg)} (leagues.{lg})", when))
+        usual = None
+        if {"usual", "season", "until"} & set(e):
+            ch, season, until = text(where, e, "usual"), text(where, e, "season"), day(where, e, "until")
+            if ch and ch not in channels:
+                problems.append(f"{where}: no channel {ch!r} under [channels]")
+            elif ch and not carried[ch]:
+                problems.append(f"{where}: no service carries {ch!r}, so it can't be a usual home")
+            if until and when and until < when:
+                problems.append(f"{where}: until {until} is before checked {when}")
+            if ch and season and until:
+                usual = UsualHome(ch, season, until)
+        elif not hint:
+            problems.append(f"{where}: give a usual home (usual, season, until) or a hint")
+        league_rights[lg] = LeagueRights(usual, hint)
+
+    if problems:
+        raise RightsError(f"{os.path.basename(path)} has {len(problems)} problem(s):\n  " + "\n  ".join(problems))
+    outlets = {}
+    for key, label in names.items():
+        ch = channels[label]
+        outlets[key] = _o(label, list(carried[label]), free=bool(ch.get("free")), es=bool(ch.get("es")))
+    return Rights(services={sid: svc["name"] for sid, svc in services.items()}, outlets=outlets,
+                  simulcasts=tuple(simulcasts), leagues=league_rights, checked=tuple(checked))
+
+
+RIGHTS = load_rights(RIGHTS_PATH, LEAGUES)
+SERVICES = RIGHTS.services
+SERVICE_RANK = list(SERVICES)
+OUTLETS = RIGHTS.outlets
+if set(OWNER) - set(SERVICES):
+    raise RightsError(f"OWNER names services rights.toml doesn't define: {sorted(set(OWNER) - set(SERVICES))}")
+
 
 # How the forecast prose treats each league: its family, and whether its name takes "the".
 LEAGUE_CATEGORY = {
@@ -255,6 +347,7 @@ class Outlet:
     via: list            # SERVICES keys that carry this outlet
     free: bool = False
     es: bool = False
+    known: bool = True   # False for a name ESPN used that rights.toml doesn't have
 
 
 @dataclass
@@ -305,6 +398,42 @@ class Match:
     recap: str = ""
     attendance: int = 0
     link: str = ""          # ESPN's match page
+
+
+def map_outlet(name, league):
+    """The Outlet for a broadcaster name ESPN lists for a match in `league`.
+
+    A name rights.toml doesn't have is counted for the build's report and kept as an unrecognized
+    outlet, which the page shows as such rather than as one the viewer doesn't have."""
+    o = OUTLETS.get(name.strip().lower())
+    if o is None:
+        UNKNOWN_OUTLETS[name] += 1
+        return Outlet(label=name, via=[], known=False)
+    via = list(o["via"])
+    for channel, sid, lgs in RIGHTS.simulcasts:
+        if channel == o["label"] and league in lgs and sid not in via:
+            via.append(sid)
+    return Outlet(label=o["label"], via=via, free=o["free"], es=o["es"])
+
+
+def usual_home(league):
+    """The league's usual home as an Outlet while its season lasts; None once it has lapsed."""
+    r = RIGHTS.leagues.get(league)
+    if not r or not r.usual or TODAY > r.usual.until:
+        return None
+    o = OUTLETS[r.usual.channel.lower()]
+    return Outlet(label=o["label"], via=list(o["via"]), free=o["free"], es=o["es"])
+
+
+def league_hint(league):
+    """Where the league lives, as text; says so when its usual home has lapsed unconfirmed."""
+    r = RIGHTS.leagues.get(league)
+    if not r:
+        return ""
+    if r.usual and TODAY > r.usual.until:
+        lapsed = f"Usual US home not confirmed for this season (was {r.usual.channel} in {r.usual.season})"
+        return lapsed + (f" · {r.hint}" if r.hint else "")
+    return r.hint
 
 
 def evaluate(outlets, rule, have):
@@ -567,22 +696,10 @@ def interpret(league, ev):
         name = ((g.get("media") or {}).get("shortName") or "").strip()
         if name and name not in [n for n, _ in listed]:
             listed.append((name, g.get("lang") or "en"))
-    outlets = []
-    for name, lang in listed:
-        o = OUTLETS.get(name.lower())
-        if o is None:
-            UNKNOWN_OUTLETS[name] += 1
-            o = _o(name, [])
-        via = list(o["via"])
-        if name.lower() in ("cbssn", "cbs sports network") and league in PARAMOUNT_EVERY_MATCH:
-            via.insert(0, "para")
-        outlets.append(Outlet(label=o["label"], via=via, free=bool(o.get("free")), es=bool(o.get("es"))))
+    outlets = [map_outlet(name, league) for name, _ in listed]
     outlets.sort(key=lambda o: o.es)
-    rule = None
-    if not outlets and info.get("rule_outlet"):
-        ro = OUTLETS[info["rule_outlet"].lower()]
-        rule = Outlet(label=ro["label"], via=list(ro["via"]))
-    hint = info.get("hint", "") if not outlets and not rule else ""
+    rule = None if outlets else usual_home(league)
+    hint = league_hint(league) if not outlets and not rule else ""
     service, basis, outlet = evaluate(outlets, rule, set(OWNER))
 
     goals = []
@@ -744,6 +861,10 @@ def owner_pill_service(via):
 def pills_html(m):
     parts = []
     for i, o in enumerate(m.outlets):
+        if not o.known:
+            parts.append(f'<span class="pill pill--unk" data-i="{i}" title="{esc(UNRECOGNIZED_TITLE)}"><i class="dot"></i>'
+                         f'{esc(o.label)}<span class="pill__free">not recognized</span></span>')
+            continue
         sid = owner_pill_service(o.via)
         cls = "pill" + (f" pill--mine svc-{sid}" if sid else (" pill--free" if o.free else ""))
         free = '<span class="pill__free">free</span>' if o.free else ""
@@ -760,6 +881,7 @@ def pills_html(m):
 
 
 SHORT = {"cable": "cable", "ota": "antenna", "free": "free app"}
+UNRECOGNIZED_TITLE = "ESPN lists this channel, but the page doesn't know yet which services carry it"
 
 
 def chip_html(m):
@@ -771,6 +893,9 @@ def chip_html(m):
         if m.basis == "rule":
             return f'<span class="chip chip--rule svc-{m.service}"><i class="dot"></i>{esc(label)}<span class="chip__via">usually</span></span>'
         return f'<span class="chip svc-{m.service}"><i class="dot"></i>{esc(label)}{via}</span>'
+    if any(not o.known for o in m.outlets):
+        # Possibly on the viewer's services: say what is known rather than "not in your lineup".
+        return '<span class="chip chip--no chip--unk">Channel not recognized</span>'
     if m.outlets:
         return '<span class="chip chip--no">Not in your lineup</span>'
     return '<span class="chip chip--no chip--unk">Not listed yet</span>'
@@ -887,7 +1012,8 @@ def row_html(m, cache):
     if m.venue:
         meta.append(f'<span class="venue">{esc(m.venue)}</span>')
     note = f'<div class="row__note">{esc(m.note)}</div>' if m.note else ""
-    outlets_json = json.dumps([{"l": o.label, "v": o.via, "f": int(o.free), "e": int(o.es)} for o in m.outlets], ensure_ascii=False)
+    outlets_json = json.dumps([dict({"l": o.label, "v": o.via, "f": int(o.free), "e": int(o.es)}, **({} if o.known else {"u": 1}))
+                               for o in m.outlets], ensure_ascii=False)
     rule_json = json.dumps({"l": m.rule.label, "v": m.rule.via}, ensure_ascii=False) if m.rule else ""
     return (
         f'<li class="row {avail}" data-id="{esc(m.id)}" data-utc="{m.utc.strftime("%Y-%m-%dT%H:%M:%SZ")}" data-tv="{tv}" '
@@ -1147,7 +1273,7 @@ TEMPLATE = r'''<title>Soccer Outlook</title>
 }
 * { box-sizing: border-box; }
 body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 16px; line-height: 1.45; margin: 0; }
-.wrap { max-width: 1000px; margin: 0 auto; padding-inline: 16px; padding-block: 20px 56px; }
+.wrap { max-width: 1000px; margin: 0 auto; padding-inline: 16px; padding-block: 8px 56px; }
 h1, h2, h3, h4 { font-family: var(--display); font-weight: 700; letter-spacing: 0.01em; text-wrap: balance; margin: 0; }
 a { color: inherit; }
 .t { font-family: var(--display); font-weight: 700; font-variant-numeric: tabular-nums; }
@@ -1162,8 +1288,9 @@ a { color: inherit; }
 .svc-off, .fpill--none { --svc: var(--svc-off); }
 
 /* Header */
-.hdr { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 24px; padding-bottom: 14px; border-bottom: 2px solid var(--fg); }
-.hdr__eyebrow { font-family: var(--display); font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em; font-size: 13px; color: var(--muted); }
+.hdr { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 2px 24px; padding-bottom: 14px; border-bottom: 2px solid var(--fg); }
+/* The eyebrow has the top row to itself, clear of the Lineup button pinned at the top right. */
+.hdr__eyebrow { flex: 0 0 100%; min-height: 36px; display: flex; align-items: center; padding-right: 128px; font-family: var(--display); font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em; font-size: 13px; color: var(--muted); }
 .hdr h1 { font-size: clamp(34px, 6vw, 56px); line-height: 1; margin-top: 2px; }
 .hdr__tally { text-align: right; }
 .hdr__tally .big { font-family: var(--display); font-size: 40px; font-weight: 700; line-height: 1; color: var(--accent); }
@@ -1227,14 +1354,36 @@ a { color: inherit; }
 .controls { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); padding-block: 8px; margin-top: 26px; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; }
 .controls__bar { gap: 8px 10px; }
 .fbtn { appearance: none; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line-strong); background: transparent; color: var(--fg); border-radius: 999px; padding: 6px 12px; font: 600 14px var(--body); cursor: pointer; white-space: nowrap; max-width: 100%; }
-.fbtn__sum { color: var(--muted); font-weight: 400; overflow: hidden; text-overflow: ellipsis; max-width: 46vw; }
-.fbtn__sum:not(:empty)::before { content: "\00b7"; margin-right: 6px; }
-.fbtn__caret { color: var(--muted); font-size: 12px; }
-.fbtn[aria-expanded="true"] { background: var(--card); }
-.fbtn[aria-expanded="true"] .fbtn__caret { transform: rotate(180deg); }
 .fbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-.drawer { display: flex; flex-direction: column; gap: 8px; padding: 10px 0 8px; border-bottom: 1px solid var(--line); }
-.drawer__foot { justify-content: flex-end; }
+/* The Lineup button stays at the top right, level with the sticky bar when that is pinned, and
+   opens the lineup and filters as a dropdown (a sheet on a phone) that scrolls on its own. */
+.menu-btn { position: fixed; z-index: 20; top: calc(env(safe-area-inset-top, 0px) + 8px);
+  right: max(calc(16px + env(safe-area-inset-right, 0px)), calc((100vw - 1000px) / 2 + 16px));
+  display: inline-flex; align-items: center; gap: 7px; height: 36px; padding: 0 14px; border-radius: 999px;
+  border: 1px solid var(--line-strong); background: var(--card); color: var(--fg); font: 600 14px var(--body);
+  cursor: pointer; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12); }
+.menu-btn circle { fill: var(--card); }
+.menu-btn__caret { color: var(--muted); font-size: 11px; }
+.menu-btn[aria-expanded="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.menu-btn[aria-expanded="true"] circle { fill: var(--fg); }
+.menu-btn[aria-expanded="true"] .menu-btn__caret { color: inherit; transform: rotate(180deg); }
+.menu-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.drawer { position: fixed; z-index: 30; top: calc(env(safe-area-inset-top, 0px) + 52px);
+  right: max(calc(16px + env(safe-area-inset-right, 0px)), calc((100vw - 1000px) / 2 + 16px));
+  width: min(600px, calc(100vw - 32px)); max-height: calc(100vh - env(safe-area-inset-top, 0px) - 64px);
+  max-height: calc(100dvh - env(safe-area-inset-top, 0px) - 64px); overflow-y: auto; overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch; display: flex; flex-direction: column; gap: 10px; padding: 14px 16px 0;
+  background: var(--card); border: 1px solid var(--line-strong); border-radius: 14px; box-shadow: 0 12px 36px rgba(0, 0, 0, 0.22); }
+.drawer:focus { outline: none; }
+.drawer__head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; }
+.drawer__head h2 { font-size: 18px; text-transform: uppercase; letter-spacing: 0.06em; }
+.drawer__sum { font-size: 13px; color: var(--muted); }
+.drawer__foot { position: sticky; bottom: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  margin: 2px -16px 0; padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px)); background: var(--card); border-top: 1px solid var(--line); }
+.drawer button.link { appearance: none; background: none; border: 0; color: var(--muted); font: inherit; font-size: 13px; text-decoration: underline; cursor: pointer; padding: 6px 0; }
+@media (max-width: 600px) {
+  .drawer { left: 8px; right: 8px; width: auto; }
+}
 @media (pointer: coarse) {
   .fpill { padding: 7px 12px; font-size: 14px; }
   .fbtn, .seg button { padding: 8px 14px; }
@@ -1253,8 +1402,6 @@ a { color: inherit; }
 .fpill[aria-pressed="false"] { background: transparent; color: var(--muted); border-style: dashed; }
 .fpill[aria-pressed="false"] .dot { opacity: 0.35; }
 .fpill[aria-pressed="false"] .fpill__n { text-decoration: line-through; }
-.controls .tiny { font-size: 12px; color: var(--muted); margin-left: auto; }
-.controls button.link { appearance: none; background: none; border: 0; color: var(--muted); font: inherit; font-size: 12px; text-decoration: underline; cursor: pointer; padding: 0; }
 
 /* Outlook buckets and rows */
 .bucket { margin-top: 22px; }
@@ -1324,6 +1471,7 @@ a { color: inherit; }
 .pill--rule-off { border-color: var(--line-strong); color: var(--pill-fg); }
 .pill:not(.pill--mine):not(.pill--rule) .dot, .pill--rule-off .dot { display: none; }
 .pill--hint { white-space: normal; font-weight: 400; font-style: italic; }
+.pill--unk { background: transparent; border: 1px dashed var(--line-strong); }
 .pill__free { font-weight: 400; opacity: 0.8; }
 .pill__free::before { content: "\00b7"; margin-right: 5px; }
 .row__watch { justify-self: end; padding-top: 4px; }
@@ -1405,11 +1553,20 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
 <script type="application/json" id="service-meta">@@SERVICE_META@@</script>
 
 <div class="wrap" id="app" data-built="@@BUILT_ISO@@">
+  <button type="button" class="menu-btn" id="btn-menu" aria-expanded="false" aria-controls="drawer" aria-haspopup="dialog">
+    <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 5h14M3 10h14M3 15h14"/><circle cx="13" cy="5" r="2.3"/><circle cx="7" cy="10" r="2.3"/><circle cx="11" cy="15" r="2.3"/></svg>
+    <span>Lineup</span><span class="menu-btn__caret" aria-hidden="true">&#9662;</span>
+  </button>
+  <div class="drawer" id="drawer" role="dialog" aria-labelledby="drawer-h" tabindex="-1" hidden>
+    <div class="drawer__head"><h2 id="drawer-h">Lineup &amp; filters</h2><span class="drawer__sum" id="filter-sum"></span></div>
+    <div class="controls__row" id="have-pills"><span class="controls__lbl">You have</span>@@HAVE_PILLS@@</div>
+    <p class="drawer__hint">Tap the services you have and every match is judged against them. The default is the page owner's lineup; your choice stays in this browser. Fubo means its Pro plan; a cable, YouTube TV or Hulu + Live TV package counts as the live-TV bundle.</p>
+    <div class="controls__row" id="comp-pills"><span class="controls__lbl">Competitions</span>@@COMP_PILLS@@</div>
+    <div class="drawer__foot"><button type="button" class="link" id="btn-reset">Reset to the default</button><button type="button" class="fbtn" id="btn-filters-close">Done</button></div>
+  </div>
   <header class="hdr">
-    <div>
-      <div class="hdr__eyebrow" id="eyebrow">Your lineup · the week ahead</div>
-      <h1>Soccer Outlook</h1>
-    </div>
+    <div class="hdr__eyebrow" id="eyebrow">Your lineup · the week ahead</div>
+    <h1>Soccer Outlook</h1>
     <div class="hdr__tally"><div class="big" id="tally-n">@@N_ON@@</div><div class="small" id="tally-txt">of @@N_ALL@@ upcoming matches tracked this week are on your services</div></div>
   </header>
   <section class="story" id="story" aria-labelledby="story-h" hidden>
@@ -1438,15 +1595,7 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
         <button type="button" id="btn-mine" aria-pressed="true">On my services</button>
         <button type="button" id="btn-all" aria-pressed="false">Everything</button>
       </div>
-      <button type="button" class="fbtn" id="btn-filters" aria-expanded="false" aria-controls="drawer">Lineup &amp; filters<span class="fbtn__sum" id="filter-sum"></span><span class="fbtn__caret" aria-hidden="true">&#9662;</span></button>
-      <span class="tiny"><button type="button" class="link" id="btn-reset">Reset</button></span>
     </div>
-  </div>
-  <div class="drawer" id="drawer" hidden>
-    <div class="controls__row" id="have-pills"><span class="controls__lbl">You have</span>@@HAVE_PILLS@@</div>
-    <p class="drawer__hint">Tap the services you have and every match is judged against them. The default is the page owner's lineup; your choice stays in this browser. Fubo means its Pro plan; a cable, YouTube TV or Hulu + Live TV package counts as the live-TV bundle.</p>
-    <div class="controls__row" id="comp-pills"><span class="controls__lbl">Competitions</span>@@COMP_PILLS@@</div>
-    <div class="controls__row drawer__foot"><button type="button" class="fbtn" id="btn-filters-close">Done</button></div>
   </div>
 
   <section class="sec" id="outlook" aria-labelledby="outlook-h" style="margin-top:18px">
@@ -1509,6 +1658,7 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
     r._score = parseInt(r.getAttribute('data-score'), 10) || 0;
     r._state = r.getAttribute('data-state');
     try { r._o = JSON.parse(r.getAttribute('data-o') || '[]'); } catch (e) { r._o = []; }
+    r._unk = r._o.some(function (o) { return o.u; });   // a channel the page doesn't recognize
     try { r._r = r.hasAttribute('data-r') ? JSON.parse(r.getAttribute('data-r')) : null; } catch (e) { r._r = null; }
   });
 
@@ -1517,8 +1667,8 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
 
   // ---- lineup and filters ----------------------------------------------------------------------
   var mode = read(LS.mode) === 'all' ? 'all' : 'mine';
-  var drawerOpen = read('ssg2-drawer') === true;
-  var drawer = document.getElementById('drawer'), btnFilters = document.getElementById('btn-filters');
+  var drawerOpen = false;
+  var drawer = document.getElementById('drawer'), btnMenu = document.getElementById('btn-menu');
   var storedHave = read('ssg3-have');
   var HAVE = {};
   (Array.isArray(storedHave) ? storedHave : SERVICES.owner).forEach(function (k) { HAVE[k] = true; });
@@ -1536,6 +1686,7 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
       var via = r._outlet && r._outlet !== name ? '<span class="chip__via">' + escHtml(r._outlet) + '</span>' : '';
       return '<span class="chip svc-' + r._svc + '"><i class="dot"></i>' + escHtml(name) + via + '</span>';
     }
+    if (r._unk) return '<span class="chip chip--no chip--unk">Channel not recognized</span>';
     return r._o.length ? '<span class="chip chip--no">Not in your lineup</span>' : '<span class="chip chip--no chip--unk">Not listed yet</span>';
   }
   // Decide, for this viewer's lineup, which service carries each match, and restyle the row to match.
@@ -1556,7 +1707,7 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
     r.querySelectorAll('.pill[data-i]').forEach(function (p) {
       var o = r._o[+p.getAttribute('data-i')]; if (!o) return;
       var sid = firstHave(o.v);
-      p.className = 'pill' + (sid ? ' pill--mine svc-' + sid : (o.f ? ' pill--free' : ''));
+      p.className = 'pill' + (o.u ? ' pill--unk' : sid ? ' pill--mine svc-' + sid : (o.f ? ' pill--free' : ''));
     });
     var rp = r.querySelector('.pill[data-rule]');
     if (rp && r._r) { var rs = firstHave(r._r.v); rp.className = 'pill pill--rule' + (rs ? ' svc-' + rs : ' pill--rule-off'); }
@@ -1572,7 +1723,7 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
   }
   function applyFilterUI() {
     controls.classList.toggle('mode-mine', mode === 'mine');
-    drawer.hidden = !drawerOpen; btnFilters.setAttribute('aria-expanded', String(drawerOpen));
+    drawer.hidden = !drawerOpen; btnMenu.setAttribute('aria-expanded', String(drawerOpen));
     document.getElementById('filter-sum').textContent = filterSummary();
     document.getElementById('btn-mine').setAttribute('aria-pressed', String(mode === 'mine'));
     document.getElementById('btn-all').setAttribute('aria-pressed', String(mode === 'all'));
@@ -1583,17 +1734,26 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
     });
   }
   function passes(r) {
-    if (mode === 'mine' && r._svc === 'none') return false;
+    if (mode === 'mine' && r._svc === 'none' && !r._unk) return false;
     if (compOff[r._lg]) return false;
     return true;
   }
+  // The lineup panel: opened from the Lineup button, closed by it, by Done, by Escape or by a tap
+  // outside. Opening moves focus into the panel; closing from the keyboard returns it to the button.
+  function setDrawer(open, refocus) {
+    drawerOpen = open; applyFilterUI();
+    if (open) { drawer.scrollTop = 0; drawer.focus({ preventScroll: true }); }
+    else if (refocus) btnMenu.focus({ preventScroll: true });
+  }
+  document.addEventListener('click', function (ev) {
+    if (drawerOpen && !drawer.contains(ev.target) && !btnMenu.contains(ev.target)) setDrawer(false, false);
+  });
+  document.addEventListener('keydown', function (ev) {
+    if (drawerOpen && (ev.key === 'Escape' || ev.key === 'Esc')) { ev.preventDefault(); setDrawer(false, true); }
+  });
   app.addEventListener('click', function (ev) {
-    var b = ev.target.closest('button'); if (!b || !(b.closest('#controls') || b.closest('#drawer'))) return;
-    if (b.id === 'btn-filters' || b.id === 'btn-filters-close') {
-      drawerOpen = b.id === 'btn-filters' ? !drawerOpen : false; write('ssg2-drawer', drawerOpen); applyFilterUI();
-      if (!drawerOpen && b.id === 'btn-filters-close') controls.scrollIntoView({ block: 'start' });
-      return;
-    }
+    var b = ev.target.closest('button'); if (!b || !(b.closest('#controls') || b.closest('#drawer') || b === btnMenu)) return;
+    if (b === btnMenu || b.id === 'btn-filters-close') { setDrawer(b === btnMenu ? !drawerOpen : false, b.id === 'btn-filters-close'); return; }
     if (b.id === 'btn-mine' || b.id === 'btn-all') { mode = b.id === 'btn-all' ? 'all' : 'mine'; write(LS.mode, mode); }
     else if (b.id === 'btn-reset') {
       mode = 'mine'; HAVE = {}; SERVICES.owner.forEach(function (k) { HAVE[k] = true; }); storedHave = null;
@@ -1836,7 +1996,7 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
   }
 
   function renderMisses(groups, now) {
-    var pool = upcoming(groups).filter(function (r) { return r._svc === 'none' && r._score >= 85 && !compOff[r._lg]; }).sort(function (a, c) { return c._score - a._score || a._k - c._k; }).slice(0, 4);
+    var pool = upcoming(groups).filter(function (r) { return r._svc === 'none' && !r._unk && r._score >= 85 && !compOff[r._lg]; }).sort(function (a, c) { return c._score - a._score || a._k - c._k; }).slice(0, 4);
     var open = {};
     missesEl.querySelectorAll('.miss').forEach(function (m) { var p = m.querySelector('.row__detail'); if (p && !p.hidden) open[m.getAttribute('data-id')] = true; });
     missesEl.innerHTML = '';
@@ -2255,24 +2415,37 @@ UNKNOWN_OUTLETS = collections.Counter()   # broadcaster names ESPN listed that O
 
 
 def audit(matches):
-    """What this build couldn't map, as lines for the log and the run's summary page.
+    """What this build couldn't map or can no longer vouch for, as lines for the run's report.
 
-    Two kinds of drift have quietly made the page wrong without breaking the build: ESPN using a
-    broadcaster name OUTLETS doesn't know ("USA Net", "Fandango"), whose matches then count as on
-    no service at all; and a league's rights moving, so that its usual-home rule (the Bundesliga
-    "usually ESPN+") no longer matches what ESPN lists. Both are reported here instead.
-    """
-    lines = [f"Unknown broadcaster name {name!r} on {n} match{'' if n == 1 else 'es'}: add it to OUTLETS"
+    These kinds of drift have made the page quietly wrong without breaking the build: ESPN using a
+    broadcaster name rights.toml doesn't have ("USA Net", "Fandango"), whose matches then count as
+    on no service; a competition's rights moving, so that its usual home (the Bundesliga's
+    "usually ESPN+") no longer matches what ESPN lists; a season ending with its usual home
+    unconfirmed for the next; and facts nobody has checked for months."""
+    lines = [f"ESPN lists a broadcaster rights.toml doesn't have: {name!r}, on {n} match{'' if n == 1 else 'es'}. "
+             f"Add it under [channels] (or as another name of a channel there) and to the services that carry it."
              for name, n in UNKNOWN_OUTLETS.most_common()]
-    for lg, info in LEAGUES.items():
-        if not info.get("rule_outlet"):
+    for lg, r in RIGHTS.leagues.items():
+        u, name = r.usual, LEAGUES[lg]["name"]
+        if not u:
             continue
-        label = OUTLETS[info["rule_outlet"].lower()]["label"]
+        if TODAY > u.until:
+            lines.append(f"{name}: its usual home ({u.channel}) was for {u.season} and lapsed on {u.until}, so the page "
+                         f"no longer claims one. Confirm this season's home in rights.toml (leagues.{lg}).")
+            continue
+        left = (u.until - TODAY).days
+        if left <= LAPSE_NOTICE_DAYS:
+            lines.append(f"{name}: its usual home ({u.channel}, {u.season}) lapses in {left} day{'' if left == 1 else 's'}, "
+                         f"on {u.until}. Confirm next season's home in rights.toml (leagues.{lg}).")
         listed = [m for m in matches if m.league == lg and m.outlets]
-        hits = sum(1 for m in listed if any(o.label == label for o in m.outlets))
+        hits = sum(1 for m in listed if any(o.label == u.channel for o in m.outlets))
         if len(listed) >= 5 and hits < 0.2 * len(listed):
-            lines.append(f"{info['name']} is assumed to be usually on {label}, but only {hits} of its {len(listed)} "
-                         f"listed matches are: check its rights and its rule in LEAGUES")
+            lines.append(f"{name} is assumed to be usually on {u.channel}, but only {hits} of its {len(listed)} listed "
+                         f"matches are. Check its rights and update rights.toml (leagues.{lg}).")
+    for what, when in RIGHTS.checked:
+        age = (TODAY - when).days
+        if age > STALE_AFTER_DAYS:
+            lines.append(f"{what} was last checked {age} days ago, on {when}. Check it again and update its entry in rights.toml.")
     return lines
 
 
@@ -2288,10 +2461,13 @@ def main():
     ap.add_argument("--no-logos", action="store_true", help="no team or league images at all")
     ap.add_argument("--workers", type=int, default=6)
     ap.add_argument("--facts", help="also write the facts story.py gives the model to this JSON file")
+    ap.add_argument("--warnings", help="also write the mapping report to this file, one warning per line (empty when clean)")
     args = ap.parse_args()
 
     built_at = datetime.now(timezone.utc)
     today = datetime.strptime(args.date, "%Y-%m-%d").date() if args.date else built_at.astimezone(ET).date()
+    global TODAY
+    TODAY = today
     days = [today + timedelta(days=i) for i in range(-args.days_back, args.days_ahead + 1)]
 
     merged, league_logos, failed = fetch_scoreboards(days, args.workers)
@@ -2314,6 +2490,10 @@ def main():
     for w in warnings:
         # On GitHub Actions a ::warning:: line becomes an annotation on the run's page.
         print(("::warning title=Broadcaster mapping::" if os.environ.get("GITHUB_ACTIONS") else "WARN ") + w)
+    if args.warnings:
+        os.makedirs(os.path.dirname(os.path.abspath(args.warnings)), exist_ok=True)
+        with open(args.warnings, "w", encoding="utf-8") as f:
+            f.write("".join(w + "\n" for w in warnings))
     if warnings and os.environ.get("GITHUB_STEP_SUMMARY"):
         with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as f:
             f.write("### Broadcaster mapping\n\n" + "".join(f"- {w}\n" for w in warnings) + "\n")

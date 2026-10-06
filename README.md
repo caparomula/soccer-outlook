@@ -8,18 +8,19 @@ The page opens with the day's storylines, researched on the web and written by C
 
 ## Your lineup
 
-Open **Lineup & filters** on the page and tap the services you have. Every match is then judged against your lineup; the choice stays in your browser. The default lineup is `OWNER` in `build.py`.
+Tap **Lineup** at the top right of the page (it stays there as you scroll) and tap the services you have and the competitions you want. Every match is then judged against your lineup; the choice stays in your browser, and **Reset to the default** brings back the owner's lineup, `OWNER` in `build.py`.
 
 ## How it runs
 
-`build.py` is a single Python script with no dependencies beyond the standard library and `curl`; `story.py` adds the Anthropic Python SDK. It fetches eleven days of fixtures and the current standings from ESPN's public scoreboard API, maps each listed broadcaster to the streaming services that carry it (`OUTLETS`), applies each league's usual home when channels are not posted yet (`LEAGUES`), and writes one HTML file. The page's own script does the rest in the browser: bucketing by the viewer's clock, the lineup, filters, the countdown and live scores.
+`build.py` is a single Python script with no dependencies beyond the standard library and `curl`; `story.py` adds the Anthropic Python SDK. It fetches eleven days of fixtures and the current standings from ESPN's public scoreboard API, maps each listed broadcaster to the streaming services that carry it, applies each competition's usual home when channels are not posted yet (both from `rights.toml`, below), and writes one HTML file. The page's own script does the rest in the browser: bucketing by the viewer's clock, the lineup, filters, the countdown and live scores.
 
-The workflow in `.github/workflows/refresh.yml` runs the script three times a day and publishes the page to the `gh-pages` branch, which GitHub Pages serves. It can also be run by hand from the Actions tab (**Refresh outlook**, then **Run workflow**), and it runs on every change to `build.py`.
+The workflow in `.github/workflows/refresh.yml` runs the script three times a day and publishes the page to the `gh-pages` branch, which GitHub Pages serves. It can also be run by hand from the Actions tab (**Refresh outlook**, then **Run workflow**), and it runs on every change to `build.py`, `rights.toml` or the tests.
 
-To build locally:
+To test and build locally:
 
 ```sh
-python3 build.py --out site/index.html
+python3 -m unittest -v
+python3 build.py --out site/index.html --warnings mapping-report.txt
 ```
 
 Add `--date YYYY-MM-DD` to build as of another day. Open the page with `#at-YYYYMMDD-HHMM` on the URL to preview it as of another local time.
@@ -33,6 +34,17 @@ The page is rebuilt three times a day, but scores don't wait for a rebuild. From
 - **Not wasteful.** Nothing is asked while the tab is hidden, while no match is near its kickoff, or for competitions switched off in the filters.
 - **Testing.** Served from `localhost`, the page accepts `?scoresbase=http://localhost:PORT/some/path/` to read scoreboards from a local stand-in for ESPN instead.
 
+## Keeping the broadcast facts right
+
+Which services carry which channels, the names ESPN uses for each channel, and where each competition usually lives are all in `rights.toml`, each with its source and the date it was last checked. These facts change with every season's rights deals, and sometimes mid-season with a carriage dispute, and ESPN's data shows none of that. Several guards keep a stale or mistaken fact from quietly misleading the page:
+
+- **Tests before every publish.** `tests/test_rights.py` checks that the file agrees with itself (every service names real channels, no two channels claim one ESPN name, every usual home is carried by some service and has a season end, every fact has a source and date, no misspelt keys) and repeats each mistake the page has actually made, from USA Network's "USA Net" to the Bundesliga's move off ESPN. The workflow runs them before building; if they fail, the last good page stays up and GitHub emails about the failed run.
+- **Usual homes lapse.** Each competition's usual home is for one season and lapses after its `until` date. After that the page claims no usual home for it until someone confirms the new season's, because rights change at the turn of a season and a stale claim is worse than none.
+- **Unrecognized channels say so.** A broadcaster name ESPN uses that isn't in the file shows as "not recognized", not as "not in your lineup", and the match stays visible under **On my services** because it might be on one of them.
+- **A report, as a GitHub issue.** Each build lists what it couldn't map or vouch for: unknown broadcaster names, a usual home that disagrees with ESPN's listings or lapses within 30 days, and facts unchecked for 180 days. While that list has anything in it, the workflow keeps one issue labelled `mapping` open, mentions you on it, comments when the list changes, and closes it when a build comes back clean.
+
+**To fix an issue:** open the repository in Claude Code and ask it to resolve the open mapping issue. Each item needs some research on the web, then an edit to `rights.toml` with the source and today's date, then `python3 -m unittest`. Pushing to main rebuilds the page and, once the report is clean, closes the issue.
+
 ## Storylines
 
 Each morning `story.py` asks Claude Opus 5.5 to research the day's most interesting matches on the web and write a headline, a short lede and a one- or two-sentence note per match. The page shows them at the top, under each match and on the cards, with links to the pages they came from.
@@ -45,7 +57,6 @@ Each morning `story.py` asks Claude Opus 5.5 to research the day's most interest
 
 ## Notes
 
-- Broadcast assignments come from ESPN and can change on the day. The rights notes in `OUTLETS` reflect the 2026–27 season: Fox One carries FOX, FS1 and FS2 but not Fox Soccer Plus; ESPN Unlimited carries every ESPN network and ESPN+; TNT and TBS matches stream on HBO Max; CBS matches stream on Paramount+. Fubo means its Pro plan (FOX, FS1, FS2, ESPN, ESPN2, ABC, CBS, CBS Sports Network, NBC, USA Network, Telemundo, beIN Sports), which has no TNT, TBS, Univision or TUDN; ESPNU and Universo need its Elite plan, and ESPN Deportes, Fox Deportes and Fox Soccer Plus its International Sports Plus add-on. From 2026–27 most Bundesliga matches stream free on Fandango, with about 30 a season on USA Network.
-- Each build checks its own mapping: a broadcaster name ESPN uses that `OUTLETS` doesn't know, or a league whose usual-home rule no longer matches what ESPN lists, is reported as a warning on the run's page in the Actions tab. Such a match would otherwise quietly count as on no service, or on the wrong one.
+- Broadcast assignments come from ESPN and can change on the day. The facts in `rights.toml` reflect the 2026–27 season: Fox One carries FOX, FS1 and FS2 but not Fox Soccer Plus; ESPN Unlimited carries every ESPN network and ESPN+; TNT and TBS matches stream on HBO Max; CBS matches stream on Paramount+. Fubo means its Pro plan (FOX, FS1, FS2, ESPN, ESPN2, ABC, CBS, CBS Sports Network, NBC, USA Network, Telemundo, beIN Sports), which has no TNT, TBS, Univision or TUDN; ESPNU and Universo need its Elite plan, and ESPN Deportes, Fox Deportes and Fox Soccer Plus its International Sports Plus add-on. From 2026–27 most Bundesliga matches stream free on Fandango, with about 30 a season on USA Network.
 - Team and league images are linked from ESPN's image server, not copied into this repository.
 - The page asks search engines not to index it.

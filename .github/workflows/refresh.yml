@@ -9,6 +9,11 @@
 # They need the ANTHROPIC_API_KEY repository secret. Without it, or if the call fails, the page is
 # published without storylines.
 #
+# Which services carry which channels, and where each competition usually lives, is in rights.toml.
+# Its tests run before the build, so a contradictory edit keeps the last good page up (and GitHub
+# emails about the failed run). Each build also reports what it couldn't map or vouch for, and
+# keeps one issue labelled "mapping" open while that report has anything in it.
+#
 # Schedules are in UTC and GitHub may start them late when it is busy. The three runs land at about
 # 4:50 am, 12:50 pm and 6:50 pm Eastern daylight time, an hour earlier in standard time.
 name: Refresh outlook
@@ -26,10 +31,11 @@ on:
         default: false
   push:
     branches: [main]
-    paths: ["build.py", "story.py", ".github/workflows/refresh.yml"]
+    paths: ["build.py", "story.py", "rights.toml", "tests/**", ".github/workflows/refresh.yml", ".github/scripts/**"]
 
 permissions:
   contents: write
+  issues: write
 
 concurrency:
   group: refresh
@@ -42,8 +48,11 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - name: Test the rights data
+        run: python3 -m unittest -v
+
       - name: Build the page
-        run: python3 build.py --out site/index.html --facts work/facts.json
+        run: python3 build.py --out site/index.html --facts work/facts.json --warnings work/mapping-report.txt
 
       - name: Check the page
         run: |
@@ -86,3 +95,10 @@ jobs:
               -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
               commit -q -m "Page built $(date -u +%Y-%m-%dT%H:%MZ) from ${GITHUB_SHA::7}"
           git push -q --force "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" gh-pages
+
+      - name: Raise or clear the mapping issue
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MENTION: ${{ github.repository_owner }}
+        run: .github/scripts/mapping-issue.sh work/mapping-report.txt
