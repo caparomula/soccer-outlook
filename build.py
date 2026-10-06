@@ -28,6 +28,7 @@ scoreboard requests failed; partial failures are listed in the page footer and t
 """
 import argparse
 import base64
+import collections
 import concurrent.futures as cf
 import gzip
 import html
@@ -77,7 +78,7 @@ SERVICES = {
     "dazn": "DAZN",
     "cable": "Cable or live-TV bundle",
     "ota": "Local channels (antenna)",
-    "free": "Free apps (Tubi, Roku, Victory+)",
+    "free": "Free apps (Fandango, NWSL+, Tubi, Roku)",
 }
 SERVICE_RANK = list(SERVICES)
 OWNER = ["hbo", "fox", "para", "espn", "apple", "usa", "prime", "netflix", "disney"]
@@ -95,6 +96,10 @@ OWNER = ["hbo", "fox", "para", "espn", "apple", "usa", "prime", "netflix", "disn
 # blackout). Not in Pro: ESPNU, ESPNews and Universo (Elite plan); ESPN Deportes, Fox Deportes and
 # Fox Soccer Plus (International Sports Plus add-on); ESPN+. Not on Fubo at all: TNT, TBS, truTV,
 # and the TelevisaUnivision networks (gone since December 2024).
+# NBCSN (relaunched in 2025 for Premier League overflow) is a cable channel; Peacock does not carry
+# it, nor USA Network's matches. Fandango streams most Bundesliga matches free from 2026-27; NWSL+
+# is the NWSL's free app. A name ESPN uses that is missing here counts as on no service, so the
+# build reports every unknown name (see audit()).
 # ----------------------------------------------------------------------------------------------
 def _o(label, via, free=False, es=False):
     return dict(label=label, via=via, free=free, es=es)
@@ -102,6 +107,7 @@ def _o(label, via, free=False, es=False):
 
 OUTLETS = {
     "espn+": _o("ESPN+", ["espn", "espnplus"]),
+    "espn unlmtd": _o("ESPN Unlimited", ["espn"]),
     "espn": _o("ESPN", ["espn", "cable", "fubo"]),
     "espn2": _o("ESPN2", ["espn", "cable", "fubo"]),
     "espnu": _o("ESPNU", ["espn", "cable"]),
@@ -128,9 +134,11 @@ OUTLETS = {
     "apple tv+": _o("Apple TV", ["apple"]),
     "mls season pass": _o("Apple TV", ["apple"]),
     "usa": _o("USA Network", ["usa", "cable", "fubo"]),
+    "usa net": _o("USA Network", ["usa", "cable", "fubo"]),
     "usa network": _o("USA Network", ["usa", "cable", "fubo"]),
     "nbc": _o("NBC", ["peacock", "ota", "cable", "fubo"], free=True),
     "peacock": _o("Peacock", ["peacock"]),
+    "nbcsn": _o("NBCSN", ["cable", "fubo"]),
     "cnbc": _o("CNBC", ["cable", "fubo"]),
     "tele": _o("Telemundo", ["ota", "cable", "fubo"], free=True, es=True),
     "telemundo": _o("Telemundo", ["ota", "cable", "fubo"], free=True, es=True),
@@ -147,6 +155,8 @@ OUTLETS = {
     "ion": _o("ION", ["ota", "cable", "fubo"], free=True),
     "roku": _o("The Roku Channel", ["free"], free=True),
     "victory+": _o("Victory+", ["free"], free=True),
+    "fandango": _o("Fandango", ["free"], free=True),
+    "nwsl+": _o("NWSL+", ["free"], free=True),
     "tubi": _o("Tubi", ["free"], free=True),
     "youtube": _o("YouTube", ["free"], free=True),
     "cw": _o("The CW", ["ota", "cable", "fubo"], free=True),
@@ -177,7 +187,7 @@ PARAMOUNT_EVERY_MATCH = {"ita.1", "eng.w.1", "uefa.champions", "uefa.europa", "u
 LEAGUES = {
     "eng.1": dict(name="Premier League", tier=1, hint="NBC, USA Network or Peacock · channel posted a few days out"),
     "esp.1": dict(name="La Liga", tier=1, rule="espn", rule_outlet="ESPN+"),
-    "ger.1": dict(name="Bundesliga", tier=1, rule="espn", rule_outlet="ESPN+"),
+    "ger.1": dict(name="Bundesliga", tier=1, rule="free", rule_outlet="Fandango"),   # Versant from 2026-27: 30+ on USA Network, the rest free on Fandango
     "ita.1": dict(name="Serie A", tier=1, rule="para", rule_outlet="Paramount+"),
     "fra.1": dict(name="Ligue 1", tier=2, hint="beIN Sports"),
     "usa.1": dict(name="MLS", tier=2, rule="apple", rule_outlet="Apple TV"),
@@ -196,7 +206,7 @@ LEAGUES = {
     "eng.fa": dict(name="FA Cup", tier=2, rule="espn", rule_outlet="ESPN+"),
     "eng.league_cup": dict(name="Carabao Cup", tier=2, rule="para", rule_outlet="Paramount+"),
     "esp.copa_del_rey": dict(name="Copa del Rey", tier=2, rule="espn", rule_outlet="ESPN+"),
-    "ger.dfb_pokal": dict(name="DFB-Pokal", tier=2, rule="espn", rule_outlet="ESPN+"),
+    "ger.dfb_pokal": dict(name="DFB-Pokal", tier=2, hint="ESPN's rights ended in 2026 · this season's US home not confirmed"),
     "ita.coppa_italia": dict(name="Coppa Italia", tier=2, rule="para", rule_outlet="Paramount+"),
     "ned.1": dict(name="Eredivisie", tier=2, rule="espn", rule_outlet="ESPN+"),
     "por.1": dict(name="Primeira Liga", tier=3),
@@ -559,7 +569,10 @@ def interpret(league, ev):
             listed.append((name, g.get("lang") or "en"))
     outlets = []
     for name, lang in listed:
-        o = OUTLETS.get(name.lower(), _o(name, []))
+        o = OUTLETS.get(name.lower())
+        if o is None:
+            UNKNOWN_OUTLETS[name] += 1
+            o = _o(name, [])
         via = list(o["via"])
         if name.lower() in ("cbssn", "cbs sports network") and league in PARAMOUNT_EVERY_MATCH:
             via.insert(0, "para")
@@ -1450,7 +1463,7 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
   </section>
 
   <footer class="foot">
-    <p>A colored pill means the broadcaster is inside one of the services you have selected; a grey pill is one you don't have; a dashed pill marks the league's usual home when ESPN has not listed the channel yet, which is normal more than a few days out. Fox One includes FOX, FS1, FS2, Big Ten Network and Fox Deportes but not Fox Soccer Plus. ESPN Unlimited includes every ESPN network, ESPN on ABC and ESPN+. TNT and TBS matches stream on HBO Max; CBS matches stream on Paramount+ Premium. Fubo's Pro plan has FOX, FS1, FS2, ESPN, ESPN2, ABC, CBS, CBS Sports Network, NBC, USA Network, Telemundo and beIN Sports, but not TNT, TBS, Univision or TUDN; ESPNU and Universo need its Elite plan, and ESPN Deportes, Fox Deportes and Fox Soccer Plus its International Sports Plus add-on. Assignments can move on the day, so a glance at the app before kickoff is still worth it.</p>
+    <p>A colored pill means the broadcaster is inside one of the services you have selected; a grey pill is one you don't have; a dashed pill marks the league's usual home when ESPN has not listed the channel yet, which is normal more than a few days out. Fox One includes FOX, FS1, FS2, Big Ten Network and Fox Deportes but not Fox Soccer Plus. ESPN Unlimited includes every ESPN network, ESPN on ABC and ESPN+. TNT and TBS matches stream on HBO Max; CBS matches stream on Paramount+ Premium. Fubo's Pro plan has FOX, FS1, FS2, ESPN, ESPN2, ABC, CBS, CBS Sports Network, NBC, USA Network, Telemundo and beIN Sports, but not TNT, TBS, Univision or TUDN; ESPNU and Universo need its Elite plan, and ESPN Deportes, Fox Deportes and Fox Soccer Plus its International Sports Plus add-on. Most Bundesliga matches stream free on Fandango, with about 30 a season on USA Network; Peacock doesn't carry USA Network's or NBCSN's Premier League matches. Assignments can move on the day, so a glance at the app before kickoff is still worth it.</p>
     @@FAILED@@
     <p>Fixtures, scores, broadcasters and logos from ESPN's public scoreboard; while matches are on, your browser checks the scores there once a minute. Rights notes from Fox Sports, CBS Sports, ESPN and World Soccer Talk. Built by <a href="https://github.com/caparomula/soccer-outlook">a small open generator</a> on GitHub. Storylines are researched on the web and written by Claude once a day; they can be wrong, so each one links its sources.</p>
   </footer>
@@ -2231,6 +2244,31 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
 
 
 # ----------------------------------------------------------------------------------------------
+UNKNOWN_OUTLETS = collections.Counter()   # broadcaster names ESPN listed that OUTLETS doesn't know
+
+
+def audit(matches):
+    """What this build couldn't map, as lines for the log and the run's summary page.
+
+    Two kinds of drift have quietly made the page wrong without breaking the build: ESPN using a
+    broadcaster name OUTLETS doesn't know ("USA Net", "Fandango"), whose matches then count as on
+    no service at all; and a league's rights moving, so that its usual-home rule (the Bundesliga
+    "usually ESPN+") no longer matches what ESPN lists. Both are reported here instead.
+    """
+    lines = [f"Unknown broadcaster name {name!r} on {n} match{'' if n == 1 else 'es'}: add it to OUTLETS"
+             for name, n in UNKNOWN_OUTLETS.most_common()]
+    for lg, info in LEAGUES.items():
+        if not info.get("rule_outlet"):
+            continue
+        label = OUTLETS[info["rule_outlet"].lower()]["label"]
+        listed = [m for m in matches if m.league == lg and m.outlets]
+        hits = sum(1 for m in listed if any(o.label == label for o in m.outlets))
+        if len(listed) >= 5 and hits < 0.2 * len(listed):
+            lines.append(f"{info['name']} is assumed to be usually on {label}, but only {hits} of its {len(listed)} "
+                         f"listed matches are: check its rights and its rule in LEAGUES")
+    return lines
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--out", default="site/index.html")
@@ -2265,6 +2303,13 @@ def main():
     if not matches:
         print("FAIL no fixtures fetched", file=sys.stderr)
         return 2
+    warnings = audit(matches)
+    for w in warnings:
+        # On GitHub Actions a ::warning:: line becomes an annotation on the run's page.
+        print(("::warning title=Broadcaster mapping::" if os.environ.get("GITHUB_ACTIONS") else "WARN ") + w)
+    if warnings and os.environ.get("GITHUB_STEP_SUMMARY"):
+        with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as f:
+            f.write("### Broadcaster mapping\n\n" + "".join(f"- {w}\n" for w in warnings) + "\n")
     if len(failed) > len(LEAGUES) * len(days) // 2:
         print(f"FAIL {len(failed)} of {len(LEAGUES) * len(days)} scoreboard requests failed", file=sys.stderr)
         return 3
@@ -2301,7 +2346,7 @@ def main():
     n_on = sum(1 for m in matches if m.service)
     image_mode = "none" if args.no_logos else ("embedded" if args.embed_images else "linked")
     print(f"OK matches={len(matches)} on_services={n_on} days={days[0]}..{days[-1]} images={image_mode} logos_new={wanted} logos_missing={missing} tables={len(STANDINGS)} "
-          f"fetch_failures={len(failed)} bytes={len(page.encode('utf-8'))} trimmed={trimmed or 'none'} built={built_at.astimezone(ET).strftime('%Y-%m-%d %H:%M ET')}")
+          f"fetch_failures={len(failed)} mapping_warnings={len(warnings)} bytes={len(page.encode('utf-8'))} trimmed={trimmed or 'none'} built={built_at.astimezone(ET).strftime('%Y-%m-%d %H:%M ET')}")
     return 0
 
 
