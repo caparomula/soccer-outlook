@@ -119,9 +119,10 @@ class RightsError(ValueError):
 
 @dataclass(frozen=True)
 class UsualHome:
-    channel: str
+    channel: str         # carries every match not listed yet; "" when the rights go club by club only
+    by_home: dict        # home club, as ESPN names it -> channel, for competitions sold club by club
     season: str
-    until: date
+    until: date          # the claims lapse after this day
 
 
 @dataclass(frozen=True)
@@ -273,7 +274,7 @@ def load_rights(path, leagues):
             problems.append(f"{where}: not a competition build.py tracks")
         if not table(where, e):
             continue
-        keys(where, e, {"usual", "season", "until", "hint", "note", "source", "checked"})
+        keys(where, e, {"usual", "by_home_team", "season", "until", "hint", "note", "source", "checked"})
         hint = text(where, e, "hint", required=False)
         text(where, e, "note", required=False)
         text(where, e, "source")
@@ -281,18 +282,24 @@ def load_rights(path, leagues):
         if when:
             checked.append((f"{leagues.get(lg, {}).get('name', lg)} (leagues.{lg})", when))
         usual = None
-        if {"usual", "season", "until"} & set(e):
-            ch, season, until = text(where, e, "usual"), text(where, e, "season"), day(where, e, "until")
-            if ch and ch not in channels:
-                problems.append(f"{where}: no channel {ch!r} under [channels]")
-            elif ch and not carried[ch]:
-                problems.append(f"{where}: no service carries {ch!r}, so it can't be a usual home")
+        if {"usual", "by_home_team", "season", "until"} & set(e):
+            by_home = e.get("by_home_team", {})
+            if not isinstance(by_home, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in by_home.items()):
+                problems.append(f"{where}: by_home_team must map club names to channel names")
+                by_home = {}
+            ch = text(where, e, "usual", required=not by_home)
+            season, until = text(where, e, "season"), day(where, e, "until")
+            for label, what in [(ch, "usual")] + [(c, f"by_home_team.{club!r}") for club, c in by_home.items()]:
+                if label and label not in channels:
+                    problems.append(f"{where}: {what} names no channel {label!r} under [channels]")
+                elif label and not carried[label]:
+                    problems.append(f"{where}: {what}: no service carries {label!r}, so it can't be a usual home")
             if until and when and until < when:
                 problems.append(f"{where}: until {until} is before checked {when}")
-            if ch and season and until:
-                usual = UsualHome(ch, season, until)
+            if (ch or by_home) and season and until:
+                usual = UsualHome(ch, dict(by_home), season, until)
         elif not hint:
-            problems.append(f"{where}: give a usual home (usual, season, until) or a hint")
+            problems.append(f"{where}: give a usual home (usual or by_home_team, with season and until) or a hint")
         league_rights[lg] = LeagueRights(usual, hint)
 
     if problems:
@@ -416,12 +423,19 @@ def map_outlet(name, league):
     return Outlet(label=o["label"], via=via, free=o["free"], es=o["es"])
 
 
-def usual_home(league):
-    """The league's usual home as an Outlet while its season lasts; None once it has lapsed."""
+def usual_home(league, home=""):
+    """The match's usual home as an Outlet while the season lasts; None once it has lapsed.
+
+    For a competition sold club by club (Liga MX), the home club decides, and a club the table
+    doesn't name gets no claim rather than a guess."""
     r = RIGHTS.leagues.get(league)
-    if not r or not r.usual or TODAY > r.usual.until:
+    u = r.usual if r else None
+    if not u or TODAY > u.until:
         return None
-    o = OUTLETS[r.usual.channel.lower()]
+    channel = u.by_home.get(home) or u.channel
+    if not channel:
+        return None
+    o = OUTLETS[channel.lower()]
     return Outlet(label=o["label"], via=list(o["via"]), free=o["free"], es=o["es"])
 
 
@@ -431,7 +445,8 @@ def league_hint(league):
     if not r:
         return ""
     if r.usual and TODAY > r.usual.until:
-        lapsed = f"Usual US home not confirmed for this season (was {r.usual.channel} in {r.usual.season})"
+        was = r.usual.channel or "set club by club"
+        lapsed = f"Usual US home not confirmed for this season (was {was} in {r.usual.season})"
         return lapsed + (f" · {r.hint}" if r.hint else "")
     return r.hint
 
@@ -698,7 +713,7 @@ def interpret(league, ev):
             listed.append((name, g.get("lang") or "en"))
     outlets = [map_outlet(name, league) for name, _ in listed]
     outlets.sort(key=lambda o: o.es)
-    rule = None if outlets else usual_home(league)
+    rule = None if outlets else usual_home(league, home.name)
     hint = league_hint(league) if not outlets and not rule else ""
     service, basis, outlet = evaluate(outlets, rule, set(OWNER))
 
@@ -1380,6 +1395,7 @@ a { color: inherit; }
 .drawer__sum { font-size: 13px; color: var(--muted); }
 .drawer__foot { position: sticky; bottom: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px;
   margin: 2px -16px 0; padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px)); background: var(--card); border-top: 1px solid var(--line); }
+.drawer__links { display: flex; flex-wrap: wrap; gap: 0 18px; }
 .drawer button.link { appearance: none; background: none; border: 0; color: var(--muted); font: inherit; font-size: 13px; text-decoration: underline; cursor: pointer; padding: 6px 0; }
 @media (max-width: 600px) {
   .drawer { left: 8px; right: 8px; width: auto; }
@@ -1562,7 +1578,7 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
     <div class="controls__row" id="have-pills"><span class="controls__lbl">You have</span>@@HAVE_PILLS@@</div>
     <p class="drawer__hint">Tap the services you have and every match is judged against them. The default is the page owner's lineup; your choice stays in this browser. Fubo means its Pro plan; a cable, YouTube TV or Hulu + Live TV package counts as the live-TV bundle.</p>
     <div class="controls__row" id="comp-pills"><span class="controls__lbl">Competitions</span>@@COMP_PILLS@@</div>
-    <div class="drawer__foot"><button type="button" class="link" id="btn-reset">Reset to the default</button><button type="button" class="fbtn" id="btn-filters-close">Done</button></div>
+    <div class="drawer__foot"><span class="drawer__links"><button type="button" class="link" id="btn-reset">Reset to the default</button><button type="button" class="link" id="btn-clear" aria-label="Clear all services" title="Deselect every service, then pick the ones you want">Clear all</button></span><button type="button" class="fbtn" id="btn-filters-close">Done</button></div>
   </div>
   <header class="hdr">
     <div class="hdr__eyebrow" id="eyebrow">Your lineup · the week ahead</div>
@@ -1760,6 +1776,9 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
       compOff = {}; drawer.querySelectorAll('[data-kind="comp"][data-default-off="1"]').forEach(function (x) { compOff[x.getAttribute('data-key')] = true; });
       write(LS.mode, mode); try { localStorage.removeItem(LS.comp); localStorage.removeItem('ssg3-have'); } catch (e) {}
       evaluateAll();
+    }
+    else if (b.id === 'btn-clear') {   // every service off, to pick a lineup from nothing; competitions stay as they are
+      HAVE = {}; storedHave = []; write('ssg3-have', storedHave); evaluateAll();
     }
     else if (b.getAttribute('data-kind') === 'have') {
       var k = b.getAttribute('data-key'); if (HAVE[k]) delete HAVE[k]; else HAVE[k] = true;
@@ -2429,14 +2448,23 @@ def audit(matches):
         u, name = r.usual, LEAGUES[lg]["name"]
         if not u:
             continue
+        home_of = u.channel or "set club by club"
         if TODAY > u.until:
-            lines.append(f"{name}: its usual home ({u.channel}) was for {u.season} and lapsed on {u.until}, so the page "
+            lines.append(f"{name}: its usual home ({home_of}) was for {u.season} and lapsed on {u.until}, so the page "
                          f"no longer claims one. Confirm this season's home in rights.toml (leagues.{lg}).")
             continue
         left = (u.until - TODAY).days
         if left <= LAPSE_NOTICE_DAYS:
-            lines.append(f"{name}: its usual home ({u.channel}, {u.season}) lapses in {left} day{'' if left == 1 else 's'}, "
+            lines.append(f"{name}: its usual home ({home_of}, {u.season}) lapses in {left} day{'' if left == 1 else 's'}, "
                          f"on {u.until}. Confirm next season's home in rights.toml (leagues.{lg}).")
+        if u.by_home:
+            # A club the table doesn't name (promoted, renamed by ESPN) gets no claim; say which.
+            missing = sorted({m.home.name for m in matches if m.league == lg} - set(u.by_home))
+            for club in missing:
+                lines.append(f"{name}: home club {club!r} has no usual home in rights.toml (leagues.{lg}.by_home_team), "
+                             f"so its home matches claim none. Add it under the name ESPN uses.")
+        if not u.channel:
+            continue
         listed = [m for m in matches if m.league == lg and m.outlets]
         hits = sum(1 for m in listed if any(o.label == u.channel for o in m.outlets))
         if len(listed) >= 5 and hits < 0.2 * len(listed):

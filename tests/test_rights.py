@@ -102,6 +102,49 @@ class Regressions(unittest.TestCase):
         self.assertNotIn("para", via("CBSSN", "usa.nwsl"))
 
 
+class UnlistedCompetitions(unittest.TestCase):
+    """Competitions ESPN lists no broadcasters for, so the page has only rights.toml to go on."""
+
+    def home(self, league, club=""):
+        with mock.patch.object(build, "TODAY", SEASON_DAY):
+            return build.usual_home(league, club)
+
+    def test_liga_mx_goes_by_the_home_club(self):
+        self.assertEqual(self.home("mex.1", "América").via, ["vix"])
+        self.assertEqual(self.home("mex.1", "Guadalajara").label, "Peacock")
+        self.assertEqual(self.home("mex.1", "Tijuana").via, ["fox"])
+        self.assertEqual(self.home("mex.1", "Monterrey").via, ["vix"])
+
+    def test_liga_mx_club_the_table_doesnt_name_claims_nothing(self):
+        self.assertIsNone(self.home("mex.1", "Mazatlán"))
+        self.assertIsNone(self.home("mex.1"))
+        match = SimpleNamespace(league="mex.1", home=SimpleNamespace(name="Mazatlán"), outlets=[])
+        build.UNKNOWN_OUTLETS.clear()
+        with mock.patch.object(build, "TODAY", SEASON_DAY):
+            report = build.audit([match])
+        self.assertTrue(any("'Mazatlán'" in line and "by_home_team" in line for line in report), report)
+
+    def test_liga_mx_table_covers_every_club_espn_lists(self):
+        # ESPN's names as of the check date (site.api.espn.com .../soccer/mex.1/teams).
+        espn = {"América", "Atlante", "Atlas", "Atlético de San Luis", "Cruz Azul", "FC Juárez", "Guadalajara", "León",
+                "Monterrey", "Necaxa", "Pachuca", "Puebla", "Pumas UNAM", "Querétaro", "Santos", "Tigres UANL", "Tijuana", "Toluca"}
+        self.assertEqual(set(build.RIGHTS.leagues["mex.1"].usual.by_home), espn)
+
+    def test_primeira_liga_is_on_beins_own_service_not_fubo(self):
+        home = self.home("por.1")
+        self.assertEqual(home.label, "beIN Sports Connect")
+        self.assertEqual(home.via, ["bein"])
+
+    def test_concacaf_nations_league_moved_to_fox(self):
+        hint = build.league_hint("concacaf.nations.league")
+        self.assertIn("FOX", hint)
+        self.assertNotIn("Paramount", hint)
+
+    def test_ligue_1_claims_no_usual_home(self):
+        # beIN guarantees only four live matches a round; claiming every match would be a guess.
+        self.assertIsNone(self.home("fra.1"))
+
+
 class FailingSafe(unittest.TestCase):
     """What the page does with a fact it can no longer vouch for."""
 
@@ -220,6 +263,18 @@ class Validation(unittest.TestCase):
                                "problem(s)")
         self.assertIn("no channel 'Gamma'", message)
         self.assertIn("until must be a date", message)
+
+    def test_club_table_naming_an_undefined_channel(self):
+        self.refuses(GOOD.replace('usual = "Alpha"', 'by_home_team = { "Club" = "Gamma" }'), "names no channel 'Gamma'")
+
+    def test_club_table_without_a_season_end(self):
+        self.refuses(GOOD.replace('usual = "Alpha"', 'by_home_team = { "Club" = "Alpha" }').replace("until = 2027-06-30\n", ""),
+                     "until must be a date")
+
+    def test_club_table_alone_is_enough(self):
+        r = self.load(GOOD.replace('usual = "Alpha"', 'by_home_team = { "Club" = "Alpha" }'))
+        self.assertEqual(r.leagues["esp.1"].usual.by_home, {"Club": "Alpha"})
+        self.assertEqual(r.leagues["esp.1"].usual.channel, "")
 
     def test_not_toml(self):
         self.refuses("[channels\n", ".toml: ")

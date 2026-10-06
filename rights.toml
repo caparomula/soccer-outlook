@@ -20,7 +20,9 @@
 # Every broadcaster ESPN lists, under the name the page shows. `espn` holds the other names ESPN
 # uses for it (matched in any case; the name itself always matches). `free` marks one anyone can
 # watch, over the air or in a free app; `es` marks a Spanish-language one. A channel no service
-# carries can stay here so that its name is recognized.
+# carries can stay here so that its name is recognized. A few entries are not channels ESPN lists
+# but the honest usual home of a competition it doesn't list at all ("beIN Sports Connect", "FOX
+# Sports networks"), named for what the viewer needs.
 
 [channels]
 "ESPN+"                     = {}
@@ -75,6 +77,8 @@
 "Fubo Sports Network"       = { free = true }
 "beIN Sports"               = {}
 "beIN Sports en Español"    = { es = true }
+"beIN Sports Connect"       = {}
+"FOX Sports networks"       = {}
 "Fanatiz"                   = {}
 "DAZN"                      = {}
 "Hulu"                      = {}
@@ -93,8 +97,8 @@ checked = 2026-10-03
 
 [services.fox]
 name = "Fox One"
-channels = ["FOX", "FS1", "FS2", "Fox Deportes", "Big Ten Network"]
-note = "Not Fox Soccer Plus."
+channels = ["FOX", "FS1", "FS2", "Fox Deportes", "Big Ten Network", "FOX Sports networks"]
+note = "Not Fox Soccer Plus. \"FOX Sports networks\" stands for a match that may be on FS1, FS2, Fox Deportes or Fox One itself."
 source = "https://www.foxsports.com/stories/nfl/fox-one-launches-today-stream-fox-live-news-sports-entertainment-shows"
 checked = 2026-10-03
 
@@ -179,9 +183,10 @@ checked = 2026-10-03
 
 [services.bein]
 name = "beIN Sports"
-channels = ["beIN Sports", "beIN Sports en Español"]
-source = "The channels themselves"
-checked = 2026-10-03
+channels = ["beIN Sports", "beIN Sports en Español", "beIN Sports Connect"]
+note = "beIN Sports Connect is beIN's streaming service, with every match beIN has rights to; a TV provider's login unlocks it. Fubo carries the beIN channels, not Connect."
+source = "https://www.beinsports.com/en-us/soccer/premier-league-portuguese/articles/how-and-where-to-watch-liga-portugal-on-bein-sports-2026-07-13"
+checked = 2026-10-06
 
 [services.fanatiz]
 name = "Fanatiz"
@@ -266,8 +271,9 @@ source = "ESPN listings, Sept 1 to Oct 16 2026: all 41 listed matches on Paramou
 checked = 2026-10-06
 
 [leagues."fra.1"]
-hint = "beIN Sports"
-source = "ESPN listings, Sept 1 to Oct 16 2026: all 5 listed matches on beIN Sports"
+hint = "beIN Sports or beIN Sports Connect · at least four matches a round live in the US"
+note = "beIN's exclusive deal runs 2024-25 through 2028-29 but guarantees only four live matches a round, so there is no usual home for every match."
+source = "https://www.cabletv.com/sports/watch-french-ligue-1 and ESPN listings, Sept 1 to Oct 16 2026: all 5 listed matches on beIN Sports"
 checked = 2026-10-06
 
 [leagues."usa.1"]
@@ -278,9 +284,32 @@ source = "ESPN listings, Sept 1 to Oct 16 2026: all 106 listed matches on Apple 
 checked = 2026-10-06
 
 [leagues."mex.1"]
-hint = "TUDN, Univision or ViX · a few clubs on FS1, FS2 or Fox Deportes"
-source = "Research for the first build of the page; ESPN lists no Liga MX broadcasters"
-checked = 2026-10-03
+season = "2026-27"
+until = 2027-05-31
+hint = "Depends on the home club: TUDN, Univision or ViX for most · Chivas on Telemundo or Peacock · Juárez, Santos and Tijuana on FOX"
+note = """US rights go club by club, by the home team. ESPN lists no Liga MX broadcasters, so these are the only basis. TelevisaUnivision has 14 clubs and streams all their matches on ViX Premium (with TUDN and Univision simulcasts); Telemundo has Chivas, on Telemundo, Universo and Peacock; FOX has Juárez, Santos and Tijuana. Club names are ESPN's."""
+source = "https://worldsoccertalk.com/liga-mx-tv-schedule/ and https://www.nbcuniversal.com/article/telemundo-signs-multi-year-multi-platform-rights-agreement-exclusive-home-chivas-us"
+checked = 2026-10-06
+
+[leagues."mex.1".by_home_team]
+"América"              = "ViX"
+"Atlante"              = "ViX"
+"Atlas"                = "ViX"
+"Atlético de San Luis" = "ViX"
+"Cruz Azul"            = "ViX"
+"León"                 = "ViX"
+"Monterrey"            = "ViX"
+"Necaxa"               = "ViX"
+"Pachuca"              = "ViX"
+"Puebla"               = "ViX"
+"Pumas UNAM"           = "ViX"
+"Querétaro"            = "ViX"
+"Tigres UANL"          = "ViX"
+"Toluca"               = "ViX"
+"Guadalajara"          = "Peacock"
+"FC Juárez"            = "FOX Sports networks"
+"Santos"               = "FOX Sports networks"
+"Tijuana"              = "FOX Sports networks"
 
 [leagues."usa.nwsl"]
 hint = "CBS or Paramount+, ESPN, Prime Video, ION, Roku or NWSL+"
@@ -323,14 +352,15 @@ source = "ESPN listings, Sept 1 to Oct 16 2026: all 18 listed matches on Paramou
 checked = 2026-10-06
 
 [leagues."uefa.nations"]
-hint = "Fox Sports family · FS1 and FS2 are in Fox One and Fubo; Fox Soccer Plus and Tubi are separate"
-source = "https://www.foxsports.com/soccer/nations-league/schedule"
-checked = 2026-10-03
+hint = "FOX Sports shows about 46 matches, on FOX, FS1, FS2, Fox Soccer Plus or Tubi · FS1 and FS2 are in Fox One and Fubo"
+source = "https://www.foxsports.com/stories/presspass/europes-top-national-teams-biggest-stars-compete-fox-sports-presents-uefa-nations-league-2026-27"
+checked = 2026-10-06
 
 [leagues."concacaf.nations.league"]
-hint = "Paramount+ has carried Concacaf; not confirmed for this match"
-source = "Research for the first build of the page"
-checked = 2026-10-03
+hint = "FOX Sports in English · Univision, TUDN or ViX in Spanish"
+note = "FOX became the English-language home from the 2026-27 cycle, through 2029."
+source = "https://www.concacaf.com/news/fox-sports-renews-concacaf-gold-cup-rights-and-becomes-new-u-s-english-language-home-of-the-nations-league"
+checked = 2026-10-06
 
 [leagues."eng.2"]
 hint = "Select matches on Paramount+ or CBS Sports Golazo"
@@ -362,6 +392,14 @@ checked = 2026-10-06
 [leagues."ger.dfb_pokal"]
 hint = "ESPN's rights ended in 2026 · this season's US home not confirmed"
 source = "https://espnpressroom.com/press-release/espn-renews-dfb-pokal-rights-through-2026/"
+checked = 2026-10-06
+
+[leagues."por.1"]
+usual = "beIN Sports Connect"
+season = "2026-27"
+until = 2027-06-30
+note = "beIN has every match exclusively; the biggest air on the beIN channels too, and some free on beIN Sports Xtra."
+source = "https://www.beinsports.com/en-us/soccer/premier-league-portuguese/articles/how-and-where-to-watch-liga-portugal-on-bein-sports-2026-07-13 and https://worldsoccertalk.com/primeira-liga-tv-schedule/"
 checked = 2026-10-06
 
 [leagues."ita.coppa_italia"]
@@ -401,9 +439,23 @@ source = "ESPN listings, Sept 1 to Oct 16 2026: 60 of 61 listed matches on ESPN+
 checked = 2026-10-06
 
 [leagues."bra.1"]
-hint = "Fanatiz or TV Globo Internacional"
-source = "Research for the first build of the page; ESPN lists no Brasileirão broadcasters"
-checked = 2026-10-03
+hint = "Fanatiz, or Globo's Premiere pay-per-view · a few on TV Globo Internacional"
+source = "https://worldsoccertalk.com/how-to-watch-the-brasileirao-on-us-tv/ and its 2026 match listings; ESPN lists no Brasileirão broadcasters"
+checked = 2026-10-06
+
+[leagues."ksa.1"]
+hint = "FOX Sports: select matches on FS2 or Fox Deportes"
+note = "FOX holds the US rights, renewed through IMG in 2025, but shows a selection rather than every match."
+source = "https://www.sportcal.com/media/dazn-confirms-saudi-league-deal-in-multiple-markets-fox-lands-us-rights/ and https://www.insideworldfootball.com/2025/09/25/saudi-pro-league-extends-global-appeal-international-broadcast-deal/"
+checked = 2026-10-06
+
+[leagues."concacaf.champions"]
+usual = "Paramount+"
+season = "2027"
+until = 2027-06-30
+note = "CBS's deal starts with the 2027 edition in February and runs through 2030; Spanish on TelevisaUnivision."
+source = "https://www.concacaf.com/competitions/champions-cup/news/cbs-sports-secures-exclusive-u-s-english-language-rights-for-champions-cup-beginning-in-february"
+checked = 2026-10-06
 
 [leagues."arg.1"]
 hint = "Fanatiz, ViX or TyC Sports · Paramount+ no longer confirmed"
