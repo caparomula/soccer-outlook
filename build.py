@@ -81,7 +81,7 @@ SERVICES = {
     "free": "Free apps (Fandango, NWSL+, Tubi, Roku)",
 }
 SERVICE_RANK = list(SERVICES)
-OWNER = ["hbo", "fox", "para", "espn", "apple", "usa", "prime", "netflix", "disney"]
+OWNER = ["hbo", "fox", "para", "espn", "apple", "usa", "prime", "netflix", "disney", "free"]
 
 # ----------------------------------------------------------------------------------------------
 # ESPN broadcaster short names (lower case) -> the outlet's label and the services that carry it.
@@ -728,6 +728,12 @@ def logo_html(team, cache, cls="logo"):
     return f'<i class="{cls} logo--txt" aria-hidden="true">{esc(team.abbr[:3])}</i>'
 
 
+def owner_prose():
+    """The owner's lineup as a phrase for the page's opening line, written from OWNER."""
+    names = ["free apps" if k == "free" else SERVICES[k] for k in OWNER]
+    return names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
+
+
 def owner_pill_service(via):
     have = set(OWNER)
     for sid in sorted((x for x in via if x in have), key=SERVICE_RANK.index):
@@ -1074,7 +1080,8 @@ def build_page(matches, cache, built_at, failed, today):
             .replace("@@OUTLOOK@@", "".join(static_sections))
             .replace("@@TABLES@@", tables_html(matches, cache))
             .replace("@@LINEUP@@", lineup)
-            .replace("@@FAILED@@", failed_note))
+            .replace("@@FAILED@@", failed_note)
+            .replace("@@OWNER_PROSE@@", esc(owner_prose())))
     return page
 
 
@@ -1411,7 +1418,7 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
     <p class="story__lede" id="story-lede"></p>
     <p class="story__by" id="story-by"></p>
   </section>
-  <div class="forecast" id="forecast"><p>Matches on HBO Max, Fox One, Paramount+, ESPN Unlimited, Apple TV, USA Network, Prime Video, Netflix and Disney+, from the moment you open this page through the week ahead.</p></div>
+  <div class="forecast" id="forecast"><p>Matches on @@OWNER_PROSE@@, from the moment you open this page through the week ahead.</p></div>
   <p class="fresh" id="fresh">Fixtures and broadcasters from ESPN as of @@BUILT_ET@@. Rebuilt early morning, midday and evening. Times shown in Eastern.</p>
   <p class="fresh" id="livenote" hidden></p>
   <div class="stale" id="stale" hidden></div>
