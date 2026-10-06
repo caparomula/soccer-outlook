@@ -89,6 +89,12 @@ OWNER = ["hbo", "fox", "para", "espn", "apple", "usa", "prime", "netflix", "disn
 # Select is ESPN+ alone; TNT Sports' soccer streams on HBO Max; CBS matches stream on Paramount+
 # Premium and NBC's on Peacock; ViX Premium streams TUDN and Univision's matches; a cable or
 # live-TV bundle carries the cable channels and the local stations; "free" is a free app.
+# "fubo" is Fubo's Pro plan as of October 2026: FOX, FS1, FS2, BTN, ESPN, ESPN2, ACC and SEC
+# Network, ABC, CBS, CBS Sports Network, NBC, USA Network, CNBC, Telemundo, beIN Sports (both
+# languages), ION and The CW (NBCUniversal's networks returned in June 2026 after a six-month
+# blackout). Not in Pro: ESPNU, ESPNews and Universo (Elite plan); ESPN Deportes, Fox Deportes and
+# Fox Soccer Plus (International Sports Plus add-on); ESPN+. Not on Fubo at all: TNT, TBS, truTV,
+# and the TelevisaUnivision networks (gone since December 2024).
 # ----------------------------------------------------------------------------------------------
 def _o(label, via, free=False, es=False):
     return dict(label=label, via=via, free=free, es=es)
@@ -96,38 +102,38 @@ def _o(label, via, free=False, es=False):
 
 OUTLETS = {
     "espn+": _o("ESPN+", ["espn", "espnplus"]),
-    "espn": _o("ESPN", ["espn", "cable"]),
-    "espn2": _o("ESPN2", ["espn", "cable"]),
+    "espn": _o("ESPN", ["espn", "cable", "fubo"]),
+    "espn2": _o("ESPN2", ["espn", "cable", "fubo"]),
     "espnu": _o("ESPNU", ["espn", "cable"]),
     "espnews": _o("ESPNEWS", ["espn", "cable"]),
     "espn deportes": _o("ESPN Deportes", ["espn", "cable"], es=True),
-    "accn": _o("ACC Network", ["espn", "cable"]),
-    "secn": _o("SEC Network", ["espn", "cable"]),
-    "abc": _o("ABC", ["espn", "ota", "cable"], free=True),
-    "fs1": _o("FS1", ["fox", "cable"]),
-    "fs2": _o("FS2", ["fox", "cable"]),
-    "fox": _o("FOX", ["fox", "ota", "cable"], free=True),
+    "accn": _o("ACC Network", ["espn", "cable", "fubo"]),
+    "secn": _o("SEC Network", ["espn", "cable", "fubo"]),
+    "abc": _o("ABC", ["espn", "ota", "cable", "fubo"], free=True),
+    "fs1": _o("FS1", ["fox", "cable", "fubo"]),
+    "fs2": _o("FS2", ["fox", "cable", "fubo"]),
+    "fox": _o("FOX", ["fox", "ota", "cable", "fubo"], free=True),
     "fox deportes": _o("Fox Deportes", ["fox", "cable"], es=True),
-    "btn": _o("Big Ten Network", ["fox", "cable"]),
+    "btn": _o("Big Ten Network", ["fox", "cable", "fubo"]),
     "fox soccer plus": _o("Fox Soccer Plus", ["fsp"]),
     "fsp": _o("Fox Soccer Plus", ["fsp"]),
     "fox sports app": _o("Fox Sports app", []),
     "paramount+": _o("Paramount+", ["para"]),
-    "cbs": _o("CBS", ["para", "ota", "cable"], free=True),
-    "cbssn": _o("CBS Sports Network", ["cable"]),           # plus Paramount+ for all-match leagues
-    "cbs sports network": _o("CBS Sports Network", ["cable"]),
+    "cbs": _o("CBS", ["para", "ota", "cable", "fubo"], free=True),
+    "cbssn": _o("CBS Sports Network", ["cable", "fubo"]),   # plus Paramount+ for all-match leagues
+    "cbs sports network": _o("CBS Sports Network", ["cable", "fubo"]),
     "golazo": _o("CBS Sports Golazo Network", ["free"], free=True),
     "cbs sports golazo network": _o("CBS Sports Golazo Network", ["free"], free=True),
     "apple tv": _o("Apple TV", ["apple"]),
     "apple tv+": _o("Apple TV", ["apple"]),
     "mls season pass": _o("Apple TV", ["apple"]),
-    "usa": _o("USA Network", ["usa", "cable"]),
-    "usa network": _o("USA Network", ["usa", "cable"]),
-    "nbc": _o("NBC", ["peacock", "ota", "cable"], free=True),
+    "usa": _o("USA Network", ["usa", "cable", "fubo"]),
+    "usa network": _o("USA Network", ["usa", "cable", "fubo"]),
+    "nbc": _o("NBC", ["peacock", "ota", "cable", "fubo"], free=True),
     "peacock": _o("Peacock", ["peacock"]),
-    "cnbc": _o("CNBC", ["cable"]),
-    "tele": _o("Telemundo", ["ota", "cable"], free=True, es=True),
-    "telemundo": _o("Telemundo", ["ota", "cable"], free=True, es=True),
+    "cnbc": _o("CNBC", ["cable", "fubo"]),
+    "tele": _o("Telemundo", ["ota", "cable", "fubo"], free=True, es=True),
+    "telemundo": _o("Telemundo", ["ota", "cable", "fubo"], free=True, es=True),
     "universo": _o("Universo", ["cable"], es=True),
     "hbo max": _o("HBO Max", ["hbo"]),
     "max": _o("HBO Max", ["hbo"]),
@@ -138,12 +144,12 @@ OUTLETS = {
     "amazon prime video": _o("Prime Video", ["prime"]),
     "netflix": _o("Netflix", ["netflix"]),
     "disney+": _o("Disney+", ["disney"]),
-    "ion": _o("ION", ["ota", "cable"], free=True),
+    "ion": _o("ION", ["ota", "cable", "fubo"], free=True),
     "roku": _o("The Roku Channel", ["free"], free=True),
     "victory+": _o("Victory+", ["free"], free=True),
     "tubi": _o("Tubi", ["free"], free=True),
     "youtube": _o("YouTube", ["free"], free=True),
-    "cw": _o("The CW", ["ota", "cable"], free=True),
+    "cw": _o("The CW", ["ota", "cable", "fubo"], free=True),
     "tudn": _o("TUDN", ["vix", "cable"], es=True),
     "univision": _o("Univision", ["vix", "ota", "cable"], free=True, es=True),
     "unimas": _o("UniMás", ["vix", "ota", "cable"], free=True, es=True),
@@ -151,8 +157,8 @@ OUTLETS = {
     "vix": _o("ViX", ["vix"], es=True),
     "fubo": _o("Fubo", ["fubo"]),
     "fubo sports network": _o("Fubo Sports Network", ["fubo", "free"], free=True),
-    "bein sports": _o("beIN Sports", ["bein"]),
-    "bein sports en español": _o("beIN Sports en Español", ["bein"], es=True),
+    "bein sports": _o("beIN Sports", ["bein", "fubo"]),
+    "bein sports en español": _o("beIN Sports en Español", ["bein", "fubo"], es=True),
     "fanatiz": _o("Fanatiz", ["fanatiz"]),
     "dazn": _o("DAZN", ["dazn"]),
     "hulu": _o("Hulu", []),
@@ -182,7 +188,7 @@ LEAGUES = {
     "uefa.europa": dict(name="Europa League", tier=2, rule="para", rule_outlet="Paramount+"),
     "uefa.europa.conf": dict(name="Conference League", tier=3, rule="para", rule_outlet="Paramount+"),
     "uefa.wchampions": dict(name="Women's Champions League", tier=2, rule="para", rule_outlet="Paramount+"),
-    "uefa.nations": dict(name="Nations League", tier=2, hint="Fox Sports family · FS1/FS2 are in Fox One; Fox Soccer Plus, Fubo and Tubi are not"),
+    "uefa.nations": dict(name="Nations League", tier=2, hint="Fox Sports family · FS1 and FS2 are in Fox One and Fubo; Fox Soccer Plus and Tubi are separate"),
     "fifa.friendly": dict(name="Men's friendly", tier=2),
     "fifa.friendly.w": dict(name="Women's friendly", tier=2),
     "concacaf.nations.league": dict(name="Concacaf Nations League", tier=3, hint="Paramount+ has carried Concacaf; not confirmed for this match"),
@@ -1418,7 +1424,7 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
   </div>
   <div class="drawer" id="drawer" hidden>
     <div class="controls__row" id="have-pills"><span class="controls__lbl">You have</span>@@HAVE_PILLS@@</div>
-    <p class="drawer__hint">Tap the services you have and every match is judged against them. The default is the page owner's lineup; your choice stays in this browser. A cable, YouTube TV, Fubo or Hulu Live package counts as the live-TV bundle.</p>
+    <p class="drawer__hint">Tap the services you have and every match is judged against them. The default is the page owner's lineup; your choice stays in this browser. Fubo means its Pro plan; a cable, YouTube TV or Hulu + Live TV package counts as the live-TV bundle.</p>
     <div class="controls__row" id="comp-pills"><span class="controls__lbl">Competitions</span>@@COMP_PILLS@@</div>
     <div class="controls__row drawer__foot"><button type="button" class="fbtn" id="btn-filters-close">Done</button></div>
   </div>
@@ -1444,7 +1450,7 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
   </section>
 
   <footer class="foot">
-    <p>A colored pill means the broadcaster is inside one of the services you have selected; a grey pill is one you don't have; a dashed pill marks the league's usual home when ESPN has not listed the channel yet, which is normal more than a few days out. Fox One includes FOX, FS1, FS2, Big Ten Network and Fox Deportes but not Fox Soccer Plus. ESPN Unlimited includes every ESPN network, ESPN on ABC and ESPN+. TNT and TBS matches stream on HBO Max; CBS matches stream on Paramount+ Premium. Assignments can move on the day, so a glance at the app before kickoff is still worth it.</p>
+    <p>A colored pill means the broadcaster is inside one of the services you have selected; a grey pill is one you don't have; a dashed pill marks the league's usual home when ESPN has not listed the channel yet, which is normal more than a few days out. Fox One includes FOX, FS1, FS2, Big Ten Network and Fox Deportes but not Fox Soccer Plus. ESPN Unlimited includes every ESPN network, ESPN on ABC and ESPN+. TNT and TBS matches stream on HBO Max; CBS matches stream on Paramount+ Premium. Fubo's Pro plan has FOX, FS1, FS2, ESPN, ESPN2, ABC, CBS, CBS Sports Network, NBC, USA Network, Telemundo and beIN Sports, but not TNT, TBS, Univision or TUDN; ESPNU and Universo need its Elite plan, and ESPN Deportes, Fox Deportes and Fox Soccer Plus its International Sports Plus add-on. Assignments can move on the day, so a glance at the app before kickoff is still worth it.</p>
     @@FAILED@@
     <p>Fixtures, scores, broadcasters and logos from ESPN's public scoreboard; while matches are on, your browser checks the scores there once a minute. Rights notes from Fox Sports, CBS Sports, ESPN and World Soccer Talk. Built by <a href="https://github.com/caparomula/soccer-outlook">a small open generator</a> on GitHub. Storylines are researched on the web and written by Claude once a day; they can be wrong, so each one links its sources.</p>
   </footer>
