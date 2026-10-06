@@ -1,8 +1,13 @@
-# Rebuilds the page from ESPN's public data and publishes it to GitHub Pages.
+# Rebuilds the page from ESPN's public data, adds the day's storylines, and publishes to GitHub Pages.
 #
 # Pages serves the gh-pages branch. Each run replaces that branch with a single commit holding the
 # new page, so the branch never accumulates history, and the daily push keeps the repository active
 # (GitHub disables scheduled workflows in public repositories after 60 days without activity).
+#
+# Storylines (story.py) are written by Claude with web search on the early-morning run, or on a
+# manual run with "Write fresh storylines" ticked; the other runs carry the morning's forward.
+# They need the ANTHROPIC_API_KEY repository secret. Without it, or if the call fails, the page is
+# published without storylines.
 #
 # Schedules are in UTC and GitHub may start them late when it is busy. The three runs land at about
 # 4:50 am, 12:50 pm and 6:50 pm Eastern daylight time, an hour earlier in standard time.
@@ -14,9 +19,14 @@ on:
     - cron: "50 16 * * *"
     - cron: "50 22 * * *"
   workflow_dispatch:
+    inputs:
+      story:
+        description: "Write fresh storylines with Claude (uses the Anthropic API key)"
+        type: boolean
+        default: false
   push:
     branches: [main]
-    paths: ["build.py", ".github/workflows/refresh.yml"]
+    paths: ["build.py", "story.py", ".github/workflows/refresh.yml"]
 
 permissions:
   contents: write
@@ -28,12 +38,12 @@ concurrency:
 jobs:
   refresh:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
 
       - name: Build the page
-        run: python3 build.py --out site/index.html
+        run: python3 build.py --out site/index.html --facts work/facts.json
 
       - name: Check the page
         run: |
@@ -44,6 +54,25 @@ jobs:
             echo "::error::The page looks incomplete (${size} bytes, ${rows} matches); keeping the published one."
             exit 1
           fi
+
+      - name: Write storylines
+        continue-on-error: true
+        timeout-minutes: 15
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SCHEDULE: ${{ github.event.schedule }}
+          WANT_STORY: ${{ inputs.story }}
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install --quiet "anthropic>=1.11,<2"
+          site_url="https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}"
+          previous=()
+          if curl -fsS --max-time 30 "${site_url}/story.json" -o work/previous-story.json; then
+            previous=(--previous work/previous-story.json)
+          fi
+          mode=auto
+          if [ "$SCHEDULE" = "50 8 * * *" ] || [ "$WANT_STORY" = "true" ]; then mode=force; fi
+          .venv/bin/python story.py --facts work/facts.json --out site/story.json "${previous[@]}" --mode "$mode"
 
       - name: Publish to gh-pages
         env:

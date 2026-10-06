@@ -930,6 +930,49 @@ def tables_html(matches, cache):
 LEAGUE_LOGOS = {}
 
 
+def team_facts(t):
+    table = ""
+    if t.rank:
+        table = ordinal(t.rank) + (f" of {t.size}" if t.size else "") + (f" in {t.group}" if t.group and t.size and t.size <= 8 else "")
+        if t.pts:
+            table += f", {t.pts} pts"
+    return {k: v for k, v in dict(name=t.name, table=table, record=t.record, last_five=t.form,
+                                     top_scorer=(f"{t.leader} ({t.leader_goals})" if t.leader and t.leader_goals not in ("", "0") else "")).items() if v}
+
+
+def write_facts(path, matches, built_at, today):
+    """Writes the facts story.py hands to the model: the most notable matches today and tomorrow,
+    split into ones the owner can watch and ones elsewhere, plus the biggest of the rest of the week.
+    Only what ESPN reported; the model is asked to research everything else."""
+    def entry(m):
+        local = m.utc.astimezone(ET)
+        return {k: v for k, v in dict(
+            id=m.id,
+            kickoff=(local.strftime("%a %b ") + str(local.day) + local.strftime(", %I:%M %p ET").replace(" 0", " ")) if m.time_valid else local.strftime("%a %b ") + str(local.day) + ", time TBD",
+            competition=m.comp, stage=m.stage, venue=m.venue, note=m.note,
+            home=team_facts(m.home), away=team_facts(m.away),
+            watch_on=(SERVICES[m.service] + ("" if m.outlet == SERVICES[m.service] else f" ({m.outlet})") + (", usual home, channel not posted yet" if m.basis == "rule" else "")) if m.service else "",
+            broadcasters=[o.label for o in m.outlets],
+            stature=m.score).items() if v not in ("", [], None)}
+
+    upcoming = [m for m in matches if m.state != "post"]
+    near = [m for m in upcoming if today <= m.utc.astimezone(ET).date() <= today + timedelta(days=1)]
+    later = [m for m in upcoming if m.utc.astimezone(ET).date() > today + timedelta(days=1)]
+    by_stature = lambda ms: sorted(ms, key=lambda m: (-m.score, m.utc))
+    facts = {
+        "date": today.isoformat(),
+        "weekday": today.strftime("%A"),
+        "built_at": built_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "owner_services": [SERVICES[k] for k in OWNER],
+        "today_and_tomorrow_on_owner_services": [entry(m) for m in by_stature([m for m in near if m.service])[:20]],
+        "today_and_tomorrow_elsewhere": [entry(m) for m in by_stature([m for m in near if not m.service and m.score >= 85])[:8]],
+        "later_this_week_biggest": [entry(m) for m in by_stature([m for m in later if m.score >= 125])[:6]],
+    }
+    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(facts, f, ensure_ascii=False, indent=1)
+
+
 def build_page(matches, cache, built_at, failed, today):
     matches.sort(key=lambda m: (m.utc, -m.score, m.comp, m.home.name))
     # Static fallback: rows grouped by Eastern day. The page script regroups them by the viewer's clock.
@@ -1095,6 +1138,21 @@ a { color: inherit; }
 .forecast b { font-weight: 600; }
 .fresh { margin: 6px 0 0; font-size: 13px; color: var(--muted); }
 .stale { margin: 12px 0 0; padding: 10px 12px; border-radius: 8px; background: var(--warn-bg); border: 1px solid var(--amber); font-size: 14px; }
+
+/* Storylines */
+.story { margin-top: 18px; max-width: 70ch; }
+.story__eyebrow { font-family: var(--display); font-weight: 700; font-size: 13px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); }
+.story__h { font-size: clamp(26px, 4.4vw, 34px); line-height: 1.08; margin-top: 4px; }
+.story__lede { font-size: 18px; margin: 8px 0 0; }
+.story__by { font-size: 13px; color: var(--muted); margin: 8px 0 0; }
+.story__by a, .row__story a, .pick__story a, .miss__story a { color: var(--muted); }
+.story + .forecast { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
+.row__story { margin-top: 6px; font-size: 14.5px; max-width: 66ch; color: var(--fg); }
+.row--off .row__story { color: var(--muted); }
+.story-tag { font-family: var(--display); font-weight: 700; font-size: 11.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); margin-right: 6px; }
+.story-src { font-size: 12.5px; margin-left: 4px; white-space: nowrap; }
+.pick__story { margin-top: 8px; font-size: 13.5px; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.miss__story { margin-top: 6px; font-size: 13.5px; color: var(--fg); }
 
 /* Next up */
 .nextup { margin-top: 18px; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 18px; align-items: center; background: var(--card); border: 1px solid var(--line); border-left: 5px solid var(--accent); border-radius: var(--radius); padding: 12px 16px; }
@@ -1315,6 +1373,12 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
     </div>
     <div class="hdr__tally"><div class="big" id="tally-n">@@N_ON@@</div><div class="small" id="tally-txt">of @@N_ALL@@ upcoming matches tracked this week are on your services</div></div>
   </header>
+  <section class="story" id="story" aria-labelledby="story-h" hidden>
+    <div class="story__eyebrow">Storylines</div>
+    <h2 class="story__h" id="story-h"></h2>
+    <p class="story__lede" id="story-lede"></p>
+    <p class="story__by" id="story-by"></p>
+  </section>
   <div class="forecast" id="forecast"><p>Matches on HBO Max, Fox One, Paramount+, ESPN Unlimited, Apple TV, USA Network, Prime Video, Netflix and Disney+, from the moment you open this page through the week ahead.</p></div>
   <p class="fresh" id="fresh">Fixtures and broadcasters from ESPN as of @@BUILT_ET@@. Rebuilt early morning, midday and evening. Times shown in Eastern.</p>
   <div class="stale" id="stale" hidden></div>
@@ -1368,7 +1432,7 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
   <footer class="foot">
     <p>A colored pill means the broadcaster is inside one of the services you have selected; a grey pill is one you don't have; a dashed pill marks the league's usual home when ESPN has not listed the channel yet, which is normal more than a few days out. Fox One includes FOX, FS1, FS2, Big Ten Network and Fox Deportes but not Fox Soccer Plus. ESPN Unlimited includes every ESPN network, ESPN on ABC and ESPN+. TNT and TBS matches stream on HBO Max; CBS matches stream on Paramount+ Premium. Assignments can move on the day, so a glance at the app before kickoff is still worth it.</p>
     @@FAILED@@
-    <p>Fixtures, scores, broadcasters and logos from ESPN's public scoreboard. Rights notes from Fox Sports, CBS Sports, ESPN and World Soccer Talk. Built by <a href="https://github.com/caparomula/soccer-outlook">a small open generator</a> on GitHub.</p>
+    <p>Fixtures, scores, broadcasters and logos from ESPN's public scoreboard. Rights notes from Fox Sports, CBS Sports, ESPN and World Soccer Talk. Built by <a href="https://github.com/caparomula/soccer-outlook">a small open generator</a> on GitHub. Storylines are researched on the web and written by Claude once a day; they can be wrong, so each one links its sources.</p>
   </footer>
 </div>
 
@@ -1712,7 +1776,10 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
       var svc = document.createElement('div'); svc.className = 'pick__svc'; svc.innerHTML = '<i class="dot"></i>';
       var outlet = r.getAttribute('data-outlet'), sname = SERVICE_NAMES[r._svc] || r._svc;
       svc.appendChild(document.createTextNode(SHORT[r._svc] ? outlet + ' · ' + SHORT[r._svc] : sname + (outlet && outlet !== sname ? ' · ' + outlet : '') + (r.getAttribute('data-basis') === 'rule' ? ' (usually)' : '')));
-      a.appendChild(when); a.appendChild(teams); a.appendChild(names); if (sub) a.appendChild(sub); a.appendChild(comp); a.appendChild(svc); a.appendChild(colors);
+      a.appendChild(when); a.appendChild(teams); a.appendChild(names); if (sub) a.appendChild(sub); a.appendChild(comp); a.appendChild(svc);
+      var pn = STORY.notes[r.getAttribute('data-id')];
+      if (pn) { var ps = document.createElement('div'); ps.className = 'pick__story'; ps.textContent = pn.note; a.appendChild(ps); }
+      a.appendChild(colors);
       picksEl.appendChild(a);
     });
   }
@@ -1730,7 +1797,10 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
       var where = document.createElement('div'); where.className = 'miss__where';
       var pills = r.querySelector('.pills'); if (pills) where.innerHTML = pills.innerHTML;
       var more = where.querySelector('button.more'); if (more) { more.textContent = 'Details'; more.setAttribute('aria-expanded', 'false'); }
-      bodyEl.className = 'miss__body'; bodyEl.appendChild(names); bodyEl.appendChild(where);
+      bodyEl.className = 'miss__body'; bodyEl.appendChild(names);
+      var mn = STORY.notes[r.getAttribute('data-id')];
+      if (mn) bodyEl.appendChild(storyLine(mn, 'miss__story'));
+      bodyEl.appendChild(where);
       d.appendChild(teams); d.appendChild(bodyEl);
       // The card gets its own copy of the row's details panel: the row itself is hidden whenever
       // "On my services" is on, which is exactly when these cards matter.
@@ -1891,10 +1961,66 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
     else el.hidden = true;
   }
 
+  // ---- storylines: story.json, written once a day by story.py, published beside the page --------
+  var STORY = { notes: {} };
+  var STORY_MAX_AGE_H = 30;
+  function safeUrl(u) { return typeof u === 'string' && /^https?:\/\/[^\s]+$/i.test(u) ? u : ''; }
+  function hostOf(u) { var m = /^https?:\/\/(?:www\.)?([^\/:?#]+)/i.exec(u); return m ? m[1] : 'source'; }
+  function sourceLinks(sources, max) {
+    var frag = document.createDocumentFragment();
+    (sources || []).slice(0, max).forEach(function (s, i) {
+      var url = safeUrl(s && s.url); if (!url) return;
+      var a = document.createElement('a'); a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer';
+      a.textContent = hostOf(url); a.title = (s.title || '').slice(0, 200);
+      if (frag.childNodes.length) frag.appendChild(document.createTextNode(', '));
+      frag.appendChild(a);
+    });
+    return frag;
+  }
+  function storyLine(n, cls) {
+    var div = document.createElement('div'); div.className = cls;
+    var tag = document.createElement('span'); tag.className = 'story-tag'; tag.textContent = 'Story'; div.appendChild(tag);
+    div.appendChild(document.createTextNode(n.note));
+    var links = sourceLinks(n.sources, 2);
+    if (links.childNodes.length) { var src = document.createElement('span'); src.className = 'story-src'; src.appendChild(document.createTextNode('(')); src.appendChild(links); src.appendChild(document.createTextNode(')')); div.appendChild(document.createTextNode(' ')); div.appendChild(src); }
+    return div;
+  }
+  function applyStory(s) {
+    if (!s || s.version !== 1 || typeof s.headline !== 'string' || typeof s.lede !== 'string') return;
+    var written = Date.parse(s.generated_at || '');
+    if (!(written > 0) || (nowMs() - written) / 3600000 > STORY_MAX_AGE_H) return;
+    var notes = {};
+    Object.keys(s.notes || {}).forEach(function (id) { var n = s.notes[id]; if (n && typeof n.note === 'string' && n.note) notes[id] = n; });
+    STORY = { notes: notes };
+    document.getElementById('story-h').textContent = s.headline;
+    document.getElementById('story-lede').textContent = s.lede;
+    var by = document.getElementById('story-by'); by.textContent = '';
+    var t = splitTime(new Date(written));
+    by.appendChild(document.createTextNode('Researched on the web and written by Claude at ' + t.t + ' ' + t.ap + ' ' + fmtShortDay.format(new Date(written)) + '. It can be wrong; check the sources'));
+    var links = sourceLinks(s.sources, 6);
+    if (links.childNodes.length) { by.appendChild(document.createTextNode(': ')); by.appendChild(links); }
+    by.appendChild(document.createTextNode('.'));
+    document.getElementById('story').hidden = false;
+    rows.forEach(function (r) {
+      var n = notes[r.getAttribute('data-id')]; if (!n) return;
+      var meta = r.querySelector('.row__meta'); if (!meta || r.querySelector('.row__story')) return;
+      meta.parentNode.insertBefore(storyLine(n, 'row__story'), meta.nextSibling);
+    });
+    render(true);
+  }
+  function loadStory() {
+    if (!window.fetch || location.protocol === 'file:') return;
+    fetch('story.json', { cache: 'no-cache' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(applyStory)
+      .catch(function () {});
+  }
+
   evaluateAll();
   applyFilterUI();
   render(true);
   checkStale();
+  loadStory();
   setInterval(function () { render(false); checkStale(); }, 60000);
   document.addEventListener('visibilitychange', function () { if (!document.hidden) { render(false); checkStale(); } });
 })();
@@ -1914,6 +2040,7 @@ def main():
     ap.add_argument("--date", help="treat this Eastern date as today (testing)")
     ap.add_argument("--no-logos", action="store_true", help="no team or league images at all")
     ap.add_argument("--workers", type=int, default=6)
+    ap.add_argument("--facts", help="also write the facts story.py gives the model to this JSON file")
     args = ap.parse_args()
 
     built_at = datetime.now(timezone.utc)
@@ -1967,6 +2094,8 @@ def main():
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
     with open(args.out, "w", encoding="utf-8") as f:
         f.write(page)
+    if args.facts:
+        write_facts(args.facts, matches, built_at, today)
     n_on = sum(1 for m in matches if m.service)
     image_mode = "none" if args.no_logos else ("embedded" if args.embed_images else "linked")
     print(f"OK matches={len(matches)} on_services={n_on} days={days[0]}..{days[-1]} images={image_mode} logos_new={wanted} logos_missing={missing} tables={len(STANDINGS)} "

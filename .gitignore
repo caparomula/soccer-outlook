@@ -1,3 +1,5 @@
 site/
+work/
+.venv/
 logos.json
 __pycache__/
