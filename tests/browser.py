@@ -212,7 +212,7 @@ class BrowserChecks(unittest.TestCase):
             expect(summary).to_contain_text("1 live · 5 upcoming in selected competitions")
             expect(summary).to_contain_text("5 listed on your services; 1 with unconfirmed coverage")
             expect(summary).to_contain_text("Next kickoff · 1:05 pm")
-            expect(page.locator("#forecast")).to_be_hidden()
+            expect(page.locator("#forecast")).to_have_text("5 matches in the next 24 hours on your services.")
             expect(page.locator("#eyebrow")).to_have_text("Wednesday, October 7 · Next 24 hours")
             page.locator("#btn-menu").click()
             page.locator('[data-kind="comp"][data-key="eng.1"]').click()
@@ -239,18 +239,18 @@ class BrowserChecks(unittest.TestCase):
             expect(page.locator("#schedule-summary")).to_contain_text("with unconfirmed coverage")
             expect(page.locator("#outlook-body > .empty")).to_contain_text("No matches on your selected services and competitions in the next 24 hours.")
             self.assertTrue(page.locator("#outlook-body").evaluate("el => el.firstElementChild.classList.contains('empty')"))
-            expect(page.locator("#forecast")).to_be_hidden()
+            expect(page.locator("#forecast .editorial-item")).to_have_count(0)
             expect(page.locator("#story")).to_be_hidden()
             expect(page.locator("#tally-n")).to_have_text("0")
             page.locator("#btn-all").click()
             for mid in ("unlisted", "unknown", "off-lineup", "usual-off-lineup"):
                 expect(page.locator(f'li.row[data-id="{mid}"]')).to_be_visible()
-            expect(page.locator("#forecast")).to_be_hidden()
+            expect(page.locator("#forecast .editorial-item")).to_have_count(0)
             expect(page.locator("#story")).to_be_hidden()
             page.locator("#btn-menu").click()
             page.locator('#comp-pills [data-key="fifa.friendly.w"]').click()
             expect(page.locator('li.row[data-id="unlisted"]')).to_be_hidden()
-            expect(page.locator("#forecast")).to_be_hidden()
+            expect(page.locator("#forecast .editorial-item")).to_have_count(0)
             page.locator("#btn-filters-close").click()
             page.locator("#btn-mine").click()
             expect(page.locator('li.row[data-id="unknown"]')).to_be_hidden()
@@ -267,7 +267,7 @@ class BrowserChecks(unittest.TestCase):
                 expect(next_kickoff).to_contain_text("Next kickoff · 2 pm")
                 expect(next_kickoff).to_contain_text(f"{len(leagues) - 3} more at this time")
                 self.assertNotIn("then", next_kickoff.inner_text())
-                expect(page.locator("#forecast")).to_be_hidden()
+                expect(page.locator("#forecast .editorial-item")).to_have_count(0)
                 self.assertNotRegex(summary.inner_text(), r"quiet|international break|best|pick of|weekend")
 
     def test_summary_distinguishes_coverage_and_missing_data(self):
@@ -309,41 +309,30 @@ class BrowserChecks(unittest.TestCase):
                 "forecast": {"items": [item("Context for Chicago and Vancouver.", "mls"),
                                        item("Context for the Spanish match.", "spain")]}}
 
-    def test_irrelevant_blurbs_are_hidden_independently_for_leagues_and_services(self):
+    def test_one_section_blurb_changes_with_competitions_and_services(self):
         fixtures = [("mls", "2026-10-07T18:00:00+00:00", "pre", "Apple TV", "usa.1"),
                     ("spain", "2026-10-07T19:00:00+00:00", "pre", "ESPN+", "esp.1")]
-        html = render_page(build, fixtures=fixtures).replace('data-home="Arsenal"', 'data-home="Chicago"').replace('data-away="Chelsea"', 'data-away="Vancouver"')
+        story = self.tagged_story()
+        story["lede_items"] = []
         for width in (1280, 390):
-            with self.subTest(width=width), self.page("after", html=html, story=self.tagged_story(), width=width) as (page, _):
+            with self.subTest(width=width), self.page("after", html=render_page(build, fixtures=fixtures), story=story, width=width) as (page, _):
                 editorial = page.locator("#forecast")
-                mls = editorial.locator('.editorial-item[data-matches="mls"]')
-                spain = editorial.locator('.editorial-item[data-matches="spain"]')
-                expect(editorial).to_contain_text("Forecast by Claude")
-                expect(mls.locator('[data-kind="team"]')).to_have_text(["Chicago", "Vancouver"])
-                expect(mls.locator('[data-kind="comp"]')).to_have_text("MLS")
-                expect(mls.locator('[data-kind="broadcaster"]')).to_have_text("Apple TV")
-                expect(spain.locator(".editorial-part")).to_have_class("editorial-part")
+                expect(editorial.locator('.editorial-item')).to_have_count(1)
+                expect(editorial).to_contain_text("Context for Chicago and Vancouver.")
+                expect(editorial.locator('[data-kind="comp"]')).to_have_text("MLS")
+                expect(editorial.locator('[data-kind="broadcaster"]')).to_have_text("Apple TV")
                 page.locator("#btn-menu").click()
-                page.locator('[data-kind="have"][data-key="netflix"]').click()
-                expect(spain.locator(".editorial-part")).to_have_class("editorial-part")
                 page.locator('#comp-pills [data-key="usa.1"]').click()
-                expect(mls).to_have_count(0)
-                expect(page.locator('#story-lede .editorial-part[data-matches="mls"]')).to_have_count(0)
-                expect(spain.locator(".editorial-part")).to_have_class("editorial-part")
-                page.locator('#comp-pills [data-key="usa.1"]').click()
+                expect(editorial).to_contain_text("Context for the Spanish match.")
+                expect(editorial.locator('.editorial-item')).to_have_count(1)
                 page.locator("#btn-clear").click()
                 expect(editorial).to_be_hidden()
                 page.locator('[data-kind="have"][data-key="espn"]').click()
-                expect(spain.locator(".editorial-part")).to_have_class("editorial-part")
-                expect(mls).to_have_count(0)
+                expect(editorial).to_contain_text("Context for the Spanish match.")
                 page.locator("#btn-filters-close").click()
-                page.screenshot(path=str(self.artifacts / f"tagged-{width}-filtered.png"), full_page=True)
                 page.locator("#btn-all").click()
-                expect(mls).to_have_count(0)
-                expect(spain.locator(".editorial-part")).to_have_class("editorial-part")
-                page.locator("#btn-menu").click()
-                page.locator("#btn-reset").click()
-                expect(spain.locator(".editorial-part")).to_have_class("editorial-part")
+                expect(editorial).to_contain_text("Context for the Spanish match.")
+                expect(editorial).not_to_contain_text("Context for Chicago")
 
     def test_one_phrase_dims_without_changing_other_league_or_connecting_words(self):
         fixtures = [("mls", "2026-10-07T18:00:00+00:00", "pre", "Apple TV", "usa.1"),
@@ -363,10 +352,10 @@ class BrowserChecks(unittest.TestCase):
                 page.locator("#btn-clear").click()
                 page.locator('[data-kind="have"][data-key="espn"]').click()
                 page.locator('[data-kind="have"][data-key="apple"]').click()
-                for host in ("#forecast", "#story-lede"):
+                for host in ("#story-lede",):
                     expect(page.locator(host + " .editorial-part--filtered")).to_have_count(0)
                 page.locator('[data-kind="have"][data-key="apple"]').click()
-                for host in ("#forecast", "#story-lede"):
+                for host in ("#story-lede",):
                     expect(page.locator(host + " .editorial-part--filtered")).to_have_text("MLS")
                     expect(page.locator(host + ' .editorial-part[data-matches="pl"]')).to_have_class("editorial-part")
                     expect(page.locator(host + ' .editorial-part[data-matches="mls"]')).to_have_css("text-decoration-line", "none")
@@ -374,24 +363,30 @@ class BrowserChecks(unittest.TestCase):
                 page.locator("#btn-filters-close").click()
                 page.screenshot(path=str(self.artifacts / f"phrases-{theme}.png"), full_page=True)
                 page.locator("#btn-all").click()
-                expect(page.locator("#forecast .editorial-part--filtered")).to_have_text("MLS")
+                expect(page.locator("#story-lede .editorial-part--filtered")).to_have_text("MLS")
                 page.locator("#btn-menu").click()
                 page.locator('#comp-pills [data-key="usa.1"]').click()
-                expect(page.locator("#forecast .editorial-part--filtered")).to_have_text("MLS")
+                expect(page.locator("#story-lede .editorial-part--filtered")).to_have_text("MLS")
 
-    def test_single_paragraph_storyline_and_time_of_day_heading(self):
+    def test_main_paragraph_leads_directly_to_cards(self):
         fixtures = [("mls", "2026-10-07T18:00:00+00:00", "pre", "Apple TV", "usa.1"),
                     ("spain", "2026-10-07T19:00:00+00:00", "pre", "ESPN+", "esp.1")]
         for width in (1280, 390):
             with self.subTest(width=width), self.page("after", width=width, html=render_page(build, fixtures=fixtures), story=self.tagged_story()) as (page, _):
                 expect(page.locator("p#story-lede")).to_have_text("An MLS storyline. A Spanish storyline.")
                 expect(page.locator("#story-lede p, #story-lede div, #story-lede .editorial-tags")).to_have_count(0)
-                expect(page.locator('#story-tags [data-kind="comp"]')).to_have_text(["MLS", "La Liga"])
-                expect(page.locator("#story-h")).to_have_text("Storyline")
-                self.assertEqual(page.locator("#story").evaluate("el => el.nextElementSibling.querySelector('h2').id"), "period-h")
-                for at, label in (("0900", "This morning"), ("1300", "This afternoon"), ("1800", "This evening"), ("2100", "Tonight"), ("0100", "Tonight")):
-                    page.evaluate("at => location.hash = '#at-20261007-' + at", at)
-                    expect(page.locator("#period-h")).to_have_text(label)
+                expect(page.locator("#period-h")).to_have_count(0)
+                self.assertEqual(page.locator("#story").evaluate("el => el.nextElementSibling.id"), "nextup")
+                self.assertEqual(page.locator("#nextup").evaluate("el => el.nextElementSibling.id"), "picks-section")
+                expect(page.locator("#picks-section")).to_be_hidden()
+                expect(page.locator("#schedule-summary")).to_be_hidden()
+                expect(page.locator("#schedule-info")).not_to_have_attribute("open", "")
+                # The second section does not repeat the opening's fixture coverage.
+                expect(page.locator("#forecast .editorial-item")).to_have_count(0)
+                self.assertEqual(page.locator("#forecast").evaluate("el => el.nextElementSibling.querySelector('h2').id"), "outlook-h")
+                hero = page.locator("#nextup").bounding_box()
+                self.assertLess(hero["y"] + hero["height"], page.viewport_size["height"])
+                page.screenshot(path=str(self.artifacts / f"compact-opening-{width}.png"), full_page=True)
 
     def test_league_blurbs_choose_interest_after_time_and_service_filters(self):
         fixtures = [("upcoming", "2026-10-07T17:05:00+00:00", "pre", "ESPN+", "esp.1"),
@@ -457,6 +452,7 @@ class BrowserChecks(unittest.TestCase):
                 hero = page.locator("#nextup")
                 expect(hero).to_have_attribute("data-match-id", "best")
                 expect(page.locator("#nextup-rating")).to_contain_text("90/100")
+                expect(page.locator("#picks-section")).to_be_visible()
                 expect(page.locator('#misses [data-id="unknown"]')).to_have_count(0)
                 self.assertEqual(page.locator("#picks .pick").evaluate_all("els => els.map(e => e.dataset.matchId)"), ["far", "best", "near"])
                 page.screenshot(path=str(self.artifacts / f"ranked-{width}.png"), full_page=True)
@@ -466,12 +462,14 @@ class BrowserChecks(unittest.TestCase):
                 page.locator('#comp-pills [data-key="esp.1"]').click()
                 expect(hero).to_have_attribute("data-match-id", "routine")
                 expect(page.locator("#picks .pick")).to_have_count(0)
+                expect(page.locator("#picks-section")).to_be_hidden()
                 page.locator("#btn-clear").click()
                 expect(hero).to_be_hidden()
                 page.locator("#btn-filters-close").click()
                 page.locator("#btn-all").click()
                 expect(hero).to_be_hidden()
                 expect(page.locator("#picks .pick")).to_have_count(0)
+                expect(page.locator("#picks-section")).to_be_hidden()
 
     def test_later_headline_uses_first_available_window_and_finished_pick_is_removed(self):
         fixtures = [("early", "2026-10-09T18:00:00+00:00", "pre", "ESPN+"),
@@ -488,6 +486,7 @@ class BrowserChecks(unittest.TestCase):
             page.clock.run_for(60000)
             expect(page.locator("#nextup")).not_to_have_attribute("data-match-id", "upcoming")
             expect(page.locator("#picks .pick")).to_have_count(0)
+            expect(page.locator("#picks-section")).to_be_hidden()
 
     def test_rolling_window_and_unrated_recommendation_fallback(self):
         fixtures = [("inside", "2026-10-08T16:59:00+00:00", "pre", "ESPN+"),
@@ -497,17 +496,63 @@ class BrowserChecks(unittest.TestCase):
             expect(page.locator("#tally-n")).to_have_text("1")
             expect(page.locator("#schedule-summary")).to_contain_text("1 upcoming")
             expect(page.locator("#picks .pick")).to_have_count(0)
+            expect(page.locator("#picks-section")).to_be_hidden()
             expect(page.locator("#nextup")).to_have_attribute("data-match-id", "inside")
             expect(page.locator('li.row[data-id="inside"]')).to_be_visible()
-            expect(page.locator('li.row[data-id="edge"]')).to_be_hidden()
-            expect(page.locator('details[data-b="later"]')).not_to_have_attribute("open", "")
-            page.locator('details[data-b="later"] > summary').click()
             expect(page.locator('li.row[data-id="edge"]')).to_be_visible()
+            expect(page.locator('details[data-b="later"]')).to_have_attribute("open", "")
+            page.locator('details[data-b="later"] > summary').click()
+            expect(page.locator('li.row[data-id="edge"]')).to_be_hidden()
             page.evaluate("location.hash = '#at-20261007-1301'")
             expect(page.locator("#tally-n")).to_have_text("2")
             self.assertEqual(self.bucket(page, "edge"), "Tomorrow")
             expect(page.locator('li.row[data-id="edge"]')).to_be_visible()
-            expect(page.locator('details[data-b="later"]')).to_have_attribute("open", "")
+            expect(page.locator('details[data-b="later"]')).not_to_have_attribute("open", "")
+
+    def test_later_section_defaults_follow_visible_match_count(self):
+        for count in (0, 4, 5):
+            fixtures = [(str(i), "2026-10-07T18:00:00+00:00", "pre", "ESPN+", "esp.1") for i in range(count)]
+            fixtures.append(("later", "2026-10-09T18:00:00+00:00", "pre", "ESPN+", "esp.1"))
+            with self.subTest(count=count), self.page("after", html=render_page(build, fixtures=fixtures)) as (page, _):
+                fold = page.locator('details[data-b="later"]')
+                self.assertEqual(fold.evaluate('el => el.open'), count < 5)
+                if count == 0:
+                    expect(page.locator("#forecast")).to_be_hidden()
+                expect(page.locator("#forecast-later")).to_be_visible()
+                self.assertEqual(page.locator("#forecast-later").evaluate("el => el.nextElementSibling.dataset.b"), "later")
+        fixtures = [("upcoming" if i == 0 else str(i), "2026-10-07T17:05:00+00:00", "pre", "ESPN+", "esp.1") for i in range(4)]
+        fixtures += [("fifth", "2026-10-07T18:00:00+00:00", "pre", "Apple TV", "usa.1"),
+                     ("later", "2026-10-09T18:00:00+00:00", "pre", "ESPN+", "esp.1")]
+        with self.page("after", html=render_page(build, fixtures=fixtures)) as (page, feed):
+            fold = page.locator('details[data-b="later"]')
+            expect(fold).not_to_have_attribute("open", "")
+            page.locator("#btn-menu").click()
+            page.locator('[data-kind="have"][data-key="apple"]').click()
+            expect(fold).to_have_attribute("open", "")
+            page.locator("#btn-filters-close").click()
+            fold.locator('summary').click()
+            feed["data"] = scoreboard("in")
+            page.clock.run_for(60000)
+            expect(fold).not_to_have_attribute("open", "")
+
+    def test_later_news_stays_beside_later_schedule_with_no_near_matches(self):
+        fixtures = [("main", "2026-10-09T18:00:00+00:00", "pre", "ESPN+", "esp.1"),
+                    ("second", "2026-10-09T20:00:00+00:00", "pre", "Apple TV", "usa.1")]
+        story = self.tagged_story()
+        story["lede_items"] = [{"segments": [{"text": "Main Friday story.", "match_ids": ["main"]}], "sources": []}]
+        story["forecast"]["items"] = [
+            {"segments": [{"text": "Repeated Friday coverage.", "match_ids": ["main"]}], "sources": []},
+            {"segments": [{"text": "Other Friday context.", "match_ids": ["second"]}], "sources": []}]
+        for width in (1280, 390):
+            with self.subTest(width=width), self.page("after", width=width, html=render_page(build, fixtures=fixtures), story=story) as (page, _):
+                expect(page.locator("#forecast")).to_be_hidden()
+                expect(page.locator("#forecast-later")).to_contain_text("Other Friday context.")
+                expect(page.locator("#forecast-later .editorial-item")).to_have_count(1)
+                expect(page.locator("#forecast-later")).not_to_contain_text("Repeated")
+                expect(page.locator("#period-h")).to_have_count(0)
+                expect(page.locator("#picks-section")).to_be_hidden()
+                expect(page.locator('details[data-b="later"]')).to_have_attribute("open", "")
+                page.screenshot(path=str(self.artifacts / f"empty-near-{width}.png"), full_page=True)
 
     def test_later_editorial_is_retained_and_rolls_into_window(self):
         html = render_page(build, fixtures=[
@@ -527,12 +572,12 @@ class BrowserChecks(unittest.TestCase):
             expect(page.locator("#forecast")).to_be_hidden()
         story["forecast"]["items"] = [later]
         with self.page("after", html=html, story=story) as (page, _):
-            expect(page.locator("#forecast")).to_contain_text("Further ahead")
+            expect(page.locator("#forecast-later")).to_contain_text("Beyond 24 hours")
             page.evaluate("location.hash = '#at-20261007-1401'")
             expect(page.locator("#forecast")).to_contain_text("Next 24 hours")
         story["later_reason"] = ""
         with self.page("after", html=html, story=story) as (page, _):
-            expect(page.locator("#forecast")).to_contain_text("Later context")
+            expect(page.locator("#forecast-later")).to_contain_text("Later context")
 
     def test_match_notes_follow_services_even_in_everything_mode(self):
         fixtures = [("peacock", "2026-10-07T18:00:00+00:00", "pre", "Peacock", "eng.1")]
@@ -562,8 +607,8 @@ class BrowserChecks(unittest.TestCase):
             page.locator("#btn-menu").click()
             page.locator('[data-kind="have"][data-key="apple"]').click()
             expect(page.locator("#forecast")).not_to_contain_text("Near match context")
-            expect(page.locator("#forecast")).to_contain_text("Later match context")
-            expect(page.locator("#forecast")).to_contain_text("Further ahead")
+            expect(page.locator("#forecast-later")).to_contain_text("Later match context")
+            expect(page.locator("#forecast-later")).to_contain_text("Beyond 24 hours")
             page.locator('[data-kind="have"][data-key="apple"]').click()
             expect(page.locator("#forecast")).to_contain_text("Near match context")
 
@@ -579,7 +624,7 @@ class BrowserChecks(unittest.TestCase):
             else:
                 changed["forecast"]["items"] = [{"segments": [{"text": "Stale", "match_ids": ["missing" if kind == "unknown" else "finished"]}]}]
             with self.subTest(kind=kind), self.page("after", story=changed) as (page, _):
-                expect(page.locator("#forecast")).to_be_hidden()
+                expect(page.locator("#forecast .editorial-item")).to_have_count(0)
                 expect(page.locator("#schedule-summary")).to_contain_text("1 live · 5 upcoming")
 
 

@@ -205,10 +205,10 @@
   var tzName = tz || 'local time';
   try { tzName = new Intl.DateTimeFormat(undefined, { timeZoneName: 'short' }).formatToParts(new Date()).filter(function (p) { return p.type === 'timeZoneName'; })[0].value; } catch (e) {}
   document.getElementById('fresh').textContent = document.getElementById('fresh').textContent.replace('Times shown in Eastern.', showET ? 'Times shown in ' + tzName + ', with Eastern underneath.' : 'Times shown in Eastern.');
-  document.getElementById('outlook-sub').textContent = 'The next 24 hours; later fixtures are collapsed below';
+  document.getElementById('outlook-sub').textContent = 'The next 24 hours; later fixtures follow below';
 
   // ---- rendering -----------------------------------------------------------------------------
-  var lastSig = '';
+  var lastSig = '', foldContext = '', foldChoices = {};
   function render(force) {
     var now = nowMs();
     var groups = {}; ORDER.forEach(function (b) { groups[b] = []; });
@@ -226,8 +226,9 @@
     if (!force && sig === lastSig) { renderSummary(groups, all, now); return; }
     lastSig = sig;
 
-    var openFolds = {};
-    body.querySelectorAll('details.fold[open]').forEach(function (d) { openFolds[d.getAttribute('data-b')] = true; });
+    var sparse = upcoming(groups).filter(function (r) { return inFocus(r, now); }).length < 5;
+    var context = mode + '|' + Object.keys(HAVE).join(',') + '|' + Object.keys(compOff).join(',') + '|' + sparse;
+    if (context !== foldContext) { foldContext = context; foldChoices = {}; }
     var frag = document.createDocumentFragment();
     var current = nowBucketName(now), anyUpcoming = false;
     ORDER.forEach(function (b) {
@@ -245,8 +246,10 @@
       h.children[1].textContent = when;
       h.children[2].textContent = list.length + (list.length === 1 ? ' match' : ' matches');
       if (FOLDED[b]) {
-        sec = document.createElement('details'); sec.className = 'fold bucket'; sec.setAttribute('data-b', b); sec.open = !!openFolds[b];
+        sec = document.createElement('details'); sec.className = 'fold bucket'; sec.setAttribute('data-b', b);
+        sec.open = Object.prototype.hasOwnProperty.call(foldChoices, b) ? foldChoices[b] : b === 'later' && sparse;
         var sum = document.createElement('summary'); sum.appendChild(h);
+        sum.addEventListener('click', function () { foldChoices[b] = !sec.open; });
         var car = document.createElement('span'); car.className = 'caret'; car.innerHTML = ' <span class="c">show &#9662;</span><span class="o">hide &#9652;</span>'; h.children[2].appendChild(car);
         sec.appendChild(sum); host = sec;
       } else {
@@ -255,6 +258,8 @@
         anyUpcoming = true;
       }
       if (b === 'later') {
+        var intro = document.createElement('div'); intro.id = 'forecast-later'; intro.className = 'forecast';
+        intro.setAttribute('aria-label', 'Beyond 24 hours context'); intro.hidden = true; frag.appendChild(intro);
         var byDay = {};
         list.forEach(function (r) { var d = sportsDayStart(new Date(r._k)).toDateString(); (byDay[d] = byDay[d] || []).push(r); });
         Object.keys(byDay).forEach(function (d) {
@@ -374,6 +379,7 @@
   function ratingDetails(rating) { return 'Popularity ' + rating.popularity + ' · Expected gameplay ' + rating.gameplay + ' · Competitive impact ' + rating.impact; }
   function renderPicks(groups, now) {
     var chosen = availableUpcoming(now).filter(function (r) { var rating = ratingOf(r); return rating && rating.score >= STANDOUT_SCORE; }).sort(byRating);
+    document.getElementById('picks-section').hidden = !chosen.length;
     picksEl.innerHTML = '';
     document.getElementById('picks-sub').textContent = 'Claude’s ratings · 80/100 or higher · on your services';
     chosen.forEach(function (r) {
@@ -526,7 +532,6 @@
   // Forecasts are authored by Claude. The browser only counts and formats schedule facts.
   function renderSummary(groups, all, now) {
     renderEditorial(now);
-    document.getElementById('period-h').textContent = TITLES[nowBucketName(now)];
     function para(host, text, label) {
       var p = document.createElement('p');
       if (label) { var b = document.createElement('b'); b.textContent = label + ': '; p.appendChild(b); }
@@ -650,6 +655,7 @@
     var s = STORY.s, storyEl = document.getElementById('story'), forecastEl = document.getElementById('forecast');
     var lead = s && Array.isArray(s.lede_items) ? s.lede_items : [];
     var forecast = s && s.forecast && Array.isArray(s.forecast.items) ? s.forecast.items : [];
+    var legacyLead = lead.slice();
     function eligible(item) {
       var refs = referencedRows(item);
       return refs.some(editorialPasses) && refs.every(function (r) { return r._state !== 'post' && (r._k >= now || inFocus(r, now)); });
@@ -661,6 +667,7 @@
     var blurbs = s && Array.isArray(s.league_blurbs) ? s.league_blurbs.filter(function (item) {
       return typeof item.interest === 'number' && item.interest >= 0 && item.interest <= 100 && eligible(item);
     }) : [];
+    var allBlurbs = blurbs.slice();
     if (blurbs.length) {
       var nearBlurbs = blurbs.filter(near);
       if (nearBlurbs.length) blurbs = nearBlurbs;
@@ -679,13 +686,7 @@
     }
     var hasNear = lead.some(near);
     forecast = forecast.filter(eligible);
-    var forecastNear = forecast.some(near);
-    if (forecastNear) forecast = forecast.filter(near);
-    else if (forecast.length) {
-      var firstForecast = Math.min.apply(Math, forecast.map(firstKickoff));
-      forecast = forecast.filter(function (item) { return firstKickoff(item) < firstForecast + FOCUS_MS; });
-    }
-    storyEl.hidden = !lead.length; forecastEl.hidden = !forecast.length;
+    storyEl.hidden = !lead.length;
     rows.forEach(function (r) {
       var note = r.querySelector('.row__story');
       if (note) note.hidden = !editorialPasses(r) || r._state === 'post' || (r._state !== 'in' && r._k < now);
@@ -709,14 +710,45 @@
     var storyBy = document.getElementById('story-by'); storyBy.textContent = 'Written by Claude';
     var links = sourceLinks(sources, 4);
     if (links.childNodes.length) { storyBy.appendChild(document.createTextNode(' · ')); storyBy.appendChild(links); }
-    forecastEl.innerHTML = '';
-    forecast.forEach(function (item) { forecastEl.appendChild(editorialItem(item)); });
-    if (forecast.length) {
-      var by = document.createElement('p'); by.className = 'forecast__by';
-      var wt = splitTime(new Date(STORY.written));
-      by.textContent = 'Forecast by Claude · ' + (forecastNear ? 'Next 24 hours' : 'Further ahead') + ' · updated ' + wt.t + ' ' + wt.ap + '. Editorial times are Eastern.';
-      forecastEl.appendChild(by);
+    var leadIds = {};
+    lead.forEach(function (item) { referencedRows(item).forEach(function (r) { leadIds[r.getAttribute('data-id')] = true; }); });
+    function itemText(item) { return item.segments.map(function (part) { return part.text; }).join(''); }
+    function sectionIntro(host, later) {
+      if (!host) return;
+      host.innerHTML = ''; host.hidden = true;
+      function inWindow(r) { return later ? r._state !== 'post' && r._k >= now + FOCUS_MS : inFocus(r, now); }
+      var visible = rows.filter(function (r) { return r._b && passes(r) && inWindow(r); }).sort(byTime);
+      if (!visible.length) return;
+      function suitable(item) {
+        var refs = referencedRows(item);
+        return eligible(item) && refs.every(inWindow) && itemText(item).length <= 450 &&
+          !refs.some(function (r) { return leadIds[r.getAttribute('data-id')]; });
+      }
+      // One new paragraph per window; do not repeat the opening's match coverage.
+      var pool = forecast.filter(suitable);
+      if (!pool.length) pool = allBlurbs.concat(legacyLead).filter(suitable);
+      if (later && pool.length) {
+        var first = Math.min.apply(Math, pool.map(firstKickoff));
+        pool = pool.filter(function (item) { return firstKickoff(item) < first + FOCUS_MS; });
+      }
+      pool.sort(function (a, b) { return (b.interest || 0) - (a.interest || 0) || firstKickoff(a) - firstKickoff(b); });
+      var item = pool[0];
+      if (item) {
+        host.appendChild(editorialItem(item));
+        var by = document.createElement('p'); by.className = 'forecast__by';
+        by.textContent = 'Forecast by Claude · ' + (later ? 'Beyond 24 hours' : 'Next 24 hours'); host.appendChild(by);
+      } else {
+        // A concise schedule fact covers a window without adding invented editorial copy.
+        var p = document.createElement('p');
+        p.textContent = matchCount(visible.length) + (later ? ' further ahead' : ' in the next 24 hours') +
+          (mode === 'mine' ? ' on your services.' : ' in the selected competitions.');
+        host.appendChild(p);
+      }
+      host.hidden = false;
     }
+    sectionIntro(forecastEl, false);
+    sectionIntro(document.getElementById('forecast-later'), true);
+
   }
   function applyStory(s) {
     if (!s || s.version !== 1 || typeof s.headline !== 'string' || typeof s.lede !== 'string') return;
