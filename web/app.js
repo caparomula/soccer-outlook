@@ -78,6 +78,61 @@
       if (pill) pill.parentNode.appendChild(pill);
     });
   }
+  function saveLeagueOrder(order) {
+    storedPriority = order; write(LS.priority, order); applyFilterUI(); render(true);
+  }
+  // Pointer capture keeps dragging reliable across wrapped rows. Touch uses the grip so the
+  // rest of the panel remains scrollable and a tap still toggles the competition normally.
+  var leagueDrag = null, suppressLeagueClick = false;
+  drawer.addEventListener('pointerdown', function (ev) {
+    var pill = ev.target.closest('#comp-pills .fpill');
+    if (!pill || ev.button !== 0 || (ev.pointerType !== 'mouse' && !ev.target.closest('.fpill__grip'))) return;
+    leagueDrag = { pill: pill, id: ev.pointerId, x: ev.clientX, y: ev.clientY, ghost: null, target: null };
+  });
+  drawer.addEventListener('pointermove', function (ev) {
+    var drag = leagueDrag;
+    if (!drag || ev.pointerId !== drag.id) return;
+    if (!drag.ghost) {
+      if (Math.hypot(ev.clientX - drag.x, ev.clientY - drag.y) < 6) return;
+      drag.pill.setPointerCapture(drag.id);
+      var rect = drag.pill.getBoundingClientRect();
+      drag.ghost = drag.pill.cloneNode(true); drag.ghost.classList.add('fpill--drag-ghost');
+      drag.ghost.removeAttribute('id'); drag.ghost.setAttribute('aria-hidden', 'true'); drag.ghost.tabIndex = -1;
+      drag.ghost.style.width = rect.width + 'px'; document.body.appendChild(drag.ghost);
+      drag.pill.classList.add('is-dragging');
+    }
+    ev.preventDefault();
+    drag.ghost.style.left = (ev.clientX - 18) + 'px'; drag.ghost.style.top = (ev.clientY - 16) + 'px';
+    if (drag.target) drag.target.classList.remove('is-drop-target');
+    var hit = document.elementFromPoint(ev.clientX, ev.clientY);
+    drag.target = hit && hit.closest('#comp-pills .fpill');
+    if (drag.target === drag.pill) drag.target = null;
+    if (drag.target) {
+      drag.target.classList.add('is-drop-target');
+      var targetRect = drag.target.getBoundingClientRect(); drag.after = ev.clientX >= targetRect.x + targetRect.width / 2;
+    }
+    var panel = drawer.getBoundingClientRect();
+    if (ev.clientY < panel.top + 40) drawer.scrollTop -= 14;
+    else if (ev.clientY > panel.bottom - 55) drawer.scrollTop += 14;
+  });
+  function finishLeagueDrag(ev) {
+    var drag = leagueDrag;
+    if (!drag || ev.pointerId !== drag.id) return;
+    leagueDrag = null;
+    if (!drag.ghost) return;
+    drag.ghost.remove(); drag.pill.classList.remove('is-dragging');
+    if (drag.target) drag.target.classList.remove('is-drop-target');
+    if (drag.pill.hasPointerCapture(drag.id)) drag.pill.releasePointerCapture(drag.id);
+    suppressLeagueClick = true; setTimeout(function () { suppressLeagueClick = false; }, 0);
+    if (ev.type === 'pointerup' && drag.target) {
+      var order = leagueOrder(), id = drag.pill.getAttribute('data-key'), targetId = drag.target.getAttribute('data-key');
+      order.splice(order.indexOf(id), 1);
+      order.splice(order.indexOf(targetId) + (drag.after ? 1 : 0), 0, id);
+      saveLeagueOrder(order); drag.pill.focus({ preventScroll: true });
+    }
+  }
+  drawer.addEventListener('pointerup', finishLeagueDrag);
+  drawer.addEventListener('pointercancel', finishLeagueDrag);
 
   function firstHave(via) { var hits = via.filter(function (x) { return HAVE[x]; }); hits.sort(function (a, b) { return rankOf(a) - rankOf(b); }); return hits[0] || ''; }
   function chipFor(r) {
@@ -157,6 +212,7 @@
   });
   app.addEventListener('click', function (ev) {
     var b = ev.target.closest('button'); if (!b || !(b.closest('#controls') || b.closest('#drawer') || b === btnMenu)) return;
+    if (b.getAttribute('data-kind') === 'comp' && suppressLeagueClick) { ev.preventDefault(); return; }
     if (b === btnMenu || b.id === 'btn-filters-close') { setDrawer(b === btnMenu ? !drawerOpen : false, b.id === 'btn-filters-close'); return; }
     if (b.id === 'btn-mine' || b.id === 'btn-all') { mode = b.id === 'btn-all' ? 'all' : 'mine'; write(LS.mode, mode); }
     else if (b.id === 'btn-reset') {
@@ -170,9 +226,9 @@
       var order = leagueOrder(), index = order.indexOf(b.getAttribute('data-move-league')), direction = Number(b.getAttribute('data-direction'));
       var target = index + direction;
       if (index < 0 || target < 0 || target >= order.length) return;
-      order.splice(target, 0, order.splice(index, 1)[0]); storedPriority = order; write(LS.priority, order);
+      order.splice(target, 0, order.splice(index, 1)[0]);
       var focusLeague = b.getAttribute('data-move-league');
-      applyFilterUI(); render(true);
+      saveLeagueOrder(order);
       var moved = document.querySelector('#league-order [data-league="' + focusLeague + '"]');
       moved.querySelector('button:not(:disabled)').focus({ preventScroll: true });
       return;

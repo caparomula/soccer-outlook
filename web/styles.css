@@ -185,6 +185,10 @@ a { color: inherit; }
 .fpill[aria-pressed="false"] { background: transparent; color: var(--muted); border-style: dashed; }
 .fpill[aria-pressed="false"] .dot { opacity: 0.35; }
 .fpill[aria-pressed="false"] .fpill__n { text-decoration: line-through; }
+.fpill__grip { color: var(--muted); cursor: grab; touch-action: none; user-select: none; padding: 2px 3px; margin: -2px -2px -2px -5px; }
+.fpill.is-dragging { opacity: 0.4; }
+.fpill.is-drop-target { outline: 2px solid var(--accent); outline-offset: 2px; }
+.fpill--drag-ghost { position: fixed; z-index: 50; pointer-events: none; opacity: 0.95; box-shadow: 0 5px 18px rgba(0,0,0,0.25); }
 
 /* Outlook buckets and rows */
 .bucket { margin-top: 22px; }

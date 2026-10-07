@@ -31,11 +31,11 @@ class QuietHandler(SimpleHTTPRequestHandler):
 
 class BrowserChecks(unittest.TestCase):
     @contextmanager
-    def page(self, target, *, width=1280, theme="light", at="20261007-1300", html=None, story=None):
+    def page(self, target, *, width=1280, theme="light", at="20261007-1300", html=None, story=None, touch=False):
         context = self.browser.new_context(
             viewport={"width": width, "height": 900 if width > 600 else 844},
             locale="en-US", timezone_id="America/New_York", color_scheme=theme,
-            device_scale_factor=1)
+            device_scale_factor=1, has_touch=touch)
         page = context.new_page()
         errors = []
         page.on("pageerror", lambda error: errors.append(str(error)))
@@ -619,7 +619,7 @@ class BrowserChecks(unittest.TestCase):
         story['league_order'] = ['eng.1', 'esp.1']
         story['rankings'] = {mid: dict(score=score) for mid, score in [('eng', 80), ('esp', 80.5), ('unconfirmed-live', 40)]}
         for width in (1280, 390):
-            with self.subTest(width=width), self.page('after', width=width, html=render_page(build, fixtures=fixtures), story=story) as (page, _):
+            with self.subTest(width=width), self.page('after', width=width, html=render_page(build, fixtures=fixtures), story=story, touch=width <= 600) as (page, _):
                 expect(page.locator('#nextup')).to_be_hidden()  # kickoff time alone is not a confirmed live game
                 expect(page.locator('#picks .pick').first).to_have_attribute('data-match-id', 'eng')
                 page.locator('#btn-menu').click()
@@ -635,6 +635,34 @@ class BrowserChecks(unittest.TestCase):
                 page.locator('#btn-reset').click()
                 expect(page.locator('#picks .pick').first).to_have_attribute('data-match-id', 'eng')
                 self.assertIsNone(page.evaluate("localStorage.getItem('ssg4-league-order')"))
+                source = page.locator('#comp-pills [data-key="esp.1"] .fpill__grip')
+                source.scroll_into_view_if_needed()
+                start = source.bounding_box()
+                end = page.locator('#comp-pills [data-key="eng.1"]').bounding_box()
+                sx, sy = start['x'] + start['width'] / 2, start['y'] + start['height'] / 2
+                tx, ty = end['x'] + 2, end['y'] + end['height'] / 2
+                if width <= 600:
+                    session = page.context.new_cdp_session(page)
+                    session.send('Input.dispatchTouchEvent', {'type': 'touchStart', 'touchPoints': [{'x': sx, 'y': sy}]})
+                    session.send('Input.dispatchTouchEvent', {'type': 'touchMove', 'touchPoints': [{'x': tx, 'y': ty}]})
+                    session.send('Input.dispatchTouchEvent', {'type': 'touchEnd', 'touchPoints': []})
+                    session.detach()
+                else:
+                    page.mouse.move(sx, sy)
+                    page.mouse.down()
+                    page.mouse.move(tx, ty, steps=8)
+                    page.mouse.up()
+                page.clock.run_for(1)
+                self.assertEqual(page.evaluate("JSON.parse(localStorage.getItem('ssg4-league-order'))[0]"), 'esp.1')
+                expect(page.locator('#comp-pills [data-key="esp.1"]')).to_have_attribute('aria-pressed', 'true')
+                expect(page.locator('#comp-pills [data-key="eng.1"]')).to_have_attribute('aria-pressed', 'true')
+                expect(page.locator('#picks .pick').first).to_have_attribute('data-match-id', 'esp')
+                expect(page.locator('.fpill--drag-ghost')).to_have_count(0)
+                page.reload()
+                expect(page.locator('#picks .pick').first).to_have_attribute('data-match-id', 'esp')
+                page.locator('#btn-menu').click()
+                page.locator('#comp-pills [data-key="esp.1"]').click()
+                expect(page.locator('#comp-pills [data-key="esp.1"]')).to_have_attribute('aria-pressed', 'false')
 
     def test_rolling_window_and_unrated_recommendation_fallback(self):
         fixtures = [("inside", "2026-10-08T16:59:00+00:00", "pre", "ESPN+"),

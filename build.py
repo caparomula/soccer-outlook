@@ -1209,7 +1209,7 @@ def build_page(matches, cache, built_at, failed, today):
             comps.append((info["name"], lg, n, bool(info.get("default_off"))))
     comps.sort(key=lambda c: (-c[2], c[0]))
     comp_pills = "".join(
-        f'<button type="button" class="fpill" data-kind="comp" data-key="{esc(lg)}" data-default-off="{"1" if off else "0"}" aria-pressed="{"false" if off else "true"}">{esc(name)}'
+        f'<button type="button" class="fpill" data-kind="comp" data-key="{esc(lg)}" data-default-off="{"1" if off else "0"}" aria-pressed="{"false" if off else "true"}"><span class="fpill__grip" aria-hidden="true">⠿</span>{esc(name)}'
         f'<span class="fpill__n">{n}</span></button>' for name, lg, n, off in comps)
 
     lineup = "".join(
