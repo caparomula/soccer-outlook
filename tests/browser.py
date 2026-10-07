@@ -399,7 +399,7 @@ class BrowserChecks(unittest.TestCase):
                     ("off", "2026-10-07T20:00:00+00:00", "pre", "Peacock", "usa.nwsl"),
                     ("pl", "2026-10-09T18:00:00+00:00", "pre", "ESPN+", "eng.1"),
                     ("france", "2026-10-09T20:00:00+00:00", "pre", "FS1", "fra.1"),
-                    ("far", "2026-10-12T18:00:00+00:00", "pre", "ESPN+", "ita.1")]
+                    ("far", "2026-10-16T18:00:00+00:00", "pre", "ESPN+", "ita.1")]
         story = self.tagged_story()
         story["lede_items"], story["forecast"] = [], {"items": []}
         story["league_blurbs"] = [dict(league_id=league, interest=interest,
@@ -436,6 +436,11 @@ class BrowserChecks(unittest.TestCase):
                 page.locator("#btn-menu").click()
                 page.locator('[data-kind="have"][data-key="fox"]').click()
                 expect(lede).to_have_text("Friday French match context.")
+                page.locator('[data-kind="have"][data-key="fox"]').click()
+                page.locator('[data-kind="have"][data-key="espn"]').click()
+                expect(lede).to_have_text("Much later Italian context.")
+                expect(page.locator("#nextup")).to_have_attribute("data-match-id", "far")
+                expect(page.locator('li.row[data-id="far"]')).to_have_count(1)
 
     def test_ranked_headline_and_absolute_standouts_follow_filters(self):
         fixtures = [("routine", "2026-10-07T18:00:00+00:00", "pre", "ESPN+", "eng.1"),

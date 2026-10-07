@@ -171,7 +171,7 @@
        (r._state === 'in' && Date.now() - (r._seen || 0) < 10 * 60000));
   }
   function bucketOf(r, now) {
-    if (r._state !== 'post' && r._k >= now + FOCUS_MS) return dayIndex(r._k, now) <= 8 ? 'later' : null;
+    if (r._state !== 'post' && r._k >= now + FOCUS_MS) return 'later';
     // A live match can cross midnight or the 4 am sports-day boundary.
     if (inFocus(r, now) && r._tv && r._k <= now) return 'live';
     var idx = dayIndex(r._k, now);
