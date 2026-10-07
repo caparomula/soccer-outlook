@@ -60,6 +60,11 @@ a { color: inherit; }
 .forecast p { margin: 0 0 6px; }
 .forecast b { font-weight: 600; }
 .forecast p.forecast__by { font-size: 13px; color: var(--muted); margin: 8px 0 0; }
+.editorial-item { margin-bottom: 12px; }
+.editorial-part--filtered { color: var(--muted); font-weight: 400; }
+.editorial-tags { display: flex; flex-wrap: wrap; gap: 4px 6px; margin-top: 5px; }
+.editorial-tag { font-size: 12px; line-height: 1.4; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; }
+.editorial-tag--filtered { border-color: transparent; }
 .fresh { margin: 6px 0 0; font-size: 13px; color: var(--muted); }
 .stale { margin: 12px 0 0; padding: 10px 12px; border-radius: 8px; background: var(--warn-bg); border: 1px solid var(--amber); font-size: 14px; }
 
@@ -96,7 +101,7 @@ a { color: inherit; }
 .sec__h h2 { font-size: 26px; text-transform: uppercase; letter-spacing: 0.04em; }
 .sec__h p { margin: 0; color: var(--muted); font-size: 14px; }
 .picks { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
-.picks:empty::after { content: "Nothing on your services in the next two days."; color: var(--muted); font-size: 14px; }
+.picks:empty::after { content: "No matches on your services in the next 24 hours with these filters."; color: var(--muted); font-size: 14px; }
 .pick { display: block; text-decoration: none; background: var(--card); border: 1px solid var(--line); border-top: 4px solid var(--svc); border-radius: var(--radius); padding: 14px 14px 12px; min-width: 0; }
 .pick:hover, .pick:focus-visible { border-color: var(--svc); outline: none; }
 .pick__when { display: flex; align-items: baseline; gap: 6px; }

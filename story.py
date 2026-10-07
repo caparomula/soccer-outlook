@@ -1,22 +1,15 @@
 #!/usr/bin/env python3
 """Writes the day's storylines for Soccer Outlook with Claude and web search.
 
-build.py --facts writes the matches worth talking about (today and tomorrow, on the owner's services
-and elsewhere, plus the biggest of the week, and the day's notable results so far) with only what
-ESPN reports. This script hands those facts to Claude with the web search and web fetch tools, asks
-for a headline, a short lede and a note on each notable match, and receives them through one tool
-call, publish_story. The same call carries the page's forecast: a label for the kind of day, a
-sentence or two on its shape and one on tomorrow and the week ahead, written from the schedule in the
-facts (build.py's schedule_by_day), informed by researched context. The page separately shows factual
-schedule counts, coverage and the next kickoff, which update as scores and filters change.
+build.py --facts supplies every match in the next 24 hours and later candidates as a fallback.
+Claude researches all competitions without prioritizing broadcast access. It publishes separately
+referenced phrases for the headline, lede and forecast, plus match notes. Every sentence cites verified
+sources and exact fixture IDs. The browser derives team, league and broadcaster tags from those
+fixtures and dims phrases excluded by the visitor's filters.
 
-The page shows what it writes, so every claim has to be traceable. The model is told to state only
-what it read in this session, and the script keeps only the source links that appeared in the search
-and fetch results of this run; a note left with no verified source is dropped. The forecast rests on
-the schedule the page itself lists, so it carries no links, and the model is told to leave news to the
-notes. The output is story.json, published beside the page, which shows it only on the day it was
-written for. It records the lineup it was written for, and a viewer with another lineup gets the
-schedule summary instead, since "on your services" would be someone else's.
+Later stories are permitted only when research finds nothing pertinent in the next 24 hours.
+The browser supplies factual schedule counts and coverage independently. Old untagged stories keep
+their match notes but cannot supply opening commentary; the next research run supplies tagged text.
 
 Modes, one per kind of build:
   full     research the day from scratch (the early-morning build)
@@ -71,63 +64,83 @@ PRICES = {
 }
 PRICE_SEARCH = 0.01                   # per web search on any model; web fetch costs only its tokens
 
-SYSTEM = """You write the daily storylines for Soccer Outlook, a personal web page that shows one household which soccer matches they can watch on their streaming services. The page already lists kickoff times, channels, table positions, recent form and top scorers. Your part is what a knowledgeable friend would add: why a match matters, what is at stake, who is missing or returning, rivalries, records and milestones, a manager under pressure, a debut.
+SYSTEM = """You write the daily storylines for Soccer Outlook, a soccer schedule with visitor-controlled competition and service filters. Assume every match is viewable while selecting news; broadcast access must never decide editorial importance. The page already lists kickoff times, channels, table positions, recent form and top scorers. Your part is what a knowledgeable friend would add: why a match matters, what is at stake, who is missing or returning, rivalries, records and milestones, a manager under pressure, a debut.
 
 Research with web search before writing, and read a full article when a search snippet is not enough. Prefer recent reporting from established outlets: clubs and federations, major newspapers, broadcasters, wire services. State only what you read in this session. If you cannot confirm something, leave it out rather than guess, and never predict results or invent lineups, injuries or quotes. Do not restate the schedule data as news.
 
 Write plainly, in present tense, for a reader in the United States. When you have what you need, call publish_story once."""
 
+SEGMENT_SCHEMA = {
+    "type": "object", "additionalProperties": False, "required": ["text", "match_ids"],
+    "properties": {
+        "text": {"type": "string", "description": "An exact text fragment, including its spaces and punctuation."},
+        "match_ids": {"type": "array", "items": {"type": "string"},
+                      "description": "Fixture IDs this phrase refers to. Use [] for connective words. Independently tag team/league names and each match-specific claim, so one league can dim without dimming the others."},
+    },
+}
+EDITORIAL_SCHEMA = {
+    "type": "object", "additionalProperties": False, "required": ["segments", "sources"],
+    "properties": {
+        "segments": {"type": "array", "items": SEGMENT_SCHEMA,
+                     "description": "One short sentence, about 180-300 characters, split at independently filterable phrases. Concatenating all text fragments must reproduce the sentence exactly. Every mentioned team or league and its related claims must reference its fixtures."},
+        "sources": {"type": "array", "items": {"type": "string"},
+                    "description": "One to three URLs read in this session supporting this sentence."},
+    },
+}
 PUBLISH_TOOL = {
     "name": "publish_story",
-    "description": "Publish the day's storylines to the page. Call exactly once, after your research.",
+    "description": "Publish the storylines. Call exactly once, after your research.",
     "strict": True,
     "eager_input_streaming": True,
     "input_schema": {
-        "type": "object",
-        "additionalProperties": False,
-        "required": ["headline", "lede", "lede_sources", "notes", "forecast"],
+        "type": "object", "additionalProperties": False,
+        "required": ["headline", "lede_items", "later_reason", "notes", "forecast"],
         "properties": {
-            "headline": {"type": "string", "description": "Headline for the day's soccer, sentence case, at most about 80 characters."},
-            "lede": {"type": "string", "description": "Two or three sentences on the day ahead, at most about 400 characters, leading with matches on the household's services."},
-            "lede_sources": {"type": "array", "items": {"type": "string"}, "description": "URLs, from your research in this session, that support the lede."},
+            "headline": {"type": "array", "items": SEGMENT_SCHEMA,
+                         "description": "A headline, sentence case, about 80 characters, with separately tagged phrases. It must concern only fixtures in the lede."},
+            "lede_items": {"type": "array", "maxItems": 3, "items": EDITORIAL_SCHEMA,
+                           "description": "Up to three sentences on the most pertinent story in the next 24 hours."},
+            "later_reason": {"type": "string", "description": "Empty when covering the next 24 hours. Otherwise briefly explain why research found no pertinent story sooner; low stature or absent major leagues do not establish that."},
             "notes": {
-                "type": "array",
-                "description": "Four to eight notes, one per notable match.",
+                "type": "array", "description": "Up to eight researched match notes. Fewer is fine; never pad the count with later matches.",
                 "items": {
-                    "type": "object",
-                    "additionalProperties": False,
+                    "type": "object", "additionalProperties": False,
                     "required": ["match_id", "note", "sources"],
                     "properties": {
-                        "match_id": {"type": "string", "description": "The match's id from the facts."},
+                        "match_id": {"type": "string", "description": "The exact fixture ID from the facts."},
                         "note": {"type": "string", "description": "One or two sentences, at most about 260 characters."},
-                        "sources": {"type": "array", "items": {"type": "string"}, "description": "One to three URLs, from your research in this session, that support the note."},
+                        "sources": {"type": "array", "items": {"type": "string"}, "description": "One to three URLs read in this session supporting the note."},
                     },
                 },
             },
             "forecast": {
-                "type": "object",
-                "description": "The page's viewing forecast, written from the schedule in the facts.",
-                "additionalProperties": False,
-                "required": ["label", "today", "ahead"],
-                "properties": {
-                    "label": {"type": "string", "description": "A brief, specific label for today's soccer, supported by the schedule and research. Avoid generic announcements or declaring a quiet day just because major European leagues are absent."},
-                    "today": {"type": "string", "description": "One or two sentences, at most about 300 characters, explaining relevant context for today's soccer. Explain an absence only when research establishes its cause; the schedule alone cannot establish a break."},
-                    "ahead": {"type": "string", "description": "One or two sentences, at most about 300 characters, on useful context for the upcoming days. Use each competition's actual next fixture date. Recommend a match only when there is a supported reason to highlight it."},
-                },
+                "type": "object", "additionalProperties": False, "required": ["items"],
+                "description": "Short-range researched context, with independently filterable phrases; do not repeat the lede or the browser's counts and coverage summary.",
+                "properties": {"items": {"type": "array", "maxItems": 3, "items": EDITORIAL_SCHEMA}},
             },
         },
     },
 }
 
-FORECAST_GUIDE = ("Also write the page's forecast, which sits below the storylines as a practical guide to the viewing "
-                  "week. Write it from 'schedule_by_day' and the match lists, which give every competition's matches "
-                  "by Eastern day, how many are on the household's services and when the first kicks off; your research "
-                  "can say why a league is off (an international break, a cup round), but news belongs in the notes, "
-                  "and the forecast should not repeat the lede. The page separately shows factual match counts, "
-                  "coverage on the household's services and the next kickoff, so contribute context rather than "
-                  "reciting those facts. An absent fixture is not evidence of a break, a quiet day or a weekend return; "
-                  "state those only when the schedule and research support them. Give times in Eastern time, as the facts do, "
-                  "and name a service only as 'watch_on' gives it.")
+FOCUS_GUIDE = ("The focus is the rolling next 24 hours, from built_at to focus_until, including matches live now. "
+               "Research next_24_hours first, across all its leagues regardless of stature. Find what is pertinent "
+               "there. Only if that research finds nothing of interest should the headline, lede or forecast use "
+               "later_if_needed, starting with the soonest pertinent fixture; explain the decision in later_reason. "
+               "Assume every match is viewable: do not favor the owner's services or omit matches elsewhere. "
+               "The visitor's filters decide what fits their lineup. Do not pad a short story with distant fixtures. "
+               "Use segments in the headline, lede_items and forecast items to tag exact phrases with fixture IDs. "
+               "The page derives team, league and broadcaster tags from those IDs. Tag a team/league name and "
+               "its related claim separately from unrelated fixtures; neutral joining words get []. For example, "
+               "a sentence naming MLS and the Premier League must have separate tagged segments for each league, "
+               "so excluding MLS dims only its words, without altering the rest of the sentence. Preserve spaces "
+               "and punctuation across segments. Never mix near and later fixtures "
+               "in one item. Avoid 'your services', 'today' and 'tomorrow' in editorial text: selections and the "
+               "clock change after publication. Give actual dates and Eastern times when needed. ")
+
+FORECAST_GUIDE = (FOCUS_GUIDE + "Write up to three short forecast items with researched context and source URLs. "
+                  "An empty list is better than canned commentary. The browser separately shows factual counts, "
+                  "coverage and the next kickoff, so do not repeat those or the lede. An absent fixture is not "
+                  "evidence of a break, a quiet day or a weekend return. Never invent an explanation.")
 
 
 
@@ -211,12 +224,18 @@ def clean_story(raw, facts, seen):
     dict for story.json, or None when what is left is not worth showing."""
     if not isinstance(raw, dict):
         return None
-    ids = {m["id"] for key in ("today_and_tomorrow_on_owner_services", "today_and_tomorrow_elsewhere",
-                               "later_this_week_biggest") for m in facts.get(key, [])}
-    headline = clip(raw.get("headline", ""), 110)
-    lede = clip(raw.get("lede", ""), 520)
-    if not headline or not lede:
-        return None
+    matches = {m["id"]: m for key in ("next_24_hours", "later_if_needed") for m in facts.get(key, [])}
+    ids = set(matches)
+    headline_segments = clean_segments(raw.get("headline"), ids)
+    headline = "".join(part["text"] for part in headline_segments)
+    if len(headline) > 160:
+        headline, headline_segments = "", []
+    near_ids = {m["id"] for m in facts.get("next_24_hours", [])}
+    later_reason = clip(raw.get("later_reason", ""), 300)
+    lede_items = clean_items(raw.get("lede_items"), ids, near_ids, seen, bool(later_reason))
+    forecast_raw = raw.get("forecast")
+    forecast_items = clean_items(forecast_raw.get("items") if isinstance(forecast_raw, dict) else None,
+                                 ids, near_ids, seen, bool(later_reason))
     notes, dropped = {}, 0
     for n in raw.get("notes") or []:
         if not isinstance(n, dict) or n.get("match_id") not in ids or n.get("match_id") in notes:
@@ -230,27 +249,64 @@ def clean_story(raw, facts, seen):
         notes[n["match_id"]] = {"note": text, "sources": sources}
     if dropped:
         log(f"dropped {dropped} note(s) with an unknown match id or no verified source")
-    story = {"headline": headline, "lede": lede, "sources": verified(raw.get("lede_sources"), seen, 6), "notes": notes,
-             "_dropped": dropped}
-    forecast = clean_forecast(raw.get("forecast"))
-    if forecast:
-        story["forecast"] = forecast
-    else:
-        log("no usable forecast in the story; the page will show schedule facts only")
+    # One researched near-term item is enough to keep the whole opening focused on this window.
+    if (any(set(item["match_ids"]) <= near_ids for item in lede_items + forecast_items)
+            or set(notes) & near_ids):
+        lede_items = [item for item in lede_items if set(item["match_ids"]) <= near_ids]
+        forecast_items = [item for item in forecast_items if set(item["match_ids"]) <= near_ids]
+        notes = {mid: note for mid, note in notes.items() if mid in near_ids}
+        later_reason = ""
+    if not later_reason:
+        notes = {mid: note for mid, note in notes.items() if mid in near_ids}
+    lead_ids = {mid for item in lede_items for mid in item["match_ids"]}
+    if any(mid not in lead_ids for part in headline_segments for mid in part["match_ids"]):
+        headline, headline_segments = "", []
+    sources = {s["url"]: s for item in lede_items for s in item["sources"]}
+    story = {"headline": headline, "headline_segments": headline_segments, "lede": " ".join(item["text"] for item in lede_items),
+             "lede_items": lede_items, "sources": list(sources.values()), "notes": notes,
+             "later_reason": later_reason, "_dropped": dropped}
+    if forecast_items:
+        story["forecast"] = {"items": forecast_items}
     return story
 
 
-def clean_forecast(raw):
-    """The forecast with each part trimmed to what the page has room for, or None unless all three
-    parts are there. Without a complete forecast the page shows its factual schedule summary."""
-    if not isinstance(raw, dict):
-        return None
-    part = lambda key: raw[key] if isinstance(raw.get(key), str) else ""
-    label = re.sub(r"\s+", " ", part("label")).strip().rstrip(".")
-    today, ahead = clip(part("today"), 420), clip(part("ahead"), 420)
-    if not label or len(label) > 40 or not today or not ahead:
-        return None
-    return {"label": label, "today": today, "ahead": ahead}
+def clean_segments(raw, ids):
+    """Preserve exact text boundaries; reject any unknown reference instead of guessing its tags."""
+    if not isinstance(raw, list) or not raw:
+        return []
+    parts = []
+    for part in raw:
+        if not isinstance(part, dict) or not isinstance(part.get("text"), str):
+            return []
+        refs = part.get("match_ids")
+        if not isinstance(refs, list) or any(not isinstance(mid, str) or mid not in ids for mid in refs):
+            return []
+        parts.append({"text": part["text"], "match_ids": list(dict.fromkeys(refs))})
+    return parts
+
+
+def clean_items(raw, ids, near_ids, seen, allow_later):
+    """Keep sourced text with complete phrase references; never clip through a tagged phrase."""
+    if not isinstance(raw, list):
+        return []
+    items = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        parts = clean_segments(item.get("segments"), ids)
+        refs = list(dict.fromkeys(mid for part in parts for mid in part["match_ids"]))
+        text = "".join(part["text"] for part in parts)
+        if not refs or not text.strip() or len(text) > 520:
+            continue
+        near = set(refs) & near_ids
+        if (near and not set(refs) <= near_ids) or (not near and not allow_later):
+            continue
+        sources = verified(item.get("sources"), seen, 3)
+        if sources:
+            items.append({"text": text, "match_ids": refs, "segments": parts, "sources": sources})
+        if len(items) == 3:
+            break
+    return items
 
 
 def clock(iso):
@@ -262,21 +318,19 @@ def clock(iso):
 def user_prompt(facts, budget):
     return (f"Today is {facts['weekday']}, {facts['date']}, in US Eastern time. The household's services are "
             f"{', '.join(facts['owner_services'])}.\n\n"
-            "Here are the candidate matches, ranked by a rough measure of stature. 'watch_on' says where the "
-            "household can watch; it is absent when the match is not on their services. 'played_today', when "
+            "Here are the candidate matches. 'watch_on' records where the default household could watch; "
+            "it must not affect editorial selection. 'played_today', when "
             "present, gives the day's notable results so far, for context.\n\n"
             f"{json.dumps(facts, ensure_ascii=False, indent=1)}\n\n"
-            "Write storylines for the four to eight most interesting matches of today and tomorrow, favoring "
-            "ones the household can watch but including anything unmissable elsewhere. A big match later in "
-            "the week can earn a note if it is the story of the week. Use the match ids exactly as given. "
+            "Write storylines for up to eight pertinent matches, with no minimum count. Use the match ids exactly as given. "
             f"{FORECAST_GUIDE} "
             f"You have up to {budget[0]} web searches and {budget[1]} page reads.")
 
 
 def refresh_prompt(facts, previous, budget):
     """The update run's request: the story as published earlier today, then the facts as they are now."""
-    earlier = {"headline": previous.get("headline", ""), "lede": previous.get("lede", ""),
-               "lede_sources": [s["url"] for s in previous.get("sources") or [] if isinstance(s, dict) and s.get("url")],
+    earlier = {"headline": previous.get("headline_segments", previous.get("headline", "")), "lede": previous.get("lede", ""),
+               "lede_items": previous.get("lede_items", []), "later_reason": previous.get("later_reason", ""),
                "notes": [{"match_id": mid, "note": n.get("note", ""), "sources": [s["url"] for s in n.get("sources") or []
                                                                                if isinstance(s, dict) and s.get("url")]}
                          for mid, n in (previous.get("notes") or {}).items() if isinstance(n, dict)]}
@@ -286,16 +340,16 @@ def refresh_prompt(facts, previous, budget):
             f"services are {', '.join(facts['owner_services'])}.\n\n"
             f"At {clock(previous['generated_at'])} you published these storylines:\n\n"
             f"{json.dumps(earlier, ensure_ascii=False, indent=1)}\n\n"
-            "Here are the matches as they stand now, ranked by a rough measure of stature. Finished matches are no "
+            "Here are the matches as they stand now, ordered by kickoff. Finished matches are no "
             "longer listed; 'played_today', when present, gives the day's notable results so far.\n\n"
             f"{json.dumps(facts, ensure_ascii=False, indent=1)}\n\n"
             "Update the storylines for this moment rather than starting over. Search only for what may have changed "
             "since they were written: team news, confirmed lineups, injuries and suspensions, and results that change "
             "what is at stake. Keep any note that still holds, with its sources exactly as given; revise or replace "
             "the others, and add notes for matches that have become the day's stories. Rewrite the headline and lede "
-            "so they read right for now; a notable result can lead the lede. Notes are only for matches in the lists "
+            "so they focus on the next 24 hours from this build; past results are context, not the lead. Notes are only for matches in the lists "
             "above. Use the match ids exactly as given. "
-            f"{FORECAST_GUIDE} Rewrite it for this moment: 'today' covers what is left of the day. "
+            f"{FORECAST_GUIDE} Rewrite it for this moment. "
             f"You have up to {budget[0]} web searches and {budget[1]} page reads. Call publish_story once with the "
             "complete set of notes, kept ones included, and the forecast.")
 
@@ -308,6 +362,14 @@ def earlier_sources(previous):
     for n in (previous.get("notes") or {}).values():
         if isinstance(n, dict):
             cited += n.get("sources") or []
+    for item in previous.get("lede_items") or []:
+        if isinstance(item, dict):
+            cited += item.get("sources") or []
+    forecast = previous.get("forecast")
+    if isinstance(forecast, dict):
+        for item in forecast.get("items") or []:
+            if isinstance(item, dict):
+                cited += item.get("sources") or []
     for s in cited:
         if isinstance(s, dict) and isinstance(s.get("url"), str) and url_key(s["url"]):
             seen.setdefault(url_key(s["url"]), (s["url"], s.get("title", "") or ""))
@@ -467,7 +529,7 @@ def main():
         story, served = None, model
     seconds = time.monotonic() - started
     cost = report_cost(totals, served, effort, mode, seconds) if any(totals.values()) else None
-    published = bool(story and story["notes"])
+    published = bool(story and (story["notes"] or story["lede_items"] or story.get("forecast")))
     if args.usage_out:
         save(args.usage_out, {"mode": mode, "model": model, "served": served, "effort": effort,
                               "budget": {"searches": BUDGETS[mode][0], "page_reads": BUDGETS[mode][1]}, "usage": totals,
@@ -478,7 +540,7 @@ def main():
     if published:
         story.pop("_dropped", None)
         story.update(version=1, date=facts["date"], model=served, effort=effort, kind=mode,
-                     services=facts.get("owner_service_ids") or [],
+                     services=facts.get("owner_service_ids") or [], focus_until=facts.get("focus_until"),
                      generated_at=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
         save(args.out, story)
         log(f"wrote {len(story['notes'])} notes in {seconds:.0f}s")

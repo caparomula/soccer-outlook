@@ -37,7 +37,7 @@ def main():
     facts_path, folder = sys.argv[1], sys.argv[2]
     facts = load(facts_path) or {}
     names = {}
-    for key in ("today_and_tomorrow_on_owner_services", "today_and_tomorrow_elsewhere", "later_this_week_biggest"):
+    for key in ("next_24_hours", "later_if_needed"):
         for m in facts.get(key, []):
             names[m["id"]] = f"{m['home']['name']} v {m['away']['name']}"
     runs = []
@@ -80,9 +80,10 @@ def main():
             print()
             fc = story.get("forecast")
             if fc:
-                print(f"*Forecast ({fc.get('label', '')}):* {fc.get('today', '')} *[the page's live line]* {fc.get('ahead', '')}")
+                for item in fc.get("items", []):
+                    print(f"- *Forecast:* {item['text']} (matches: {', '.join(item['match_ids'])})")
             else:
-                print("*No forecast; the page would compose its own.*")
+                print("*No forecast; the page shows schedule facts.*")
         print()
         print("</details>")
         print()

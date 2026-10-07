@@ -18,14 +18,14 @@
     <div class="drawer__foot"><span class="drawer__links"><button type="button" class="link" id="btn-reset">Reset to the default</button><button type="button" class="link" id="btn-clear" aria-label="Clear all services" title="Deselect every service, then pick the ones you want">Clear all</button></span><button type="button" class="fbtn" id="btn-filters-close">Done</button></div>
   </div>
   <header class="hdr">
-    <div class="hdr__eyebrow" id="eyebrow">Your lineup · the week ahead</div>
+    <div class="hdr__eyebrow" id="eyebrow">Your lineup · Next 24 hours</div>
     <h1>Soccer Outlook</h1>
-    <div class="hdr__tally"><div class="big" id="tally-n">@@N_ON@@</div><div class="small" id="tally-txt">of @@N_ALL@@ upcoming matches tracked this week are on your services</div></div>
+    <div class="hdr__tally"><div class="big" id="tally-n">@@N_ON@@</div><div class="small" id="tally-txt">of @@N_ALL@@ matches in the next 24 hours are on your services</div></div>
   </header>
   <section class="story" id="story" aria-labelledby="story-h" hidden>
     <div class="story__eyebrow">Storylines</div>
     <h2 class="story__h" id="story-h"></h2>
-    <p class="story__lede" id="story-lede"></p>
+    <div class="story__lede" id="story-lede"></div>
     <p class="story__by" id="story-by"></p>
   </section>
   <div class="forecast" id="forecast" hidden></div>
@@ -39,7 +39,7 @@
   </div>
 
   <section class="sec" aria-labelledby="picks-h">
-    <div class="sec__h"><h2 id="picks-h">Worth planning around</h2><p id="picks-sub">On your services, today and tomorrow</p></div>
+    <div class="sec__h"><h2 id="picks-h">Live &amp; next</h2><p id="picks-sub">On your services in the next 24 hours</p></div>
     <div class="picks" id="picks">@@PICKS@@</div>
   </section>
 
@@ -53,17 +53,17 @@
   </div>
 
   <section class="sec" id="outlook" aria-labelledby="outlook-h" style="margin-top:18px">
-    <div class="sec__h"><h2 id="outlook-h">The outlook</h2><p id="outlook-sub">Grouped by Eastern day until the page script runs</p></div>
+    <div class="sec__h"><h2 id="outlook-h">Next 24 hours</h2><p id="outlook-sub">Grouped by Eastern day until the page script runs</p></div>
     <div id="outlook-body">@@OUTLOOK@@</div>
   </section>
 
   <section class="sec" aria-labelledby="miss-h">
-    <div class="sec__h"><h2 id="miss-h">Good ones you can't get</h2><p>Today and tomorrow, with where they actually are</p></div>
+    <div class="sec__h"><h2 id="miss-h">Elsewhere in the next 24 hours</h2><p>Outside your lineup, with listed broadcasters</p></div>
     <div class="misses" id="misses"></div>
   </section>
 
   <section class="sec" aria-labelledby="lineup-h">
-    <div class="sec__h"><h2 id="lineup-h">Your lineup</h2><p>The services you have, counting every competition</p></div>
+    <div class="sec__h"><h2 id="lineup-h">Your lineup</h2><p>The next 24 hours, with your competition filters</p></div>
     <div class="lineup" id="lineup">@@LINEUP@@</div>
   </section>
 
@@ -75,7 +75,7 @@
   <footer class="foot">
     <p>A colored pill means the broadcaster is inside one of the services you have selected; a grey pill is one you don't have; a dashed pill marks the league's usual home when ESPN has not listed the channel yet, which is normal more than a few days out. Fox One includes FOX, FS1, FS2, Big Ten Network and Fox Deportes but not Fox Soccer Plus. ESPN Unlimited includes every ESPN network, ESPN on ABC and ESPN+. TNT and TBS matches stream on HBO Max; CBS matches stream on Paramount+ Premium. Fubo's Pro plan has FOX, FS1, FS2, ESPN, ESPN2, ABC, CBS, CBS Sports Network, NBC, USA Network, Telemundo and beIN Sports, but not TNT, TBS, Univision or TUDN; ESPNU and Universo need its Elite plan, and ESPN Deportes, Fox Deportes and Fox Soccer Plus its International Sports Plus add-on. Most Bundesliga matches stream free on Fandango, with about 30 a season on USA Network; Peacock doesn't carry USA Network's or NBCSN's Premier League matches. Assignments can move on the day, so a glance at the app before kickoff is still worth it.</p>
     @@FAILED@@
-    <p>Fixtures, scores, broadcasters and logos from ESPN's public scoreboard; while matches are on, your browser checks the scores there once a minute. Rights notes from Fox Sports, CBS Sports, ESPN and World Soccer Talk. Built by <a href="https://github.com/caparomula/soccer-outlook">a small open generator</a> on GitHub. Storylines and the forecast are written by Claude, fresh each morning and updated at the scheduled midday and evening builds. Storylines link to their sources. The schedule summary shows match counts, coverage and the next kickoff for your selection, even when no current forecast is available.</p>
+    <p>Fixtures, scores, broadcasters and logos from ESPN's public scoreboard; while matches are on, your browser checks the scores there once a minute. Rights notes from Fox Sports, CBS Sports, ESPN and World Soccer Talk. Built by <a href="https://github.com/caparomula/soccer-outlook">a small open generator</a> on GitHub. Storylines and the forecast are written by Claude, fresh each morning and updated at the scheduled midday and evening builds. Storylines link to their sources. Team, league and broadcaster tags connect the text to your filters; excluded phrases are dimmed. The schedule summary shows match counts, coverage and the next kickoff for your selection, even when no current forecast is available.</p>
   </footer>
 </div>
 

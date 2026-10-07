@@ -1103,17 +1103,12 @@ def team_facts(t):
         table = ordinal(t.rank) + (f" of {t.size}" if t.size else "") + (f" in {t.group}" if t.group and t.size and t.size <= 8 else "")
         if t.pts:
             table += f", {t.pts} pts"
-    return {k: v for k, v in dict(name=t.name, table=table, record=t.record, last_five=t.form,
+    return {k: v for k, v in dict(id=t.id, name=t.name, table=table, record=t.record, last_five=t.form,
                                      top_scorer=(f"{t.leader} ({t.leader_goals})" if t.leader and t.leader_goals not in ("", "0") else "")).items() if v}
 
 
 def schedule_by_day(matches, today, days=7):
-    """The shape of the week for the forecast story.py asks for: per Eastern day from today, each
-    competition's matches, how many are on the owner's services, how many are already over and the
-    first kickoff, in kickoff order. The forecast says what kind of day it is, which leagues are off
-    and when they return; the twenty-odd matches the storylines get can't show that, and three hundred
-    rows would cost far more to send. Matches ESPN has called off don't count, and neither do
-    competitions the page hides by default."""
+    """Compact background counts; the individual fixtures determine the forecast's time window."""
     out = []
     for offset in range(days):
         day = today + timedelta(days=offset)
@@ -1134,15 +1129,12 @@ def schedule_by_day(matches, today, days=7):
 
 
 def write_facts(path, matches, built_at, today):
-    """Writes the facts story.py hands to the model: the most notable matches today and tomorrow,
-    split into ones the owner can watch and ones elsewhere, plus the biggest of the rest of the week,
-    the day's notable results so far, which the midday and evening updates can lead with, and the
-    week's schedule by day and competition, for the forecast. Only what ESPN reported; the model is
-    asked to research everything else."""
+    """Give Claude every fixture in the next 24 hours, with later candidates only as a fallback."""
     def entry(m):
         local = m.utc.astimezone(ET)
         return {k: v for k, v in dict(
             id=m.id,
+            kickoff_utc=m.utc.isoformat(), time_confirmed=m.time_valid, state=m.state, league_id=m.league,
             kickoff=(local.strftime("%a %b ") + str(local.day) + local.strftime(", %I:%M %p ET").replace(" 0", " ")) if m.time_valid else local.strftime("%a %b ") + str(local.day) + ", time TBD",
             competition=m.comp, stage=m.stage, venue=m.venue, note=m.note,
             home=team_facts(m.home), away=team_facts(m.away),
@@ -1157,20 +1149,23 @@ def write_facts(path, matches, built_at, today):
                                       result=f"{m.home.name} {m.home.score}-{m.away.score} {m.away.name}", goals=goals).items()
                 if v not in ("", [], None)}
 
-    # Competitions the page hides by default (USL) would get notes on rows nobody sees.
-    upcoming = [m for m in matches if m.state != "post" and not LEAGUES[m.league].get("default_off")]
-    near = [m for m in upcoming if today <= m.utc.astimezone(ET).date() <= today + timedelta(days=1)]
-    later = [m for m in upcoming if m.utc.astimezone(ET).date() > today + timedelta(days=1)]
+    # News considers all competitions; the browser applies each visitor's filters.
+    until = built_at + timedelta(hours=24)
+    upcoming = [m for m in matches if m.state != "post"
+                and not called_off(m.state, m.status)]
+    near = [m for m in upcoming if built_at <= m.utc < until
+            or (m.state == "in" and built_at - timedelta(hours=4) <= m.utc < built_at)]
+    later = [m for m in upcoming if m.utc >= until]
     by_stature = lambda ms: sorted(ms, key=lambda m: (-m.score, m.utc))
     facts = {
         "date": today.isoformat(),
         "weekday": today.strftime("%A"),
         "built_at": built_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "focus_until": until.isoformat(),
         "owner_services": [SERVICES[k] for k in OWNER],
         "owner_service_ids": list(OWNER),   # recorded in story.json: the lineup the forecast was written for
-        "today_and_tomorrow_on_owner_services": [entry(m) for m in by_stature([m for m in near if m.service])[:20]],
-        "today_and_tomorrow_elsewhere": [entry(m) for m in by_stature([m for m in near if not m.service and m.score >= 85])[:8]],
-        "later_this_week_biggest": [entry(m) for m in by_stature([m for m in later if m.score >= 125])[:6]],
+        "next_24_hours": [entry(m) for m in sorted(near, key=lambda m: m.utc)],
+        "later_if_needed": [entry(m) for m in sorted(later, key=lambda m: (m.utc.date(), -m.score, m.utc))[:16]],
         "schedule_by_day": schedule_by_day(matches, today),
     }
     played = [m for m in matches if m.state == "post" and m.utc.astimezone(ET).date() == today
@@ -1197,9 +1192,9 @@ def build_page(matches, cache, built_at, failed, today):
             f'<section class="bucket" data-static="1"><h3 class="bucket__h">{esc(label)}<span class="bucket__count"></span></h3>'
             f'<ol class="rows">{"".join(row_html(m, cache) for m in ms)}</ol></section>')
 
-    horizon = [m for m in matches if m.service and m.state != "post"
-               and today <= m.utc.astimezone(ET).date() <= today + timedelta(days=1)]
-    picks = sorted(sorted(horizon, key=lambda m: (-m.score, m.utc))[:4], key=lambda m: m.utc)
+    focus = [m for m in matches if m.state != "post" and not LEAGUES[m.league].get("default_off")
+             and built_at - timedelta(minutes=125) <= m.utc < built_at + timedelta(hours=24)]
+    picks = [m for m in focus if m.service][:4]
 
     have_pills = "".join(
         f'<button type="button" class="fpill svc-{k}" data-kind="have" data-key="{k}" aria-pressed="{"true" if k in OWNER else "false"}">'
@@ -1216,7 +1211,7 @@ def build_page(matches, cache, built_at, failed, today):
 
     lineup = "".join(
         f'<div class="svc svc-{k}" data-svc="{k}"><div class="svc__head"><i class="dot"></i><span class="svc__name">{esc(SERVICES[k])}</span>'
-        f'<span class="svc__count" data-count>{sum(1 for m in matches if m.service == k and m.state != "post")} this week</span></div>'
+        f'<span class="svc__count" data-count>{sum(1 for m in focus if m.service == k)} in the next 24 hours</span></div>'
         f'<p class="svc__desc" data-desc></p></div>' for k in OWNER)
 
     svc_meta = {"order": SERVICE_RANK, "name": SERVICES, "owner": OWNER}
@@ -1234,8 +1229,8 @@ def build_page(matches, cache, built_at, failed, today):
     used.discard("")
     logo_css = "".join(f'.l-{k}{{background-image:url("{v}")}}' for k, v in sorted(cache.items())
                        if k in used and '"' not in v and "\\" not in v)
-    n_on = sum(1 for m in matches if m.service and m.state != "post")
-    n_all = sum(1 for m in matches if m.state != "post")
+    n_on = sum(1 for m in focus if m.service)
+    n_all = len(focus)
     failed_note = ""
     if failed:
         bad = sorted({LEAGUES[lg]["name"] for lg, _ in failed})

@@ -13,7 +13,7 @@ class FixedDatetime(datetime):
         return BUILT_AT.astimezone(tz) if tz else BUILT_AT.replace(tzinfo=None)
 
 
-def render_page(builder, *, fragment=False, fixtures=None, failed=()):
+def render_page(builder, *, fragment=False, fixtures=None, failed=(), facts_path=None):
     """Exercise the real renderer with fixed time, rights, teams, scores and a table."""
     with (patch.object(builder, "TODAY", TODAY),
           patch.object(builder, "datetime", FixedDatetime),
@@ -55,6 +55,8 @@ def render_page(builder, *, fragment=False, fixtures=None, failed=()):
         table = [dict(id=t.id, name=t.name, rank=t.rank, pts=t.pts, logo="",
                       gp="8", rec="6-0-2", gd="+10") for t in (home, away)]
         builder.STANDINGS["eng.1"] = {"tables": [("", table)]}
+        if facts_path is not None:
+            builder.write_facts(facts_path, matches, BUILT_AT, TODAY)
         page = builder.build_page(matches, {}, BUILT_AT, failed, TODAY)
         return page if fragment else builder.as_document(page)
 

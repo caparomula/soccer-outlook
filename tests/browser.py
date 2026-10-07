@@ -67,7 +67,7 @@ class BrowserChecks(unittest.TestCase):
         page.clock.pause_at(BUILT_AT)
         try:
             page.goto(f"{self.base}/{target}/index.html?scoresbase={self.base}/espn/#at-{at}")
-            expect(page.locator("#outlook-sub")).to_contain_text("From where you are")
+            expect(page.locator("#outlook-sub")).to_contain_text("The next 24 hours")
             page.clock.run_for(1)
             if feed["requests"]:
                 expect(page.locator("#livenote")).to_contain_text("last checked")
@@ -142,7 +142,7 @@ class BrowserChecks(unittest.TestCase):
             ("20261007-2359", "Tonight", "Tonight", "Tomorrow"),
             ("20261008-0001", "Tonight", "Tonight", "Tomorrow"),
             ("20261008-0359", "Earlier today", "Live now", "Tomorrow"),
-            ("20261008-0400", "Yesterday", "Yesterday", "Live now"),
+            ("20261008-0400", "Yesterday", "Live now", "Live now"),
         ]
         for target in self.targets:
             for at, midnight, late, dawn in cases:
@@ -156,20 +156,20 @@ class BrowserChecks(unittest.TestCase):
             with self.subTest(target=target), self.page(target) as (page, feed):
                 row = page.locator('li.row[data-id="upcoming"]')
                 self.assertEqual(self.bucket(page, "upcoming"), "This afternoon")
-                expect(page.locator("#schedule-summary")).to_contain_text("1 live · 4 upcoming")
+                expect(page.locator("#schedule-summary")).to_contain_text("1 live · 5 upcoming")
                 feed["data"] = scoreboard("in")
                 page.clock.run_for(60000)
                 expect(row).to_have_attribute("data-state", "in")
                 expect(row.locator(".team .score")).to_have_text(["2", "1"])
                 expect(row.locator(".row__goals")).to_contain_text("A. Player 63'")
                 self.assertEqual(self.bucket(page, "upcoming"), "Live now")
-                expect(page.locator("#schedule-summary")).to_contain_text("2 live · 3 upcoming")
+                expect(page.locator("#schedule-summary")).to_contain_text("2 live · 4 upcoming")
                 feed["data"] = scoreboard("post")
                 page.clock.run_for(60000)
                 expect(row).to_have_attribute("data-state", "post")
                 expect(row.locator(".row__status")).to_have_text("FT")
                 self.assertEqual(self.bucket(page, "upcoming"), "Earlier today")
-                expect(page.locator("#schedule-summary")).to_contain_text("1 live · 3 upcoming")
+                expect(page.locator("#schedule-summary")).to_contain_text("1 live · 4 upcoming")
                 self.assertGreaterEqual(feed["requests"], 2)
 
     def test_failed_scoreboard_preserves_scores(self):
@@ -188,15 +188,14 @@ class BrowserChecks(unittest.TestCase):
     def test_factual_summary_and_filters(self):
         with self.page("after") as (page, _):
             summary = page.locator("#schedule-summary")
-            expect(summary).to_contain_text("1 live · 4 upcoming in selected competitions")
-            expect(summary).to_contain_text("4 listed on your services; 1 with unconfirmed coverage")
+            expect(summary).to_contain_text("1 live · 5 upcoming in selected competitions")
+            expect(summary).to_contain_text("5 listed on your services; 1 with unconfirmed coverage")
             expect(summary).to_contain_text("Next kickoff · 1:05 pm")
             expect(page.locator("#forecast")).to_be_hidden()
-            expect(page.locator("#eyebrow")).to_have_text("Wednesday, October 7")
+            expect(page.locator("#eyebrow")).to_have_text("Wednesday, October 7 · Next 24 hours")
             page.locator("#btn-menu").click()
             page.locator('[data-kind="comp"][data-key="eng.1"]').click()
-            expect(summary).to_contain_text("Today: 5 matches hidden by competition filters.")
-            expect(summary).to_contain_text("Tomorrow: 2 matches hidden by competition filters.")
+            expect(summary).to_contain_text("Next 24 hours: 6 matches hidden by competition filters.")
             expect(summary).not_to_contain_text("Next kickoff")
             page.locator('[data-kind="comp"][data-key="eng.1"]').click()
             page.locator("#btn-clear").click()
@@ -227,7 +226,6 @@ class BrowserChecks(unittest.TestCase):
             summary = page.locator("#schedule-summary")
             expect(summary).to_contain_text("1 listed on your services; 1 with usual coverage on your services (not yet listed); 1 with unconfirmed coverage")
             expect(summary).to_contain_text("Some fixtures may be missing")
-            expect(summary).to_contain_text("Tomorrow: No remaining matches in the loaded schedule.")
             page.locator("#btn-all").click()
             expect(summary).to_contain_text("1 more at this time")
 
@@ -238,49 +236,154 @@ class BrowserChecks(unittest.TestCase):
         with self.page("after", html=render_page(build, fixtures=fixtures)) as (page, _):
             summary = page.locator("#schedule-summary")
             expect(summary).to_contain_text("1 awaiting score updates")
-            expect(summary).to_contain_text("Next kickoff · Friday, October 9, 2 pm")
+            expect(summary).to_contain_text("Beyond 24 hours · next kickoff · Friday, October 9, 2 pm")
             self.assertNotRegex(summary.inner_text(), r"returns|wait until|weekend")
         with self.page("after", at="20261008-0001") as (page, _):
             summary = page.locator("#schedule-summary")
-            expect(summary).to_contain_text("Until 4 am:")
-            expect(summary).to_contain_text("From 4 am:")
+            expect(summary).to_contain_text("Next 24 hours:")
             expect(summary).to_contain_text("Next kickoff · 12:30 am")
 
-    def test_claude_forecast_is_separate_and_respects_selection(self):
-        story = {"version": 1, "date": "2026-10-07", "generated_at": "2026-10-07T17:00:00Z",
-                 "headline": "Fixture headline", "lede": "Fixture lede", "notes": {}, "sources": [],
-                 "services": list(build.OWNER),
-                 "forecast": {"label": "Fixture context", "today": "Editorial context from Claude.",
-                              "ahead": "Research about the coming days."}}
+    @staticmethod
+    def tagged_story():
+        def item(text, mid):
+            return {"text": text, "match_ids": [mid], "segments": [{"text": text, "match_ids": [mid]}], "sources": [{"url": "https://example.com/report", "title": "Report"}]}
+        return {"version": 1, "date": "2026-10-07", "generated_at": "2026-10-07T17:00:00Z",
+                "focus_until": "2026-10-08T17:00:00Z", "headline": "Fixture headline",
+                "headline_segments": [{"text": "Fixture headline", "match_ids": ["mls"]}], "lede": "Fixture lede",
+                "notes": {}, "sources": [], "later_reason": "",
+                "lede_items": [item("An MLS storyline.", "mls"), item("A Spanish storyline.", "spain")],
+                "forecast": {"items": [item("Context for Chicago and Vancouver.", "mls"),
+                                       item("Context for the Spanish match.", "spain")]}}
+
+    def test_tagged_sentences_dim_independently_for_leagues_and_services(self):
+        fixtures = [("mls", "2026-10-07T18:00:00+00:00", "pre", "Apple TV", "usa.1"),
+                    ("spain", "2026-10-07T19:00:00+00:00", "pre", "ESPN+", "esp.1")]
+        html = render_page(build, fixtures=fixtures).replace('data-home="Arsenal"', 'data-home="Chicago"').replace('data-away="Chelsea"', 'data-away="Vancouver"')
+        for width in (1280, 390):
+            with self.subTest(width=width), self.page("after", html=html, story=self.tagged_story(), width=width) as (page, _):
+                editorial = page.locator("#forecast")
+                mls = editorial.locator('.editorial-item[data-matches="mls"]')
+                spain = editorial.locator('.editorial-item[data-matches="spain"]')
+                expect(editorial).to_contain_text("Forecast by Claude")
+                expect(mls.locator('[data-kind="team"]')).to_have_text(["Chicago", "Vancouver"])
+                expect(mls.locator('[data-kind="comp"]')).to_have_text("MLS")
+                expect(mls.locator('[data-kind="broadcaster"]')).to_have_text("Apple TV")
+                expect(spain.locator(".editorial-part")).to_have_class("editorial-part")
+                page.locator("#btn-menu").click()
+                page.locator('[data-kind="have"][data-key="netflix"]').click()
+                expect(spain.locator(".editorial-part")).to_have_class("editorial-part")
+                page.locator('#comp-pills [data-key="usa.1"]').click()
+                expect(mls.locator(".editorial-part")).to_have_class("editorial-part editorial-part--filtered")
+                expect(mls).to_be_visible()
+                expect(mls.locator('.editorial-item__text')).to_have_css("text-decoration-line", "none")
+                expect(page.locator('#story-lede .editorial-part[data-matches="mls"]')).to_have_class("editorial-part editorial-part--filtered")
+                expect(spain.locator(".editorial-part")).to_have_class("editorial-part")
+                page.locator('#comp-pills [data-key="usa.1"]').click()
+                page.locator("#btn-clear").click()
+                expect(spain.locator(".editorial-part")).to_have_class("editorial-part editorial-part--filtered")
+                page.locator('[data-kind="have"][data-key="espn"]').click()
+                expect(spain.locator(".editorial-part")).to_have_class("editorial-part")
+                expect(mls.locator(".editorial-part")).to_have_class("editorial-part editorial-part--filtered")
+                page.locator("#btn-filters-close").click()
+                page.screenshot(path=str(self.artifacts / f"tagged-{width}-filtered.png"), full_page=True)
+                page.locator("#btn-all").click()
+                expect(mls.locator(".editorial-part")).to_have_class("editorial-part")
+                expect(spain.locator(".editorial-part")).to_have_class("editorial-part")
+                page.locator("#btn-menu").click()
+                page.locator("#btn-reset").click()
+                expect(spain.locator(".editorial-part")).to_have_class("editorial-part")
+
+    def test_one_phrase_dims_without_changing_other_league_or_connecting_words(self):
+        fixtures = [("mls", "2026-10-07T18:00:00+00:00", "pre", "Apple TV", "usa.1"),
+                    ("pl", "2026-10-07T19:00:00+00:00", "pre", "ESPN+", "eng.1")]
+        story = self.tagged_story()
+        parts = [{"text": "This evening ", "match_ids": []}, {"text": "MLS", "match_ids": ["mls"]},
+                 {"text": " and ", "match_ids": []}, {"text": "the Premier League", "match_ids": ["pl"]},
+                 {"text": " have matches.", "match_ids": []}]
+        item = {"segments": parts, "sources": []}
+        story["lede_items"] = [item]
+        story["forecast"]["items"] = [item]
+        story["headline_segments"] = parts
+        for theme in ("light", "dark"):
+            with self.subTest(theme=theme), self.page("after", html=render_page(build, fixtures=fixtures), story=story, theme=theme) as (page, _):
+                page.locator("#btn-menu").click()
+                # Explicitly select both relevant services, independent of the owner's defaults.
+                page.locator("#btn-clear").click()
+                page.locator('[data-kind="have"][data-key="espn"]').click()
+                page.locator('[data-kind="have"][data-key="apple"]').click()
+                for host in ("#forecast", "#story-lede", "#story-h"):
+                    expect(page.locator(host + " .editorial-part--filtered")).to_have_count(0)
+                page.locator('[data-kind="have"][data-key="apple"]').click()
+                for host in ("#forecast", "#story-lede", "#story-h"):
+                    expect(page.locator(host + " .editorial-part--filtered")).to_have_text("MLS")
+                    expect(page.locator(host + ' .editorial-part[data-matches="pl"]')).to_have_class("editorial-part")
+                    expect(page.locator(host + ' .editorial-part[data-matches="mls"]')).to_have_css("text-decoration-line", "none")
+                    expect(page.locator(host)).to_contain_text("This evening MLS and the Premier League have matches.")
+                page.locator("#btn-filters-close").click()
+                page.screenshot(path=str(self.artifacts / f"phrases-{theme}.png"), full_page=True)
+                page.locator("#btn-all").click()
+                expect(page.locator("#forecast .editorial-part--filtered")).to_have_count(0)
+                page.locator("#btn-menu").click()
+                page.locator('#comp-pills [data-key="usa.1"]').click()
+                expect(page.locator("#forecast .editorial-part--filtered")).to_have_text("MLS")
+
+    def test_rolling_window_caps_summary_cards_and_open_schedule(self):
+        fixtures = [("inside", "2026-10-08T16:59:00+00:00", "pre", "ESPN+"),
+                    ("edge", "2026-10-08T17:00:00+00:00", "pre", "ESPN+"),
+                    ("later", "2026-10-10T17:00:00+00:00", "pre", "ESPN+")]
+        with self.page("after", html=render_page(build, fixtures=fixtures)) as (page, _):
+            expect(page.locator("#tally-n")).to_have_text("1")
+            expect(page.locator("#schedule-summary")).to_contain_text("1 upcoming")
+            expect(page.locator("#picks .pick")).to_have_count(1)
+            expect(page.locator('li.row[data-id="inside"]')).to_be_visible()
+            expect(page.locator('li.row[data-id="edge"]')).to_be_hidden()
+            expect(page.locator('details[data-b="later"]')).not_to_have_attribute("open", "")
+            page.locator('details[data-b="later"] > summary').click()
+            expect(page.locator('li.row[data-id="edge"]')).to_be_visible()
+            page.evaluate("location.hash = '#at-20261007-1301'")
+            expect(page.locator("#tally-n")).to_have_text("2")
+            self.assertEqual(self.bucket(page, "edge"), "Tomorrow")
+            expect(page.locator('li.row[data-id="edge"]')).to_be_visible()
+            expect(page.locator('details[data-b="later"]')).to_have_attribute("open", "")
+
+    def test_later_editorial_only_as_researched_fallback_and_rolls_into_window(self):
+        story = self.tagged_story()
+        story["lede_items"] = []
+        near = {"segments": [{"text": "Near context.", "match_ids": ["upcoming"]}], "sources": []}
+        later = {"segments": [{"text": "Later context.", "match_ids": ["usual"]}], "sources": []}
+        story["forecast"]["items"] = [near, later]
+        story["later_reason"] = "No pertinent story found sooner."
         with self.page("after", story=story) as (page, _):
-            editorial = page.locator("#forecast")
-            summary = page.locator("#schedule-summary")
-            expect(editorial).to_contain_text(story["forecast"]["today"])
-            expect(editorial).to_contain_text(story["forecast"]["ahead"])
-            expect(editorial).to_contain_text("Forecast by Claude")
-            expect(summary).not_to_contain_text("Editorial context")
-            expect(page.locator("#eyebrow")).to_contain_text("Fixture context")
-            before = summary.inner_text()
+            expect(page.locator("#forecast")).to_contain_text("Near context")
+            expect(page.locator("#forecast")).not_to_contain_text("Later context")
             page.locator("#btn-menu").click()
-            page.locator('[data-kind="have"][data-key="netflix"]').click()
-            expect(editorial).to_be_hidden()
-            self.assertEqual(summary.inner_text(), before)
-            page.locator('[data-kind="have"][data-key="netflix"]').click()
-            expect(editorial).to_be_visible()
-            page.locator('[data-kind="comp"][data-key="eng.1"]').click()
-            expect(editorial).to_be_hidden()
-            expect(summary).to_contain_text("hidden by competition filters")
-            page.locator("#btn-reset").click()
-            expect(editorial).to_be_visible()
-        for kind in ("missing", "expired"):
+            page.locator('#comp-pills [data-key="eng.1"]').click()
+            expect(page.locator("#forecast")).to_contain_text("Near context")
+            expect(page.locator("#forecast")).not_to_contain_text("Later context")
+        story["forecast"]["items"] = [later]
+        with self.page("after", story=story) as (page, _):
+            expect(page.locator("#forecast")).to_contain_text("Further ahead")
+            page.evaluate("location.hash = '#at-20261007-1401'")
+            expect(page.locator("#forecast")).to_contain_text("Next 24 hours")
+        story["later_reason"] = ""
+        with self.page("after", story=story) as (page, _):
+            expect(page.locator("#forecast")).to_be_hidden()
+
+    def test_legacy_expired_unknown_and_completed_editorial_do_not_leak(self):
+        story = self.tagged_story()
+        story["lede_items"] = []
+        for kind in ("legacy", "expired", "unknown", "completed"):
             changed = deepcopy(story)
-            if kind == "missing":
-                changed.pop("forecast")
+            if kind == "legacy":
+                changed["forecast"] = {"label": "Old", "today": "Untagged", "ahead": "Untagged"}
+            elif kind == "expired":
+                changed["focus_until"] = "2026-10-07T16:59:00Z"
             else:
-                changed["date"] = "2026-10-06"
+                changed["forecast"]["items"] = [{"segments": [{"text": "Stale", "match_ids": ["missing" if kind == "unknown" else "finished"]}]}]
             with self.subTest(kind=kind), self.page("after", story=changed) as (page, _):
                 expect(page.locator("#forecast")).to_be_hidden()
-                expect(page.locator("#schedule-summary")).to_contain_text("1 live · 4 upcoming")
+                expect(page.locator("#schedule-summary")).to_contain_text("1 live · 5 upcoming")
+
 
 
 def main():
