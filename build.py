@@ -321,15 +321,6 @@ if set(OWNER) - set(SERVICES):
     raise RightsError(f"OWNER names services rights.toml doesn't define: {sorted(set(OWNER) - set(SERVICES))}")
 
 
-# How the forecast prose treats each league: its family, and whether its name takes "the".
-LEAGUE_CATEGORY = {
-    "eng.1": "big", "esp.1": "big", "ger.1": "big", "ita.1": "big", "fra.1": "big",
-    "uefa.champions": "ucl", "uefa.europa": "ucl", "uefa.europa.conf": "ucl",
-    "uefa.nations": "nat", "fifa.friendly": "nat", "fifa.friendly.w": "nat", "concacaf.nations.league": "nat",
-    "caf.nations": "nat",
-}
-NO_ARTICLE = {"esp.1", "ita.1", "fra.1", "usa.1", "mex.1", "usa.usl.l1", "fifa.friendly", "fifa.friendly.w"}
-
 MARQUEE_CLUBS = {
     "Arsenal", "Chelsea", "Liverpool", "Manchester City", "Manchester United", "Tottenham Hotspur",
     "Newcastle United", "Real Madrid", "Barcelona", "Atlético Madrid", "Bayern Munich",
@@ -1228,8 +1219,6 @@ def build_page(matches, cache, built_at, failed, today):
         f'<span class="svc__count" data-count>{sum(1 for m in matches if m.service == k and m.state != "post")} this week</span></div>'
         f'<p class="svc__desc" data-desc></p></div>' for k in OWNER)
 
-    meta = {lg: {"name": info["name"], "cat": LEAGUE_CATEGORY.get(lg, "other"), "the": lg not in NO_ARTICLE,
-                 "tier": info["tier"]} for lg, info in LEAGUES.items()}
     svc_meta = {"order": SERVICE_RANK, "name": SERVICES, "owner": OWNER}
     used = set()
     for m in matches:
@@ -1254,9 +1243,9 @@ def build_page(matches, cache, built_at, failed, today):
     built_et = built_at.astimezone(ET)
     page = (TEMPLATE
             .replace("@@LOGO_CSS@@", logo_css)
-            .replace("@@LEAGUE_META@@", json.dumps(meta).replace("</", "<\\/"))
             .replace("@@SERVICE_META@@", json.dumps(svc_meta).replace("</", "<\\/"))
             .replace("@@BUILT_ISO@@", built_at.strftime("%Y-%m-%dT%H:%M:%SZ"))
+            .replace("@@INCOMPLETE@@", "1" if failed else "0")
             .replace("@@BUILT_ET@@", esc(built_et.strftime("%a %b ") + str(built_et.day) + built_et.strftime(", %I:%M %p ET").replace(" 0", " ")))
             .replace("@@N_ON@@", str(n_on)).replace("@@N_ALL@@", str(n_all))
             .replace("@@PICKS@@", "".join(pick_card_html(m, cache) for m in picks))

@@ -1,5 +1,6 @@
 """Offline Chromium checks; run with python3 -m tests.browser --help."""
 import argparse
+from copy import deepcopy
 from contextlib import contextmanager
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -20,7 +21,7 @@ from PIL import Image
 from pixelmatch.contrib.PIL import pixelmatch
 
 import build
-from tests.page_fixture import BUILT_AT, render_page, scoreboard
+from tests.page_fixture import BUILT_AT, TODAY, render_page, scoreboard
 
 
 class QuietHandler(SimpleHTTPRequestHandler):
@@ -30,7 +31,7 @@ class QuietHandler(SimpleHTTPRequestHandler):
 
 class BrowserChecks(unittest.TestCase):
     @contextmanager
-    def page(self, target, *, width=1280, theme="light", at="20261007-1300"):
+    def page(self, target, *, width=1280, theme="light", at="20261007-1300", html=None, story=None):
         context = self.browser.new_context(
             viewport={"width": width, "height": 900 if width > 600 else 844},
             locale="en-US", timezone_id="America/New_York", color_scheme=theme,
@@ -42,14 +43,19 @@ class BrowserChecks(unittest.TestCase):
 
         def route_request(route):
             url = urlsplit(route.request.url)
-            if url.path.startswith("/espn/"):
+            if html is not None and url.path.endswith("/index.html"):
+                route.fulfill(content_type="text/html", body=html)
+            elif url.path.startswith("/espn/"):
                 feed["requests"] += 1
                 if feed["fail"]:
                     route.fulfill(status=503, body="Fixture: ESPN unavailable")
                 else:
                     route.fulfill(content_type="application/json", body=json.dumps(feed["data"]))
             elif url.path.endswith("/story.json"):
-                route.fulfill(status=404, body="No fixture story")
+                if story is None:
+                    route.fulfill(status=404, body="No fixture story")
+                else:
+                    route.fulfill(content_type="application/json", body=json.dumps(story))
             elif url.hostname != "127.0.0.1":
                 # Stable offline screenshots: use the same fallback fonts on both pages.
                 route.fulfill(content_type="text/css", body="")
@@ -63,7 +69,11 @@ class BrowserChecks(unittest.TestCase):
             page.goto(f"{self.base}/{target}/index.html?scoresbase={self.base}/espn/#at-{at}")
             expect(page.locator("#outlook-sub")).to_contain_text("From where you are")
             page.clock.run_for(1)
-            expect(page.locator("#livenote")).to_contain_text("last checked")
+            if feed["requests"]:
+                expect(page.locator("#livenote")).to_contain_text("last checked")
+            if story is not None:
+                page.wait_for_load_state("networkidle")
+            self.assertEqual(errors, [], f"JavaScript startup errors in {target}")
             yield page, feed
             self.assertEqual(errors, [], f"JavaScript errors in {target}")
         finally:
@@ -146,17 +156,20 @@ class BrowserChecks(unittest.TestCase):
             with self.subTest(target=target), self.page(target) as (page, feed):
                 row = page.locator('li.row[data-id="upcoming"]')
                 self.assertEqual(self.bucket(page, "upcoming"), "This afternoon")
+                expect(page.locator("#schedule-summary")).to_contain_text("1 live · 4 upcoming")
                 feed["data"] = scoreboard("in")
                 page.clock.run_for(60000)
                 expect(row).to_have_attribute("data-state", "in")
                 expect(row.locator(".team .score")).to_have_text(["2", "1"])
                 expect(row.locator(".row__goals")).to_contain_text("A. Player 63'")
                 self.assertEqual(self.bucket(page, "upcoming"), "Live now")
+                expect(page.locator("#schedule-summary")).to_contain_text("2 live · 3 upcoming")
                 feed["data"] = scoreboard("post")
                 page.clock.run_for(60000)
                 expect(row).to_have_attribute("data-state", "post")
                 expect(row.locator(".row__status")).to_have_text("FT")
                 self.assertEqual(self.bucket(page, "upcoming"), "Earlier today")
+                expect(page.locator("#schedule-summary")).to_contain_text("1 live · 3 upcoming")
                 self.assertGreaterEqual(feed["requests"], 2)
 
     def test_failed_scoreboard_preserves_scores(self):
@@ -171,6 +184,103 @@ class BrowserChecks(unittest.TestCase):
                 self.assertGreater(feed["requests"], requests)
                 self.assertEqual(row.inner_html(), before)
                 expect(row).to_have_attribute("data-state", "in")
+
+    def test_factual_summary_and_filters(self):
+        with self.page("after") as (page, _):
+            summary = page.locator("#schedule-summary")
+            expect(summary).to_contain_text("1 live · 4 upcoming in selected competitions")
+            expect(summary).to_contain_text("4 listed on your services; 1 with unconfirmed coverage")
+            expect(summary).to_contain_text("Next kickoff · 1:05 pm")
+            expect(page.locator("#forecast")).to_be_hidden()
+            expect(page.locator("#eyebrow")).to_have_text("Wednesday, October 7")
+            page.locator("#btn-menu").click()
+            page.locator('[data-kind="comp"][data-key="eng.1"]').click()
+            expect(summary).to_contain_text("Today: 5 matches hidden by competition filters.")
+            expect(summary).to_contain_text("Tomorrow: 2 matches hidden by competition filters.")
+            expect(summary).not_to_contain_text("Next kickoff")
+            page.locator('[data-kind="comp"][data-key="eng.1"]').click()
+            page.locator("#btn-clear").click()
+            expect(summary).to_contain_text("No services selected")
+
+    def test_counts_all_leagues_and_groups_simultaneous_kickoffs(self):
+        for leagues in (["usa.1"] * 6 + ["usa.nwsl"] * 6, ["caf.nations"] * 4):
+            fixtures = [(str(i), "2026-10-07T18:00:00+00:00", "pre", "ESPN+", league)
+                        for i, league in enumerate(leagues)]
+            with self.subTest(leagues=leagues), self.page("after", html=render_page(build, fixtures=fixtures)) as (page, _):
+                summary = page.locator("#schedule-summary")
+                expect(summary).to_contain_text(f"{len(leagues)} upcoming in selected competitions")
+                next_kickoff = summary.locator("p").filter(has_text="Next kickoff")
+                expect(next_kickoff).to_have_count(1)
+                expect(next_kickoff).to_contain_text("Next kickoff · 2 pm")
+                expect(next_kickoff).to_contain_text(f"{len(leagues) - 3} more at this time")
+                self.assertNotIn("then", next_kickoff.inner_text())
+                expect(page.locator("#forecast")).to_be_hidden()
+                self.assertNotRegex(summary.inner_text(), r"quiet|international break|best|pick of|weekend")
+
+    def test_summary_distinguishes_coverage_and_missing_data(self):
+        fixtures = [("listed", "2026-10-07T18:00:00+00:00", "pre", "ESPN+", "esp.1"),
+                    ("usual", "2026-10-07T18:00:00+00:00", "pre", None, "esp.1"),
+                    ("unknown", "2026-10-07T18:00:00+00:00", "pre", "Mystery Sports+", "esp.1"),
+                    ("other", "2026-10-07T18:00:00+00:00", "pre", "Peacock", "eng.1")]
+        html = render_page(build, fixtures=fixtures, failed=[("eng.1", TODAY)])
+        with self.page("after", html=html) as (page, _):
+            summary = page.locator("#schedule-summary")
+            expect(summary).to_contain_text("1 listed on your services; 1 with usual coverage on your services (not yet listed); 1 with unconfirmed coverage")
+            expect(summary).to_contain_text("Some fixtures may be missing")
+            expect(summary).to_contain_text("Tomorrow: No remaining matches in the loaded schedule.")
+            page.locator("#btn-all").click()
+            expect(summary).to_contain_text("1 more at this time")
+
+    def test_summary_uses_actual_next_date_and_marks_pending_scores(self):
+        fixtures = [("late-score", "2026-10-07T16:00:00+00:00", "pre", "ESPN+", "eng.1"),
+                    ("spain", "2026-10-09T18:00:00+00:00", "pre", "ESPN+", "esp.1"),
+                    ("germany", "2026-10-11T18:00:00+00:00", "pre", "ESPN+", "ger.1")]
+        with self.page("after", html=render_page(build, fixtures=fixtures)) as (page, _):
+            summary = page.locator("#schedule-summary")
+            expect(summary).to_contain_text("1 awaiting score updates")
+            expect(summary).to_contain_text("Next kickoff · Friday, October 9, 2 pm")
+            self.assertNotRegex(summary.inner_text(), r"returns|wait until|weekend")
+        with self.page("after", at="20261008-0001") as (page, _):
+            summary = page.locator("#schedule-summary")
+            expect(summary).to_contain_text("Until 4 am:")
+            expect(summary).to_contain_text("From 4 am:")
+            expect(summary).to_contain_text("Next kickoff · 12:30 am")
+
+    def test_claude_forecast_is_separate_and_respects_selection(self):
+        story = {"version": 1, "date": "2026-10-07", "generated_at": "2026-10-07T17:00:00Z",
+                 "headline": "Fixture headline", "lede": "Fixture lede", "notes": {}, "sources": [],
+                 "services": list(build.OWNER),
+                 "forecast": {"label": "Fixture context", "today": "Editorial context from Claude.",
+                              "ahead": "Research about the coming days."}}
+        with self.page("after", story=story) as (page, _):
+            editorial = page.locator("#forecast")
+            summary = page.locator("#schedule-summary")
+            expect(editorial).to_contain_text(story["forecast"]["today"])
+            expect(editorial).to_contain_text(story["forecast"]["ahead"])
+            expect(editorial).to_contain_text("Forecast by Claude")
+            expect(summary).not_to_contain_text("Editorial context")
+            expect(page.locator("#eyebrow")).to_contain_text("Fixture context")
+            before = summary.inner_text()
+            page.locator("#btn-menu").click()
+            page.locator('[data-kind="have"][data-key="netflix"]').click()
+            expect(editorial).to_be_hidden()
+            self.assertEqual(summary.inner_text(), before)
+            page.locator('[data-kind="have"][data-key="netflix"]').click()
+            expect(editorial).to_be_visible()
+            page.locator('[data-kind="comp"][data-key="eng.1"]').click()
+            expect(editorial).to_be_hidden()
+            expect(summary).to_contain_text("hidden by competition filters")
+            page.locator("#btn-reset").click()
+            expect(editorial).to_be_visible()
+        for kind in ("missing", "expired"):
+            changed = deepcopy(story)
+            if kind == "missing":
+                changed.pop("forecast")
+            else:
+                changed["date"] = "2026-10-06"
+            with self.subTest(kind=kind), self.page("after", story=changed) as (page, _):
+                expect(page.locator("#forecast")).to_be_hidden()
+                expect(page.locator("#schedule-summary")).to_contain_text("1 live · 4 upcoming")
 
 
 def main():

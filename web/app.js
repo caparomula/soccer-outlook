@@ -8,7 +8,6 @@
   var rows = Array.prototype.slice.call(document.querySelectorAll('li.row'));
   if (!rows.length) return;
   var controls = document.getElementById('controls');
-  var META = {}; try { META = JSON.parse(document.getElementById('league-meta').textContent) || {}; } catch (e) {}
   // A hash such as #at-20261003-2130 pins "now" (viewer-local) so a perspective can be previewed.
   function nowMs() { var m = /^#at-(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})$/.exec(location.hash || ''); return m ? new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]).getTime() : Date.now(); }
   // The Eastern calendar date (YYYYMMDD) of an instant. ESPN files a match under it (a 9 pm Eastern
@@ -214,7 +213,7 @@
     });
     ORDER.forEach(function (b) { all[b].sort(function (a, c) { return a._k - c._k || c._score - a._score; }); });
     rows.forEach(function (r) { var l = r.querySelector('.row__live'); if (l) l.hidden = r._b !== 'live'; });
-    if (!force && sig === lastSig) { renderLede(groups, all, now); return; }
+    if (!force && sig === lastSig) { renderSummary(groups, all, now); return; }
     lastSig = sig;
 
     var openFolds = {};
@@ -266,7 +265,7 @@
     var park = document.getElementById('park') || (function () { var p = document.createElement('div'); p.id = 'park'; p.hidden = true; document.body.appendChild(p); return p; })();
     rows.forEach(function (r) { if (!r._b) park.appendChild(r); });
     body.innerHTML = ''; body.appendChild(frag);
-    renderPicks(groups, now); renderMisses(all, now); renderLineup(all, now); renderLede(groups, all, now); renderNextup(groups, now);
+    renderPicks(groups, now); renderMisses(all, now); renderLineup(all, now); renderSummary(groups, all, now); renderNextup(groups, now);
   }
 
   // ---- next up: the Pit Dash countdown ---------------------------------------------------------
@@ -289,7 +288,7 @@
     m.appendChild(logoClone(nextRow, 1, 'logo'));
     var meta = document.createElement('span'); meta.className = 'nextup__meta'; meta.textContent = nextRow.getAttribute('data-comp') + ' \u00b7 ' + (nextRow._tv ? proseTime(nextRow) + dayTag(nextRow, now) : 'time TBD'); m.appendChild(meta);
     var svc = document.createElement('span'); svc.className = 'nextup__svc svc-' + nextRow._svc; svc.innerHTML = '<i class="dot"></i>';
-    svc.appendChild(document.createTextNode(proseWhere(nextRow).replace(/^on /, ''))); m.appendChild(svc);
+    svc.appendChild(document.createTextNode(summaryOutlet(nextRow))); m.appendChild(svc);
     tickNextup();
   }
   function tickNextup() {
@@ -426,13 +425,9 @@
     });
   }
 
-  // ---- the forecast ----------------------------------------------------------------------------
+  // ---- schedule facts and the separately authored forecast -------------------------------------
   function onSvc(r) { return r._svc !== 'none'; }
-  function byScore(a, c) { return c._score - a._score || a._k - c._k; }
   function byTime(a, c) { return a._k - c._k; }
-  function cap(t) { return t.charAt(0).toUpperCase() + t.slice(1); }
-  function lgName(lg, the) { var m = META[lg] || { name: lg, the: false }; return (the && m.the ? 'the ' : '') + m.name; }
-  function joinList(items, word) { word = word || 'and'; if (items.length <= 1) return items.join(''); if (items.length === 2) return items[0] + ' ' + word + ' ' + items[1]; return items.slice(0, -1).join(', ') + ' ' + word + ' ' + items[items.length - 1]; }
   function matchName(r) { return r.getAttribute('data-home') + ' v ' + r.getAttribute('data-away'); }
   function proseTime(r) {
     if (!r._tv) return 'a time to be set';
@@ -441,15 +436,6 @@
     if (st.t === '12:00' && st.ap === 'am') return 'midnight';
     return st.t.replace(/:00$/, '') + ' ' + st.ap;
   }
-  function proseWhere(r) {
-    var sname = SERVICE_NAMES[r._svc] || r._svc, o = r.getAttribute('data-outlet'), t = 'on ' + sname;
-    if (SHORT[r._svc]) return 'on ' + o + ' (' + SHORT[r._svc] + ')';
-    if (r.getAttribute('data-basis') === 'rule') return t + ' (usually ' + o + ')';
-    if (o && o !== sname) t += ' (' + o + ')';
-    return t;
-  }
-  function slateItem(r) { return matchName(r) + ' at ' + proseTime(r) + ' ' + proseWhere(r); }
-  function liveItem(r) { var sc = scoreOf(r), clk = clockOf(r); return matchName(r) + (sc ? ' (' + sc + (clk ? ', ' + clk : '') + ')' : '') + ' ' + proseWhere(r); }
   // What a row shows now: "2–1" and "67'" (each empty before kickoff, or when it isn't known).
   function scoreOf(r) {
     var s = r.querySelectorAll('.team .score');
@@ -457,106 +443,80 @@
   }
   function clockOf(r) { var s = r.querySelector('.row__status'); return s && !s.hidden ? s.textContent : ''; }
 
-  function composeForecast(groups, all, now) {
-    var todayAll = [].concat(all.earlier, all.live, all.morning, all.afternoon, all.evening, all.tonight);
-    var later = [].concat(all.tomorrow, all.week);
-    var lgToday = {}, lgTodayOn = {}, catToday = {};
-    todayAll.forEach(function (r) {
-      lgToday[r._lg] = (lgToday[r._lg] || 0) + 1;
-      if (onSvc(r)) lgTodayOn[r._lg] = (lgTodayOn[r._lg] || 0) + 1;
-      var c = (META[r._lg] || {}).cat || 'other'; catToday[c] = (catToday[c] || 0) + 1;
-    });
-    function firstLater(lg) { for (var i = 0; i < later.length; i++) if (later[i]._lg === lg) return later[i]; return null; }
-    function names(list, the) { return list.map(function (lg) { return lgName(lg, the); }); }
-    var d = new Date(now), weekday = fmtLongDay.format(d), weekend = d.getDay() === 0 || d.getDay() === 6;
-    var BIG = ['eng.1', 'esp.1', 'ger.1', 'ita.1', 'fra.1'];
-    var bigOn = BIG.filter(function (lg) { return lgToday[lg]; });
-    var darkList = BIG.concat(['usa.1']).filter(function (lg) { return !lgToday[lg] && firstLater(lg); });
-    var uclOn = ['uefa.champions', 'uefa.europa', 'uefa.europa.conf'].filter(function (lg) { return lgToday[lg]; });
-    var label, s1;
-    if (uclOn.length && (catToday.ucl || 0) >= 4) {
-      label = 'European night';
-      s1 = 'A European ' + weekday + ': ' + joinList(names(uclOn, true)) + (uclOn.length > 1 ? ' are' : ' is') + ' on' + (bigOn.length ? '' : ', and the domestic leagues wait for the weekend') + '.';
-    } else if (!bigOn.length && (catToday.nat || 0) >= 4) {
-      label = 'International break';
-      var natParts = [];
-      if (lgToday['uefa.nations']) natParts.push(lgToday['uefa.nations'] + ' Nations League matches');
-      var fr = (lgToday['fifa.friendly'] || 0) + (lgToday['fifa.friendly.w'] || 0);
-      if (fr) natParts.push(fr + (fr === 1 ? ' friendly' : ' friendlies'));
-      if (lgToday['concacaf.nations.league']) natParts.push(lgToday['concacaf.nations.league'] + ' in the Concacaf Nations League');
-      s1 = 'The big European leagues are off for the international break: the day belongs to the national teams, with ' + joinList(natParts) +
-        (darkList.length ? ', and no ' + joinList(names(darkList, false), 'or') : '') + '.';
-    } else if (bigOn.length) {
-      label = weekend ? 'Club weekend' : 'Midweek club football';
-      var waits = BIG.filter(function (lg) { return !lgToday[lg] && firstLater(lg); });
-      s1 = 'A ' + (weekend ? 'full club ' : 'midweek ') + weekday + ': ' + joinList(names(bigOn, true)) + (bigOn.length > 1 ? ' are' : ' is') + ' on' +
-        (waits.length ? ', while ' + joinList(names(waits, true)) + (waits.length > 1 ? ' wait' : ' waits') + ' until ' + fmtLongDay.format(new Date(firstLater(waits[0])._k)) : '') + '.';
-    } else {
-      label = todayAll.length ? 'Quiet day' : 'Nothing today';
-      s1 = todayAll.length ? 'A quiet ' + weekday + ', with ' + todayAll.length + ' matches tracked' + (darkList.length ? ' and no ' + joinList(names(darkList, false), 'or') : '') + '.' : 'No matches are tracked for ' + weekday + '.';
+  function matchCount(n) { return n + (n === 1 ? ' match' : ' matches'); }
+  function coverageSummary(list) {
+    var listed = list.filter(function (r) { return onSvc(r) && r._basis === 'listed'; }).length;
+    var usual = list.filter(function (r) { return onSvc(r) && r._basis === 'rule'; }).length;
+    var unknown = list.filter(function (r) { return !onSvc(r) && (r._unk || !r._o.length); }).length;
+    var parts = [Object.keys(HAVE).length ? listed + ' listed on your services' : 'No services selected'];
+    if (usual) parts.push(usual + ' with usual coverage on your services (not yet listed)');
+    if (unknown) parts.push(unknown + ' with unconfirmed coverage');
+    return parts.join('; ') + '.';
+  }
+  function periodSummary(list, now) {
+    var remaining = list.filter(function (r) { return r._state !== 'post'; });
+    var selected = remaining.filter(function (r) { return !compOff[r._lg]; });
+    var hidden = remaining.length - selected.length;
+    if (!selected.length) return hidden ? matchCount(hidden) + ' hidden by competition filters.' : 'No remaining matches in the loaded schedule.';
+    var live = selected.filter(function (r) { return r._state === 'in'; }).length;
+    var pending = selected.filter(function (r) { return r._state === 'pre' && r._tv && r._k <= now; }).length;
+    var scheduled = selected.length - live - pending, parts = [];
+    if (live) parts.push(live + ' live');
+    if (scheduled) parts.push(scheduled + ' upcoming');
+    if (pending) parts.push(pending + ' awaiting score updates');
+    var text = parts.join(' · ') + ' in selected competitions. ' + coverageSummary(selected);
+    if (hidden) text += ' ' + matchCount(hidden) + ' hidden by competition filters.';
+    return text;
+  }
+  function summaryOutlet(r) {
+    if (onSvc(r)) {
+      var service = SERVICE_NAMES[r._svc] || r._svc;
+      var outlet = r.getAttribute('data-outlet');
+      if (r._basis === 'rule') return service + ' (usual coverage; not yet listed)';
+      return service + (outlet && outlet !== service ? ' (' + outlet + ')' : '');
     }
-    // Competitions filling in around the headline: the ones on your services first, then by stature, skipping hidden ones.
-    var fill = Object.keys(lgToday).filter(function (lg) { var c = (META[lg] || {}).cat || 'other'; return c !== 'big' && c !== 'nat' && c !== 'ucl'; });
-    function fillRank(lg) { var m = META[lg] || {}; return (lgTodayOn[lg] ? 100 : 0) - (compOff[lg] ? 1000 : 0) - 10 * (m.tier || 3) + Math.min(lgToday[lg], 9); }
-    fill.sort(function (a, b) { return fillRank(b) - fillRank(a); });
-    fill = fill.filter(function (lg) { return !compOff[lg]; }).slice(0, 3);
-    if (fill.length) s1 += ' ' + cap(joinList(names(fill, true))) + (label === 'International break' ? (fill.length > 1 ? ' fill in.' : ' fills in.') : (fill.length > 1 ? ' are on too.' : ' is on too.'));
-
-    var live = groups.live.filter(onSvc).sort(byScore);
-    var ahead = [].concat(groups.morning, groups.afternoon, groups.evening, groups.tonight).filter(function (r) { return onSvc(r) && r._state !== 'post'; }).sort(byScore).slice(0, 3).sort(byTime);
-    var current = nowBucketName(now), lead, s2 = '';
-    if (live.length) {
-      lead = 'Live now';
-      var liveItems = live.slice(0, 2).map(liveItem);
-      if (live.length > 2) liveItems.push((live.length - 2) + ' more');
-      s2 = joinList(liveItems) + '.';
-      if (ahead.length) s2 += ' Still to come: ' + ahead.map(slateItem).join(', then ') + '.';
-    } else {
-      lead = current === 'tonight' ? 'Tonight' : current === 'evening' ? 'Still to come' : 'Your best slate';
-      s2 = ahead.length ? ahead.map(slateItem).join(', then ') + '.' : (mode === 'mine' ? 'Nothing more on your services today with the current filters.' : 'Nothing more on your services today.');
+    if (r._unk || !r._o.length) return 'coverage unconfirmed';
+    return r._o.map(function (o) { return o.l; }).join(', ') + ' (not in your lineup)';
+  }
+  function composeSchedule(all, now) {
+    var today = [].concat(all.earlier, all.live, all.morning, all.afternoon, all.evening, all.tonight);
+    var beforeDayStart = new Date(now).getHours() < DAY_START;
+    var lines = [{ label: beforeDayStart ? 'Until 4 am' : 'Today', text: periodSummary(today, now) }];
+    var future = today.concat(all.tomorrow, all.week).filter(function (r) {
+      return passes(r) && r._state === 'pre' && r._tv && r._k > now;
+    }).sort(byTime);
+    if (future.length) {
+      var first = future[0], together = future.filter(function (r) { return r._k === first._k; });
+      var date = localYmd(first._k) === localYmd(now) ? '' : fmtDay.format(new Date(first._k)) + ', ';
+      var text = together.slice(0, 3).map(function (r) { return matchName(r) + ' — ' + summaryOutlet(r); }).join('; ');
+      if (together.length > 3) text += '; ' + (together.length - 3) + ' more at this time';
+      lines.push({ label: 'Next kickoff · ' + date + proseTime(first), text: text + '.' });
     }
-
-    var tm = groups.tomorrow.filter(onSvc).sort(byScore).slice(0, 2).sort(byTime);
-    var s3 = tm.length ? 'Tomorrow brings ' + joinList(tm.map(slateItem)) + '.' : 'Tomorrow is quiet on your services.';
-
-    var returns = {}, order = [];
-    ['eng.1', 'esp.1', 'ger.1', 'ita.1', 'fra.1', 'usa.1', 'uefa.champions', 'uefa.europa'].forEach(function (lg) {
-      if (lgToday[lg] || all.tomorrow.some(function (r) { return r._lg === lg; })) return;
-      var r = null; for (var i = 0; i < all.week.length; i++) if (all.week[i]._lg === lg) { r = all.week[i]; break; }
-      if (!r) return;
-      var day = fmtLongDay.format(new Date(r._k));
-      if (!returns[day]) { returns[day] = []; order.push({ day: day, k: r._k }); }
-      returns[day].push(lgName(lg, true));
-    });
-    order.sort(function (a, b) { return a.k - b.k; });
-    var s4 = '';
-    if (order.length) {
-      var first = order[0], rest = order.slice(1);
-      s4 = 'Later this week ' + joinList(returns[first.day]) + (returns[first.day].length === 1 ? ' returns on ' : ' return on ') + first.day;
-      rest.forEach(function (o) { s4 += '; ' + joinList(returns[o.day]) + ' on ' + o.day; });
-      s4 += '.';
-    }
-    var pick = groups.week.filter(onSvc).sort(byScore)[0];
-    if (pick && pick._score >= 125) s4 += (s4 ? ' ' : '') + 'The pick of the week ahead is ' + matchName(pick) + ', ' + fmtLongDay.format(new Date(pick._k)) + ' at ' + proseTime(pick) + ' ' + proseWhere(pick) + '.';
-    return { label: label, s1: s1, lead: lead, s2: s2, s3: s3, s4: s4 };
+    lines.push({ label: beforeDayStart ? 'From 4 am' : 'Tomorrow', text: periodSummary(all.tomorrow, now) });
+    return lines;
   }
 
-  // The forecast's first and last paragraphs, and the label in the top line, are Claude's when the
-  // current story carries a forecast for this lineup (storyForecast), else the page's own. The middle
-  // line is always the page's: live scores and what is still to come change by the minute.
-  function renderLede(groups, all, now) {
-    var f = composeForecast(groups, all, now), sf = storyForecast();
-    var box = document.getElementById('forecast'); box.innerHTML = '';
-    function para(text) { var p = document.createElement('p'); p.textContent = text; box.appendChild(p); return p; }
-    para(sf ? sf.today : f.s1);
-    var p2 = document.createElement('p'); var b = document.createElement('b'); b.textContent = f.lead + ': '; p2.appendChild(b); p2.appendChild(document.createTextNode(f.s2)); box.appendChild(p2);
-    para(sf ? sf.ahead : f.s3 + (f.s4 ? ' ' + f.s4 : ''));
-    if (sf) {
-      var wt = splitTime(new Date(STORY.written));
-      para('Written by Claude from ESPN\'s schedule at ' + wt.t + ' ' + wt.ap + ', except the line that starts in bold, which the page keeps current.').className = 'forecast__by';
+  // Forecasts are authored by Claude. The browser only counts and formats schedule facts.
+  function renderSummary(groups, all, now) {
+    var sf = storyForecast(), editorial = document.getElementById('forecast');
+    editorial.innerHTML = ''; editorial.hidden = !sf;
+    function para(host, text, label) {
+      var p = document.createElement('p');
+      if (label) { var b = document.createElement('b'); b.textContent = label + ': '; p.appendChild(b); }
+      p.appendChild(document.createTextNode(text)); host.appendChild(p); return p;
     }
-    var d = new Date(now);
-    document.getElementById('eyebrow').textContent = fmtDay.format(d) + ' · ' + (sf ? sf.label : f.label);
+    if (sf) {
+      para(editorial, sf.today);
+      para(editorial, sf.ahead);
+      var wt = splitTime(new Date(STORY.written));
+      para(editorial, 'Forecast by Claude for the default lineup · updated ' + wt.t + ' ' + wt.ap + '. Forecast times are Eastern.').className = 'forecast__by';
+    }
+    var summary = document.getElementById('schedule-summary'); summary.innerHTML = '';
+    composeSchedule(all, now).forEach(function (line) { para(summary, line.text, line.label); });
+    if (app.getAttribute('data-incomplete') === '1') {
+      para(summary, 'Some fixtures may be missing because ESPN did not answer every request.').className = 'forecast__by';
+    }
+    document.getElementById('eyebrow').textContent = fmtDay.format(new Date(now)) + (sf ? ' · ' + sf.label : '');
     var up = upcoming(groups).concat(groups.week), on = up.filter(onSvc);
     document.getElementById('tally-n').textContent = on.length;
     document.getElementById('tally-txt').textContent = mode === 'mine' ? 'matches on your services through the week, with the current filters' : 'of ' + up.length + ' matches shown through the week are on your services';
@@ -615,11 +575,14 @@
       ? { label: f.label, today: f.today, ahead: f.ahead } : null;
   }
   // Claude's forecast says what is on "your services", meaning the lineup story.py was given, which
-  // the story records. A viewer who has chosen another lineup gets the page's own forecast instead.
+  // the story records. Show only schedule facts for another lineup or competition selection.
   function storyForecast() {
     var f = STORY.forecast, s = STORY.services;
     if (!f || !s || s.length !== Object.keys(HAVE).length) return null;
-    return s.every(function (k) { return HAVE[k]; }) ? f : null;
+    var defaultComps = Array.prototype.every.call(drawer.querySelectorAll('[data-kind="comp"]'), function (b) {
+      return !!compOff[b.getAttribute('data-key')] === (b.getAttribute('data-default-off') === '1');
+    });
+    return defaultComps && s.every(function (k) { return HAVE[k]; }) ? f : null;
   }
   function applyStory(s) {
     if (!s || s.version !== 1 || typeof s.headline !== 'string' || typeof s.lede !== 'string') return;

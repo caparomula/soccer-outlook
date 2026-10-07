@@ -7,8 +7,8 @@ ESPN reports. This script hands those facts to Claude with the web search and we
 for a headline, a short lede and a note on each notable match, and receives them through one tool
 call, publish_story. The same call carries the page's forecast: a label for the kind of day, a
 sentence or two on its shape and one on tomorrow and the week ahead, written from the schedule in the
-facts (build.py's schedule_by_day), not from the web. The page sets its own live line, with scores and
-what is still to come, between the two, since that changes by the minute.
+facts (build.py's schedule_by_day), informed by researched context. The page separately shows factual
+schedule counts, coverage and the next kickoff, which update as scores and filters change.
 
 The page shows what it writes, so every claim has to be traceable. The model is told to state only
 what it read in this session, and the script keeps only the source links that appeared in the search
@@ -16,7 +16,7 @@ and fetch results of this run; a note left with no verified source is dropped. T
 the schedule the page itself lists, so it carries no links, and the model is told to leave news to the
 notes. The output is story.json, published beside the page, which shows it only on the day it was
 written for. It records the lineup it was written for, and a viewer with another lineup gets the
-page's own forecast instead, since "on your services" would be someone else's.
+schedule summary instead, since "on your services" would be someone else's.
 
 Modes, one per kind of build:
   full     research the day from scratch (the early-morning build)
@@ -110,9 +110,9 @@ PUBLISH_TOOL = {
                 "additionalProperties": False,
                 "required": ["label", "today", "ahead"],
                 "properties": {
-                    "label": {"type": "string", "description": "Two to four words naming the kind of day, for the page's top line beside the weekday: 'International break', 'Champions League night', 'Full club weekend', 'Quiet midweek'."},
-                    "today": {"type": "string", "description": "One or two sentences, at most about 300 characters, on the shape of today's soccer: what kind of day it is, which competitions carry it, which major leagues are off and why."},
-                    "ahead": {"type": "string", "description": "One or two sentences, at most about 300 characters, on tomorrow and the rest of the week: when the major leagues return, and the pick of the week with its day, time and service."},
+                    "label": {"type": "string", "description": "A brief, specific label for today's soccer, supported by the schedule and research. Avoid generic announcements or declaring a quiet day just because major European leagues are absent."},
+                    "today": {"type": "string", "description": "One or two sentences, at most about 300 characters, explaining relevant context for today's soccer. Explain an absence only when research establishes its cause; the schedule alone cannot establish a break."},
+                    "ahead": {"type": "string", "description": "One or two sentences, at most about 300 characters, on useful context for the upcoming days. Use each competition's actual next fixture date. Recommend a match only when there is a supported reason to highlight it."},
                 },
             },
         },
@@ -123,9 +123,10 @@ FORECAST_GUIDE = ("Also write the page's forecast, which sits below the storylin
                   "week. Write it from 'schedule_by_day' and the match lists, which give every competition's matches "
                   "by Eastern day, how many are on the household's services and when the first kicks off; your research "
                   "can say why a league is off (an international break, a cup round), but news belongs in the notes, "
-                  "and the forecast should not repeat the lede. The page follows 'today' with a live line of its own "
-                  "listing what is on now and still to come on the household's services, with times and channels, so "
-                  "don't list today's slate: say what kind of day it is. Give times in Eastern time, as the facts do, "
+                  "and the forecast should not repeat the lede. The page separately shows factual match counts, "
+                  "coverage on the household's services and the next kickoff, so contribute context rather than "
+                  "reciting those facts. An absent fixture is not evidence of a break, a quiet day or a weekend return; "
+                  "state those only when the schedule and research support them. Give times in Eastern time, as the facts do, "
                   "and name a service only as 'watch_on' gives it.")
 
 
@@ -235,14 +236,13 @@ def clean_story(raw, facts, seen):
     if forecast:
         story["forecast"] = forecast
     else:
-        log("no usable forecast in the story; the page will compose its own")
+        log("no usable forecast in the story; the page will show schedule facts only")
     return story
 
 
 def clean_forecast(raw):
     """The forecast with each part trimmed to what the page has room for, or None unless all three
-    parts are there: a label past forty characters is a sentence, not a label, and half a forecast
-    beside the page's own live line would read worse than the page's own forecast."""
+    parts are there. Without a complete forecast the page shows its factual schedule summary."""
     if not isinstance(raw, dict):
         return None
     part = lambda key: raw[key] if isinstance(raw.get(key), str) else ""
