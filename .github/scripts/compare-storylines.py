@@ -3,9 +3,9 @@
 
 Reads the facts the runs were given and, for each configuration, the story it wrote (LABEL.json)
 and its usage report (LABEL.usage.json, from story.py --usage-out). Prints a table of cost, time,
-searches and notes, then each run's headline, lede and notes with the sites they cite, so the
-writing and the sourcing can be judged next to what each run cost. Nothing here grades the
-writing: that is the reader's call, with the sources open.
+searches and notes, then each run's headline, lede and notes with the sites they cite, and its
+forecast, so the writing and the sourcing can be judged next to what each run cost. Nothing here
+grades the writing: that is the reader's call, with the sources open.
 
 Usage: compare-storylines.py FACTS DIR
 """
@@ -77,6 +77,12 @@ def main():
             for mid, n in (story.get("notes") or {}).items():
                 sites = ", ".join(f"[{host(s['url'])}]({s['url']})" for s in n.get("sources") or [])
                 print(f"- **{names.get(mid, mid)}**: {n.get('note', '')} ({sites})")
+            print()
+            fc = story.get("forecast")
+            if fc:
+                print(f"*Forecast ({fc.get('label', '')}):* {fc.get('today', '')} *[the page's live line]* {fc.get('ahead', '')}")
+            else:
+                print("*No forecast; the page would compose its own.*")
         print()
         print("</details>")
         print()

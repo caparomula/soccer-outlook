@@ -1115,11 +1115,38 @@ def team_facts(t):
                                      top_scorer=(f"{t.leader} ({t.leader_goals})" if t.leader and t.leader_goals not in ("", "0") else "")).items() if v}
 
 
+def schedule_by_day(matches, today, days=7):
+    """The shape of the week for the forecast story.py asks for: per Eastern day from today, each
+    competition's matches, how many are on the owner's services, how many are already over and the
+    first kickoff, in kickoff order. The forecast says what kind of day it is, which leagues are off
+    and when they return; the twenty-odd matches the storylines get can't show that, and three hundred
+    rows would cost far more to send. Matches ESPN has called off don't count, and neither do
+    competitions the page hides by default."""
+    out = []
+    for offset in range(days):
+        day = today + timedelta(days=offset)
+        comps = {}
+        for m in sorted(matches, key=lambda m: m.utc):
+            local = m.utc.astimezone(ET)
+            if local.date() != day or LEAGUES[m.league].get("default_off") or called_off(m.state, m.status):
+                continue
+            c = comps.setdefault(m.comp, {"matches": 0, "on_owner_services": 0})
+            c["matches"] += 1
+            c["on_owner_services"] += bool(m.service)
+            if m.state == "post":
+                c["finished"] = c.get("finished", 0) + 1
+            if m.time_valid and "first_kickoff" not in c:
+                c["first_kickoff"] = local.strftime("%I:%M %p ET").lstrip("0")
+        out.append({"date": day.isoformat(), "weekday": day.strftime("%A"), "competitions": comps})
+    return out
+
+
 def write_facts(path, matches, built_at, today):
     """Writes the facts story.py hands to the model: the most notable matches today and tomorrow,
     split into ones the owner can watch and ones elsewhere, plus the biggest of the rest of the week,
-    and the day's notable results so far, which the midday and evening updates can lead with. Only
-    what ESPN reported; the model is asked to research everything else."""
+    the day's notable results so far, which the midday and evening updates can lead with, and the
+    week's schedule by day and competition, for the forecast. Only what ESPN reported; the model is
+    asked to research everything else."""
     def entry(m):
         local = m.utc.astimezone(ET)
         return {k: v for k, v in dict(
@@ -1148,9 +1175,11 @@ def write_facts(path, matches, built_at, today):
         "weekday": today.strftime("%A"),
         "built_at": built_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
         "owner_services": [SERVICES[k] for k in OWNER],
+        "owner_service_ids": list(OWNER),   # recorded in story.json: the lineup the forecast was written for
         "today_and_tomorrow_on_owner_services": [entry(m) for m in by_stature([m for m in near if m.service])[:20]],
         "today_and_tomorrow_elsewhere": [entry(m) for m in by_stature([m for m in near if not m.service and m.score >= 85])[:8]],
         "later_this_week_biggest": [entry(m) for m in by_stature([m for m in later if m.score >= 125])[:6]],
+        "schedule_by_day": schedule_by_day(matches, today),
     }
     played = [m for m in matches if m.state == "post" and m.utc.astimezone(ET).date() == today
               and not called_off(m.state, m.status) and m.score >= 85]
@@ -1326,6 +1355,7 @@ a { color: inherit; }
 .forecast { margin: 14px 0 0; max-width: 68ch; font-size: 17px; }
 .forecast p { margin: 0 0 6px; }
 .forecast b { font-weight: 600; }
+.forecast p.forecast__by { font-size: 13px; color: var(--muted); margin: 8px 0 0; }
 .fresh { margin: 6px 0 0; font-size: 13px; color: var(--muted); }
 .stale { margin: 12px 0 0; padding: 10px 12px; border-radius: 8px; background: var(--warn-bg); border: 1px solid var(--amber); font-size: 14px; }
 
@@ -1650,7 +1680,7 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
   <footer class="foot">
     <p>A colored pill means the broadcaster is inside one of the services you have selected; a grey pill is one you don't have; a dashed pill marks the league's usual home when ESPN has not listed the channel yet, which is normal more than a few days out. Fox One includes FOX, FS1, FS2, Big Ten Network and Fox Deportes but not Fox Soccer Plus. ESPN Unlimited includes every ESPN network, ESPN on ABC and ESPN+. TNT and TBS matches stream on HBO Max; CBS matches stream on Paramount+ Premium. Fubo's Pro plan has FOX, FS1, FS2, ESPN, ESPN2, ABC, CBS, CBS Sports Network, NBC, USA Network, Telemundo and beIN Sports, but not TNT, TBS, Univision or TUDN; ESPNU and Universo need its Elite plan, and ESPN Deportes, Fox Deportes and Fox Soccer Plus its International Sports Plus add-on. Most Bundesliga matches stream free on Fandango, with about 30 a season on USA Network; Peacock doesn't carry USA Network's or NBCSN's Premier League matches. Assignments can move on the day, so a glance at the app before kickoff is still worth it.</p>
     @@FAILED@@
-    <p>Fixtures, scores, broadcasters and logos from ESPN's public scoreboard; while matches are on, your browser checks the scores there once a minute. Rights notes from Fox Sports, CBS Sports, ESPN and World Soccer Talk. Built by <a href="https://github.com/caparomula/soccer-outlook">a small open generator</a> on GitHub. Storylines are researched on the web and written by Claude, fresh each morning and updated at each rebuild; they can be wrong, so each one links its sources.</p>
+    <p>Fixtures, scores, broadcasters and logos from ESPN's public scoreboard; while matches are on, your browser checks the scores there once a minute. Rights notes from Fox Sports, CBS Sports, ESPN and World Soccer Talk. Built by <a href="https://github.com/caparomula/soccer-outlook">a small open generator</a> on GitHub. Storylines and the forecast are written by Claude, fresh each morning and updated at each rebuild: the storylines researched on the web, each linking its sources, and the forecast from ESPN's schedule. They can be wrong. Without a current story, the page composes the forecast itself.</p>
   </footer>
 </div>
 
@@ -2141,7 +2171,7 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
       var fr = (lgToday['fifa.friendly'] || 0) + (lgToday['fifa.friendly.w'] || 0);
       if (fr) natParts.push(fr + (fr === 1 ? ' friendly' : ' friendlies'));
       if (lgToday['concacaf.nations.league']) natParts.push(lgToday['concacaf.nations.league'] + ' in the Concacaf Nations League');
-      s1 = 'The club leagues are dark for the international break: the day belongs to the national teams, with ' + joinList(natParts) +
+      s1 = 'The big European leagues are off for the international break: the day belongs to the national teams, with ' + joinList(natParts) +
         (darkList.length ? ', and no ' + joinList(names(darkList, false), 'or') : '') + '.';
     } else if (bigOn.length) {
       label = weekend ? 'Club weekend' : 'Midweek club football';
@@ -2198,14 +2228,22 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
     return { label: label, s1: s1, lead: lead, s2: s2, s3: s3, s4: s4 };
   }
 
+  // The forecast's first and last paragraphs, and the label in the top line, are Claude's when the
+  // current story carries a forecast for this lineup (storyForecast), else the page's own. The middle
+  // line is always the page's: live scores and what is still to come change by the minute.
   function renderLede(groups, all, now) {
-    var f = composeForecast(groups, all, now);
+    var f = composeForecast(groups, all, now), sf = storyForecast();
     var box = document.getElementById('forecast'); box.innerHTML = '';
-    var p1 = document.createElement('p'); p1.textContent = f.s1; box.appendChild(p1);
+    function para(text) { var p = document.createElement('p'); p.textContent = text; box.appendChild(p); return p; }
+    para(sf ? sf.today : f.s1);
     var p2 = document.createElement('p'); var b = document.createElement('b'); b.textContent = f.lead + ': '; p2.appendChild(b); p2.appendChild(document.createTextNode(f.s2)); box.appendChild(p2);
-    var p3 = document.createElement('p'); p3.textContent = f.s3 + (f.s4 ? ' ' + f.s4 : ''); box.appendChild(p3);
+    para(sf ? sf.ahead : f.s3 + (f.s4 ? ' ' + f.s4 : ''));
+    if (sf) {
+      var wt = splitTime(new Date(STORY.written));
+      para('Written by Claude from ESPN\'s schedule at ' + wt.t + ' ' + wt.ap + ', except the line that starts in bold, which the page keeps current.').className = 'forecast__by';
+    }
     var d = new Date(now);
-    document.getElementById('eyebrow').textContent = fmtDay.format(d) + ' · ' + f.label;
+    document.getElementById('eyebrow').textContent = fmtDay.format(d) + ' · ' + (sf ? sf.label : f.label);
     var up = upcoming(groups).concat(groups.week), on = up.filter(onSvc);
     document.getElementById('tally-n').textContent = on.length;
     document.getElementById('tally-txt').textContent = mode === 'mine' ? 'matches on your services through the week, with the current filters' : 'of ' + up.length + ' matches shown through the week are on your services';
@@ -2225,9 +2263,12 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
   // viewer elsewhere also sees it through their own calendar day. A preview written in the afternoon
   // says "tonight", and a build after a code push republishes the story without new research, so
   // past midnight yesterday's story would preview matches that are over: it stays hidden until the
-  // morning's run replaces it. The age limit is a backstop for a story with no date.
-  var STORY = { notes: {} };
-  var STORY_MAX_AGE_H = 30;
+  // morning's run replaces it. The age limit is a backstop for a story with no date. An open tab
+  // checks every minute and whenever it comes back into view, since a phone can resume last night's
+  // page without reloading it: a story whose day is over is taken down, and the page asks for a newer
+  // story.json every ten minutes while it is in view, so the midday and evening updates arrive too.
+  var STORY = { notes: {} };   // while a story is shown, also: s (as published), written (ms), forecast, services
+  var STORY_MAX_AGE_H = 30, STORY_EVERY_MS = 10 * 60000, storyAskedAt = 0;
   function localYmd(k) { var d = new Date(k); return '' + d.getFullYear() + ('0' + (d.getMonth() + 1)).slice(-2) + ('0' + d.getDate()).slice(-2); }
   function storyIsCurrent(s, written, now) {
     if ((now - written) / 3600000 > STORY_MAX_AGE_H) return false;
@@ -2256,13 +2297,27 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
     if (links.childNodes.length) { var src = document.createElement('span'); src.className = 'story-src'; src.appendChild(document.createTextNode('(')); src.appendChild(links); src.appendChild(document.createTextNode(')')); div.appendChild(document.createTextNode(' ')); div.appendChild(src); }
     return div;
   }
+  function cleanForecast(f) {
+    return f && typeof f.label === 'string' && f.label && typeof f.today === 'string' && f.today && typeof f.ahead === 'string' && f.ahead
+      ? { label: f.label, today: f.today, ahead: f.ahead } : null;
+  }
+  // Claude's forecast says what is on "your services", meaning the lineup story.py was given, which
+  // the story records. A viewer who has chosen another lineup gets the page's own forecast instead.
+  function storyForecast() {
+    var f = STORY.forecast, s = STORY.services;
+    if (!f || !s || s.length !== Object.keys(HAVE).length) return null;
+    return s.every(function (k) { return HAVE[k]; }) ? f : null;
+  }
   function applyStory(s) {
     if (!s || s.version !== 1 || typeof s.headline !== 'string' || typeof s.lede !== 'string') return;
     var written = Date.parse(s.generated_at || '');
     if (!(written > 0) || !storyIsCurrent(s, written, nowMs())) return;
+    if (STORY.s && STORY.written >= written) return;   // the one on show already, or a newer one
+    clearStory(true);
     var notes = {};
     Object.keys(s.notes || {}).forEach(function (id) { var n = s.notes[id]; if (n && typeof n.note === 'string' && n.note) notes[id] = n; });
-    STORY = { notes: notes };
+    STORY = { notes: notes, s: s, written: written, forecast: cleanForecast(s.forecast),
+              services: Array.isArray(s.services) ? s.services.filter(function (k) { return typeof k === 'string'; }) : null };
     document.getElementById('story-h').textContent = s.headline;
     document.getElementById('story-lede').textContent = s.lede;
     var by = document.getElementById('story-by'); by.textContent = '';
@@ -2279,12 +2334,26 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
     });
     render(true);
   }
+  // Takes the story down: the section, the notes under the rows, and (at the next render) the notes
+  // on the cards and Claude's forecast.
+  function clearStory(quiet) {
+    if (!STORY.s) return;
+    STORY = { notes: {} };
+    document.getElementById('story').hidden = true;
+    Array.prototype.slice.call(document.querySelectorAll('.row__story')).forEach(function (el) { el.parentNode.removeChild(el); });
+    if (!quiet) render(true);
+  }
   function loadStory() {
     if (!window.fetch || location.protocol === 'file:') return;
+    storyAskedAt = Date.now();
     fetch('story.json', { cache: 'no-cache' })
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(applyStory)
       .catch(function () {});
+  }
+  function checkStory() {
+    if (STORY.s && !storyIsCurrent(STORY.s, STORY.written, nowMs())) clearStory(false);
+    if (!document.hidden && Date.now() - storyAskedAt >= STORY_EVERY_MS) loadStory();
   }
 
   // ---- live scores: ESPN's scoreboard, read by the browser while matches are on -----------------
@@ -2447,9 +2516,9 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
   checkStale();
   loadStory();
   setTimeout(pollLive, 0);
-  setInterval(function () { render(false); checkStale(); }, 60000);
+  setInterval(function () { render(false); checkStale(); checkStory(); }, 60000);
   setInterval(pollLive, LIVE.everyMs);
-  document.addEventListener('visibilitychange', function () { if (!document.hidden) { render(false); checkStale(); pollLive(); } });
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) { render(false); checkStale(); checkStory(); pollLive(); } });
 })();
 </script>
 '''

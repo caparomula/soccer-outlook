@@ -5,12 +5,18 @@ build.py --facts writes the matches worth talking about (today and tomorrow, on 
 and elsewhere, plus the biggest of the week, and the day's notable results so far) with only what
 ESPN reports. This script hands those facts to Claude with the web search and web fetch tools, asks
 for a headline, a short lede and a note on each notable match, and receives them through one tool
-call, publish_story.
+call, publish_story. The same call carries the page's forecast: a label for the kind of day, a
+sentence or two on its shape and one on tomorrow and the week ahead, written from the schedule in the
+facts (build.py's schedule_by_day), not from the web. The page sets its own live line, with scores and
+what is still to come, between the two, since that changes by the minute.
 
 The page shows what it writes, so every claim has to be traceable. The model is told to state only
 what it read in this session, and the script keeps only the source links that appeared in the search
-and fetch results of this run; a note left with no verified source is dropped. The output is
-story.json, published beside the page, which loads it if it is less than 30 hours old.
+and fetch results of this run; a note left with no verified source is dropped. The forecast rests on
+the schedule the page itself lists, so it carries no links, and the model is told to leave news to the
+notes. The output is story.json, published beside the page, which shows it only on the day it was
+written for. It records the lineup it was written for, and a viewer with another lineup gets the
+page's own forecast instead, since "on your services" would be someone else's.
 
 Modes, one per kind of build:
   full     research the day from scratch (the early-morning build)
@@ -20,7 +26,7 @@ Modes, one per kind of build:
            for today it runs as full. (The midday and evening builds.)
   keep     republish the current story unchanged, whatever its date, and never call the API (builds
            after a code change: the news hasn't changed, and a push should never cost anything; the
-           page hides a story more than 30 hours old)
+           page shows a story only on the day it was written for)
 On failure, full and refresh keep the previous story if it is for today.
 
 Model and effort come from --model and --effort, else STORY_MODEL and STORY_EFFORT (STORY_REFRESH_EFFORT
@@ -79,7 +85,7 @@ PUBLISH_TOOL = {
     "input_schema": {
         "type": "object",
         "additionalProperties": False,
-        "required": ["headline", "lede", "lede_sources", "notes"],
+        "required": ["headline", "lede", "lede_sources", "notes", "forecast"],
         "properties": {
             "headline": {"type": "string", "description": "Headline for the day's soccer, sentence case, at most about 80 characters."},
             "lede": {"type": "string", "description": "Two or three sentences on the day ahead, at most about 400 characters, leading with matches on the household's services."},
@@ -98,9 +104,29 @@ PUBLISH_TOOL = {
                     },
                 },
             },
+            "forecast": {
+                "type": "object",
+                "description": "The page's viewing forecast, written from the schedule in the facts.",
+                "additionalProperties": False,
+                "required": ["label", "today", "ahead"],
+                "properties": {
+                    "label": {"type": "string", "description": "Two to four words naming the kind of day, for the page's top line beside the weekday: 'International break', 'Champions League night', 'Full club weekend', 'Quiet midweek'."},
+                    "today": {"type": "string", "description": "One or two sentences, at most about 300 characters, on the shape of today's soccer: what kind of day it is, which competitions carry it, which major leagues are off and why."},
+                    "ahead": {"type": "string", "description": "One or two sentences, at most about 300 characters, on tomorrow and the rest of the week: when the major leagues return, and the pick of the week with its day, time and service."},
+                },
+            },
         },
     },
 }
+
+FORECAST_GUIDE = ("Also write the page's forecast, which sits below the storylines as a practical guide to the viewing "
+                  "week. Write it from 'schedule_by_day' and the match lists, which give every competition's matches "
+                  "by Eastern day, how many are on the household's services and when the first kicks off; your research "
+                  "can say why a league is off (an international break, a cup round), but news belongs in the notes, "
+                  "and the forecast should not repeat the lede. The page follows 'today' with a live line of its own "
+                  "listing what is on now and still to come on the household's services, with times and channels, so "
+                  "don't list today's slate: say what kind of day it is. Give times in Eastern time, as the facts do, "
+                  "and name a service only as 'watch_on' gives it.")
 
 
 
@@ -203,8 +229,28 @@ def clean_story(raw, facts, seen):
         notes[n["match_id"]] = {"note": text, "sources": sources}
     if dropped:
         log(f"dropped {dropped} note(s) with an unknown match id or no verified source")
-    return {"headline": headline, "lede": lede, "sources": verified(raw.get("lede_sources"), seen, 6), "notes": notes,
-            "_dropped": dropped}
+    story = {"headline": headline, "lede": lede, "sources": verified(raw.get("lede_sources"), seen, 6), "notes": notes,
+             "_dropped": dropped}
+    forecast = clean_forecast(raw.get("forecast"))
+    if forecast:
+        story["forecast"] = forecast
+    else:
+        log("no usable forecast in the story; the page will compose its own")
+    return story
+
+
+def clean_forecast(raw):
+    """The forecast with each part trimmed to what the page has room for, or None unless all three
+    parts are there: a label past forty characters is a sentence, not a label, and half a forecast
+    beside the page's own live line would read worse than the page's own forecast."""
+    if not isinstance(raw, dict):
+        return None
+    part = lambda key: raw[key] if isinstance(raw.get(key), str) else ""
+    label = re.sub(r"\s+", " ", part("label")).strip().rstrip(".")
+    today, ahead = clip(part("today"), 420), clip(part("ahead"), 420)
+    if not label or len(label) > 40 or not today or not ahead:
+        return None
+    return {"label": label, "today": today, "ahead": ahead}
 
 
 def clock(iso):
@@ -223,6 +269,7 @@ def user_prompt(facts, budget):
             "Write storylines for the four to eight most interesting matches of today and tomorrow, favoring "
             "ones the household can watch but including anything unmissable elsewhere. A big match later in "
             "the week can earn a note if it is the story of the week. Use the match ids exactly as given. "
+            f"{FORECAST_GUIDE} "
             f"You have up to {budget[0]} web searches and {budget[1]} page reads.")
 
 
@@ -233,6 +280,8 @@ def refresh_prompt(facts, previous, budget):
                "notes": [{"match_id": mid, "note": n.get("note", ""), "sources": [s["url"] for s in n.get("sources") or []
                                                                                if isinstance(s, dict) and s.get("url")]}
                          for mid, n in (previous.get("notes") or {}).items() if isinstance(n, dict)]}
+    if isinstance(previous.get("forecast"), dict):
+        earlier["forecast"] = previous["forecast"]
     return (f"It is {clock(facts['built_at'])} on {facts['weekday']}, {facts['date']}, US Eastern time. The household's "
             f"services are {', '.join(facts['owner_services'])}.\n\n"
             f"At {clock(previous['generated_at'])} you published these storylines:\n\n"
@@ -246,8 +295,9 @@ def refresh_prompt(facts, previous, budget):
             "the others, and add notes for matches that have become the day's stories. Rewrite the headline and lede "
             "so they read right for now; a notable result can lead the lede. Notes are only for matches in the lists "
             "above. Use the match ids exactly as given. "
+            f"{FORECAST_GUIDE} Rewrite it for this moment: 'today' covers what is left of the day. "
             f"You have up to {budget[0]} web searches and {budget[1]} page reads. Call publish_story once with the "
-            "complete set of notes, kept ones included.")
+            "complete set of notes, kept ones included, and the forecast.")
 
 
 def earlier_sources(previous):
@@ -423,10 +473,12 @@ def main():
                               "budget": {"searches": BUDGETS[mode][0], "page_reads": BUDGETS[mode][1]}, "usage": totals,
                               "cost_usd": round(cost, 4) if cost is not None else None, "seconds": round(seconds, 1),
                               "published": published, "notes": len(story["notes"]) if story else 0,
+                              "forecast": bool(story and story.get("forecast")),
                               "dropped": story["_dropped"] if story else None})
     if published:
         story.pop("_dropped", None)
         story.update(version=1, date=facts["date"], model=served, effort=effort, kind=mode,
+                     services=facts.get("owner_service_ids") or [],
                      generated_at=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
         save(args.out, story)
         log(f"wrote {len(story['notes'])} notes in {seconds:.0f}s")
