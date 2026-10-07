@@ -1059,6 +1059,28 @@ class BrowserChecks(unittest.TestCase):
             expect(card).to_have_attribute("data-match-id", "spain")
             expect(page.locator("#nextup-status")).to_have_text("Next up · 1:05 pm")
 
+    def test_coffee_link_sits_in_the_masthead_corner_at_every_width(self):
+        for width in (1280, 390, 320):
+            with self.subTest(width=width), self.page("after", width=width, touch=width <= 600) as (page, _):
+                link = page.get_by_role("link", name="Buy me a coffee", exact=True)
+                expect(link).to_be_visible()
+                expect(link).to_have_attribute("href", "https://buymeacoffee.com/caparomula")
+                expect(link).to_have_attribute("target", "_blank")
+                self.assertIn("noopener", link.get_attribute("rel").split())
+                # On the date's line at the masthead's right edge, so on the first screen everywhere.
+                box, header = link.bounding_box(), page.locator("header.hdr").bounding_box()
+                eyebrow = page.locator("#eyebrow").bounding_box()
+                self.assertLess(box["y"], eyebrow["y"] + eyebrow["height"])
+                self.assertAlmostEqual(box["x"] + box["width"], header["x"] + header["width"], delta=1)
+                # The words where there's room; a phone shows the cup and keeps the name for screen readers.
+                words = page.locator(".coffee__txt").bounding_box()
+                if width > 600:
+                    self.assertGreater(words["width"], 60)
+                else:
+                    self.assertLessEqual(words["width"], 1)
+                self.assertGreaterEqual(min(box["width"], box["height"]), 24)     # WCAG 2.5.8's minimum target
+                self.assertLessEqual(page.evaluate("document.documentElement.scrollWidth"), width)
+
     def test_league_priority_breaks_kickoff_ties_persists_and_resets(self):
         fixtures = [("eng", "2026-10-07T18:00:00+00:00", "pre", "ESPN+", "eng.1"),
                     ("esp", "2026-10-07T18:00:00+00:00", "pre", "ESPN+", "esp.1"),
