@@ -9,12 +9,13 @@ from io import BytesIO
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import sys
 import tempfile
 from threading import Thread
 import unittest
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
 
 from playwright.sync_api import expect, sync_playwright
 from PIL import Image
@@ -83,6 +84,50 @@ class BrowserChecks(unittest.TestCase):
     def bucket(page, match_id):
         return page.locator(f'li.row[data-id="{match_id}"]').evaluate(
             "row => row.closest('.bucket').querySelector('.bucket__h > span').textContent")
+
+    def drag_filter(self, page, source, target, *, touch=False, cancel=False):
+        """Exercise pointer capture and edge scrolling, including destinations off screen."""
+        grip = page.locator(source).locator('.fpill__grip')
+        grip.scroll_into_view_if_needed()
+        start = grip.bounding_box()
+        x, y = start['x'] + start['width'] / 2, start['y'] + start['height'] / 2
+        session = page.context.new_cdp_session(page) if touch else None
+
+        def move(x, y):
+            if touch:
+                session.send('Input.dispatchTouchEvent', {'type': 'touchMove', 'touchPoints': [{'x': x, 'y': y}]})
+            else:
+                page.mouse.move(x, y, steps=3)
+
+        if touch:
+            session.send('Input.dispatchTouchEvent', {'type': 'touchStart', 'touchPoints': [{'x': x, 'y': y}]})
+        else:
+            page.mouse.move(x, y)
+            page.mouse.down()
+        move(x + 12, y)
+        expect(page.locator('.fpill--drag-ghost')).to_have_count(1)
+        for _ in range(35):
+            destination = page.locator(target).bounding_box()
+            panel = page.locator('#drawer').bounding_box()
+            tx, ty = destination['x'] + 3, destination['y'] + min(15, destination['height'] / 2)
+            if panel['y'] + 45 <= ty <= panel['y'] + panel['height'] - 75:
+                move(tx, ty)
+                break
+            edge_y = panel['y'] + 20 if ty < panel['y'] + 45 else panel['y'] + panel['height'] - 60
+            move(panel['x'] + panel['width'] / 2, edge_y)
+            page.clock.run_for(180)
+        else:
+            self.fail('Drag did not scroll the destination into view')
+        if cancel:
+            page.keyboard.press('Escape')
+        if touch:
+            session.send('Input.dispatchTouchEvent', {'type': 'touchEnd', 'touchPoints': []})
+            session.detach()
+        else:
+            page.mouse.up()
+        page.clock.run_for(1)
+        expect(page.locator('.fpill--drag-ghost')).to_have_count(0)
+        expect(page.locator('.is-drop-area, .is-drop-target')).to_have_count(0)
 
     def test_display(self):
         for width in (1280, 390):
@@ -219,6 +264,103 @@ class BrowserChecks(unittest.TestCase):
                 self.assertEqual(keys(page, "have", "true"), enabled_services)
                 self.assertEqual(keys(page, "comp", "false"), hidden_leagues)
                 expect(page.locator('li.row:visible')).to_have_count(2)
+
+    def test_filter_groups_drag_between_areas_sort_persist_and_accept_empty_drops(self):
+        leagues = ['eng.1', 'esp.1', 'fra.1', 'uefa.europa']
+        html = render_page(build, fixtures=[(lg, '2026-10-07T18:00:00+00:00', 'pre', 'ESPN+', lg) for lg in leagues], league_logos=True)
+        for width in (1280, 390):
+            with self.subTest(width=width), self.page('after', width=width, html=html, touch=width <= 600) as (page, _):
+                touch = width <= 600
+                page.locator('#btn-menu').click()
+
+                def alphabetical(kind):
+                    names = build.SERVICES if kind == 'have' else {lg: info['name'] for lg, info in build.LEAGUES.items()}
+                    ids = page.locator(f'#{kind}-disabled .fpill').evaluate_all('els => els.map(el => el.dataset.key)')
+                    labels = [names[key] for key in ids]
+                    self.assertEqual(labels, sorted(labels, key=str.casefold))
+
+                expect(page.locator('#have-enabled .fpill')).to_have_count(len(build.OWNER))
+                expect(page.locator('#comp-disabled .fpill')).to_have_count(2)
+                alphabetical('have'); alphabetical('comp')
+                league = '#comp-pills [data-key="eng.1"]'
+                off = '.filter-area[data-filter-kind="comp"][data-enabled="false"]'
+                on = '.filter-area[data-filter-kind="comp"][data-enabled="true"]'
+                self.drag_filter(page, league, off, touch=touch)
+                expect(page.locator('#comp-disabled [data-key="eng.1"]')).to_have_attribute('aria-pressed', 'false')
+                expect(page.locator('li.row[data-id="eng.1"]')).to_be_hidden()
+                alphabetical('comp')
+                page.reload()
+                expect(page.locator('#comp-disabled [data-key="eng.1"]')).to_have_count(1)
+                page.locator('#btn-menu').click()
+                self.drag_filter(page, league, '#comp-enabled [data-key="esp.1"]', touch=touch)
+                expect(page.locator('#comp-enabled .fpill').first).to_have_attribute('data-key', 'eng.1')
+                expect(page.locator('li.row[data-id="eng.1"]')).to_be_visible()
+                page.locator('#btn-clear-leagues').click()
+                expect(page.locator('#comp-enabled .fpill')).to_have_count(0)
+                self.drag_filter(page, league, on, touch=touch)
+                expect(page.locator('#comp-enabled .fpill')).to_have_attribute('data-key', 'eng.1')
+                page.locator('#btn-select-leagues').click()
+                expect(page.locator('#comp-disabled .fpill')).to_have_count(0)
+                self.drag_filter(page, '#comp-pills [data-key="esp.1"]', off, touch=touch)
+                alphabetical('comp')
+                self.drag_filter(page, league, off, touch=touch, cancel=True)
+                expect(page.locator('#drawer')).to_be_hidden()
+                expect(page.locator('#comp-enabled [data-key="eng.1"]')).to_have_count(1)
+                page.locator('#btn-menu').click()
+                self.drag_filter(page, league, '.filter-area[data-filter-kind="have"][data-enabled="false"]', touch=touch)
+                expect(page.locator('#comp-enabled [data-key="eng.1"]')).to_have_count(1)
+                network = '#have-pills [data-key="espn"]'
+                self.drag_filter(page, network, '.filter-area[data-filter-kind="have"][data-enabled="false"]', touch=touch)
+                expect(page.locator('#have-disabled [data-key="espn"]')).to_have_attribute('aria-pressed', 'false')
+                expect(page.locator('li.row[data-id="eng.1"]')).to_be_hidden()
+                alphabetical('have')
+                page.locator('#btn-clear').click()
+                self.drag_filter(page, network, '.filter-area[data-filter-kind="have"][data-enabled="true"]', touch=touch)
+                expect(page.locator('#have-enabled .fpill')).to_have_attribute('data-key', 'espn')
+                expect(page.locator('li.row[data-id="eng.1"]')).to_be_visible()
+                page.locator('#have-disabled [data-key="espnplus"]').click()
+                preferred = page.locator('#have-enabled [data-key="espnplus"]')
+                preferred.focus(); preferred.press('Alt+ArrowUp')
+                expect(page.locator('#have-enabled .fpill').first).to_have_attribute('data-key', 'espnplus')
+                expect(page.locator('li.row[data-id="eng.1"]')).to_have_attribute('data-svc', 'espnplus')
+                page.reload()
+                expect(page.locator('#have-enabled .fpill').first).to_have_attribute('data-key', 'espnplus')
+                expect(page.locator('#comp-disabled .fpill')).to_have_attribute('data-key', 'esp.1')
+                page.locator('#btn-menu').click()
+                page.locator('#btn-reset').click()
+                self.assertIsNone(page.evaluate("localStorage.getItem('ssg4-service-order')"))
+                expect(page.locator('#have-enabled .fpill')).to_have_count(len(build.OWNER))
+                expect(page.locator('#comp-disabled .fpill')).to_have_count(2)
+                alphabetical('have'); alphabetical('comp')
+                self.assertLessEqual(page.locator('#drawer').evaluate('el => el.scrollWidth - el.clientWidth'), 1)
+                page.locator('#comp-enabled-h').scroll_into_view_if_needed()
+                page.screenshot(path=str(self.artifacts / f'grouped-filters-{width}.png'))
+
+    def test_icon_contrast_only_boosts_dark_artwork_and_ignores_transparent_padding(self):
+        def svg(body):
+            return 'data:image/svg+xml,' + quote('<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48">' + body + '</svg>')
+        dark = svg('<rect width="48" height="48" fill="#23102b"/>')
+        # A tiny, bright red mark surrounded by transparency should not be considered dark.
+        bright = svg('<rect x="20" y="20" width="8" height="8" fill="#ff534b"/>')
+        mixed = svg('<rect width="48" height="48" fill="#111"/><rect width="16" height="48" fill="white"/>')
+        fixtures = [('dark-league', '2026-10-07T18:00:00+00:00', 'pre', 'ESPN+', 'eng.1'),
+                    ('bright-league', '2026-10-07T19:00:00+00:00', 'pre', 'ESPN+', 'esp.1')]
+        html = render_page(build, fixtures=fixtures, league_logos=True)
+        keys = iter(['l-dark-team', 'l-bright-team', 'l-mixed-team', 'l-dark-team'])
+        html = re.sub(r'<i class="logo logo--txt"[^>]*>.*?</i>', lambda _: '<i class="logo ' + next(keys) + '"></i>', html)
+        css = ''.join(f'.{key}{{background-image:url("{url}")}}' for key, url in [('l-L0', dark), ('l-L1', bright), ('l-dark-team', dark), ('l-bright-team', bright), ('l-mixed-team', mixed)])
+        html = html.replace('<script type="application/json"', '<style>' + css + '</style><script type="application/json"')
+        with self.page('after', theme='dark', html=html) as (page, _):
+            for key in ('l-dark-team', 'l-L0'):
+                expect(page.locator('#picks .' + key).first).to_have_css('filter', 'contrast(0.5) brightness(1.8) saturate(0.85)')
+            for key in ('l-bright-team', 'l-mixed-team', 'l-L1'):
+                expect(page.locator('#picks .' + key).first).to_have_css('filter', 'none')
+            for icon in page.locator('#picks .lg, #picks .logo').all():
+                expect(icon).to_have_css('background-color', 'rgba(0, 0, 0, 0)')
+                expect(icon).to_have_css('border-radius', '0px')
+            page.emulate_media(color_scheme='light')
+            expect(page.locator('#picks .l-dark-team').first).to_have_css('filter', 'brightness(1)')
+            expect(page.locator('#picks .l-bright-team').first).to_have_css('filter', 'none')
 
     def test_midnight_and_sports_day_boundary(self):
         cases = [

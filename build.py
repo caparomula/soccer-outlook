@@ -1203,18 +1203,22 @@ def build_page(matches, cache, built_at, failed, today):
     focus = [m for m in matches if m.state != "post" and not LEAGUES[m.league].get("default_off")
              and built_at - timedelta(minutes=125) <= m.utc < built_at + timedelta(hours=24)]
 
-    have_pills = "".join(
+    have_buttons = {k: (
         f'<button type="button" class="fpill svc-{k}" data-kind="have" data-key="{k}" aria-pressed="{"true" if k in OWNER else "false"}">'
-        f'<i class="dot"></i>{esc(v)}</button>' for k, v in SERVICES.items())
+        f'<span class="fpill__grip" aria-hidden="true">⠿</span><i class="dot"></i>{esc(v)}</button>') for k, v in SERVICES.items()}
+    have_pills = "".join(have_buttons[k] for k in SERVICES if k in OWNER)
+    have_off_pills = "".join(have_buttons[k] for k in sorted(SERVICES, key=lambda k: SERVICES[k].casefold()) if k not in OWNER)
     comps = []
     for lg, info in LEAGUES.items():
         n = sum(1 for m in matches if m.league == lg)
         if n:
             comps.append((info["name"], lg, n, bool(info.get("default_off"))))
     comps.sort(key=lambda c: (-c[2], c[0]))
-    comp_pills = "".join(
+    comp_buttons = {lg: (
         f'<button type="button" class="fpill" data-kind="comp" data-key="{esc(lg)}" data-default-off="{"1" if off else "0"}" aria-pressed="{"false" if off else "true"}"><span class="fpill__grip" aria-hidden="true">⠿</span>{league_logo_html(lg, cache)}{esc(name)}'
-        f'<span class="fpill__n">{n}</span></button>' for name, lg, n, off in comps)
+        f'<span class="fpill__n">{n}</span></button>') for name, lg, n, off in comps}
+    comp_pills = "".join(comp_buttons[lg] for _, lg, _, off in comps if not off)
+    comp_off_pills = "".join(comp_buttons[lg] for _, lg, _, off in sorted(comps, key=lambda c: c[0].casefold()) if off)
 
     lineup = "".join(
         f'<div class="svc svc-{k}" data-svc="{k}"><div class="svc__head"><i class="dot"></i><span class="svc__name">{esc(SERVICES[k])}</span>'
@@ -1252,6 +1256,7 @@ def build_page(matches, cache, built_at, failed, today):
             .replace("@@BUILT_ET@@", esc(built_et.strftime("%a %b ") + str(built_et.day) + built_et.strftime(", %I:%M %p ET").replace(" 0", " ")))
             .replace("@@N_ON@@", str(n_on)).replace("@@N_ALL@@", str(n_all))
             .replace("@@HAVE_PILLS@@", have_pills).replace("@@COMP_PILLS@@", comp_pills)
+            .replace("@@HAVE_OFF_PILLS@@", have_off_pills).replace("@@COMP_OFF_PILLS@@", comp_off_pills)
             .replace("@@OUTLOOK@@", "".join(static_sections))
             .replace("@@TABLES@@", tables_html(matches, cache))
             .replace("@@LINEUP@@", lineup)

@@ -3,8 +3,8 @@
 :root {
   --bg: #f2f4ef; --card: #ffffff; --fg: #15201a; --muted: #5b6a61; --line: #d6dcd4; --line-strong: #b9c3ba;
   --accent: #15744a; --amber: #b86b12; --amber-soft: #fbead3; --warn-bg: #fff3e0; --win: #2e9e5b; --loss: #c84b3c; --draw: #a8b1a9;
-  --off-bg: #e9ece7; --off-fg: #6b776f; --pill-bg: #eceee9; --pill-fg: #55625a; --logo-pad: transparent;
-  --league-filter: none;
+  --off-bg: #e9ece7; --off-fg: #6b776f; --pill-bg: #eceee9; --pill-fg: #55625a;
+  --dark-icon-filter: brightness(1);
   --svc-hbo: #5e46c9; --svc-fox: #1f5fbf; --svc-para: #0b6f8f; --svc-espn: #c2322a; --svc-apple: #3a3a3a;
   --svc-usa: #0e7c86; --svc-prime: #0f7ba8; --svc-netflix: #b3141c; --svc-disney: #1b3f8f; --svc-off: #8a948c;
   --svc-espnplus: #d8573a; --svc-peacock: #a0731a; --svc-vix: #b5367a; --svc-fubo: #d9731c; --svc-fsp: #4a7fd1;
@@ -16,8 +16,8 @@
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
   --bg: #0f1512; --card: #182019; --fg: #e7ece6; --muted: #9ba89f; --line: #26312a; --line-strong: #3a4840;
   --accent: #3fb87a; --amber: #e5a24b; --amber-soft: #3a2a12; --warn-bg: #2e2412; --win: #4cc47f; --loss: #ff7b6f; --draw: #5a675e;
-  --off-bg: #1f2823; --off-fg: #93a097; --pill-bg: #222c26; --pill-fg: #aab6ae; --logo-pad: rgba(255,255,255,0.08);
-  --league-filter: contrast(0.5) brightness(1.8) saturate(0.85);
+  --off-bg: #1f2823; --off-fg: #93a097; --pill-bg: #222c26; --pill-fg: #aab6ae;
+  --dark-icon-filter: contrast(0.5) brightness(1.8) saturate(0.85);
   --svc-hbo: #a391ff; --svc-fox: #6fa3ff; --svc-para: #49bbdb; --svc-espn: #ff7b6f; --svc-apple: #d0d0d0;
   --svc-usa: #4cc3cd; --svc-prime: #5cb8e6; --svc-netflix: #ff6b72; --svc-disney: #7da2ff; --svc-off: #7f8b82;
   --svc-espnplus: #ff9a80; --svc-peacock: #e0b35a; --svc-vix: #e986bd; --svc-fubo: #f0a060; --svc-fsp: #8fb4ff;
@@ -27,8 +27,8 @@
 :root[data-theme="dark"] {
   --bg: #0f1512; --card: #182019; --fg: #e7ece6; --muted: #9ba89f; --line: #26312a; --line-strong: #3a4840;
   --accent: #3fb87a; --amber: #e5a24b; --amber-soft: #3a2a12; --warn-bg: #2e2412; --win: #4cc47f; --loss: #ff7b6f; --draw: #5a675e;
-  --off-bg: #1f2823; --off-fg: #93a097; --pill-bg: #222c26; --pill-fg: #aab6ae; --logo-pad: rgba(255,255,255,0.08);
-  --league-filter: contrast(0.5) brightness(1.8) saturate(0.85);
+  --off-bg: #1f2823; --off-fg: #93a097; --pill-bg: #222c26; --pill-fg: #aab6ae;
+  --dark-icon-filter: contrast(0.5) brightness(1.8) saturate(0.85);
   --svc-hbo: #a391ff; --svc-fox: #6fa3ff; --svc-para: #49bbdb; --svc-espn: #ff7b6f; --svc-apple: #d0d0d0;
   --svc-usa: #4cc3cd; --svc-prime: #5cb8e6; --svc-netflix: #ff6b72; --svc-disney: #7da2ff; --svc-off: #7f8b82;
   --svc-espnplus: #ff9a80; --svc-peacock: #e0b35a; --svc-vix: #e986bd; --svc-fubo: #f0a060; --svc-fsp: #8fb4ff;
@@ -156,6 +156,13 @@ a { color: inherit; }
 .drawer__head h2 { font-size: 18px; text-transform: uppercase; letter-spacing: 0.06em; }
 .drawer__sum { font-size: 13px; color: var(--muted); }
 .drawer__group-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0 12px; }
+.filter-groups { display: grid; gap: 8px; }
+.filter-area { min-height: 76px; padding: 9px; border: 1px solid var(--line-strong); border-radius: 8px; }
+.filter-area--disabled { border-style: dashed; }
+.filter-area h4 { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 8px; font: 600 12px var(--body); color: var(--muted); }
+.filter-area h4 span { font-weight: 400; }
+.filter-area__empty { margin: 0; color: var(--muted); font-size: 12px; }
+.filter-area.is-drop-area { border-color: var(--accent); outline: 2px solid var(--accent); outline-offset: -1px; }
 .drawer__foot { position: sticky; bottom: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px;
   margin: 2px -16px 0; padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px)); background: var(--card); border-top: 1px solid var(--line); }
 .drawer__links { display: flex; flex-wrap: wrap; gap: 0 18px; }
@@ -182,7 +189,7 @@ a { color: inherit; }
 .seg button { appearance: none; background: transparent; border: 0; color: var(--fg); font: 600 14px var(--body); padding: 7px 14px; cursor: pointer; }
 .seg button[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
 .seg button:focus-visible, .fpill:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-.fpill { appearance: none; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line-strong); background: var(--card); color: var(--fg); border-radius: 999px; padding: 4px 10px; font: 600 13px var(--body); cursor: pointer; }
+.fpill { appearance: none; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line-strong); background: var(--card); color: var(--fg); border-radius: 999px; padding: 4px 10px; font: 600 13px var(--body); cursor: pointer; user-select: none; }
 .fpill .dot { width: 8px; height: 8px; }
 .fpill .lg { flex: none; width: 22px; height: 22px; margin: 0; }
 .fpill__n { color: var(--muted); font-weight: 400; font-variant-numeric: tabular-nums; }
@@ -208,7 +215,7 @@ a { color: inherit; }
 .row__league .lg { width: 30px; height: 32px; margin: 0; }
 .row--off { color: var(--muted); }
 .row--off .team__name { color: var(--muted); }
-.row--off .logo { filter: grayscale(0.6); opacity: 0.75; }
+.row--off .logo { filter: var(--icon-filter, brightness(1)) grayscale(0.6); opacity: 0.75; }
 .row__time { display: flex; flex-direction: column; align-items: flex-start; line-height: 1; padding-top: 2px; }
 .row__time .t { font-size: 26px; color: var(--fg); }
 .row--off .row__time .t { color: var(--muted); }
@@ -228,12 +235,11 @@ a { color: inherit; }
 .form { display: inline-flex; gap: 2px; }
 .f { width: 8px; height: 8px; border-radius: 2px; background: var(--draw); display: inline-block; }
 .f-w { background: var(--win); } .f-l { background: var(--loss); }
-/* Keep the artwork's transparent silhouette. In dark mode, lift the black point
-   before brightening: brightness alone leaves black marks invisible. Soften saturation
-   to avoid harsh colors; light mode uses the original artwork. */
+/* Artwork keeps its transparent silhouette. JavaScript applies --icon-filter only to
+   logos with insufficient bright detail; light mode always uses the original colors. */
 .lg { width: 22px; height: 22px; display: inline-block; background: transparent center / contain no-repeat;
-  filter: var(--league-filter); vertical-align: -5px; margin-right: 5px; }
-.logo--sm { width: 18px; height: 18px; vertical-align: -4px; margin-right: 6px; border-radius: 3px; }
+  filter: var(--icon-filter, none); vertical-align: -5px; margin-right: 5px; }
+.logo--sm { width: 18px; height: 18px; vertical-align: -4px; margin-right: 6px; }
 .row__goals { margin-top: 4px; font-size: 13px; color: var(--muted); }
 .row__goals b { color: var(--fg); font-weight: 600; }
 .row__until { font-size: 11.5px; color: var(--accent); margin-top: 4px; font-variant-numeric: tabular-nums; }
@@ -252,9 +258,9 @@ a { color: inherit; }
 .row--off .detail__name { color: var(--fg); }
 .score { font-family: var(--display); font-size: 20px; font-weight: 700; margin-left: 2px; padding: 0 3px; border-radius: 4px; font-variant-numeric: tabular-nums; }
 .vs { color: var(--muted); font-family: var(--display); font-size: 16px; }
-.logo { width: 32px; height: 32px; flex: none; display: inline-block; background: var(--logo-pad) center / contain no-repeat; border-radius: 6px; }
+.logo { width: 32px; height: 32px; flex: none; display: inline-block; background: transparent center / contain no-repeat; filter: var(--icon-filter, none); }
 .logo--lg { width: 44px; height: 44px; }
-.logo--txt { background: var(--off-bg); color: var(--off-fg); font: 700 11px var(--display); display: inline-flex; align-items: center; justify-content: center; letter-spacing: 0.04em; }
+.logo--txt { color: var(--off-fg); font: 700 11px var(--display); display: inline-flex; align-items: center; justify-content: center; letter-spacing: 0.04em; }
 .row__meta { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 14px; color: var(--muted); margin-top: 3px; }
 .comp { font-weight: 600; color: var(--fg); }
 .row--off .comp { color: var(--muted); }

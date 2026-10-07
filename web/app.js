@@ -3,7 +3,7 @@
   var DAY_START = 4;                 // a sports day runs 4 am to 4 am local time
   var FOCUS_MS = 24 * 60 * 60000;
   var LIVE_MS = 125 * 60000;
-  var LS = { mode: 'ssg2-mode', comp: 'ssg2-comp-off', priority: 'ssg4-league-order' };
+  var LS = { mode: 'ssg2-mode', comp: 'ssg2-comp-off', priority: 'ssg4-league-order', services: 'ssg4-service-order' };
   var app = document.getElementById('app');
   var body = document.getElementById('outlook-body');
   var rows = Array.prototype.slice.call(document.querySelectorAll('li.row'));
@@ -19,7 +19,7 @@
   var SERVICES = { order: [], name: {}, owner: [] };
   try { SERVICES = JSON.parse(document.getElementById('service-meta').textContent) || SERVICES; } catch (e) {}
   var SERVICE_NAMES = SERVICES.name;
-  function rankOf(id) { var i = SERVICES.order.indexOf(id); return i < 0 ? 99 : i; }
+  function rankOf(id) { var i = serviceOrder().indexOf(id); return i < 0 ? 99 : i; }
   var SHORT = { cable: 'cable', ota: 'antenna', free: 'free app' };   // buckets where the channel leads
   function escHtml(t) { return String(t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
   var ORDER = ['live', 'morning', 'afternoon', 'evening', 'tonight', 'tomorrow', 'later', 'earlier', 'yesterday'];
@@ -41,6 +41,62 @@
   function read(key) { try { var v = localStorage.getItem(key); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
   function write(key, v) { try { localStorage.setItem(key, JSON.stringify(v)); } catch (e) {} }
 
+  // Inspect each visible logo once. Transparent padding does not count toward its brightness,
+  // and marks with enough bright detail keep their original colors. ESPN's CDN permits CORS.
+  var iconObserver = null, observedIcons = new WeakSet(), iconJobs = {}, iconQueue = [], iconActive = 0;
+  var iconStyles = document.createElement('style'); document.head.appendChild(iconStyles);
+  var linearChannel = Array.from({ length: 256 }, function (_, i) { var c = i / 255; return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); });
+  function applyIconContrast(job, key) {
+    if (job.boost && !job.styled.has(key)) {
+      iconStyles.textContent += '.' + key + '{--icon-filter:var(--dark-icon-filter)}'; job.styled.add(key);
+    }
+  }
+  function loadIconQueue() {
+    while (iconActive < 4 && iconQueue.length) {
+      (function (job) {
+        iconActive++;
+        var img = new Image(); img.crossOrigin = 'anonymous'; img.decoding = 'async';
+        function done() { img.onload = img.onerror = null; iconActive--; loadIconQueue(); }
+        img.onerror = done;
+        img.onload = function () {
+          try {
+            var canvas = document.createElement('canvas'); canvas.width = canvas.height = 48;
+            var ctx = canvas.getContext('2d', { willReadFrequently: true });
+            ctx.drawImage(img, 0, 0, 48, 48);
+            var pixels = ctx.getImageData(0, 0, 48, 48).data, total = 0, light = 0, bright = 0;
+            for (var i = 0; i < pixels.length; i += 4) {
+              var alpha = pixels[i + 3] / 255; if (alpha < 0.2) continue;
+              var luminance = 0.2126 * linearChannel[pixels[i]] + 0.7152 * linearChannel[pixels[i + 1]] + 0.0722 * linearChannel[pixels[i + 2]];
+              total += alpha; light += luminance * alpha; if (luminance >= 0.3) bright += alpha;
+            }
+            job.boost = total > 0 && light / total < 0.16 && bright / total < 0.25;
+            job.keys.forEach(function (key) { applyIconContrast(job, key); });
+          } catch (e) { /* An unavailable or non-CORS asset keeps its original appearance. */ }
+          done();
+        };
+        img.src = job.url;
+      })(iconQueue.shift());
+    }
+  }
+  function inspectIcon(icon) {
+    var key = Array.from(icon.classList).find(function (name) { return /^l-[A-Za-z0-9_-]+$/.test(name); });
+    var match = /^url\(["']?(.*?)["']?\)$/.exec(getComputedStyle(icon).backgroundImage);
+    if (!key || !match) return;
+    var url = match[1], job = iconJobs[url];
+    if (job) { job.keys.add(key); applyIconContrast(job, key); return; }
+    job = { url: url, keys: new Set([key]), styled: new Set(), boost: false };
+    iconJobs[url] = job; iconQueue.push(job); loadIconQueue();
+  }
+  function watchIcons() {
+    if (!iconObserver && 'IntersectionObserver' in window) iconObserver = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) { if (entry.isIntersecting) { iconObserver.unobserve(entry.target); inspectIcon(entry.target); } });
+    }, { rootMargin: '80px' });
+    document.querySelectorAll('.lg, .logo:not(.logo--txt)').forEach(function (icon) {
+      if (observedIcons.has(icon)) return;
+      observedIcons.add(icon); if (iconObserver) iconObserver.observe(icon); else inspectIcon(icon);
+    });
+  }
+
   // ---- lineup and filters ----------------------------------------------------------------------
   var mode = read(LS.mode) === 'all' ? 'all' : 'mine';
   var drawerOpen = false;
@@ -53,7 +109,19 @@
   if (storedComp) { storedComp.forEach(function (k) { compOff[k] = true; }); }
   else { drawer.querySelectorAll('[data-kind="comp"][data-default-off="1"]').forEach(function (b) { compOff[b.getAttribute('data-key')] = true; }); }
   var storedPriority = read(LS.priority);
+  var storedServiceOrder = read(LS.services);
   var leagueNames = SERVICES.leagues || {};
+  var filterPills = {};
+  ['have', 'comp'].forEach(function (kind) {
+    filterPills[kind] = Array.from(drawer.querySelectorAll('[data-kind="' + kind + '"]'));
+  });
+  function serviceOrder() {
+    var order = [];
+    (Array.isArray(storedServiceOrder) ? storedServiceOrder : []).concat(SERVICES.order).forEach(function (id) {
+      if (SERVICES.order.indexOf(id) >= 0 && order.indexOf(id) < 0) order.push(id);
+    });
+    return order;
+  }
   function leagueOrder() {
     var base = Object.keys(leagueNames), order = [];
     var preferred = Array.isArray(storedPriority) ? storedPriority : (STORY && STORY.s && STORY.s.league_order || []);
@@ -61,6 +129,7 @@
     return order;
   }
   function renderLeagueOrder() {
+    renderFilterGroups();
     var list = document.getElementById('league-order'), order = leagueOrder();
     if (list.getAttribute('data-order') === order.join(',')) return;
     list.setAttribute('data-order', order.join(',')); list.innerHTML = '';
@@ -74,65 +143,133 @@
         b.textContent = direction < 0 ? '↑' : '↓'; b.disabled = direction < 0 ? i === 0 : i === order.length - 1; li.appendChild(b);
       });
       list.appendChild(li);
-      var pill = document.querySelector('#comp-pills [data-key="' + id + '"]');
-      if (pill) pill.parentNode.appendChild(pill);
+    });
+  }
+  function filterEnabled(kind, id) { return kind === 'have' ? !!HAVE[id] : !compOff[id]; }
+  function setFilterEnabled(kind, id, enabled) {
+    if (kind === 'have') { if (enabled) HAVE[id] = true; else delete HAVE[id]; }
+    else { if (enabled) delete compOff[id]; else compOff[id] = true; }
+  }
+  function persistFilters(kind) {
+    if (kind === 'have') { storedHave = Object.keys(HAVE); write('ssg3-have', storedHave); evaluateAll(); }
+    else write(LS.comp, Object.keys(compOff));
+  }
+  function storeFilterOrder(kind, order) {
+    if (kind === 'comp') { storedPriority = order; write(LS.priority, order); }
+    else { storedServiceOrder = order; write(LS.services, order); }
+  }
+  function renderFilterGroups() {
+    if (filterDrag && filterDrag.ghost) return;
+    ['have', 'comp'].forEach(function (kind) {
+      var order = kind === 'comp' ? leagueOrder() : serviceOrder(), names = kind === 'comp' ? leagueNames : SERVICE_NAMES;
+      [true, false].forEach(function (enabled) {
+        var host = document.getElementById(kind + (enabled ? '-enabled' : '-disabled'));
+        var pills = filterPills[kind].filter(function (pill) { return filterEnabled(kind, pill.dataset.key) === enabled; });
+        pills.sort(function (a, b) {
+          return enabled ? order.indexOf(a.dataset.key) - order.indexOf(b.dataset.key) :
+            names[a.dataset.key].localeCompare(names[b.dataset.key], 'en', { sensitivity: 'base' });
+        });
+        var signature = pills.map(function (pill) { return pill.dataset.key; }).join(',');
+        if (host.getAttribute('data-order') !== signature) {
+          pills.forEach(function (pill) { host.appendChild(pill); });
+          host.setAttribute('data-order', signature);
+        }
+        host.parentNode.querySelector('.filter-area__empty').hidden = pills.length > 0;
+      });
     });
   }
   function saveLeagueOrder(order) {
     storedPriority = order; write(LS.priority, order); applyFilterUI(); render(true);
   }
-  // Pointer capture keeps dragging reliable across wrapped rows. Touch uses the grip so the
-  // rest of the panel remains scrollable and a tap still toggles the competition normally.
-  var leagueDrag = null, suppressLeagueClick = false;
+  // Touch starts at the grip so the panel can still scroll. Both groups accept drops even
+  // when empty; only enabled groups have a user-defined order.
+  var filterDrag = null, suppressFilterClick = false;
+  function markFilterDrop(drag) {
+    if (drag.target) drag.target.classList.remove('is-drop-target');
+    if (drag.area) drag.area.classList.remove('is-drop-area');
+    var hit = document.elementFromPoint(drag.x, drag.y);
+    drag.area = hit && hit.closest('.filter-area');
+    if (drag.area && drag.area.dataset.filterKind !== drag.kind) drag.area = null;
+    drag.target = drag.area && hit.closest('.fpill');
+    if (drag.area) drag.area.classList.add('is-drop-area');
+    if (drag.target && drag.target !== drag.pill && drag.area.dataset.enabled === 'true') {
+      drag.target.classList.add('is-drop-target');
+      var rect = drag.target.getBoundingClientRect(); drag.after = drag.x >= rect.x + rect.width / 2;
+    }
+  }
+  function scrollFilterDrag() {
+    var drag = filterDrag;
+    if (!drag || !drag.ghost) return;
+    var panel = drawer.getBoundingClientRect(), speed = 0;
+    if (drag.x >= panel.left && drag.x <= panel.right) {
+      if (drag.y < panel.top + 44 && drag.y >= panel.top - 20) speed = -10;
+      else if (drag.y > panel.bottom - 70 && drag.y <= panel.bottom + 20) speed = 10;
+    }
+    if (speed) { drawer.scrollTop += speed; markFilterDrop(drag); }
+    drag.frame = requestAnimationFrame(scrollFilterDrag);
+  }
   drawer.addEventListener('pointerdown', function (ev) {
-    var pill = ev.target.closest('#comp-pills .fpill');
+    var pill = ev.target.closest('.filter-area .fpill');
     if (!pill || ev.button !== 0 || (ev.pointerType !== 'mouse' && !ev.target.closest('.fpill__grip'))) return;
-    leagueDrag = { pill: pill, id: ev.pointerId, x: ev.clientX, y: ev.clientY, ghost: null, target: null };
+    filterDrag = { pill: pill, kind: pill.dataset.kind, id: ev.pointerId, x: ev.clientX, y: ev.clientY, startX: ev.clientX, startY: ev.clientY, ghost: null, target: null, area: null };
   });
   drawer.addEventListener('pointermove', function (ev) {
-    var drag = leagueDrag;
+    var drag = filterDrag;
     if (!drag || ev.pointerId !== drag.id) return;
+    drag.x = ev.clientX; drag.y = ev.clientY;
     if (!drag.ghost) {
-      if (Math.hypot(ev.clientX - drag.x, ev.clientY - drag.y) < 6) return;
+      if (Math.hypot(drag.x - drag.startX, drag.y - drag.startY) < 6) return;
       drag.pill.setPointerCapture(drag.id);
       var rect = drag.pill.getBoundingClientRect();
       drag.ghost = drag.pill.cloneNode(true); drag.ghost.classList.add('fpill--drag-ghost');
       drag.ghost.removeAttribute('id'); drag.ghost.setAttribute('aria-hidden', 'true'); drag.ghost.tabIndex = -1;
       drag.ghost.style.width = rect.width + 'px'; document.body.appendChild(drag.ghost);
       drag.pill.classList.add('is-dragging');
+      drag.frame = requestAnimationFrame(scrollFilterDrag);
     }
     ev.preventDefault();
     drag.ghost.style.left = (ev.clientX - 18) + 'px'; drag.ghost.style.top = (ev.clientY - 16) + 'px';
-    if (drag.target) drag.target.classList.remove('is-drop-target');
-    var hit = document.elementFromPoint(ev.clientX, ev.clientY);
-    drag.target = hit && hit.closest('#comp-pills .fpill');
-    if (drag.target === drag.pill) drag.target = null;
-    if (drag.target) {
-      drag.target.classList.add('is-drop-target');
-      var targetRect = drag.target.getBoundingClientRect(); drag.after = ev.clientX >= targetRect.x + targetRect.width / 2;
-    }
-    var panel = drawer.getBoundingClientRect();
-    if (ev.clientY < panel.top + 40) drawer.scrollTop -= 14;
-    else if (ev.clientY > panel.bottom - 55) drawer.scrollTop += 14;
+    markFilterDrop(drag);
   });
-  function finishLeagueDrag(ev) {
-    var drag = leagueDrag;
+  function finishFilterDrag(ev) {
+    var drag = filterDrag;
     if (!drag || ev.pointerId !== drag.id) return;
-    leagueDrag = null;
+    filterDrag = null;
     if (!drag.ghost) return;
     drag.ghost.remove(); drag.pill.classList.remove('is-dragging');
+    cancelAnimationFrame(drag.frame);
     if (drag.target) drag.target.classList.remove('is-drop-target');
+    if (drag.area) drag.area.classList.remove('is-drop-area');
     if (drag.pill.hasPointerCapture(drag.id)) drag.pill.releasePointerCapture(drag.id);
-    suppressLeagueClick = true; setTimeout(function () { suppressLeagueClick = false; }, 0);
-    if (ev.type === 'pointerup' && drag.target) {
-      var order = leagueOrder(), id = drag.pill.getAttribute('data-key'), targetId = drag.target.getAttribute('data-key');
-      order.splice(order.indexOf(id), 1);
-      order.splice(order.indexOf(targetId) + (drag.after ? 1 : 0), 0, id);
-      saveLeagueOrder(order); drag.pill.focus({ preventScroll: true });
+    suppressFilterClick = true; setTimeout(function () { suppressFilterClick = false; }, 0);
+    if (ev.type === 'pointerup' && drag.area && drag.target !== drag.pill) {
+      var enabled = drag.area.dataset.enabled === 'true', id = drag.pill.dataset.key;
+      if (enabled) {
+        var order = drag.kind === 'comp' ? leagueOrder() : serviceOrder();
+        var siblings = Array.from(drag.area.querySelectorAll('.fpill')).filter(function (pill) { return pill !== drag.pill; });
+        var target = drag.target || siblings[siblings.length - 1];
+        order.splice(order.indexOf(id), 1);
+        var index = target ? order.indexOf(target.dataset.key) + (drag.target ? (drag.after ? 1 : 0) : 1) : 0;
+        order.splice(index, 0, id); storeFilterOrder(drag.kind, order);
+      }
+      setFilterEnabled(drag.kind, id, enabled); persistFilters(drag.kind);
+      applyFilterUI(); render(true); drag.pill.focus({ preventScroll: true });
     }
   }
-  drawer.addEventListener('pointerup', finishLeagueDrag);
-  drawer.addEventListener('pointercancel', finishLeagueDrag);
+  drawer.addEventListener('pointerup', finishFilterDrag);
+  drawer.addEventListener('pointercancel', finishFilterDrag);
+  drawer.addEventListener('keydown', function (ev) {
+    var pill = ev.target.closest('.fpill');
+    if (!pill || !ev.altKey || (ev.key !== 'ArrowUp' && ev.key !== 'ArrowDown') || !filterEnabled(pill.dataset.kind, pill.dataset.key)) return;
+    ev.preventDefault();
+    var siblings = Array.from(pill.parentNode.querySelectorAll('.fpill')), index = siblings.indexOf(pill), direction = ev.key === 'ArrowUp' ? -1 : 1;
+    var target = siblings[index + direction]; if (!target) return;
+    var order = pill.dataset.kind === 'comp' ? leagueOrder() : serviceOrder();
+    order.splice(order.indexOf(pill.dataset.key), 1);
+    order.splice(order.indexOf(target.dataset.key) + (direction > 0 ? 1 : 0), 0, pill.dataset.key);
+    storeFilterOrder(pill.dataset.kind, order); if (pill.dataset.kind === 'have') evaluateAll();
+    applyFilterUI(); render(true); pill.focus({ preventScroll: true });
+  });
 
   function firstHave(via) { var hits = via.filter(function (x) { return HAVE[x]; }); hits.sort(function (a, b) { return rankOf(a) - rankOf(b); }); return hits[0] || ''; }
   function chipFor(r) {
@@ -200,6 +337,7 @@
   // The lineup panel: opened from the Lineup button, closed by it, by Done, by Escape or by a tap
   // outside. Opening moves focus into the panel; closing from the keyboard returns it to the button.
   function setDrawer(open, refocus) {
+    if (!open && filterDrag) finishFilterDrag({ pointerId: filterDrag.id, type: 'pointercancel' });
     drawerOpen = open; applyFilterUI();
     if (open) { drawer.scrollTop = 0; drawer.focus({ preventScroll: true }); }
     else if (refocus) btnMenu.focus({ preventScroll: true });
@@ -215,14 +353,14 @@
   });
   app.addEventListener('click', function (ev) {
     var b = ev.target.closest('button'); if (!b || !(b.closest('#controls') || b.closest('#drawer') || b === btnMenu)) return;
-    if (b.getAttribute('data-kind') === 'comp' && suppressLeagueClick) { ev.preventDefault(); return; }
+    if (b.hasAttribute('data-kind') && suppressFilterClick) { ev.preventDefault(); return; }
     if (b === btnMenu || b.id === 'btn-filters-close') { setDrawer(b === btnMenu ? !drawerOpen : false, b.id === 'btn-filters-close'); return; }
     if (b.id === 'btn-mine' || b.id === 'btn-all') { mode = b.id === 'btn-all' ? 'all' : 'mine'; write(LS.mode, mode); }
     else if (b.id === 'btn-reset') {
       mode = 'mine'; HAVE = {}; SERVICES.owner.forEach(function (k) { HAVE[k] = true; }); storedHave = null;
       compOff = {}; drawer.querySelectorAll('[data-kind="comp"][data-default-off="1"]').forEach(function (x) { compOff[x.getAttribute('data-key')] = true; });
-      storedPriority = null;
-      write(LS.mode, mode); try { localStorage.removeItem(LS.comp); localStorage.removeItem('ssg3-have'); localStorage.removeItem(LS.priority); } catch (e) {}
+      storedPriority = null; storedServiceOrder = null;
+      write(LS.mode, mode); try { localStorage.removeItem(LS.comp); localStorage.removeItem('ssg3-have'); localStorage.removeItem(LS.priority); localStorage.removeItem(LS.services); } catch (e) {}
       evaluateAll();
     }
     else if (b.hasAttribute('data-move-league')) {
@@ -246,13 +384,10 @@
       if (b.id === 'btn-clear-leagues') drawer.querySelectorAll('[data-kind="comp"]').forEach(function (x) { compOff[x.getAttribute('data-key')] = true; });
       write(LS.comp, Object.keys(compOff));
     }
-    else if (b.getAttribute('data-kind') === 'have') {
-      var k = b.getAttribute('data-key'); if (HAVE[k]) delete HAVE[k]; else HAVE[k] = true;
-      storedHave = Object.keys(HAVE); write('ssg3-have', storedHave); evaluateAll();
-    }
-    else if (b.getAttribute('data-kind') === 'comp') { var c = b.getAttribute('data-key'); if (compOff[c]) delete compOff[c]; else compOff[c] = true; write(LS.comp, Object.keys(compOff)); }
+    else if (b.hasAttribute('data-kind')) { setFilterEnabled(b.dataset.kind, b.dataset.key, !filterEnabled(b.dataset.kind, b.dataset.key)); persistFilters(b.dataset.kind); }
     else return;
     applyFilterUI(); render(true);
+    if (b.hasAttribute('data-kind')) b.focus({ preventScroll: true });
   });
 
   // ---- time helpers --------------------------------------------------------------------------
@@ -387,6 +522,7 @@
     rows.forEach(function (r) { if (!r._b) park.appendChild(r); });
     body.innerHTML = ''; body.appendChild(frag);
     renderNextup(groups, now); renderPicks(groups, now); renderMisses(all, now); renderLineup(all, now); renderSummary(groups, all, now);
+    watchIcons();
   }
 
   // ---- next up: the Pit Dash countdown ---------------------------------------------------------
@@ -579,7 +715,7 @@
     var week = upcoming(groups).concat(groups.later).filter(function (r) { return !compOff[r._lg] && r._state !== 'post'; });
     var today = week.filter(function (r) { return inFocus(r, now); });
     var host = document.getElementById('lineup'); host.innerHTML = '';
-    var ids = SERVICES.order.filter(function (id) { return HAVE[id]; });
+    var ids = serviceOrder().filter(function (id) { return HAVE[id]; });
     if (!ids.length) { var e = document.createElement('p'); e.className = 'empty'; e.textContent = 'No services selected. Open "Lineup & filters" and tap the ones you have.'; host.appendChild(e); return; }
     ids.forEach(function (k) {
       var t = today.filter(function (r) { return r._svc === k; }), w = week.filter(function (r) { return r._svc === k; });

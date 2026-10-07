@@ -13,11 +13,30 @@
   <div class="drawer" id="drawer" role="dialog" aria-labelledby="drawer-h" tabindex="-1" hidden>
     <div class="drawer__head"><h2 id="drawer-h">Lineup &amp; filters</h2><span class="drawer__sum" id="filter-sum"></span></div>
     <div class="drawer__group-head"><h3 class="controls__lbl" id="have-h">Broadcasters</h3><span class="drawer__links"><button type="button" class="link" id="btn-select-services" aria-label="Select all broadcasters">Select all</button><button type="button" class="link" id="btn-clear" aria-label="Clear all broadcasters">Clear all</button></span></div>
-    <div class="controls__row" id="have-pills" role="group" aria-labelledby="have-h">@@HAVE_PILLS@@</div>
+    <div class="filter-groups" id="have-pills" role="group" aria-labelledby="have-h">
+      <div class="filter-area" data-filter-kind="have" data-enabled="true" role="group" aria-labelledby="have-enabled-h">
+        <h4 id="have-enabled-h">Enabled broadcasters</h4><div class="controls__row" id="have-enabled">@@HAVE_PILLS@@</div>
+        <p class="filter-area__empty" hidden>Drop broadcasters here to enable them.</p>
+      </div>
+      <div class="filter-area filter-area--disabled" data-filter-kind="have" data-enabled="false" role="group" aria-labelledby="have-disabled-h">
+        <h4 id="have-disabled-h">Disabled broadcasters <span>Alphabetical</span></h4><div class="controls__row" id="have-disabled">@@HAVE_OFF_PILLS@@</div>
+        <p class="filter-area__empty" hidden>Drop broadcasters here to disable them.</p>
+      </div>
+    </div>
     <p class="drawer__hint">Tap the services you have and every match is judged against them. The default is the page owner's lineup; your choice stays in this browser. Fubo means its Pro plan; a cable, YouTube TV or Hulu + Live TV package counts as the live-TV bundle.</p>
+    <p class="drawer__hint">Enabled order chooses your preferred broadcaster when more than one carries a match.</p>
     <div class="drawer__group-head"><h3 class="controls__lbl" id="comp-h">Leagues &amp; competitions</h3><span class="drawer__links"><button type="button" class="link" id="btn-select-leagues" aria-label="Select all leagues">Select all</button><button type="button" class="link" id="btn-clear-leagues" aria-label="Clear all leagues">Clear all</button></span></div>
-    <div class="controls__row" id="comp-pills" role="group" aria-labelledby="comp-h">@@COMP_PILLS@@</div>
-    <p class="drawer__hint">Drag leagues to set their priority; tap to include or exclude them. Your choices are saved in this browser.</p>
+    <div class="filter-groups" id="comp-pills" role="group" aria-labelledby="comp-h">
+      <div class="filter-area" data-filter-kind="comp" data-enabled="true" role="group" aria-labelledby="comp-enabled-h">
+        <h4 id="comp-enabled-h">Enabled leagues</h4><div class="controls__row" id="comp-enabled">@@COMP_PILLS@@</div>
+        <p class="filter-area__empty" hidden>Drop leagues here to enable them.</p>
+      </div>
+      <div class="filter-area filter-area--disabled" data-filter-kind="comp" data-enabled="false" role="group" aria-labelledby="comp-disabled-h">
+        <h4 id="comp-disabled-h">Disabled leagues <span>Alphabetical</span></h4><div class="controls__row" id="comp-disabled">@@COMP_OFF_PILLS@@</div>
+        <p class="filter-area__empty" hidden>Drop leagues here to disable them.</p>
+      </div>
+    </div>
+    <p class="drawer__hint">Drag pills between areas, or tap to enable or disable. Drag enabled pills to set their order; with a keyboard, use Alt + ↑ or ↓. On touchscreens, drag the dotted handle. Your choices are saved in this browser.</p>
     <details class="league-priority"><summary>League priority</summary><p class="drawer__hint">Move your preferred leagues higher. Picks combine Claude’s match interest (80%) with this order (20%). Filtering a league out preserves its priority.</p><ol id="league-order" aria-label="League priority order"></ol></details>
     <div class="drawer__foot"><button type="button" class="link" id="btn-reset">Reset to defaults</button><button type="button" class="fbtn" id="btn-filters-close">Done</button></div>
   </div>
