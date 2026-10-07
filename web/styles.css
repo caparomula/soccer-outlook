@@ -4,6 +4,7 @@
   --bg: #f2f4ef; --card: #ffffff; --fg: #15201a; --muted: #5b6a61; --line: #d6dcd4; --line-strong: #b9c3ba;
   --accent: #15744a; --amber: #b86b12; --amber-soft: #fbead3; --warn-bg: #fff3e0; --win: #2e9e5b; --loss: #c84b3c; --draw: #a8b1a9;
   --off-bg: #e9ece7; --off-fg: #6b776f; --pill-bg: #eceee9; --pill-fg: #55625a; --logo-pad: transparent;
+  --league-filter: none;
   --svc-hbo: #5e46c9; --svc-fox: #1f5fbf; --svc-para: #0b6f8f; --svc-espn: #c2322a; --svc-apple: #3a3a3a;
   --svc-usa: #0e7c86; --svc-prime: #0f7ba8; --svc-netflix: #b3141c; --svc-disney: #1b3f8f; --svc-off: #8a948c;
   --svc-espnplus: #d8573a; --svc-peacock: #a0731a; --svc-vix: #b5367a; --svc-fubo: #d9731c; --svc-fsp: #4a7fd1;
@@ -16,6 +17,7 @@
   --bg: #0f1512; --card: #182019; --fg: #e7ece6; --muted: #9ba89f; --line: #26312a; --line-strong: #3a4840;
   --accent: #3fb87a; --amber: #e5a24b; --amber-soft: #3a2a12; --warn-bg: #2e2412; --win: #4cc47f; --loss: #ff7b6f; --draw: #5a675e;
   --off-bg: #1f2823; --off-fg: #93a097; --pill-bg: #222c26; --pill-fg: #aab6ae; --logo-pad: rgba(255,255,255,0.08);
+  --league-filter: contrast(0.5) brightness(1.8) saturate(0.85);
   --svc-hbo: #a391ff; --svc-fox: #6fa3ff; --svc-para: #49bbdb; --svc-espn: #ff7b6f; --svc-apple: #d0d0d0;
   --svc-usa: #4cc3cd; --svc-prime: #5cb8e6; --svc-netflix: #ff6b72; --svc-disney: #7da2ff; --svc-off: #7f8b82;
   --svc-espnplus: #ff9a80; --svc-peacock: #e0b35a; --svc-vix: #e986bd; --svc-fubo: #f0a060; --svc-fsp: #8fb4ff;
@@ -26,6 +28,7 @@
   --bg: #0f1512; --card: #182019; --fg: #e7ece6; --muted: #9ba89f; --line: #26312a; --line-strong: #3a4840;
   --accent: #3fb87a; --amber: #e5a24b; --amber-soft: #3a2a12; --warn-bg: #2e2412; --win: #4cc47f; --loss: #ff7b6f; --draw: #5a675e;
   --off-bg: #1f2823; --off-fg: #93a097; --pill-bg: #222c26; --pill-fg: #aab6ae; --logo-pad: rgba(255,255,255,0.08);
+  --league-filter: contrast(0.5) brightness(1.8) saturate(0.85);
   --svc-hbo: #a391ff; --svc-fox: #6fa3ff; --svc-para: #49bbdb; --svc-espn: #ff7b6f; --svc-apple: #d0d0d0;
   --svc-usa: #4cc3cd; --svc-prime: #5cb8e6; --svc-netflix: #ff6b72; --svc-disney: #7da2ff; --svc-off: #7f8b82;
   --svc-espnplus: #ff9a80; --svc-peacock: #e0b35a; --svc-vix: #e986bd; --svc-fubo: #f0a060; --svc-fsp: #8fb4ff;
@@ -107,7 +110,7 @@ a { color: inherit; }
 .picks { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
 .pick { position: relative; display: block; text-decoration: none; background: var(--card); border: 1px solid var(--line); border-top: 4px solid var(--svc); border-radius: var(--radius); padding: 14px 14px 28px; min-width: 0; }
 .pick__rating, .pick__when { padding-right: 48px; }
-.pick .pick__league { position: absolute; top: 14px; right: 14px; width: 38px; height: 38px; padding: 3px; margin: 0; border-radius: 5px; }
+.pick .pick__league { position: absolute; top: 14px; right: 14px; width: 38px; height: 38px; margin: 0; }
 .pick__names a { text-decoration: none; }
 .pick__names a:hover { text-decoration: underline; }
 .pick__names a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -181,7 +184,7 @@ a { color: inherit; }
 .seg button:focus-visible, .fpill:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .fpill { appearance: none; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line-strong); background: var(--card); color: var(--fg); border-radius: 999px; padding: 4px 10px; font: 600 13px var(--body); cursor: pointer; }
 .fpill .dot { width: 8px; height: 8px; }
-.fpill .lg { flex: none; width: 22px; height: 22px; padding: 1px; margin: 0; }
+.fpill .lg { flex: none; width: 22px; height: 22px; margin: 0; }
 .fpill__n { color: var(--muted); font-weight: 400; font-variant-numeric: tabular-nums; }
 .fpill[aria-pressed="false"] { background: transparent; color: var(--muted); border-style: dashed; }
 .fpill[aria-pressed="false"] .dot { opacity: 0.35; }
@@ -225,10 +228,11 @@ a { color: inherit; }
 .form { display: inline-flex; gap: 2px; }
 .f { width: 8px; height: 8px; border-radius: 2px; background: var(--draw); display: inline-block; }
 .f-w { background: var(--win); } .f-l { background: var(--loss); }
-/* ESPN supplies full-color league marks for light surfaces. A consistent badge keeps
-   dark artwork legible in either theme without recoloring the league's identity. */
-.lg { width: 22px; height: 22px; display: inline-block; padding: 2px; border: 1px solid #d4d8cf; border-radius: 4px;
-  background: #f7f8f4 center / contain no-repeat; background-origin: content-box; vertical-align: -5px; margin-right: 5px; }
+/* Keep the artwork's transparent silhouette. In dark mode, lift the black point
+   before brightening: brightness alone leaves black marks invisible. Soften saturation
+   to avoid harsh colors; light mode uses the original artwork. */
+.lg { width: 22px; height: 22px; display: inline-block; background: transparent center / contain no-repeat;
+  filter: var(--league-filter); vertical-align: -5px; margin-right: 5px; }
 .logo--sm { width: 18px; height: 18px; vertical-align: -4px; margin-right: 6px; border-radius: 3px; }
 .row__goals { margin-top: 4px; font-size: 13px; color: var(--muted); }
 .row__goals b { color: var(--fg); font-weight: 600; }
@@ -333,7 +337,7 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
   .picks { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; gap: 10px; padding-bottom: 6px; scrollbar-width: thin; }
   .pick { flex: 0 0 76%; scroll-snap-align: start; }
   .row { grid-template-columns: 52px 24px minmax(0, 1fr); column-gap: 8px; }
-  .row__league .lg { width: 24px; height: 28px; padding: 1px; }
+  .row__league .lg { width: 24px; height: 28px; }
   .row__watch { grid-column: 3; justify-self: start; padding-top: 0; }
   .row--on .row__watch { display: none; }   /* the colored pill already says it on a phone */
   .nextup { grid-template-columns: 1fr; }
