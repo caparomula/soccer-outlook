@@ -64,11 +64,13 @@ PRICES = {
 }
 PRICE_SEARCH = 0.01                   # per web search on any model; web fetch costs only its tokens
 
-SYSTEM = """You write the daily storylines for Soccer Outlook, a soccer schedule with visitor-controlled competition and service filters. News serves upcoming matches available through the visitor's selected services. Only candidates with listed or usual service coverage are supplied. Prioritize the default lineup for the opening; visitors can select other services and the browser filters the text accordingly. The page already lists kickoff times, channels, table positions, recent form and top scorers. Cover only facts that directly affect a specific upcoming fixture: the stakes, player availability, likely selection supported by reporting, a relevant matchup, or a scheduling change. An upcoming international break belongs only when explaining its effect on a listed fixture. Exclude general club news, financial investigations, ownership stories, or unrelated managerial controversy. Mentioning a team that has a fixture is not enough: explain the concrete match connection.
+SYSTEM = """You write the daily storylines for Soccer Outlook, a soccer schedule with visitor-controlled competition and service filters. News serves upcoming matches available through the visitor's selected services. The news candidate lists contain only fixtures with listed or usual service coverage; ranking_candidates separately contains the full upcoming slate. Prioritize the default lineup for the opening; visitors can select other services and the browser filters the text accordingly. The page already lists kickoff times, channels, table positions, recent form and top scorers. Cover only facts that directly affect a specific upcoming fixture: the stakes, player availability, likely selection supported by reporting, a relevant matchup, or a scheduling change. An upcoming international break belongs only when explaining its effect on a listed fixture. Exclude general club news, financial investigations, ownership stories, or unrelated managerial controversy. Mentioning a team that has a fixture is not enough: explain the concrete match connection.
 
-Research with web search before writing, and read a full article when a search snippet is not enough. Prefer recent reporting from established outlets: clubs and federations, major newspapers, broadcasters, wire services. State only what you read in this session. If you cannot confirm something, leave it out rather than guess, and never predict results or invent lineups, injuries or quotes. Do not restate the schedule data as news.
+Research with web search before writing, and read a full article when a search snippet is not enough. Prefer recent reporting from established outlets: clubs and federations, major newspapers, broadcasters, wire services. For news, state only what you read in this session. If you cannot confirm something, leave it out rather than guess, and never predict results or invent lineups, injuries or quotes. Do not restate the schedule data as news.
 
-Write plainly, in present tense, for a reader in the United States. When you have what you need, call publish_story once."""
+Also rate every fixture in ranking_candidates using the fixed rubric supplied by the user. Ratings are editorial judgments from the fixture facts and established appeal, separate from sourced news.
+
+Write plainly, in present tense, for a reader in the United States. When you have what you need, call publish_story with the complete news and ratings."""
 
 SEGMENT_SCHEMA = {
     "type": "object", "additionalProperties": False, "required": ["text", "match_ids"],
@@ -94,12 +96,23 @@ PUBLISH_TOOL = {
     "eager_input_streaming": True,
     "input_schema": {
         "type": "object", "additionalProperties": False,
-        "required": ["headline", "lede_items", "later_reason", "notes", "forecast"],
+        "required": ["headline", "lede_items", "later_reason", "notes", "forecast", "ranked_matches"],
         "properties": {
             "headline": {"type": "array", "items": SEGMENT_SCHEMA,
                          "description": "A headline, sentence case, about 80 characters, with separately tagged phrases. It must concern only fixtures in the lede."},
             "lede_items": {"type": "array", "items": EDITORIAL_SCHEMA,
-                           "description": "Up to three sentences on the most pertinent story in the next 24 hours."},
+                           "description": "One compact paragraph of two or three sentences, at most 450 characters total, about pertinent upcoming matches. Split its sentences into items for filtering, not separate paragraphs. Avoid repeating the headline or forecast."},
+            "ranked_matches": {
+                "type": "array", "description": "Rate EVERY ranking_candidates fixture exactly once on the fixed rubric, not just the highlights. Ratings are independent of services and filters.",
+                "items": {"type": "object", "additionalProperties": False,
+                          "required": ["match_id", "popularity", "gameplay", "impact"],
+                          "properties": {
+                              "match_id": {"type": "string"},
+                              "popularity": {"type": "integer", "description": "0–100: audience appeal on the fixed global scale."},
+                              "gameplay": {"type": "integer", "description": "0–100: expected football quality and competitiveness, without predicting a result."},
+                              "impact": {"type": "integer", "description": "0–100: competitive stakes of this particular fixture, supported by stage/table context."},
+                          }},
+            },
             "later_reason": {"type": "string", "description": "Empty unless including later fallback news because there is no pertinent next-24-hour story on the default lineup and competitions. Explain that gap; do not infer a lack of interest from league stature."},
             "notes": {
                 "type": "array", "description": "Up to eight researched match notes. Fewer is fine; never pad the count with later matches.",
@@ -143,6 +156,19 @@ FORECAST_GUIDE = (FOCUS_GUIDE + "Write up to three short forecast items with res
                   "An empty list is better than canned commentary. The browser separately shows factual counts, "
                   "coverage and the next kickoff, so do not repeat those or the lede. An absent fixture is not "
                   "evidence of a break, a quiet day or a weekend return. Never invent an explanation.")
+
+RANKING_GUIDE = ("Also rate EVERY fixture in ranking_candidates, exactly once. This is an editorial assessment, "
+                 "separate from sourced news: use the supplied teams, form, tables and stage, established audience "
+                 "appeal and any verified research. Do not invent injuries, lineups, stakes or predicted scores. "
+                 "Give separate integer scores from 0 to 100 for popularity, gameplay and impact. Use the same "
+                 "absolute scale across all competitions and days: 20=limited appeal/quality/stakes, 40=routine, "
+                 "60=notably appealing/competitive/meaningful, 80=exceptional, 95=rare global event or decisive final. "
+                 "Judge each dimension independently; a famous club does not automatically mean compelling play "
+                 "or high stakes. Missing evidence must not inflate scores. The combined score is 25% popularity, "
+                 "35% gameplay and 40% impact. Only 80 or above earns 'Worth scheduling around'. Do NOT normalize "
+                 "scores to this slate, force any fixture over 80, or change scores for service availability. "
+                 "Return the full set even when no match is exceptional. Research is concentrated on news and "
+                 "the strongest candidates; it is not necessary to search separately for every routine match.")
 
 
 
@@ -263,6 +289,12 @@ def clean_story(raw, facts, seen):
         later_reason = ""
     if not later_reason:
         notes = {mid: note for mid, note in notes.items() if mid in near_ids}
+    # Keep complete tagged sentences; never truncate through a fixture reference.
+    compact_lede = []
+    for item in lede_items:
+        if len(" ".join(i["text"] for i in compact_lede + [item])) <= 450:
+            compact_lede.append(item)
+    lede_items = compact_lede
     lead_ids = {mid for item in lede_items for mid in item["match_ids"]}
     if any(mid not in lead_ids for part in headline_segments for mid in part["match_ids"]):
         headline, headline_segments = "", []
@@ -272,7 +304,26 @@ def clean_story(raw, facts, seen):
              "later_reason": later_reason, "_dropped": dropped}
     if forecast_items:
         story["forecast"] = {"items": forecast_items}
+    story["rankings"] = clean_rankings(raw.get("ranked_matches"), facts)
+    story["ranking_coverage"] = {"rated": len(story["rankings"]), "total": len(facts.get("ranking_candidates", []))}
     return story
+
+def clean_rankings(raw, facts):
+    """Validate ratings and calculate the fixed score without renormalizing against this slate."""
+    ids = {m["id"] for m in facts.get("ranking_candidates", [])}
+    ratings = {}
+    for rating in raw if isinstance(raw, list) else []:
+        if not isinstance(rating, dict):
+            continue
+        mid = rating.get("match_id")
+        if not isinstance(mid, str) or mid not in ids or mid in ratings:
+            continue
+        parts = [rating.get(key) for key in ("popularity", "gameplay", "impact")]
+        if any(type(value) is not int or not 0 <= value <= 100 for value in parts):
+            continue
+        ratings[mid] = {key: value for key, value in zip(("popularity", "gameplay", "impact"), parts)}
+        ratings[mid]["score"] = round(parts[0] * .25 + parts[1] * .35 + parts[2] * .4, 1)
+    return ratings
 
 
 def clean_segments(raw, ids):
@@ -328,7 +379,7 @@ def user_prompt(facts, budget):
             "present, gives the day's notable results so far, for context.\n\n"
             f"{json.dumps(facts, ensure_ascii=False, indent=1)}\n\n"
             "Write storylines for up to eight pertinent matches, with no minimum count. Use the match ids exactly as given. "
-            f"{FORECAST_GUIDE} "
+            f"{FORECAST_GUIDE} {RANKING_GUIDE} "
             f"You have up to {budget[0]} web searches and {budget[1]} page reads.")
 
 
@@ -341,6 +392,8 @@ def refresh_prompt(facts, previous, budget):
                          for mid, n in (previous.get("notes") or {}).items() if isinstance(n, dict)]}
     if isinstance(previous.get("forecast"), dict):
         earlier["forecast"] = previous["forecast"]
+    if isinstance(previous.get("rankings"), dict):
+        earlier["rankings"] = previous["rankings"]
     return (f"It is {clock(facts['built_at'])} on {facts['weekday']}, {facts['date']}, US Eastern time. The household's "
             f"services are {', '.join(facts['owner_services'])}.\n\n"
             f"At {clock(previous['generated_at'])} you published these storylines:\n\n"
@@ -355,7 +408,7 @@ def refresh_prompt(facts, previous, budget):
             "the others, and add notes for matches that have become the day's stories. Rewrite the headline and lede "
             "so they focus on the next 24 hours from this build; past results are context, not the lead. Notes are only for matches in the lists "
             "above. Use the match ids exactly as given. "
-            f"{FORECAST_GUIDE} Rewrite it for this moment. "
+            f"{FORECAST_GUIDE} {RANKING_GUIDE} Rewrite it for this moment. "
             f"You have up to {budget[0]} web searches and {budget[1]} page reads. Call publish_story once with the "
             "complete set of notes, kept ones included, and the forecast.")
 
@@ -394,6 +447,7 @@ def write_story(facts, model, effort, mode, previous, totals):
     seen = earlier_sources(previous) if mode == "refresh" else {}
     served = model
     nudged = False
+    ratings_retried = False
     for attempt in range(1, MAX_REQUESTS + 1):
         with client.beta.messages.stream(
             model=model,
@@ -435,7 +489,22 @@ def write_story(facts, model, effort, mode, previous, totals):
                     raw = json.loads(raw)
                 except ValueError:
                     raw = None
-            return clean_story(raw, facts, seen), served
+            story = clean_story(raw, facts, seen)
+            missing = sorted({m["id"] for m in facts.get("ranking_candidates", [])}
+                             - set(story.get("rankings", {}) if story else {}))
+            if story and missing and not ratings_retried and attempt < MAX_REQUESTS:
+                ratings_retried = True
+                log(f"requesting missing or invalid ratings for {len(missing)} fixtures")
+                messages.append({"role": "assistant", "content": message.content})
+                messages.append({"role": "user", "content": [{
+                    "type": "tool_result", "tool_use_id": call.id, "is_error": True,
+                    "content": "The ranked_matches list is incomplete. Call publish_story again with the same news "
+                               "and ALL ratings, including valid ratings for these IDs: " + ", ".join(missing),
+                }]})
+                continue
+            if missing:
+                log(f"ranking coverage incomplete: {len(missing)} fixtures remain unrated")
+            return story, served
         if message.stop_reason == "pause_turn":
             messages.append({"role": "assistant", "content": message.content})
             continue
@@ -535,7 +604,7 @@ def main():
         story, served = None, model
     seconds = time.monotonic() - started
     cost = report_cost(totals, served, effort, mode, seconds) if any(totals.values()) else None
-    published = bool(story and (story["notes"] or story["lede_items"] or story.get("forecast")))
+    published = bool(story and (story["notes"] or story["lede_items"] or story.get("forecast") or story.get("rankings")))
     if args.usage_out:
         save(args.usage_out, {"mode": mode, "model": model, "served": served, "effort": effort,
                               "budget": {"searches": BUDGETS[mode][0], "page_reads": BUDGETS[mode][1]}, "usage": totals,

@@ -8,6 +8,7 @@ import tempfile
 from pathlib import Path
 import sys
 import unittest
+from unittest.mock import MagicMock, patch
 from datetime import date, datetime, timezone
 from types import SimpleNamespace
 
@@ -34,6 +35,13 @@ def raw_story(**over):
 
 
 class Forecast(unittest.TestCase):
+    def test_storyline_is_one_short_paragraph_of_complete_tagged_sentences(self):
+        sentences = [item("A" * 210 + "."), item("B" * 210 + "."), item("C" * 210 + ".")]
+        result = story.clean_story(raw_story(lede_items=sentences), FACTS, SEEN)
+        self.assertEqual(len(result["lede_items"]), 2)
+        self.assertEqual(result["lede"], "A" * 210 + ". " + "B" * 210 + ".")
+        self.assertLessEqual(len(result["lede"]), 450)
+
     def test_tool_schema_uses_supported_array_constraints(self):
         # Anthropic's strict tool schema rejects maxItems; enforce the editorial cap locally.
         self.assertNotIn('"maxItems"', json.dumps(story.PUBLISH_TOOL))
@@ -158,6 +166,54 @@ class RollingFacts(unittest.TestCase):
         self.assertEqual(facts["next_24_hours"][0]["home"]["id"], "1")
         self.assertEqual(facts["next_24_hours"][-1]["broadcasters"], ["Peacock"])
         self.assertTrue(all(m["available_service_ids"] for m in facts["next_24_hours"] + facts["later_if_needed"]))
+        # Ratings cover the full slate, including unknown broadcasts, but no finished matches.
+        self.assertEqual({m["id"] for m in facts["ranking_candidates"]}, {"live", "inside", "edge", "unlisted", "hidden"})
+
+
+class Rankings(unittest.TestCase):
+    @staticmethod
+    def rating(mid="1", **over):
+        return dict(match_id=mid, popularity=80, gameplay=70, impact=90, **over)
+
+    def test_fixed_weighted_score_is_independent_of_the_other_candidates(self):
+        facts = {"ranking_candidates": [{"id": "1"}, {"id": "2"}]}
+        raw = [self.rating(), self.rating("2")]
+        ratings = story.clean_rankings(raw, facts)
+        self.assertEqual(ratings["1"]["score"], 80.5)
+        self.assertEqual(story.clean_rankings(raw[:1], facts)["1"], ratings["1"])
+        result = story.clean_story(raw_story(ranked_matches=raw), facts, {})
+        self.assertEqual(result["ranking_coverage"], {"rated": 2, "total": 2})
+
+    def test_unknown_duplicate_and_invalid_ratings_cannot_change_valid_scores(self):
+        good = self.rating()
+        for bad in (None, {}, self.rating("missing"), dict(good, match_id=1),
+                    dict(good, popularity=True), dict(good, gameplay=101),
+                    dict(good, impact=-1), dict(good, impact="90"), dict(good, popularity=80.0)):
+            with self.subTest(bad=bad):
+                result = story.clean_rankings([bad, good, dict(good, popularity=1)], {"ranking_candidates": [{"id": "1"}]})
+                self.assertEqual(result, {"1": {"popularity": 80, "gameplay": 70, "impact": 90, "score": 80.5}})
+
+    def test_incomplete_model_response_requests_complete_ratings_once(self):
+        facts = dict(FACTS, ranking_candidates=[{"id": "1"}, {"id": "2"}],
+                     built_at="2026-10-07T17:00:00Z", weekday="Wednesday", date="2026-10-07", owner_services=["ESPN"])
+        sdk = MagicMock()
+        stream = sdk.Anthropic.return_value.beta.messages.stream
+        replies = []
+        for ratings in ([self.rating()], [self.rating(), self.rating("2")]):
+            raw = raw_story(ranked_matches=ratings, lede_items=[], notes=[], forecast={"items": []})
+            call = SimpleNamespace(type="tool_use", name="publish_story", id="publish", input=raw)
+            replies.append(SimpleNamespace(model="test-model", usage=SimpleNamespace(input_tokens=1, output_tokens=1),
+                                           content=[call], stop_reason="tool_use"))
+        stream.return_value.__enter__.return_value.get_final_message.side_effect = replies
+        totals = dict.fromkeys(("in", "out", "cache_write", "cache_read", "searches", "fetches"), 0)
+        with patch.dict(sys.modules, {"anthropic": sdk}):
+            result, _ = story.write_story(facts, "test-model", "medium", "full", None, totals)
+        self.assertEqual(result["ranking_coverage"], {"rated": 2, "total": 2})
+        self.assertEqual(stream.call_count, 2)
+        retry = stream.call_args.kwargs["messages"][-1]["content"][0]
+        self.assertTrue(retry["is_error"])
+        self.assertEqual(retry["tool_use_id"], "publish")
+        self.assertIn("IDs: 2", retry["content"])
 
 
 def match(mid, league, et_hour, day, state="pre", status="", service="", comp=None, time_valid=True):

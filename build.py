@@ -1045,27 +1045,6 @@ def colors_html(home, away):
     return f'<div class="pick__colors" aria-hidden="true"><i style="background:{h}"></i><i style="background:{a}"></i></div>'
 
 
-def pick_card_html(m, cache):
-    t, ap, local = et_parts(m.utc)
-    label = SERVICES[m.service]
-    via = "" if m.outlet == label else f" · {esc(m.outlet)}"
-    if m.service in SHORT:
-        label, via = m.outlet, f" · {SHORT[m.service]}"
-    usually = " (usually)" if m.basis == "rule" else ""
-    subs = [re.sub(r"<[^>]+>", "", team_sub(x)).strip() for x in (m.home, m.away)]
-    subline = f'<div class="pick__sub">{esc(subs[0] or "–")} <span class="pick__vs2">v</span> {esc(subs[1] or "–")}</div>' if any(subs) else ""
-    return (
-        f'<a class="pick svc-{m.service}" href="#outlook">'
-        f'<div class="pick__when"><span class="t">{t}</span><span class="ap">{ap} ET · {local.strftime("%a")}</span></div>'
-        f'<div class="pick__teams">{logo_html(m.home, cache, "logo logo--lg")}<span class="pick__vs">v</span>{logo_html(m.away, cache, "logo logo--lg")}</div>'
-        f'<div class="pick__names">{esc(m.home.name)} v {esc(m.away.name)}</div>{subline}'
-        f'<div class="pick__comp">{esc(m.comp)}</div>'
-        f'<div class="pick__svc"><i class="dot"></i>{esc(label)}{via}{usually}</div>'
-        f'{colors_html(m.home, m.away)}'
-        f'</a>'
-    )
-
-
 def tables_html(matches, cache):
     """Collapsed league tables for the leagues that play this week and publish standings."""
     out = []
@@ -1171,6 +1150,11 @@ def write_facts(path, matches, built_at, today):
         "owner_service_ids": list(OWNER),   # recorded in story.json: the lineup the forecast was written for
         "next_24_hours": [entry(m) for m in sorted(near, key=lambda m: m.utc)],
         "later_if_needed": [entry(m) for m in sorted(later, key=lambda m: (m.utc, -m.score))[:20]],
+        "ranking_candidates": [dict(id=m.id, kickoff_utc=m.utc.isoformat(), competition=m.comp,
+                                    stage=m.stage, home=team_facts(m.home), away=team_facts(m.away))
+                               for m in sorted(matches, key=lambda m: m.utc)
+                               if m.state != "post" and not called_off(m.state, m.status)
+                               and (m.utc >= built_at or (m.state == "in" and m.utc >= built_at - timedelta(hours=4)))],
         "schedule_by_day": schedule_by_day(matches, today),
     }
     played = [m for m in matches if m.state == "post" and m.utc.astimezone(ET).date() == today
@@ -1199,7 +1183,6 @@ def build_page(matches, cache, built_at, failed, today):
 
     focus = [m for m in matches if m.state != "post" and not LEAGUES[m.league].get("default_off")
              and built_at - timedelta(minutes=125) <= m.utc < built_at + timedelta(hours=24)]
-    picks = [m for m in focus if m.service][:4]
 
     have_pills = "".join(
         f'<button type="button" class="fpill svc-{k}" data-kind="have" data-key="{k}" aria-pressed="{"true" if k in OWNER else "false"}">'
@@ -1248,7 +1231,6 @@ def build_page(matches, cache, built_at, failed, today):
             .replace("@@INCOMPLETE@@", "1" if failed else "0")
             .replace("@@BUILT_ET@@", esc(built_et.strftime("%a %b ") + str(built_et.day) + built_et.strftime(", %I:%M %p ET").replace(" 0", " ")))
             .replace("@@N_ON@@", str(n_on)).replace("@@N_ALL@@", str(n_all))
-            .replace("@@PICKS@@", "".join(pick_card_html(m, cache) for m in picks))
             .replace("@@HAVE_PILLS@@", have_pills).replace("@@COMP_PILLS@@", comp_pills)
             .replace("@@OUTLOOK@@", "".join(static_sections))
             .replace("@@TABLES@@", tables_html(matches, cache))

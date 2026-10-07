@@ -366,10 +366,10 @@ class BrowserChecks(unittest.TestCase):
                 page.locator("#btn-clear").click()
                 page.locator('[data-kind="have"][data-key="espn"]').click()
                 page.locator('[data-kind="have"][data-key="apple"]').click()
-                for host in ("#forecast", "#story-lede", "#story-h"):
+                for host in ("#forecast", "#story-lede"):
                     expect(page.locator(host + " .editorial-part--filtered")).to_have_count(0)
                 page.locator('[data-kind="have"][data-key="apple"]').click()
-                for host in ("#forecast", "#story-lede", "#story-h"):
+                for host in ("#forecast", "#story-lede"):
                     expect(page.locator(host + " .editorial-part--filtered")).to_have_text("MLS")
                     expect(page.locator(host + ' .editorial-part[data-matches="pl"]')).to_have_class("editorial-part")
                     expect(page.locator(host + ' .editorial-part[data-matches="mls"]')).to_have_css("text-decoration-line", "none")
@@ -382,14 +382,76 @@ class BrowserChecks(unittest.TestCase):
                 page.locator('#comp-pills [data-key="usa.1"]').click()
                 expect(page.locator("#forecast .editorial-part--filtered")).to_have_text("MLS")
 
-    def test_rolling_window_caps_summary_cards_and_open_schedule(self):
+    def test_single_paragraph_storyline_and_time_of_day_heading(self):
+        fixtures = [("mls", "2026-10-07T18:00:00+00:00", "pre", "Apple TV", "usa.1"),
+                    ("spain", "2026-10-07T19:00:00+00:00", "pre", "ESPN+", "esp.1")]
+        for width in (1280, 390):
+            with self.subTest(width=width), self.page("after", width=width, html=render_page(build, fixtures=fixtures), story=self.tagged_story()) as (page, _):
+                expect(page.locator("p#story-lede")).to_have_text("An MLS storyline. A Spanish storyline.")
+                expect(page.locator("#story-lede p, #story-lede div, #story-lede .editorial-tags")).to_have_count(0)
+                expect(page.locator('#story-tags [data-kind="comp"]')).to_have_text(["MLS", "La Liga"])
+                expect(page.locator("#story-h")).to_have_text("Storyline")
+                self.assertEqual(page.locator("#story").evaluate("el => el.nextElementSibling.querySelector('h2').id"), "period-h")
+                for at, label in (("0900", "This morning"), ("1300", "This afternoon"), ("1800", "This evening"), ("2100", "Tonight"), ("0100", "Tonight")):
+                    page.evaluate("at => location.hash = '#at-20261007-' + at", at)
+                    expect(page.locator("#period-h")).to_have_text(label)
+
+    def test_ranked_headline_and_absolute_standouts_follow_filters(self):
+        fixtures = [("routine", "2026-10-07T18:00:00+00:00", "pre", "ESPN+", "eng.1"),
+                    ("best", "2026-10-07T19:00:00+00:00", "pre", "Apple TV", "usa.1"),
+                    ("near", "2026-10-08T16:59:00+00:00", "pre", "ESPN+", "esp.1"),
+                    ("far", "2026-10-10T17:00:00+00:00", "pre", "ESPN+", "esp.1"),
+                    ("unknown", "2026-10-07T20:00:00+00:00", "pre", None, "fifa.friendly.w"),
+                    ("finished", "2026-10-07T16:00:00+00:00", "post", "ESPN+", "eng.1")]
+        story = self.tagged_story()
+        story["rankings"] = {mid: dict(popularity=score, gameplay=score, impact=score, score=score)
+                             for mid, score in (("routine", 60), ("best", 90), ("near", 80), ("far", 95), ("unknown", 100), ("finished", 100))}
+        for width in (1280, 390):
+            with self.subTest(width=width), self.page("after", width=width, html=render_page(build, fixtures=fixtures), story=story) as (page, _):
+                hero = page.locator("#nextup")
+                expect(hero).to_have_attribute("data-match-id", "best")
+                expect(page.locator("#nextup-rating")).to_contain_text("90/100")
+                expect(page.locator('#misses [data-id="unknown"]')).to_have_count(0)
+                self.assertEqual(page.locator("#picks .pick").evaluate_all("els => els.map(e => e.dataset.matchId)"), ["far", "best", "near"])
+                page.screenshot(path=str(self.artifacts / f"ranked-{width}.png"), full_page=True)
+                page.locator("#btn-menu").click()
+                page.locator('[data-kind="have"][data-key="apple"]').click()
+                expect(hero).to_have_attribute("data-match-id", "near")
+                page.locator('#comp-pills [data-key="esp.1"]').click()
+                expect(hero).to_have_attribute("data-match-id", "routine")
+                expect(page.locator("#picks .pick")).to_have_count(0)
+                page.locator("#btn-clear").click()
+                expect(hero).to_be_hidden()
+                page.locator("#btn-filters-close").click()
+                page.locator("#btn-all").click()
+                expect(hero).to_be_hidden()
+                expect(page.locator("#picks .pick")).to_have_count(0)
+
+    def test_later_headline_uses_first_available_window_and_finished_pick_is_removed(self):
+        fixtures = [("early", "2026-10-09T18:00:00+00:00", "pre", "ESPN+"),
+                    ("best", "2026-10-09T20:00:00+00:00", "pre", "ESPN+"),
+                    ("too-far", "2026-10-11T18:00:00+00:00", "pre", "ESPN+")]
+        story = self.tagged_story()
+        story["rankings"] = {mid: dict(score=score) for mid, score in (("early", 50), ("best", 70), ("too-far", 90), ("upcoming", 85))}
+        with self.page("after", html=render_page(build, fixtures=fixtures), story=story) as (page, _):
+            expect(page.locator("#nextup")).to_have_attribute("data-match-id", "best")
+        with self.page("after", story=story) as (page, feed):
+            expect(page.locator("#nextup")).to_have_attribute("data-match-id", "upcoming")
+            expect(page.locator("#picks .pick")).to_have_count(1)
+            feed["data"] = scoreboard("post")
+            page.clock.run_for(60000)
+            expect(page.locator("#nextup")).not_to_have_attribute("data-match-id", "upcoming")
+            expect(page.locator("#picks .pick")).to_have_count(0)
+
+    def test_rolling_window_and_unrated_recommendation_fallback(self):
         fixtures = [("inside", "2026-10-08T16:59:00+00:00", "pre", "ESPN+"),
                     ("edge", "2026-10-08T17:00:00+00:00", "pre", "ESPN+"),
                     ("later", "2026-10-10T17:00:00+00:00", "pre", "ESPN+")]
         with self.page("after", html=render_page(build, fixtures=fixtures)) as (page, _):
             expect(page.locator("#tally-n")).to_have_text("1")
             expect(page.locator("#schedule-summary")).to_contain_text("1 upcoming")
-            expect(page.locator("#picks .pick")).to_have_count(1)
+            expect(page.locator("#picks .pick")).to_have_count(0)
+            expect(page.locator("#nextup")).to_have_attribute("data-match-id", "inside")
             expect(page.locator('li.row[data-id="inside"]')).to_be_visible()
             expect(page.locator('li.row[data-id="edge"]')).to_be_hidden()
             expect(page.locator('details[data-b="later"]')).not_to_have_attribute("open", "")

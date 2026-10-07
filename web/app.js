@@ -285,12 +285,33 @@
     if (h >= 1) return h + 'h ' + (m < 10 ? '0' : '') + m + 'm';
     return m + ':' + (sec < 10 ? '0' : '') + sec;
   }
+  var STANDOUT_SCORE = 80;
+  function ratingOf(r) {
+    var rating = STORY.rankings && STORY.rankings[r.getAttribute('data-id')];
+    return rating && typeof rating.score === 'number' && rating.score >= 0 && rating.score <= 100 ? rating : null;
+  }
+  function byRating(a, b) {
+    var ar = ratingOf(a), br = ratingOf(b);
+    return (br ? br.score : -1) - (ar ? ar.score : -1) || byTime(a, b);
+  }
+  function availableUpcoming(now) {
+    return rows.filter(function (r) { return r._b && editorialPasses(r) && r._state !== 'post' && (r._k > now || r._b === 'live'); });
+  }
   function renderNextup(groups, now) {
-    var live = groups.live.filter(onSvc).sort(byTime)[0];
-    var next = [].concat(groups.morning, groups.afternoon, groups.evening, groups.tonight, groups.tomorrow, groups.later).filter(function (r) { return onSvc(r) && r._k > now; }).sort(byTime)[0];
-    nextRow = live || next || null; nextLive = !!live;
+    var available = availableUpcoming(now), pool = available.filter(function (r) { return inFocus(r, now); });
+    // If this window is empty, feature the best match in the next available 24-hour window.
+    if (!pool.length && available.length) {
+      var first = available.slice().sort(byTime)[0]._k;
+      pool = available.filter(function (r) { return r._k < first + FOCUS_MS; });
+    }
+    nextRow = pool.sort(byRating)[0] || null; nextLive = !!nextRow && nextRow._b === 'live';
     nextupEl.hidden = !nextRow;
     if (!nextRow) return;
+    nextupEl.setAttribute('data-match-id', nextRow.getAttribute('data-id'));
+    var rating = ratingOf(nextRow), label = document.getElementById('nextup-rating');
+    label.hidden = !rating;
+    label.textContent = rating ? 'Claude’s pick · ' + rating.score + '/100' : '';
+    if (rating) label.title = ratingDetails(rating);
     nextupEl.classList.toggle('nextup--live', nextLive);
     var m = document.getElementById('nextup-match'); m.innerHTML = '';
     m.appendChild(logoClone(nextRow, 0, 'logo'));
@@ -350,12 +371,16 @@
     var sc = r._b === 'live' ? scoreOf(r) : '', clk = clockOf(r);
     return sc ? 'live ' + sc + (clk ? ', ' + clk : '') : timeLabel(r) + dayTag(r, now);
   }
+  function ratingDetails(rating) { return 'Popularity ' + rating.popularity + ' · Expected gameplay ' + rating.gameplay + ' · Competitive impact ' + rating.impact; }
   function renderPicks(groups, now) {
-    var chosen = upcoming(groups).filter(function (r) { return onSvc(r) && inFocus(r, now); }).sort(byTime).slice(0, 4);
+    var chosen = availableUpcoming(now).filter(function (r) { var rating = ratingOf(r); return rating && rating.score >= STANDOUT_SCORE; }).sort(byRating);
     picksEl.innerHTML = '';
-    document.getElementById('picks-sub').textContent = 'Live and next on your services, within 24 hours';
+    document.getElementById('picks-sub').textContent = 'Claude’s ratings · 80/100 or higher · on your services';
     chosen.forEach(function (r) {
       var a = document.createElement('a'); a.className = 'pick svc-' + r._svc; a.href = '#outlook'; a._row = r;
+      a.setAttribute('data-match-id', r.getAttribute('data-id'));
+      var rating = ratingOf(r), ratingLabel = document.createElement('div'); ratingLabel.className = 'pick__rating';
+      ratingLabel.textContent = 'Claude · ' + rating.score + '/100'; ratingLabel.title = ratingDetails(rating); a.appendChild(ratingLabel);
       var when = document.createElement('div'); when.className = 'pick__when';
       when.innerHTML = '<span class="t"></span><span class="ap"></span>';
       setPickWhen(when, r, now);
@@ -380,7 +405,7 @@
   }
 
   function renderMisses(groups, now) {
-    var pool = upcoming(groups).filter(function (r) { return inFocus(r, now) && r._svc === 'none' && !r._unk && r._score >= 85 && !compOff[r._lg]; }).sort(function (a, c) { return c._score - a._score || a._k - c._k; }).slice(0, 4);
+    var pool = upcoming(groups).filter(function (r) { return inFocus(r, now) && r._svc === 'none' && !r._unk && r._o.length && r._score >= 85 && !compOff[r._lg]; }).sort(function (a, c) { return c._score - a._score || a._k - c._k; }).slice(0, 4);
     var open = {};
     missesEl.querySelectorAll('.miss').forEach(function (m) { var p = m.querySelector('.row__detail'); if (p && !p.hidden) open[m.getAttribute('data-id')] = true; });
     missesEl.innerHTML = '';
@@ -501,6 +526,7 @@
   // Forecasts are authored by Claude. The browser only counts and formats schedule facts.
   function renderSummary(groups, all, now) {
     renderEditorial(now);
+    document.getElementById('period-h').textContent = TITLES[nowBucketName(now)];
     function para(host, text, label) {
       var p = document.createElement('p');
       if (label) { var b = document.createElement('b'); b.textContent = label + ': '; p.appendChild(b); }
@@ -587,9 +613,9 @@
       host.appendChild(span);
     });
   }
-  function editorialItem(item) {
+  function editorialItem(item, inline) {
     var refs = referencedRows(item);
-    var el = document.createElement('div'); el.className = 'editorial-item';
+    var el = document.createElement(inline ? 'span' : 'div'); el.className = 'editorial-item';
     el.setAttribute('data-matches', refs.map(function (r) { return r.getAttribute('data-id'); }).join(' '));
     var text = document.createElement('span'); text.className = 'editorial-item__text';
     appendEditorialText(text, item.segments); el.appendChild(text);
@@ -614,6 +640,7 @@
       if (filtered) t.title = 'Excluded by your filters';
       tags.appendChild(t);
     });
+    if (inline) return { text: el, tags: tags };
     el.appendChild(tags);
     var links = sourceLinks(item.sources, 3);
     if (links.childNodes.length) { var src = document.createElement('span'); src.className = 'story-src'; src.appendChild(links); el.appendChild(src); }
@@ -631,7 +658,6 @@
       if (hasNear) return near(item);
       return s && s.later_reason && refs.length && refs.every(function (r) { return r._state !== 'post' && r._k >= now + FOCUS_MS; });
     }
-    var leadCount = lead.length;
     lead = lead.filter(relevant); forecast = forecast.filter(relevant);
     storyEl.hidden = !lead.length; forecastEl.hidden = !forecast.length;
     rows.forEach(function (r) {
@@ -639,13 +665,22 @@
       if (note) note.hidden = !editorialPasses(r) || r._state === 'post' || (r._state !== 'in' && r._k < now);
     });
     var lede = document.getElementById('story-lede'); lede.innerHTML = '';
-    lead.forEach(function (item) { lede.appendChild(editorialItem(item)); });
-    var heading = document.getElementById('story-h'); heading.innerHTML = '';
-    var headline = s && { segments: s.headline_segments };
-    var headRefs = referencedRows(headline);
-    heading.hidden = !lead.length || lead.length !== leadCount || !headRefs.length || !headRefs.every(function (r) { return lead.some(function (item) { return referencedRows(item).indexOf(r) >= 0; }); });
-    if (!heading.hidden) appendEditorialText(heading, s.headline_segments);
-    storyEl.querySelector('.story__eyebrow').textContent = hasNear ? 'Storylines · Next 24 hours' : 'Storylines · Further ahead';
+    var tags = document.getElementById('story-tags'); tags.innerHTML = '';
+    var tagKeys = {}, sources = [];
+    lead.forEach(function (item, i) {
+      var rendered = editorialItem(item, true);
+      if (i) lede.appendChild(document.createTextNode(' '));
+      lede.appendChild(rendered.text);
+      Array.prototype.forEach.call(rendered.tags.children, function (tag) {
+        var key = tag.getAttribute('data-kind') + ':' + tag.getAttribute('data-key');
+        if (!tagKeys[key]) { tags.appendChild(tag.cloneNode(true)); tagKeys[key] = true; }
+      });
+      (item.sources || []).forEach(function (source) { if (!sources.some(function (s) { return s.url === source.url; })) sources.push(source); });
+    });
+    document.getElementById('story-h').textContent = hasNear ? 'Storyline' : 'Storyline · Further ahead';
+    var storyBy = document.getElementById('story-by'); storyBy.textContent = 'Researched and written by Claude';
+    var links = sourceLinks(sources, 4);
+    if (links.childNodes.length) { storyBy.appendChild(document.createTextNode(' · ')); storyBy.appendChild(links); }
     forecastEl.innerHTML = '';
     forecast.forEach(function (item) { forecastEl.appendChild(editorialItem(item)); });
     if (forecast.length) {
@@ -663,15 +698,7 @@
     clearStory(true);
     var notes = {};
     Object.keys(s.notes || {}).forEach(function (id) { var n = s.notes[id]; if (n && typeof n.note === 'string' && n.note) notes[id] = n; });
-    STORY = { notes: notes, s: s, written: written };
-    document.getElementById('story-h').textContent = s.headline;
-    var by = document.getElementById('story-by'); by.textContent = '';
-    var t = splitTime(new Date(written));
-    by.appendChild(document.createTextNode('Researched on the web and written by Claude at ' + t.t + ' ' + t.ap + ' ' + fmtShortDay.format(new Date(written)) + '. It can be wrong; check the sources'));
-    var links = sourceLinks(s.sources, 6);
-    if (links.childNodes.length) { by.appendChild(document.createTextNode(': ')); by.appendChild(links); }
-    by.appendChild(document.createTextNode('.'));
-    document.getElementById('story').hidden = false;
+    STORY = { notes: notes, s: s, written: written, rankings: s.rankings && typeof s.rankings === 'object' ? s.rankings : {} };
     rows.forEach(function (r) {
       var n = notes[r.getAttribute('data-id')]; if (!n) return;
       var meta = r.querySelector('.row__meta'); if (!meta || r.querySelector('.row__story')) return;

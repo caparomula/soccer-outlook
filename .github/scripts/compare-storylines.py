@@ -37,7 +37,7 @@ def main():
     facts_path, folder = sys.argv[1], sys.argv[2]
     facts = load(facts_path) or {}
     names = {}
-    for key in ("next_24_hours", "later_if_needed"):
+    for key in ("next_24_hours", "later_if_needed", "ranking_candidates"):
         for m in facts.get(key, []):
             names[m["id"]] = f"{m['home']['name']} v {m['away']['name']}"
     runs = []
@@ -84,6 +84,13 @@ def main():
                     print(f"- *Forecast:* {item['text']} (matches: {', '.join(item['match_ids'])})")
             else:
                 print("*No forecast; the page shows schedule facts.*")
+            ratings = story.get("rankings") or {}
+            print()
+            print(f"**Ratings:** {len(ratings)} of {len(facts.get('ranking_candidates', []))} fixtures. "
+                  "Fixed standout threshold: 80/100.")
+            for mid, rating in sorted(ratings.items(), key=lambda pair: -pair[1]["score"])[:10]:
+                print(f"- **{names.get(mid, mid)}: {rating['score']}** "
+                      f"(popularity {rating['popularity']}, gameplay {rating['gameplay']}, impact {rating['impact']})")
         print()
         print("</details>")
         print()
