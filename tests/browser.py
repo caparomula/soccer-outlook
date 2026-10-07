@@ -435,7 +435,7 @@ class BrowserChecks(unittest.TestCase):
             expect(summary).to_contain_text("1 live · 5 upcoming in selected competitions")
             expect(summary).to_contain_text("5 listed on your services; 1 with unconfirmed coverage")
             expect(summary).to_contain_text("Next kickoff · 1:05 pm")
-            expect(page.locator("#forecast")).to_have_text("5 matches in the next 24 hours on your services.")
+            expect(page.locator("#forecast, #forecast-later")).to_have_count(0)
             expect(page.locator("#eyebrow")).to_have_text("Wednesday, October 7 · Next 24 hours")
             page.locator("#btn-menu").click()
             page.locator('[data-kind="comp"][data-key="eng.1"]').click()
@@ -466,18 +466,18 @@ class BrowserChecks(unittest.TestCase):
             expect(page.locator("#schedule-summary")).to_contain_text("with unconfirmed coverage")
             expect(page.locator("#outlook-body > .empty")).to_contain_text("No matches on your selected services and competitions in the next 24 hours.")
             self.assertTrue(page.locator("#outlook-body").evaluate("el => el.firstElementChild.classList.contains('empty')"))
-            expect(page.locator("#forecast .editorial-item")).to_have_count(0)
+            expect(page.locator("#forecast, #forecast-later")).to_have_count(0)
             expect(page.locator("#story")).to_be_hidden()
             expect(page.locator("#tally-n")).to_have_text("0")
             page.locator("#btn-all").click()
             for mid in ("unlisted", "unknown", "off-lineup", "usual-off-lineup"):
                 expect(page.locator(f'li.row[data-id="{mid}"]')).to_be_visible()
-            expect(page.locator("#forecast .editorial-item")).to_have_count(0)
+            expect(page.locator("#forecast, #forecast-later")).to_have_count(0)
             expect(page.locator("#story")).to_be_hidden()
             page.locator("#btn-menu").click()
             page.locator('#comp-pills [data-key="fifa.friendly.w"]').click()
             expect(page.locator('li.row[data-id="unlisted"]')).to_be_hidden()
-            expect(page.locator("#forecast .editorial-item")).to_have_count(0)
+            expect(page.locator("#forecast, #forecast-later")).to_have_count(0)
             page.locator("#btn-filters-close").click()
             page.locator("#btn-mine").click()
             expect(page.locator('li.row[data-id="unknown"]')).to_be_hidden()
@@ -497,7 +497,7 @@ class BrowserChecks(unittest.TestCase):
                 expect(next_kickoff).to_contain_text("Next kickoff · 2 pm")
                 expect(next_kickoff).to_contain_text(f"{len(leagues) - 3} more at this time")
                 self.assertNotIn("then", next_kickoff.inner_text())
-                expect(page.locator("#forecast .editorial-item")).to_have_count(0)
+                expect(page.locator("#forecast, #forecast-later")).to_have_count(0)
                 self.assertNotRegex(summary.inner_text(), r"quiet|international break|best|pick of|weekend")
 
     def test_summary_distinguishes_coverage_and_missing_data(self):
@@ -539,14 +539,16 @@ class BrowserChecks(unittest.TestCase):
                 "forecast": {"items": [item("Context for Chicago and Vancouver.", "mls"),
                                        item("Context for the Spanish match.", "spain")]}}
 
-    def test_one_section_blurb_changes_with_competitions_and_services(self):
+    def test_one_overview_changes_with_competitions_and_services(self):
         fixtures = [("mls", "2026-10-07T18:00:00+00:00", "pre", "Apple TV", "usa.1"),
                     ("spain", "2026-10-07T19:00:00+00:00", "pre", "ESPN+", "esp.1")]
         story = self.tagged_story()
         story["lede_items"] = []
+        story["league_blurbs"] = [dict(item, interest=80 - i, league_id=league)
+                                   for i, (item, league) in enumerate(zip(story["forecast"]["items"], ("usa.1", "esp.1")))]
         for width in (1280, 390):
             with self.subTest(width=width), self.page("after", html=render_page(build, fixtures=fixtures), story=story, width=width) as (page, _):
-                editorial = page.locator("#forecast")
+                editorial = page.locator("#story-lede")
                 expect(editorial.locator('.editorial-item')).to_have_count(1)
                 expect(editorial).to_contain_text("Context for Chicago and Vancouver.")
                 expect(editorial.locator('.editorial-tags, .editorial-tag')).to_have_count(0)
@@ -615,9 +617,9 @@ class BrowserChecks(unittest.TestCase):
                 expect(page.locator("#nextup")).to_be_hidden()
                 expect(page.locator("#schedule-summary")).to_be_hidden()
                 expect(page.locator("#schedule-info")).not_to_have_attribute("open", "")
-                # The second section does not repeat the opening's fixture coverage.
-                expect(page.locator("#forecast .editorial-item")).to_have_count(0)
-                self.assertEqual(page.locator("#forecast").evaluate("el => el.nextElementSibling.querySelector('h2').id"), "outlook-h")
+                # Schedule sections have no independent prose or factual intro.
+                expect(page.locator("#forecast, #forecast-later")).to_have_count(0)
+                self.assertEqual(page.locator("#outlook").evaluate("el => el.firstElementChild.querySelector('h2').id"), "outlook-h")
                 hero = page.locator("#picks .pick").first.bounding_box()
                 self.assertLess(hero["y"] + hero["height"], page.viewport_size["height"])
                 page.screenshot(path=str(self.artifacts / f"compact-opening-{width}.png"), full_page=True)
@@ -737,20 +739,40 @@ class BrowserChecks(unittest.TestCase):
         story["rankings"] = {mid: dict(score=score, blurb=f"Specific context for {mid}.", sources=[{"url": "https://example.com/report"}])
                              for mid, score in (("upcoming", 80), ("live-second", 80.5), ("mls", 90), ("future", 70), ("fourth", 40))}
         story['rankings']['live-second']['blurb'] = 'A longer match preview with team news and recent form, demonstrating that every card keeps its color bar aligned even when the commentary takes several more lines than its neighboring cards.'
-        for width in (1280, 390):
+        for width in (1280, 820, 390, 320):
             with self.subTest(width=width), self.page("after", width=width, html=render_page(build, fixtures=fixtures, league_logos=True), story=story) as (page, feed):
                 expect(page.locator('#nextup')).to_have_attribute('data-match-id', 'upcoming')
                 expect(page.locator('#nextup-status')).to_contain_text('Live now')
                 expect(page.locator('#nextup-rating')).to_have_text('Pick score · 84/100')
                 self.assertEqual(page.locator('#picks .pick').evaluate_all('els => els.map(e => e.dataset.matchId)'), ['mls', 'live-second', 'future'])
-                expect(page.locator('#picks .pick__story')).to_have_count(3)
-                expect(page.locator('#picks .pick__sources a')).to_have_count(3)
+                expect(page.locator('#picks .row__story')).to_have_count(3)
+                expect(page.locator('#picks .story-src a')).to_have_count(3)
                 expect(page.locator('#picks .pick__league')).to_have_count(3)
+                # The same match body must retain every field in both featured shapes.
+                for card in page.locator('#nextup, #picks .pick').all():
+                    mid = card.get_attribute('data-match-id')
+                    row = page.locator(f'li.row[data-id="{mid}"]')
+                    for selector in ('.row__teams', '.row__meta', '.row__story', '.row__detail', '.pills'):
+                        self.assertEqual(card.locator(selector).text_content(), row.locator(selector).text_content())
+                    self.assertEqual(card.locator('.form').evaluate_all('els => els.map(e => [e.title, e.innerHTML])'),
+                                     row.locator('.form').evaluate_all('els => els.map(e => [e.title, e.innerHTML])'))
+                    expect(card.locator('.form')).to_have_count(2)
+                    expect(card.locator('.form .f')).to_have_count(10)
+                    expect(card.locator('.venue')).to_have_text('Fixture Stadium')
+                    if row.get_attribute('data-state') == 'pre':
+                        expect(card.locator('.row__until')).to_be_visible()
+                        expect(card.locator('.row__until')).to_have_text(row.locator('.row__until').text_content())
+                    self.assertEqual(card.locator('.match__watch').text_content(), row.locator('.row__watch').text_content())
+                    card.locator('button.more').click()
+                    expect(card.locator('.row__detail')).to_be_visible()
+                    expect(row.locator('.row__detail')).to_be_hidden()
+                    card.locator('button.more').click()
+                expect(page.locator('#nextup .row__story')).to_contain_text('Specific context for upcoming.')
                 bars = []
                 for card in page.locator('#picks .pick').all():
                     rect = card.bounding_box()
                     bar = card.locator('.pick__colors').bounding_box()
-                    sources = card.locator('.pick__sources').bounding_box()
+                    sources = card.locator('.row__story').bounding_box()
                     emblem = card.locator('.pick__league').bounding_box()
                     bars.append(bar['y'])
                     self.assertAlmostEqual(rect['y'] + rect['height'] - (bar['y'] + bar['height']), 13, delta=1)
@@ -760,6 +782,19 @@ class BrowserChecks(unittest.TestCase):
                 self.assertLess(max(bars) - min(bars), 1)
                 self.assertLessEqual(page.evaluate('document.documentElement.scrollWidth'), width)
                 page.screenshot(path=str(self.artifacts / f'live-top-three-{width}.png'), full_page=True)
+                page.locator('#nextup button.more').click()
+                feed['data'] = scoreboard('in')
+                page.clock.run_for(60000)
+                expect(page.locator('#nextup .team .score')).to_have_text(['2', '1'])
+                expect(page.locator('#nextup .row__goals')).to_contain_text('A. Player')
+                expect(page.locator('#nextup .row__detail')).to_be_visible()
+                # A clock/scorer-only update also refreshes featured content and preserves details.
+                feed['data']['events'][0]['competitions'][0]['status']['displayClock'] = "64'"
+                feed['data']['events'][0]['competitions'][0]['details'][0]['athletesInvolved'][0]['shortName'] = 'Corrected Scorer'
+                page.clock.run_for(60000)
+                expect(page.locator('#nextup-status')).to_contain_text("64'")
+                expect(page.locator('#nextup .row__goals')).to_contain_text('Corrected Scorer')
+                expect(page.locator('#nextup .row__detail')).to_be_visible()
                 feed['data'] = scoreboard('post')
                 page.clock.run_for(60000)
                 expect(page.locator('#nextup')).to_have_attribute('data-match-id', 'live-second')
@@ -859,10 +894,7 @@ class BrowserChecks(unittest.TestCase):
             with self.subTest(count=count), self.page("after", html=render_page(build, fixtures=fixtures)) as (page, _):
                 fold = page.locator('details[data-b="later"]')
                 self.assertEqual(fold.evaluate('el => el.open'), count < 5)
-                if count == 0:
-                    expect(page.locator("#forecast")).to_be_hidden()
-                expect(page.locator("#forecast-later")).to_be_visible()
-                self.assertEqual(page.locator("#forecast-later").evaluate("el => el.nextElementSibling.dataset.b"), "later")
+                expect(page.locator("#forecast, #forecast-later")).to_have_count(0)
         fixtures = [("upcoming" if i == 0 else str(i), "2026-10-07T17:05:00+00:00", "pre", "ESPN+", "esp.1") for i in range(4)]
         fixtures += [("fifth", "2026-10-07T18:00:00+00:00", "pre", "Apple TV", "usa.1"),
                      ("later", "2026-10-09T18:00:00+00:00", "pre", "ESPN+", "esp.1")]
@@ -878,49 +910,49 @@ class BrowserChecks(unittest.TestCase):
             page.clock.run_for(60000)
             expect(fold).not_to_have_attribute("open", "")
 
-    def test_later_news_stays_beside_later_schedule_with_no_near_matches(self):
+    def test_later_news_stays_in_match_cards_with_one_overview(self):
         fixtures = [("main", "2026-10-09T18:00:00+00:00", "pre", "ESPN+", "esp.1"),
                     ("second", "2026-10-09T20:00:00+00:00", "pre", "Apple TV", "usa.1")]
         story = self.tagged_story()
         story["lede_items"] = [{"segments": [{"text": "Main Friday story.", "match_ids": ["main"]}], "sources": []}]
         story["forecast"]["items"] = [
-            {"segments": [{"text": "Repeated Friday coverage.", "match_ids": ["main"]}], "sources": []},
-            {"segments": [{"text": "Other Friday context.", "match_ids": ["second"]}], "sources": []}]
+            {"segments": [{"text": "Unwanted section blurb.", "match_ids": ["second"]}], "sources": []}]
+        story["rankings"] = {mid: dict(score=80, blurb=f"Match news for {mid}.", sources=[{"url": "https://example.com/report"}])
+                             for mid in ("main", "second")}
         for width in (1280, 390):
             with self.subTest(width=width), self.page("after", width=width, html=render_page(build, fixtures=fixtures), story=story) as (page, _):
-                expect(page.locator("#forecast")).to_be_hidden()
-                expect(page.locator("#forecast-later")).to_contain_text("Other Friday context.")
-                expect(page.locator("#forecast-later .editorial-item")).to_have_count(1)
-                expect(page.locator("#forecast-later")).not_to_contain_text("Repeated")
-                expect(page.locator("#period-h")).to_have_count(0)
+                expect(page.locator("#forecast, #forecast-later, #period-h")).to_have_count(0)
+                expect(page.locator("#story-lede")).to_have_text("Main Friday story.")
+                expect(page.locator("#story-h")).to_have_text("Overview · Further ahead")
+                expect(page.locator("#app")).not_to_contain_text("Unwanted section blurb")
                 expect(page.locator("#picks .pick")).to_have_count(2)
+                for mid in ("main", "second"):
+                    expect(page.locator(f'#picks [data-match-id="{mid}"] .row__story')).to_contain_text(f"Match news for {mid}.")
+                    expect(page.locator(f'li.row[data-id="{mid}"] .row__story')).to_contain_text(f"Match news for {mid}.")
                 expect(page.locator('details[data-b="later"]')).to_have_attribute("open", "")
                 page.screenshot(path=str(self.artifacts / f"empty-near-{width}.png"), full_page=True)
 
-    def test_later_editorial_is_retained_and_rolls_into_window(self):
+    def test_later_overview_is_retained_and_rolls_into_window(self):
         html = render_page(build, fixtures=[
             ("upcoming", "2026-10-07T17:05:00+00:00", "pre", "ESPN+"),
             ("usual", "2026-10-08T18:00:00+00:00", "pre", "ESPN+")])
         story = self.tagged_story()
-        story["lede_items"] = []
         near = {"segments": [{"text": "Near context.", "match_ids": ["upcoming"]}], "sources": []}
         later = {"segments": [{"text": "Later context.", "match_ids": ["usual"]}], "sources": []}
-        story["forecast"]["items"] = [near, later]
-        story["later_reason"] = "No pertinent story found sooner."
+        story["lede_items"] = [near, later]
         with self.page("after", html=html, story=story) as (page, _):
-            expect(page.locator("#forecast")).to_contain_text("Near context")
-            expect(page.locator("#forecast")).not_to_contain_text("Later context")
+            expect(page.locator("#story-lede")).to_have_text("Near context.")
             page.locator("#btn-menu").click()
             page.locator('#comp-pills [data-key="eng.1"]').click()
-            expect(page.locator("#forecast")).to_be_hidden()
-        story["forecast"]["items"] = [later]
+            expect(page.locator("#story")).to_be_hidden()
+        story["lede_items"] = [later]
         with self.page("after", html=html, story=story) as (page, _):
-            expect(page.locator("#forecast-later")).to_contain_text("Beyond 24 hours")
+            expect(page.locator("#story-h")).to_have_text("Overview · Further ahead")
+            expect(page.locator("#story-lede")).to_have_text("Later context.")
             page.evaluate("location.hash = '#at-20261007-1401'")
-            expect(page.locator("#forecast")).to_contain_text("Next 24 hours")
-        story["later_reason"] = ""
-        with self.page("after", html=html, story=story) as (page, _):
-            expect(page.locator("#forecast-later")).to_contain_text("Later context")
+            expect(page.locator("#story-h")).to_have_text("Overview")
+            expect(page.locator("#story-lede")).to_have_text("Later context.")
+            expect(page.locator("#forecast, #forecast-later")).to_have_count(0)
 
     def test_match_notes_follow_services_even_in_everything_mode(self):
         fixtures = [("peacock", "2026-10-07T18:00:00+00:00", "pre", "Peacock", "eng.1")]
@@ -929,31 +961,30 @@ class BrowserChecks(unittest.TestCase):
         with self.page("after", html=render_page(build, fixtures=fixtures), story=story) as (page, _):
             page.locator("#btn-all").click()
             expect(page.locator('li.row[data-id="peacock"]')).to_be_visible()
-            expect(page.locator('.row__story')).to_be_hidden()
+            expect(page.locator('li.row .row__story')).to_be_hidden()
             expect(page.locator('.miss__story')).to_have_count(0)
             page.locator("#btn-menu").click()
             page.locator('[data-kind="have"][data-key="peacock"]').click()
-            expect(page.locator('.row__story')).to_be_visible()
+            expect(page.locator('li.row .row__story')).to_be_visible()
 
     def test_filtering_near_news_can_reveal_available_later_fallback(self):
         fixtures = [("near", "2026-10-07T18:00:00+00:00", "pre", "Apple TV", "usa.1"),
                     ("later", "2026-10-09T18:00:00+00:00", "pre", "ESPN+", "esp.1")]
         story = self.tagged_story()
-        story["lede_items"] = []
         story["later_reason"] = "Fallback for lineups without the earlier match."
-        story["forecast"]["items"] = [
+        story["lede_items"] = [
             {"segments": [{"text": "Near match context.", "match_ids": ["near"]}], "sources": []},
             {"segments": [{"text": "Later match context.", "match_ids": ["later"]}], "sources": []}]
         with self.page("after", html=render_page(build, fixtures=fixtures), story=story) as (page, _):
-            expect(page.locator("#forecast")).to_contain_text("Near match context")
-            expect(page.locator("#forecast")).not_to_contain_text("Later match context")
+            expect(page.locator("#story-lede")).to_contain_text("Near match context")
+            expect(page.locator("#story-lede")).not_to_contain_text("Later match context")
             page.locator("#btn-menu").click()
             page.locator('[data-kind="have"][data-key="apple"]').click()
-            expect(page.locator("#forecast")).not_to_contain_text("Near match context")
-            expect(page.locator("#forecast-later")).to_contain_text("Later match context")
-            expect(page.locator("#forecast-later")).to_contain_text("Beyond 24 hours")
+            expect(page.locator("#story-lede")).not_to_contain_text("Near match context")
+            expect(page.locator("#story-lede")).to_contain_text("Later match context")
+            expect(page.locator("#story-h")).to_have_text("Overview · Further ahead")
             page.locator('[data-kind="have"][data-key="apple"]').click()
-            expect(page.locator("#forecast")).to_contain_text("Near match context")
+            expect(page.locator("#story-lede")).to_contain_text("Near match context")
 
     def test_legacy_expired_unknown_and_completed_editorial_do_not_leak(self):
         story = self.tagged_story()
@@ -964,10 +995,11 @@ class BrowserChecks(unittest.TestCase):
                 changed["forecast"] = {"label": "Old", "today": "Untagged", "ahead": "Untagged"}
             elif kind == "expired":
                 changed["focus_until"] = "2026-10-07T16:59:00Z"
+                changed["lede_items"] = [{"segments": [{"text": "Expired", "match_ids": ["upcoming"]}]}]
             else:
-                changed["forecast"]["items"] = [{"segments": [{"text": "Stale", "match_ids": ["missing" if kind == "unknown" else "finished"]}]}]
+                changed["lede_items"] = [{"segments": [{"text": "Stale", "match_ids": ["missing" if kind == "unknown" else "finished"]}]}]
             with self.subTest(kind=kind), self.page("after", story=changed) as (page, _):
-                expect(page.locator("#forecast .editorial-item")).to_have_count(0)
+                expect(page.locator("#story")).to_be_hidden()
                 expect(page.locator("#schedule-summary")).to_contain_text("1 live · 5 upcoming")
 
 

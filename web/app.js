@@ -27,6 +27,7 @@
   var FOLDED = { later: true, earlier: true, yesterday: true };
 
   rows.forEach(function (r) {
+    r._card = new MatchCard(r);
     r._k = Date.parse(r.getAttribute('data-utc'));
     r._tv = r.getAttribute('data-tv') === '1';
     r._svc = r.getAttribute('data-svc');
@@ -467,6 +468,7 @@
     rows.forEach(function (r) {
       var b = bucketOf(r, now);
       r._b = b; r.hidden = !(b && passes(r));
+      r._card.render('schedule', now);
       if (b) all[b].push(r);
       if (b && !r.hidden) groups[b].push(r);
       sig += (b || '-') + ':';
@@ -508,8 +510,6 @@
         anyUpcoming = true;
       }
       if (b === 'later') {
-        var intro = document.createElement('div'); intro.id = 'forecast-later'; intro.className = 'forecast';
-        intro.setAttribute('aria-label', 'Beyond 24 hours context'); intro.hidden = true; frag.appendChild(intro);
         var byDay = {};
         list.forEach(function (r) { var d = sportsDayStart(new Date(r._k)).toDateString(); (byDay[d] = byDay[d] || []).push(r); });
         Object.keys(byDay).forEach(function (d) {
@@ -535,8 +535,8 @@
     positionDrawer();
   }
 
-  // ---- next up: the Pit Dash countdown ---------------------------------------------------------
-  var nextupEl = document.getElementById('nextup'), nextRow = null, nextLive = false;
+  // ---- featured live match and kickoff countdowns ---------------------------------------------------------
+  var nextupEl = document.getElementById('nextup'), nextRow = null;
   function fmtCount(ms) {
     var s = Math.max(0, Math.floor(ms / 1000)), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
     if (h >= 1) return h + 'h ' + (m < 10 ? '0' : '') + m + 'm';
@@ -568,22 +568,10 @@
   }
   function renderNextup(groups, now) {
     var pool = availableUpcoming(now).filter(function (r) { return r._state === 'in' && r._b === 'live'; });
-    nextRow = pool.sort(byRating)[0] || null; nextLive = !!nextRow;
+    nextRow = pool.sort(byRating)[0] || null;
     nextupEl.hidden = !nextRow;
     if (!nextRow) { nextupEl.removeAttribute('data-match-id'); return; }
-    nextupEl.setAttribute('data-match-id', nextRow.getAttribute('data-id'));
-    var rating = ratingOf(nextRow), label = document.getElementById('nextup-rating');
-    label.hidden = !rating;
-    label.textContent = rating ? 'Pick score · ' + blendedScore(nextRow) + '/100' : '';
-    if (rating) label.title = scoreDetails(nextRow);
-    nextupEl.classList.toggle('nextup--live', nextLive);
-    var m = document.getElementById('nextup-match'); m.innerHTML = '';
-    m.appendChild(logoClone(nextRow, 0, 'logo'));
-    var names = document.createElement('span'); names.className = 'nextup__names'; names.textContent = matchName(nextRow); m.appendChild(names);
-    m.appendChild(logoClone(nextRow, 1, 'logo'));
-    var meta = document.createElement('span'); meta.className = 'nextup__meta'; meta.textContent = nextRow.getAttribute('data-comp') + ' \u00b7 ' + (nextRow._tv ? proseTime(nextRow) + dayTag(nextRow, now) : 'time TBD'); m.appendChild(meta);
-    var svc = document.createElement('span'); svc.className = 'nextup__svc svc-' + nextRow._svc; svc.innerHTML = '<i class="dot"></i>';
-    svc.appendChild(document.createTextNode(summaryOutlet(nextRow))); m.appendChild(svc);
+    nextRow._card.render('live', now, nextupEl);
     tickNextup();
   }
   function tickNextup() {
@@ -593,13 +581,8 @@
       document.getElementById('nextup-status').textContent = 'Live now' + (clk ? ' · ' + clk : '');
       document.getElementById('nextup-count').textContent = sc || 'In progress';
     }
-    // Per-row countdowns for today's upcoming matches.
-    rows.forEach(function (r) {
-      var el = r.querySelector('.row__until'); if (!el) return;
-      var d = r._k - now;
-      var show = r._tv && r._state === 'pre' && d > 0 && d < 12 * 3600000 && r._b && r._b !== 'live';
-      el.hidden = !show; if (show) el.textContent = 'in ' + fmtCount(d);
-    });
+    rows.forEach(function (r) { r._card.tick(r, now); });
+    picksEl.querySelectorAll('.pick').forEach(function (card) { card._matchCard.tick(card, now); });
   }
   setInterval(tickNextup, 1000);
 
@@ -610,6 +593,8 @@
       var host = btn.closest('.row__body, .miss'); if (!host) return;
       var panel = host.querySelector('.row__detail'); if (!panel) return;
       panel.hidden = !panel.hidden; btn.setAttribute('aria-expanded', String(!panel.hidden)); btn.textContent = panel.hidden ? 'Details' : 'Hide details';
+      var card = btn.closest('[data-match-role]');
+      if (card && card._matchCard) card._matchCard.details[card.dataset.matchRole] = !panel.hidden;
       return;
     }
     var tl = ev.target.closest('a.detail__table');
@@ -646,41 +631,109 @@
     picksEl.innerHTML = '';
     document.getElementById('picks-h').textContent = chosen.length === 3 ? 'Top three' : chosen.length === 2 ? 'Top two' : 'Top pick';
     document.getElementById('picks-sub').textContent = 'Next 24 hours first · match interest + league priority';
-    chosen.forEach(function (r) {
-      var a = document.createElement('article'); a.className = 'pick svc-' + r._svc; a._row = r;
-      a.setAttribute('data-match-id', r.getAttribute('data-id'));
-      var emblem = r.querySelector('.row__league .lg');
-      if (emblem) { var leagueLogo = emblem.cloneNode(true); leagueLogo.classList.add('pick__league'); leagueLogo.title = r.getAttribute('data-comp'); a.appendChild(leagueLogo); }
-      var rating = ratingOf(r), ratingLabel = document.createElement('div'); ratingLabel.className = 'pick__rating';
-      ratingLabel.textContent = rating ? 'Pick score · ' + blendedScore(r) + '/100' : 'Upcoming';
-      if (rating) ratingLabel.title = scoreDetails(r); a.appendChild(ratingLabel);
-      var when = document.createElement('div'); when.className = 'pick__when';
-      when.innerHTML = '<span class="t"></span><span class="ap"></span>';
-      setPickWhen(when, r, now);
-      var teams = document.createElement('div'); teams.className = 'pick__teams';
-      teams.appendChild(logoClone(r, 0, 'logo logo--lg')); var vs = document.createElement('span'); vs.className = 'pick__vs'; vs.textContent = 'v'; teams.appendChild(vs); teams.appendChild(logoClone(r, 1, 'logo logo--lg'));
-      var names = document.createElement('div'); names.className = 'pick__names';
-      var link = document.createElement('a'); link.href = '#outlook'; link.textContent = matchName(r); names.appendChild(link);
-      link.addEventListener('click', function (ev) { ev.preventDefault(); var fold = r.closest('details.fold'); if (fold) fold.open = true; r.scrollIntoView({ block: 'center' }); });
-      var subs = Array.prototype.map.call(r.querySelectorAll('.team'), function (t) { var x = t.querySelector('.team__sub'); return x ? x.textContent.trim() : ''; });
-      var sub = null;
-      if (subs.some(Boolean)) { sub = document.createElement('div'); sub.className = 'pick__sub'; sub.textContent = (subs[0] || '\u2013') + ' v ' + (subs[1] || '\u2013'); }
-      var comp = document.createElement('div'); comp.className = 'pick__comp'; comp.textContent = r.getAttribute('data-comp');
-      var colors = document.createElement('div'); colors.className = 'pick__colors';
-      [r.getAttribute('data-hc'), r.getAttribute('data-ac')].forEach(function (c) { var i = document.createElement('i'); i.style.background = /^[0-9a-f]{6}$/.test(c || '') ? '#' + c : 'var(--line-strong)'; colors.appendChild(i); });
-      var svc = document.createElement('div'); svc.className = 'pick__svc'; svc.innerHTML = '<i class="dot"></i>';
-      var outlet = r.getAttribute('data-outlet'), sname = SERVICE_NAMES[r._svc] || r._svc;
-      svc.appendChild(document.createTextNode(SHORT[r._svc] ? outlet + ' · ' + SHORT[r._svc] : sname + (outlet && outlet !== sname ? ' · ' + outlet : '') + (r.getAttribute('data-basis') === 'rule' ? ' (usually)' : '')));
-      a.appendChild(when); a.appendChild(teams); a.appendChild(names); if (sub) a.appendChild(sub); a.appendChild(comp); a.appendChild(svc);
-      var pn = matchBlurb(r);
-      if (pn) {
-        var ps = document.createElement('div'); ps.className = 'pick__story'; ps.textContent = pn.note; a.appendChild(ps);
-        var sources = document.createElement('div'); sources.className = 'pick__sources'; sources.appendChild(sourceLinks(pn.sources, 2)); a.appendChild(sources);
-      }
-      a.appendChild(colors);
-      picksEl.appendChild(a);
-    });
+    chosen.forEach(function (r) { picksEl.appendChild(r._card.render('pick', now)); });
   }
+
+  // One match owns all three views. The generated schedule body is the canonical template:
+  // clone it intact so forms, scores, venue, news, outlets and details cannot drift between roles.
+  // The static row remains useful before JavaScript runs; live ESPN updates also land there.
+  function MatchCard(row) {
+    this.row = row;
+    this.details = {};
+    this.newsSignature = '';
+  }
+  MatchCard.prototype.tick = function (host, now) {
+    var r = this.row, el = host.querySelector('.row__until'); if (!el) return;
+    var d = r._k - now;
+    var show = r._tv && r._state === 'pre' && d > 0 && d < 12 * 3600000 && r._b && r._b !== 'live';
+    el.hidden = !show; if (show) el.textContent = 'in ' + fmtCount(d);
+  };
+  MatchCard.prototype.renderNews = function (now) {
+    var r = this.row, note = matchBlurb(r), existing = r.querySelector('.row__story');
+    if (!note) { if (existing) existing.remove(); this.newsSignature = ''; return; }
+    var signature = JSON.stringify(note);
+    if (!existing || signature !== this.newsSignature) {
+      if (existing) existing.remove();
+      existing = storyLine(note, 'row__story');
+      var meta = r.querySelector('.row__meta'); meta.after(existing);
+      this.newsSignature = signature;
+    }
+    existing.hidden = !editorialPasses(r) || r._state === 'post' || (r._state !== 'in' && r._k < now);
+  };
+  MatchCard.prototype.render = function (role, now, host) {
+    var r = this.row;
+    this.renderNews(now);
+    if (role === 'schedule') {
+      r.dataset.matchRole = role; r._matchCard = this; this.tick(r, now);
+      return r;
+    }
+    host = host || document.createElement('article');
+    host.className = (role === 'live' ? 'nextup nextup--live' : 'pick') + ' svc-' + r._svc;
+    host.dataset.matchRole = role; host.dataset.matchId = r.getAttribute('data-id');
+    host._row = r; host._matchCard = this; host.replaceChildren();
+    var emblem = r.querySelector('.row__league .lg');
+    if (emblem) {
+      var badge = emblem.cloneNode(true); badge.classList.add('match__league');
+      if (role === 'pick') badge.classList.add('pick__league');
+      badge.title = r.getAttribute('data-comp'); host.appendChild(badge);
+    }
+    var head = document.createElement('div'); head.className = role === 'live' ? 'nextup__left' : 'pick__head';
+    var rating = ratingOf(r), label = document.createElement('div');
+    label.className = role === 'live' ? 'nextup__rating' : 'pick__rating';
+    label.textContent = rating ? 'Pick score · ' + blendedScore(r) + '/100' : 'Upcoming';
+    if (rating) label.title = scoreDetails(r);
+    head.appendChild(label);
+    if (role === 'live') {
+      label.id = 'nextup-rating'; label.hidden = !rating;
+      var status = document.createElement('div'); status.className = 'nextup__status'; status.id = 'nextup-status';
+      status.textContent = 'Live now' + (clockOf(r) ? ' · ' + clockOf(r) : '');
+      var score = document.createElement('div'); score.className = 'nextup__count'; score.id = 'nextup-count';
+      score.textContent = scoreOf(r) || 'In progress'; head.appendChild(status); head.appendChild(score);
+    } else {
+      var when = document.createElement('div'); when.className = 'pick__when';
+      when.innerHTML = '<span class="t"></span><span class="ap"></span>'; setPickWhen(when, r, now); head.appendChild(when);
+      head.appendChild(r.querySelector('.row__until').cloneNode(true));
+    }
+    if (r._state === 'in' || showET) {
+      var kickoff = document.createElement('div'); kickoff.className = 'match__kickoff';
+      kickoff.textContent = (r._state === 'in' ? 'Kickoff ' + timeLabel(r) + dayTag(r, now) : '') +
+        (showET && r._tv ? (r._state === 'in' ? ' · ' : '') + fmtET.format(new Date(r._k)) + ' ET' : '');
+      head.appendChild(kickoff);
+    }
+    host.appendChild(head);
+    var content = r.querySelector('.row__body').cloneNode(true);
+    content.classList.add('match__body');
+    if (role === 'live') content.id = 'nextup-match';
+    content.querySelectorAll('.team__name').forEach(function (name) {
+      var link = document.createElement('a'); link.href = '#outlook'; link.textContent = name.textContent;
+      link.addEventListener('click', function (ev) {
+        ev.preventDefault(); var fold = r.closest('details.fold'); if (fold) fold.open = true;
+        r.scrollIntoView({ block: 'center' });
+      });
+      name.replaceChildren(link);
+    });
+    var panel = content.querySelector('.row__detail'), button = content.querySelector('button.more');
+    if (panel && button) {
+      panel.hidden = !this.details[role]; button.setAttribute('aria-expanded', String(!panel.hidden));
+      button.textContent = panel.hidden ? 'Details' : 'Hide details';
+    }
+    var watch = r.querySelector('.row__watch');
+    if (watch) {
+      var service = watch.cloneNode(true); service.className = 'match__watch';
+      content.insertBefore(service, content.querySelector('.pills'));
+    }
+    host.appendChild(content);
+    if (role === 'pick') {
+      var colors = document.createElement('div'); colors.className = 'pick__colors'; colors.setAttribute('aria-hidden', 'true');
+      [r.getAttribute('data-hc'), r.getAttribute('data-ac')].forEach(function (c) {
+        var bar = document.createElement('i'); bar.style.background = /^[0-9a-f]{6}$/.test(c || '') ? '#' + c : 'var(--line-strong)'; colors.appendChild(bar);
+      });
+      host.appendChild(colors);
+    }
+    this.tick(host, now);
+    return host;
+  };
+
   function matchBlurb(r) {
     var rating = ratingOf(r), note = STORY.notes[r.getAttribute('data-id')];
     if (rating && rating.blurb) return { note: rating.blurb, sources: rating.sources || [] };
@@ -741,7 +794,7 @@
     });
   }
 
-  // ---- schedule facts and the separately authored forecast -------------------------------------
+  // ---- schedule facts and the authored overview -----------------------------------------------
   function onSvc(r) { return r._svc !== 'none'; }
   function byTime(a, c) { return a._k - c._k; }
   function matchName(r) { return r.getAttribute('data-home') + ' v ' + r.getAttribute('data-away'); }
@@ -810,7 +863,7 @@
     return lines;
   }
 
-  // Forecasts are authored by Claude. The browser only counts and formats schedule facts.
+  // The overview is authored by Claude. The browser only counts and formats schedule facts.
   function renderSummary(groups, all, now) {
     renderEditorial(now);
     function para(host, text, label) {
@@ -821,7 +874,7 @@
     var summary = document.getElementById('schedule-summary'); summary.innerHTML = '';
     composeSchedule(all, now).forEach(function (line) { para(summary, line.text, line.label); });
     if (app.getAttribute('data-incomplete') === '1') {
-      para(summary, 'Some fixtures may be missing because ESPN did not answer every request.').className = 'forecast__by';
+      para(summary, 'Some fixtures may be missing because ESPN did not answer every request.').className = 'schedule-summary__note';
     }
     document.getElementById('eyebrow').textContent = fmtDay.format(new Date(now)) + ' · Next 24 hours';
     var up = upcoming(groups).filter(function (r) { return inFocus(r, now); }), on = up.filter(onSvc);
@@ -899,22 +952,17 @@
       host.appendChild(span);
     });
   }
-  function editorialItem(item, inline) {
+  function editorialItem(item) {
     var refs = referencedRows(item);
-    var el = document.createElement(inline ? 'span' : 'div'); el.className = 'editorial-item';
+    var el = document.createElement('span'); el.className = 'editorial-item';
     el.setAttribute('data-matches', refs.map(function (r) { return r.getAttribute('data-id'); }).join(' '));
     var text = document.createElement('span'); text.className = 'editorial-item__text';
     appendEditorialText(text, item.segments); el.appendChild(text);
-    if (inline) return el;
-    var links = sourceLinks(item.sources, 3);
-    if (links.childNodes.length) { var src = document.createElement('span'); src.className = 'story-src'; src.appendChild(links); el.appendChild(src); }
     return el;
   }
   function renderEditorial(now) {
-    var s = STORY.s, storyEl = document.getElementById('story'), forecastEl = document.getElementById('forecast');
+    var s = STORY.s, storyEl = document.getElementById('story');
     var lead = s && Array.isArray(s.lede_items) ? s.lede_items : [];
-    var forecast = s && s.forecast && Array.isArray(s.forecast.items) ? s.forecast.items : [];
-    var legacyLead = lead.slice();
     function eligible(item) {
       var refs = referencedRows(item);
       return refs.some(editorialPasses) && refs.every(function (r) { return r._state !== 'post' && (r._k >= now || inFocus(r, now)); });
@@ -926,7 +974,6 @@
     var blurbs = s && Array.isArray(s.league_blurbs) ? s.league_blurbs.filter(function (item) {
       return typeof item.interest === 'number' && item.interest >= 0 && item.interest <= 100 && eligible(item);
     }) : [];
-    var allBlurbs = blurbs.slice();
     lead = lead.filter(eligible);
     var todayLead = lead.filter(function (item) { return referencedRows(item).some(function (r) { return editorialPasses(r) && (r._state === 'in' || localYmd(r._k) === localYmd(now)); }); });
     var nearLead = lead.filter(near);
@@ -942,16 +989,11 @@
       lead = blurbs.length ? [blurbs[0]] : lead;
     }
     var hasNear = lead.some(near);
-    forecast = forecast.filter(eligible);
     storyEl.hidden = !lead.length;
-    rows.forEach(function (r) {
-      var note = r.querySelector('.row__story');
-      if (note) note.hidden = !editorialPasses(r) || r._state === 'post' || (r._state !== 'in' && r._k < now);
-    });
     var lede = document.getElementById('story-lede'); lede.innerHTML = '';
     var sources = [];
     lead.forEach(function (item, i) {
-      var rendered = editorialItem(item, true);
+      var rendered = editorialItem(item);
       if (i) lede.appendChild(document.createTextNode(' '));
       lede.appendChild(rendered);
       (item.sources || []).forEach(function (source) { if (!sources.some(function (s) { return s.url === source.url; })) sources.push(source); });
@@ -962,46 +1004,6 @@
     var storyBy = document.getElementById('story-by'); storyBy.textContent = 'Written by Claude';
     var links = sourceLinks(sources, 4);
     if (links.childNodes.length) { storyBy.appendChild(document.createTextNode(' · ')); storyBy.appendChild(links); }
-    var leadIds = {};
-    lead.forEach(function (item) { referencedRows(item).forEach(function (r) { leadIds[r.getAttribute('data-id')] = true; }); });
-    picksEl.querySelectorAll('.pick').forEach(function (pick) { if (pick.querySelector('.pick__story')) leadIds[pick.getAttribute('data-match-id')] = true; });
-    function itemText(item) { return item.segments.map(function (part) { return part.text; }).join(''); }
-    function sectionIntro(host, later) {
-      if (!host) return;
-      host.innerHTML = ''; host.hidden = true;
-      function inWindow(r) { return later ? r._state !== 'post' && r._k >= now + FOCUS_MS : inFocus(r, now); }
-      var visible = rows.filter(function (r) { return r._b && passes(r) && inWindow(r); }).sort(byTime);
-      if (!visible.length) return;
-      function suitable(item) {
-        var refs = referencedRows(item);
-        return eligible(item) && refs.every(inWindow) && itemText(item).length <= 450 &&
-          !refs.some(function (r) { return leadIds[r.getAttribute('data-id')]; });
-      }
-      // One new paragraph per window; do not repeat the opening's match coverage.
-      var pool = forecast.filter(suitable);
-      if (!pool.length) pool = allBlurbs.concat(legacyLead).filter(suitable);
-      if (later && pool.length) {
-        var first = Math.min.apply(Math, pool.map(firstKickoff));
-        pool = pool.filter(function (item) { return firstKickoff(item) < first + FOCUS_MS; });
-      }
-      pool.sort(function (a, b) { return (b.interest || 0) - (a.interest || 0) || firstKickoff(a) - firstKickoff(b); });
-      var item = pool[0];
-      if (item) {
-        host.appendChild(editorialItem(item));
-        var by = document.createElement('p'); by.className = 'forecast__by';
-        by.textContent = 'Forecast by Claude · ' + (later ? 'Beyond 24 hours' : 'Next 24 hours'); host.appendChild(by);
-      } else {
-        // A concise schedule fact covers a window without adding invented editorial copy.
-        var p = document.createElement('p');
-        p.textContent = matchCount(visible.length) + (later ? ' further ahead' : ' in the next 24 hours') +
-          (mode === 'mine' ? ' on your services.' : ' in the selected competitions.');
-        host.appendChild(p);
-      }
-      host.hidden = false;
-    }
-    sectionIntro(forecastEl, false);
-    sectionIntro(document.getElementById('forecast-later'), true);
-
   }
   function applyStory(s) {
     if (!s || s.version !== 1 || typeof s.headline !== 'string' || typeof s.lede !== 'string') return;
@@ -1013,15 +1015,10 @@
     Object.keys(s.notes || {}).forEach(function (id) { var n = s.notes[id]; if (n && typeof n.note === 'string' && n.note) notes[id] = n; });
     STORY = { notes: notes, s: s, written: written, rankings: s.rankings && typeof s.rankings === 'object' ? s.rankings : {} };
     renderLeagueOrder();
-    rows.forEach(function (r) {
-      var n = notes[r.getAttribute('data-id')]; if (!n) return;
-      var meta = r.querySelector('.row__meta'); if (!meta || r.querySelector('.row__story')) return;
-      meta.parentNode.insertBefore(storyLine(n, 'row__story'), meta.nextSibling);
-    });
     render(true);
   }
   // Takes the story down: the section, the notes under the rows, and (at the next render) the notes
-  // on the cards and Claude's forecast.
+  // on the cards and Claude's overview.
   function clearStory(quiet) {
     if (!STORY.s) return;
     STORY = { notes: {} };
@@ -1143,9 +1140,11 @@
     if (s && s.textContent !== status) { s.textContent = status; s.hidden = !status; changed.clock = true; }
     // Replace the scorers only with a list, or with nothing at 0-0: a feed that has the score but not
     // yet the scorer shouldn't wipe the scorers the page was built with.
-    var goals = played ? liveGoals(comp, side) : [], g = r.querySelector('.row__goals');
+    var goals = played ? liveGoals(comp, side) : [], g = r.querySelector('.row__goals'), beforeGoals = g ? g.textContent : '';
     if (goals.length) setGoals(r, goals);
     else if (g && (!played || vals[0] === '0' && vals[1] === '0')) g.parentNode.removeChild(g);
+    g = r.querySelector('.row__goals');
+    if ((g ? g.textContent : '') !== beforeGoals) changed.goals = true;
   }
   function showLiveNote() {
     var el = document.getElementById('livenote');
@@ -1158,7 +1157,9 @@
   }
   function refreshLiveText() {
     var now = nowMs();
-    picksEl.querySelectorAll('.pick').forEach(function (a) { var w = a.querySelector('.pick__when'); if (a._row && w) setPickWhen(w, a._row, now); });
+    if (nextRow) nextRow._card.render('live', now, nextupEl);
+    picksEl.querySelectorAll('.pick').forEach(function (a) { if (a._row) a._row._card.render('pick', now, a); });
+    watchIcons();
     missesEl.querySelectorAll('.miss').forEach(function (d) { var t = d.querySelector('.miss__time'); if (d._row && t) t.textContent = missTime(d._row, now); });
   }
   function pollLive() {
@@ -1192,7 +1193,7 @@
       else { LIVE.fails++; LIVE.nextAt = Date.now() + Math.min(LIVE.everyMs * Math.pow(2, LIVE.fails), 10 * 60000) - 2000; }
       showLiveNote();
       if (changed.state || changed.score) render(true);
-      else if (changed.clock) { render(false); refreshLiveText(); }
+      else if (changed.clock || changed.goals) { render(false); refreshLiveText(); }
     });
   }
 
