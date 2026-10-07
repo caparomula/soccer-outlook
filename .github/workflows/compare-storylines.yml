@@ -52,4 +52,5 @@ jobs:
               --out "work/compare/${label}.json" --usage-out "work/compare/${label}.usage.json" || true
             echo "::endgroup::"
           done
-          python3 .github/scripts/compare-storylines.py work/facts.json work/compare >> "$GITHUB_STEP_SUMMARY"
+          # To the run's page, and to its log, which the API can read where it can't read the page.
+          python3 .github/scripts/compare-storylines.py work/facts.json work/compare | tee -a "$GITHUB_STEP_SUMMARY"
