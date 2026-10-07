@@ -194,14 +194,34 @@ class Rankings(unittest.TestCase):
                 result = story.clean_rankings([bad, good, dict(good, popularity=1)], {"ranking_candidates": [{"id": "1"}]})
                 self.assertEqual(result, {"1": {"popularity": 80, "gameplay": 70, "impact": 90, "score": 80.5}})
 
+    def test_match_blurbs_require_known_fixture_sources_and_fit_the_card(self):
+        url = 'https://www.espn.com/soccer/match/_/gameId/1'
+        facts = {'ranking_candidates': [{'id': '1', 'source_url': url}]}
+        rating = self.rating(blurb='The leaders face a side unbeaten in five.', sources=[url])
+        result = story.clean_story(raw_story(ranked_matches=[rating]), facts, {})
+        self.assertEqual(result['rankings']['1']['blurb'], rating['blurb'])
+        self.assertEqual(result['match_blurb_coverage'], {'written': 1, 'total': 1})
+        self.assertIn(story.url_key(url), story.earlier_sources(result))
+        for bad in (dict(rating, sources=[SOURCE]), dict(rating, blurb='x' * 261), dict(rating, blurb=' ')):
+            with self.subTest(bad=bad):
+                result = story.clean_story(raw_story(ranked_matches=[bad]), facts, {})
+                self.assertNotIn('blurb', result['rankings']['1'])
+                self.assertEqual(result['rankings']['1']['score'], 80.5)
+
+    def test_league_order_preserves_only_known_unique_ids(self):
+        result = story.clean_story(raw_story(league_order=['esp.1', 'fake', None, 'eng.1', 'esp.1']),
+                                   dict(FACTS, leagues=[{'league_id': 'eng.1'}, {'league_id': 'esp.1'}]), SEEN)
+        self.assertEqual(result['league_order'], ['esp.1', 'eng.1'])
+
     def test_incomplete_model_response_requests_complete_ratings_once(self):
-        facts = dict(FACTS, ranking_candidates=[{"id": "1"}, {"id": "2"}],
+        url = 'https://www.espn.com/soccer/match/_/gameId/1'
+        facts = dict(FACTS, ranking_candidates=[{"id": "1", "source_url": url}, {"id": "2"}],
                      built_at="2026-10-07T17:00:00Z", weekday="Wednesday", date="2026-10-07", owner_services=["ESPN"])
         sdk = MagicMock()
         stream = sdk.Anthropic.return_value.beta.messages.stream
         replies = []
-        for ratings in ([self.rating()], [self.rating(), self.rating("2")]):
-            raw = raw_story(ranked_matches=ratings, lede_items=[], notes=[], forecast={"items": []})
+        for ratings in ([self.rating()], [self.rating(blurb='A useful matchup.', sources=[url]), self.rating("2", blurb='Another useful matchup.', sources=[url])]):
+            raw = raw_story(ranked_matches=ratings, lede_items=[item(sources=[url])], notes=[], forecast={"items": []})
             call = SimpleNamespace(type="tool_use", name="publish_story", id="publish", input=raw)
             replies.append(SimpleNamespace(model="test-model", usage=SimpleNamespace(input_tokens=1, output_tokens=1),
                                            content=[call], stop_reason="tool_use"))
@@ -210,11 +230,13 @@ class Rankings(unittest.TestCase):
         with patch.dict(sys.modules, {"anthropic": sdk}):
             result, _ = story.write_story(facts, "test-model", "medium", "full", None, totals)
         self.assertEqual(result["ranking_coverage"], {"rated": 2, "total": 2})
+        self.assertEqual(result["match_blurb_coverage"], {"written": 2, "total": 2})
         self.assertEqual(stream.call_count, 2)
         retry = stream.call_args.kwargs["messages"][-1]["content"][0]
         self.assertTrue(retry["is_error"])
         self.assertEqual(retry["tool_use_id"], "publish")
         self.assertIn("IDs: 2", retry["content"])
+        self.assertIn("Missing/invalid match blurbs: 1, 2", retry["content"])
 
 
 class LeagueBlurbs(unittest.TestCase):

@@ -3,7 +3,7 @@
   var DAY_START = 4;                 // a sports day runs 4 am to 4 am local time
   var FOCUS_MS = 24 * 60 * 60000;
   var LIVE_MS = 125 * 60000;
-  var LS = { mode: 'ssg2-mode', comp: 'ssg2-comp-off' };
+  var LS = { mode: 'ssg2-mode', comp: 'ssg2-comp-off', priority: 'ssg4-league-order' };
   var app = document.getElementById('app');
   var body = document.getElementById('outlook-body');
   var rows = Array.prototype.slice.call(document.querySelectorAll('li.row'));
@@ -52,6 +52,32 @@
   var storedComp = read(LS.comp);
   if (storedComp) { storedComp.forEach(function (k) { compOff[k] = true; }); }
   else { drawer.querySelectorAll('[data-kind="comp"][data-default-off="1"]').forEach(function (b) { compOff[b.getAttribute('data-key')] = true; }); }
+  var storedPriority = read(LS.priority);
+  var leagueNames = SERVICES.leagues || {};
+  function leagueOrder() {
+    var base = Object.keys(leagueNames), order = [];
+    var preferred = Array.isArray(storedPriority) ? storedPriority : (STORY && STORY.s && STORY.s.league_order || []);
+    preferred.concat(base).forEach(function (id) { if (base.indexOf(id) >= 0 && order.indexOf(id) < 0) order.push(id); });
+    return order;
+  }
+  function renderLeagueOrder() {
+    var list = document.getElementById('league-order'), order = leagueOrder();
+    if (list.getAttribute('data-order') === order.join(',')) return;
+    list.setAttribute('data-order', order.join(',')); list.innerHTML = '';
+    order.forEach(function (id, i) {
+      var li = document.createElement('li'); li.setAttribute('data-league', id);
+      var name = document.createElement('span'); name.className = 'league-priority__name'; name.textContent = (i + 1) + '. ' + leagueNames[id]; li.appendChild(name);
+      [-1, 1].forEach(function (direction) {
+        var b = document.createElement('button'); b.type = 'button'; b.className = 'fbtn';
+        b.setAttribute('data-move-league', id); b.setAttribute('data-direction', direction);
+        b.setAttribute('aria-label', 'Move ' + leagueNames[id] + (direction < 0 ? ' up' : ' down'));
+        b.textContent = direction < 0 ? '↑' : '↓'; b.disabled = direction < 0 ? i === 0 : i === order.length - 1; li.appendChild(b);
+      });
+      list.appendChild(li);
+      var pill = document.querySelector('#comp-pills [data-key="' + id + '"]');
+      if (pill) pill.parentNode.appendChild(pill);
+    });
+  }
 
   function firstHave(via) { var hits = via.filter(function (x) { return HAVE[x]; }); hits.sort(function (a, b) { return rankOf(a) - rankOf(b); }); return hits[0] || ''; }
   function chipFor(r) {
@@ -98,6 +124,7 @@
     return parts.join(', ');
   }
   function applyFilterUI() {
+    renderLeagueOrder();
     controls.classList.toggle('mode-mine', mode === 'mine');
     drawer.hidden = !drawerOpen; btnMenu.setAttribute('aria-expanded', String(drawerOpen));
     document.getElementById('filter-sum').textContent = filterSummary();
@@ -135,8 +162,20 @@
     else if (b.id === 'btn-reset') {
       mode = 'mine'; HAVE = {}; SERVICES.owner.forEach(function (k) { HAVE[k] = true; }); storedHave = null;
       compOff = {}; drawer.querySelectorAll('[data-kind="comp"][data-default-off="1"]').forEach(function (x) { compOff[x.getAttribute('data-key')] = true; });
-      write(LS.mode, mode); try { localStorage.removeItem(LS.comp); localStorage.removeItem('ssg3-have'); } catch (e) {}
+      storedPriority = null;
+      write(LS.mode, mode); try { localStorage.removeItem(LS.comp); localStorage.removeItem('ssg3-have'); localStorage.removeItem(LS.priority); } catch (e) {}
       evaluateAll();
+    }
+    else if (b.hasAttribute('data-move-league')) {
+      var order = leagueOrder(), index = order.indexOf(b.getAttribute('data-move-league')), direction = Number(b.getAttribute('data-direction'));
+      var target = index + direction;
+      if (index < 0 || target < 0 || target >= order.length) return;
+      order.splice(target, 0, order.splice(index, 1)[0]); storedPriority = order; write(LS.priority, order);
+      var focusLeague = b.getAttribute('data-move-league');
+      applyFilterUI(); render(true);
+      var moved = document.querySelector('#league-order [data-league="' + focusLeague + '"]');
+      moved.querySelector('button:not(:disabled)').focus({ preventScroll: true });
+      return;
     }
     else if (b.id === 'btn-clear' || b.id === 'btn-select-services') {
       HAVE = {};
@@ -218,6 +257,7 @@
   var lastSig = '', foldContext = '', foldChoices = {};
   function render(force) {
     var now = nowMs();
+    renderLeagueOrder();
     var groups = {}; ORDER.forEach(function (b) { groups[b] = []; });
     var sig = mode + '|' + Object.keys(HAVE).join(',') + '|' + Object.keys(compOff).join(',') + '|';
     var all = {}; ORDER.forEach(function (b) { all[b] = []; });
@@ -287,7 +327,7 @@
     var park = document.getElementById('park') || (function () { var p = document.createElement('div'); p.id = 'park'; p.hidden = true; document.body.appendChild(p); return p; })();
     rows.forEach(function (r) { if (!r._b) park.appendChild(r); });
     body.innerHTML = ''; body.appendChild(frag);
-    renderPicks(groups, now); renderMisses(all, now); renderLineup(all, now); renderSummary(groups, all, now); renderNextup(groups, now);
+    renderNextup(groups, now); renderPicks(groups, now); renderMisses(all, now); renderLineup(all, now); renderSummary(groups, all, now);
   }
 
   // ---- next up: the Pit Dash countdown ---------------------------------------------------------
@@ -297,33 +337,40 @@
     if (h >= 1) return h + 'h ' + (m < 10 ? '0' : '') + m + 'm';
     return m + ':' + (sec < 10 ? '0' : '') + sec;
   }
-  var STANDOUT_SCORE = 80;
   function ratingOf(r) {
     var rating = STORY.rankings && STORY.rankings[r.getAttribute('data-id')];
     return rating && typeof rating.score === 'number' && rating.score >= 0 && rating.score <= 100 ? rating : null;
   }
   function byRating(a, b) {
     var ar = ratingOf(a), br = ratingOf(b);
-    return (br ? br.score : -1) - (ar ? ar.score : -1) || byTime(a, b);
+    return (br ? blendedScore(b) : -1) - (ar ? blendedScore(a) : -1) ||
+      (br ? br.score : -1) - (ar ? ar.score : -1) || byTime(a, b);
+  }
+  function leaguePriority(r) {
+    var order = leagueOrder(), position = order.indexOf(r._lg);
+    return position < 0 ? 0 : order.length < 2 ? 100 : 100 * (order.length - 1 - position) / (order.length - 1);
+  }
+  function blendedScore(r) {
+    var rating = ratingOf(r);
+    return rating ? Math.round((rating.score * 0.8 + leaguePriority(r) * 0.2) * 10) / 10 : null;
+  }
+  function scoreDetails(r) {
+    var rating = ratingOf(r);
+    return '80% Claude interest (' + rating.score + ') + 20% league priority (' + Math.round(leaguePriority(r)) + '). ' + ratingDetails(rating);
   }
   function availableUpcoming(now) {
     return rows.filter(function (r) { return r._b && editorialPasses(r) && r._state !== 'post' && (r._k > now || r._b === 'live'); });
   }
   function renderNextup(groups, now) {
-    var available = availableUpcoming(now), pool = available.filter(function (r) { return inFocus(r, now); });
-    // If this window is empty, feature the best match in the next available 24-hour window.
-    if (!pool.length && available.length) {
-      var first = available.slice().sort(byTime)[0]._k;
-      pool = available.filter(function (r) { return r._k < first + FOCUS_MS; });
-    }
-    nextRow = pool.sort(byRating)[0] || null; nextLive = !!nextRow && nextRow._b === 'live';
+    var pool = availableUpcoming(now).filter(function (r) { return r._state === 'in' && r._b === 'live'; });
+    nextRow = pool.sort(byRating)[0] || null; nextLive = !!nextRow;
     nextupEl.hidden = !nextRow;
-    if (!nextRow) return;
+    if (!nextRow) { nextupEl.removeAttribute('data-match-id'); return; }
     nextupEl.setAttribute('data-match-id', nextRow.getAttribute('data-id'));
     var rating = ratingOf(nextRow), label = document.getElementById('nextup-rating');
     label.hidden = !rating;
-    label.textContent = rating ? 'Claude’s pick · ' + rating.score + '/100' : '';
-    if (rating) label.title = ratingDetails(rating);
+    label.textContent = rating ? 'Pick score · ' + blendedScore(nextRow) + '/100' : '';
+    if (rating) label.title = scoreDetails(nextRow);
     nextupEl.classList.toggle('nextup--live', nextLive);
     var m = document.getElementById('nextup-match'); m.innerHTML = '';
     m.appendChild(logoClone(nextRow, 0, 'logo'));
@@ -335,17 +382,12 @@
     tickNextup();
   }
   function tickNextup() {
-    if (!nextRow || nextupEl.hidden) return;
-    var now = nowMs(), diff = nextRow._k - now, status, count;
-    if (nextLive || diff <= 0) {
-      var mins = Math.floor(-diff / 60000), sc = scoreOf(nextRow), clk = clockOf(nextRow);
-      status = 'Live now' + (sc && clk ? ' \u00b7 ' + clk : '');
-      count = sc || (mins < 1 ? 'kicked off' : mins + ' min in');
-    } else if (diff < 15 * 60000) { status = 'Starting soon'; count = fmtCount(diff); }
-    else if (diff < 24 * 3600000) { status = 'Kickoff in'; count = fmtCount(diff); }
-    else { status = 'Next up'; count = fmtShortDay.format(new Date(nextRow._k)) + ' ' + proseTime(nextRow); }
-    document.getElementById('nextup-status').textContent = status;
-    document.getElementById('nextup-count').textContent = count;
+    var now = nowMs();
+    if (nextRow && !nextupEl.hidden) {
+      var sc = scoreOf(nextRow), clk = clockOf(nextRow);
+      document.getElementById('nextup-status').textContent = 'Live now' + (clk ? ' · ' + clk : '');
+      document.getElementById('nextup-count').textContent = sc || 'In progress';
+    }
     // Per-row countdowns for today's upcoming matches.
     rows.forEach(function (r) {
       var el = r.querySelector('.row__until'); if (!el) return;
@@ -375,9 +417,10 @@
   function dayTag(r, now) { var idx = dayIndex(r._k, now); return idx === 0 ? '' : idx === 1 ? ' tomorrow' : ' ' + fmtShortDay.format(new Date(r._k)); }
 
   function setPickWhen(when, r, now) {
-    var st = r._tv ? splitTime(new Date(r._k)) : { t: 'TBD', ap: '' }, sc = r._b === 'live' ? scoreOf(r) : '';
+    var live = r._b === 'live' && r._state === 'in';
+    var st = r._tv ? splitTime(new Date(r._k)) : { t: 'TBD', ap: '' }, sc = live ? scoreOf(r) : '';
     when.firstChild.textContent = sc || st.t;
-    when.lastChild.textContent = r._b === 'live' ? (sc ? 'live ' + clockOf(r) : 'live now') : st.ap + dayTag(r, now);
+    when.lastChild.textContent = live ? (sc ? 'live ' + clockOf(r) : 'live now') : st.ap + dayTag(r, now) + (r._tv && r._k <= now ? ' · status pending' : '');
   }
   function missTime(r, now) {
     var sc = r._b === 'live' ? scoreOf(r) : '', clk = clockOf(r);
@@ -385,21 +428,33 @@
   }
   function ratingDetails(rating) { return 'Popularity ' + rating.popularity + ' · Expected gameplay ' + rating.gameplay + ' · Competitive impact ' + rating.impact; }
   function renderPicks(groups, now) {
-    var chosen = availableUpcoming(now).filter(function (r) { var rating = ratingOf(r); return rating && rating.score >= STANDOUT_SCORE; }).sort(byRating);
+    var available = availableUpcoming(now).filter(function (r) { return r !== nextRow; });
+    var chosen = available.filter(function (r) { return inFocus(r, now); }).sort(byRating).slice(0, 3);
+    var later = available.filter(function (r) { return !inFocus(r, now); }).sort(byTime);
+    while (chosen.length < 3 && later.length) {
+      var boundary = later[0]._k + FOCUS_MS, window = later.filter(function (r) { return r._k < boundary; });
+      chosen = chosen.concat(window.sort(byRating).slice(0, 3 - chosen.length));
+      later = later.filter(function (r) { return r._k >= boundary; });
+    }
+    chosen.sort(byRating);
     document.getElementById('picks-section').hidden = !chosen.length;
     picksEl.innerHTML = '';
-    document.getElementById('picks-sub').textContent = 'Claude’s ratings · 80/100 or higher · on your services';
+    document.getElementById('picks-h').textContent = chosen.length === 3 ? 'Top three' : chosen.length === 2 ? 'Top two' : 'Top pick';
+    document.getElementById('picks-sub').textContent = 'Next 24 hours first · match interest + league priority';
     chosen.forEach(function (r) {
-      var a = document.createElement('a'); a.className = 'pick svc-' + r._svc; a.href = '#outlook'; a._row = r;
+      var a = document.createElement('article'); a.className = 'pick svc-' + r._svc; a._row = r;
       a.setAttribute('data-match-id', r.getAttribute('data-id'));
       var rating = ratingOf(r), ratingLabel = document.createElement('div'); ratingLabel.className = 'pick__rating';
-      ratingLabel.textContent = 'Claude · ' + rating.score + '/100'; ratingLabel.title = ratingDetails(rating); a.appendChild(ratingLabel);
+      ratingLabel.textContent = rating ? 'Pick score · ' + blendedScore(r) + '/100' : 'Upcoming';
+      if (rating) ratingLabel.title = scoreDetails(r); a.appendChild(ratingLabel);
       var when = document.createElement('div'); when.className = 'pick__when';
       when.innerHTML = '<span class="t"></span><span class="ap"></span>';
       setPickWhen(when, r, now);
       var teams = document.createElement('div'); teams.className = 'pick__teams';
       teams.appendChild(logoClone(r, 0, 'logo logo--lg')); var vs = document.createElement('span'); vs.className = 'pick__vs'; vs.textContent = 'v'; teams.appendChild(vs); teams.appendChild(logoClone(r, 1, 'logo logo--lg'));
-      var names = document.createElement('div'); names.className = 'pick__names'; names.textContent = r.getAttribute('data-home') + ' v ' + r.getAttribute('data-away');
+      var names = document.createElement('div'); names.className = 'pick__names';
+      var link = document.createElement('a'); link.href = '#outlook'; link.textContent = matchName(r); names.appendChild(link);
+      link.addEventListener('click', function (ev) { ev.preventDefault(); var fold = r.closest('details.fold'); if (fold) fold.open = true; r.scrollIntoView({ block: 'center' }); });
       var subs = Array.prototype.map.call(r.querySelectorAll('.team'), function (t) { var x = t.querySelector('.team__sub'); return x ? x.textContent.trim() : ''; });
       var sub = null;
       if (subs.some(Boolean)) { sub = document.createElement('div'); sub.className = 'pick__sub'; sub.textContent = (subs[0] || '\u2013') + ' v ' + (subs[1] || '\u2013'); }
@@ -410,11 +465,23 @@
       var outlet = r.getAttribute('data-outlet'), sname = SERVICE_NAMES[r._svc] || r._svc;
       svc.appendChild(document.createTextNode(SHORT[r._svc] ? outlet + ' · ' + SHORT[r._svc] : sname + (outlet && outlet !== sname ? ' · ' + outlet : '') + (r.getAttribute('data-basis') === 'rule' ? ' (usually)' : '')));
       a.appendChild(when); a.appendChild(teams); a.appendChild(names); if (sub) a.appendChild(sub); a.appendChild(comp); a.appendChild(svc);
-      var pn = STORY.notes[r.getAttribute('data-id')];
-      if (pn) { var ps = document.createElement('div'); ps.className = 'pick__story'; ps.textContent = pn.note; a.appendChild(ps); }
+      var pn = matchBlurb(r);
+      if (pn) {
+        var ps = document.createElement('div'); ps.className = 'pick__story'; ps.textContent = pn.note; a.appendChild(ps);
+        var sources = document.createElement('div'); sources.className = 'pick__sources'; sources.appendChild(sourceLinks(pn.sources, 2)); a.appendChild(sources);
+      }
       a.appendChild(colors);
       picksEl.appendChild(a);
     });
+  }
+  function matchBlurb(r) {
+    var rating = ratingOf(r), note = STORY.notes[r.getAttribute('data-id')];
+    if (rating && rating.blurb) return { note: rating.blurb, sources: rating.sources || [] };
+    if (note) return note;
+    // During a data rollout, reuse only authored text referring to this exact match.
+    var s = STORY.s || {}, candidates = s.league_blurbs || [];
+    var item = candidates.find(function (candidate) { var refs = referencedRows(candidate); return refs.length === 1 && refs[0] === r; });
+    return item ? { note: item.segments.map(function (part) { return part.text; }).join(''), sources: item.sources } : null;
   }
 
   function renderMisses(groups, now) {
@@ -675,21 +742,19 @@
       return typeof item.interest === 'number' && item.interest >= 0 && item.interest <= 100 && eligible(item);
     }) : [];
     var allBlurbs = blurbs.slice();
-    if (blurbs.length) {
+    lead = lead.filter(eligible);
+    var todayLead = lead.filter(function (item) { return referencedRows(item).some(function (r) { return editorialPasses(r) && (r._state === 'in' || localYmd(r._k) === localYmd(now)); }); });
+    var nearLead = lead.filter(near);
+    if (todayLead.length || nearLead.length) lead = todayLead.length ? todayLead : nearLead;
+    else if (blurbs.some(near) || !lead.length) {
       var nearBlurbs = blurbs.filter(near);
       if (nearBlurbs.length) blurbs = nearBlurbs;
-      else {
+      else if (blurbs.length) {
         var first = Math.min.apply(Math, blurbs.map(firstKickoff));
         blurbs = blurbs.filter(function (item) { return firstKickoff(item) < first + FOCUS_MS; });
       }
       blurbs.sort(function (a, b) { return b.interest - a.interest || firstKickoff(a) - firstKickoff(b); });
-      lead = [blurbs[0]];
-    } else if (s && Array.isArray(s.league_blurbs) && s.league_blurbs.length) lead = [];
-    // Blurbs have already been chosen by availability, time window and Claude's interest score.
-    // Legacy paragraphs still get the same near-first treatment during a data-format rollout.
-    if (!s || !Array.isArray(s.league_blurbs) || !s.league_blurbs.length) {
-      lead = lead.filter(eligible);
-      if (lead.some(near)) lead = lead.filter(near);
+      lead = blurbs.length ? [blurbs[0]] : lead;
     }
     var hasNear = lead.some(near);
     forecast = forecast.filter(eligible);
@@ -711,7 +776,7 @@
       });
       (item.sources || []).forEach(function (source) { if (!sources.some(function (s) { return s.url === source.url; })) sources.push(source); });
     });
-    document.getElementById('story-h').textContent = hasNear ? 'Storyline' : 'Storyline · Further ahead';
+    document.getElementById('story-h').textContent = hasNear ? 'Overview' : 'Overview · Further ahead';
     if (lead.length && lead[0].league_id) storyEl.setAttribute('data-league', lead[0].league_id);
     else storyEl.removeAttribute('data-league');
     var storyBy = document.getElementById('story-by'); storyBy.textContent = 'Written by Claude';
@@ -719,6 +784,7 @@
     if (links.childNodes.length) { storyBy.appendChild(document.createTextNode(' · ')); storyBy.appendChild(links); }
     var leadIds = {};
     lead.forEach(function (item) { referencedRows(item).forEach(function (r) { leadIds[r.getAttribute('data-id')] = true; }); });
+    picksEl.querySelectorAll('.pick').forEach(function (pick) { if (pick.querySelector('.pick__story')) leadIds[pick.getAttribute('data-match-id')] = true; });
     function itemText(item) { return item.segments.map(function (part) { return part.text; }).join(''); }
     function sectionIntro(host, later) {
       if (!host) return;
@@ -766,6 +832,7 @@
     var notes = {};
     Object.keys(s.notes || {}).forEach(function (id) { var n = s.notes[id]; if (n && typeof n.note === 'string' && n.note) notes[id] = n; });
     STORY = { notes: notes, s: s, written: written, rankings: s.rankings && typeof s.rankings === 'object' ? s.rankings : {} };
+    renderLeagueOrder();
     rows.forEach(function (r) {
       var n = notes[r.getAttribute('data-id')]; if (!n) return;
       var meta = r.querySelector('.row__meta'); if (!meta || r.querySelector('.row__story')) return;

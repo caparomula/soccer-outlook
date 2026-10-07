@@ -49,7 +49,7 @@ concurrency:
 jobs:
   refresh:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v5
 
@@ -71,7 +71,7 @@ jobs:
 
       - name: Write storylines
         continue-on-error: true
-        timeout-minutes: 15
+        timeout-minutes: 25
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           EVENT: ${{ github.event_name }}

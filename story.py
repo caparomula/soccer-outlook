@@ -96,8 +96,14 @@ PUBLISH_TOOL = {
     "eager_input_streaming": True,
     "input_schema": {
         "type": "object", "additionalProperties": False,
-        "required": ["league_blurbs", "notes", "forecast", "ranked_matches"],
+        "required": ["lede_items", "league_order", "league_blurbs", "notes", "forecast", "ranked_matches"],
         "properties": {
+            "league_order": {"type": "array", "items": {"type": "string"},
+                             "description": "Every supplied leagues league_id exactly once, ordered by general viewing interest for a US soccer audience. Consider overall quality, appeal and stakes, independently of today's filters. Visitors can reorder this default. The browser blends 80% match interest with 20% league priority, so do not bake this preference into the match ratings."},
+            "lede_items": {
+                "type": "array", "items": EDITORIAL_SCHEMA,
+                "description": "A general overview in one short paragraph, at most 450 characters total. One to three tagged sentences connecting the day's available fixtures and pertinent match news. Prioritize current-day fixtures on the default services and enabled competitions; look further ahead when none qualify. Every claim must be tied to supplied fixtures and sources. Do not repeat the individual match blurbs.",
+            },
             "league_blurbs": {
                 "type": "array", "description": "One sourced, independently usable paragraph for EVERY league_candidates entry. Rate its news interest independently of service filters. Do not omit later leagues.",
                 "items": {"type": "object", "additionalProperties": False,
@@ -114,12 +120,14 @@ PUBLISH_TOOL = {
             "ranked_matches": {
                 "type": "array", "description": "Rate EVERY ranking_candidates fixture exactly once on the fixed rubric, not just the highlights. Ratings are independent of services and filters.",
                 "items": {"type": "object", "additionalProperties": False,
-                          "required": ["match_id", "popularity", "gameplay", "impact"],
+                          "required": ["match_id", "popularity", "gameplay", "impact", "blurb", "sources"],
                           "properties": {
                               "match_id": {"type": "string"},
                               "popularity": {"type": "integer", "description": "0–100: audience appeal on the fixed global scale."},
                               "gameplay": {"type": "integer", "description": "0–100: expected football quality and competitiveness, without predicting a result."},
                               "impact": {"type": "integer", "description": "0–100: competitive stakes of this particular fixture, supported by stage/table context."},
+                              "blurb": {"type": "string", "description": "One concise explanation of this fixture's appeal, matchup or stakes, at most 260 characters. Use researched news or supplied team/form/table/stage facts; no invented news or generic hype. Every fixture needs its own useful blurb so changing filters can reveal any match."},
+                              "sources": {"type": "array", "items": {"type": "string"}, "description": "URLs read during research, or this fixture's supplied ESPN source_url for supplied facts only, supporting the blurb."},
                           }},
             },
             "notes": {
@@ -147,9 +155,9 @@ FOCUS_GUIDE = ("Supply exactly one league_blurbs paragraph for EVERY league_cand
                "next fixtures are beyond 24 hours. Each paragraph is independently usable: one to three sentences, "
                "at most 450 characters, about a supplied upcoming fixture or fixtures in that league. Prefer "
                "fixtures with watch_on in that league's nearest supplied window. Assign an interest score from "
-               "0 to 100 for the story itself. The browser prioritizes the rolling next 24 hours after service and "
-               "competition filters, chooses the highest-interest eligible paragraph there, and otherwise chooses "
-               "the highest-interest paragraph in the nearest later 24-hour window. There is no minimum score "
+               "0 to 100 for the story itself. These paragraphs supply section context and a fallback when the "
+               "general overview has no eligible fixtures after filtering. The browser prioritizes the rolling next 24 hours after service and "
+               "competition filters, then the nearest later 24-hour window. There is no minimum score "
                "for a blurb: always offer useful fixture-specific context, including later leagues. "
                "Research fresh match previews, competitive stakes, player availability and scheduling context. "
                "If fresh reporting is unavailable, explain a matchup using the supplied table, form, stage or "
@@ -163,7 +171,12 @@ FOCUS_GUIDE = ("Supply exactly one league_blurbs paragraph for EVERY league_cand
                "get []. Preserve spaces and punctuation. Avoid 'your services', 'today' and 'tomorrow': selections "
                "and the clock change. Give actual dates and Eastern times when needed. ")
 
-FORECAST_GUIDE = (FOCUS_GUIDE + "Write up to three short forecast items with researched context and source URLs. "
+FORECAST_GUIDE = ("Write lede_items as one general overview paragraph of at most 450 characters. Focus on the "
+                  "current day and the default services and enabled competitions, explaining the slate as a whole "
+                  "rather than previewing just one league. When no current-day fixture qualifies, look ahead to "
+                  "the nearest available fixtures. Keep fixture references and sources so filters can choose relevant "
+                  "sentences. Do not invent reasons for a sparse schedule. " + FOCUS_GUIDE +
+                  "Write up to three short forecast items with researched context and source URLs. "
                   "An empty list is better than canned commentary. The browser separately shows factual counts, "
                   "coverage and the next kickoff, so do not repeat those or the lede. An absent fixture is not "
                   "evidence of a break, a quiet day or a weekend return. Never invent an explanation.")
@@ -176,10 +189,14 @@ RANKING_GUIDE = ("Also rate EVERY fixture in ranking_candidates, exactly once. T
                  "60=notably appealing/competitive/meaningful, 80=exceptional, 95=rare global event or decisive final. "
                  "Judge each dimension independently; a famous club does not automatically mean compelling play "
                  "or high stakes. Missing evidence must not inflate scores. The combined score is 25% popularity, "
-                 "35% gameplay and 40% impact. Only 80 or above earns 'Worth scheduling around'. Do NOT normalize "
+                 "35% gameplay and 40% impact. The browser selects the top three passing filters; there is no minimum score. Do NOT normalize "
                  "scores to this slate, force any fixture over 80, or change scores for service availability. "
                  "Return the full set even when no match is exceptional. Research is concentrated on news and "
-                 "the strongest candidates; it is not necessary to search separately for every routine match.")
+                 "the strongest candidates; it is not necessary to search separately for every routine match. "
+                 "Also give EVERY rated match its own blurb and sources. In at most 260 characters, explain the "
+                 "matchup, stakes or relevant news using facts actually supplied or researched. Cite that fixture's "
+                 "ESPN source_url when relying on supplied form, table or stage facts. These are the card blurbs; "
+                 "they must be specific and stand on their own. Do not merely restate teams, time, channel or score.")
 
 
 
@@ -289,7 +306,7 @@ def clean_story(raw, facts, seen):
         return None
     matches = news_matches(facts)
     seen = dict(seen)
-    for m in matches.values():
+    for m in list(matches.values()) + facts.get("ranking_candidates", []):
         if m.get("source_url"):
             seen.setdefault(url_key(m["source_url"]), (m["source_url"], "ESPN match facts"))
     ids = set(matches)
@@ -333,13 +350,19 @@ def clean_story(raw, facts, seen):
     if forecast_items:
         story["forecast"] = {"items": forecast_items}
     story["league_blurbs"] = clean_blurbs(raw.get("league_blurbs"), facts, seen)
+    known_leagues = {league["league_id"] for league in facts.get("leagues", [])}
+    league_order = raw.get("league_order")
+    story["league_order"] = list(dict.fromkeys(league for league in league_order
+                                               if isinstance(league, str) and league in known_leagues)) if isinstance(league_order, list) else []
     story["blurb_coverage"] = {"written": len(story["league_blurbs"]), "total": len(facts.get("league_candidates", []))}
-    story["rankings"] = clean_rankings(raw.get("ranked_matches"), facts)
+    story["rankings"] = clean_rankings(raw.get("ranked_matches"), facts, seen)
     story["ranking_coverage"] = {"rated": len(story["rankings"]), "total": len(facts.get("ranking_candidates", []))}
+    story["match_blurb_coverage"] = {"written": sum(bool(r.get("blurb")) for r in story["rankings"].values()),
+                                     "total": len(facts.get("ranking_candidates", []))}
     return story
 
 
-def clean_rankings(raw, facts):
+def clean_rankings(raw, facts, seen=None):
     """Validate ratings and calculate the fixed score without renormalizing against this slate."""
     ids = {m["id"] for m in facts.get("ranking_candidates", [])}
     ratings = {}
@@ -354,6 +377,10 @@ def clean_rankings(raw, facts):
             continue
         ratings[mid] = {key: value for key, value in zip(("popularity", "gameplay", "impact"), parts)}
         ratings[mid]["score"] = round(parts[0] * .25 + parts[1] * .35 + parts[2] * .4, 1)
+        blurb = rating.get("blurb")
+        sources = verified(rating.get("sources"), seen or {}, 3)
+        if isinstance(blurb, str) and blurb.strip() and len(blurb) <= 260 and sources:
+            ratings[mid].update(blurb=blurb.strip(), sources=sources)
     return ratings
 
 
@@ -409,7 +436,8 @@ def user_prompt(facts, budget):
             "prioritize it for the opening. 'played_today', when "
             "present, gives the day's notable results so far, for context.\n\n"
             f"{json.dumps(facts, ensure_ascii=False, indent=1)}\n\n"
-            "Write a paragraph for every supplied league, plus up to eight match notes. Use the match ids exactly as given. "
+            "Write a paragraph for every supplied league, plus up to eight researched match notes. Rank all supplied leagues "
+            "in league_order by general viewing interest; the browser separately blends 80% match interest with 20% league priority. Use the match ids exactly as given. "
             f"{FORECAST_GUIDE} {RANKING_GUIDE} "
             f"You have up to {budget[0]} web searches and {budget[1]} page reads.")
 
@@ -424,6 +452,7 @@ def refresh_prompt(facts, previous, budget):
     if isinstance(previous.get("forecast"), dict):
         earlier["forecast"] = previous["forecast"]
     earlier["league_blurbs"] = previous.get("league_blurbs") or []
+    earlier["league_order"] = previous.get("league_order") or []
     if isinstance(previous.get("rankings"), dict):
         earlier["rankings"] = previous["rankings"]
     return (f"It is {clock(facts['built_at'])} on {facts['weekday']}, {facts['date']}, US Eastern time. The household's "
@@ -439,7 +468,8 @@ def refresh_prompt(facts, previous, budget):
             "must affect a specific upcoming fixture. Keep qualifying notes with their sources exactly as given; revise or replace "
             "the others, and add notes for matches that have become the day's stories. Supply a paragraph for every league, "
             "including later options for filter changes; past results are context, not the lead. Notes are only for matches in the lists "
-            "above. Use the match ids exactly as given. "
+            "above. Rank every supplied league in league_order by general viewing interest; this supplies the separate 20% league-priority component. "
+            "Use the match ids exactly as given. "
             f"{FORECAST_GUIDE} {RANKING_GUIDE} Rewrite it for this moment. "
             f"You have up to {budget[0]} web searches and {budget[1]} page reads. Call publish_story once with the "
             "complete set of notes, kept ones included, and the forecast.")
@@ -453,6 +483,9 @@ def earlier_sources(previous):
     for n in (previous.get("notes") or {}).values():
         if isinstance(n, dict):
             cited += n.get("sources") or []
+    for rating in (previous.get("rankings") or {}).values():
+        if isinstance(rating, dict):
+            cited += rating.get("sources") or []
     for item in (previous.get("lede_items") or []) + (previous.get("league_blurbs") or []):
         if isinstance(item, dict):
             cited += item.get("sources") or []
@@ -526,23 +559,34 @@ def write_story(facts, model, effort, mode, previous, totals):
                              - set(story.get("rankings", {}) if story else {}))
             missing_leagues = sorted({group["league_id"] for group in facts.get("league_candidates", [])}
                                      - {item["league_id"] for item in (story or {}).get("league_blurbs", [])})
-            if story and (missing or missing_leagues) and not publication_retried and attempt < MAX_REQUESTS:
+            missing_blurbs = sorted({m["id"] for m in facts.get("ranking_candidates", [])}
+                                    - {mid for mid, rating in (story or {}).get("rankings", {}).items() if rating.get("blurb")})
+            missing_overview = bool(news_matches(facts)) and not (story or {}).get("lede_items")
+            missing_order = sorted({league["league_id"] for league in facts.get("leagues", [])}
+                                   - set((story or {}).get("league_order", [])))
+            if story and (missing or missing_leagues or missing_blurbs or missing_overview or missing_order) and not publication_retried and attempt < MAX_REQUESTS:
                 publication_retried = True
-                log(f"requesting missing or invalid ratings for {len(missing)} fixtures and blurbs for {len(missing_leagues)} leagues")
+                log(f"requesting {len(missing)} ratings, {len(missing_blurbs)} match blurbs, {len(missing_leagues)} league blurbs; missing overview={missing_overview}")
                 messages.append({"role": "assistant", "content": message.content})
                 messages.append({"role": "user", "content": [{
                     "type": "tool_result", "tool_use_id": call.id, "is_error": True,
-                    "content": "The publication is incomplete. Call publish_story again with ALL ratings and ALL league_blurbs. "
+                    "content": "The publication is incomplete. Call publish_story again with the complete overview, ratings, match blurbs and league_blurbs. "
                                "Missing/invalid rating IDs: " + ", ".join(missing) + ". Missing/invalid league blurbs: "
                                + ", ".join(missing_leagues) + ". Write a sourced paragraph for each, even beyond 24 hours. "
                                "If no fresh reporting is available, use supplied match facts and cite its ESPN source_url. "
-                               "Keep each paragraph within 450 characters and its fixture references within that league.",
+                               "Keep each paragraph within 450 characters and its fixture references within that league. "
+                               "Missing/invalid match blurbs: " + ", ".join(missing_blurbs) + ". Each ranked_match needs a specific blurb "
+                               "of at most 260 characters and verified sources (or its supplied ESPN source_url). "
+                               "Missing league_order entries: " + ", ".join(missing_order) + ". "
+                               + ("Supply lede_items as a sourced, fixture-tagged overview paragraph. " if missing_overview else ""),
                 }]})
                 continue
             if missing:
                 log(f"ranking coverage incomplete: {len(missing)} fixtures remain unrated")
             if missing_leagues:
                 log(f"blurb coverage incomplete: {len(missing_leagues)} leagues remain without a paragraph")
+            if missing_blurbs or missing_overview:
+                log(f"editorial coverage incomplete: {len(missing_blurbs)} match blurbs missing; missing overview={missing_overview}")
             return story, served
         if message.stop_reason == "pause_turn":
             messages.append({"role": "assistant", "content": message.content})

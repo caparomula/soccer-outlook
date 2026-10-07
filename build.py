@@ -1159,10 +1159,12 @@ def write_facts(path, matches, built_at, today):
         "focus_until": until.isoformat(),
         "owner_services": [SERVICES[k] for k in OWNER],
         "owner_service_ids": list(OWNER),   # recorded in story.json: the lineup the forecast was written for
+        "leagues": [dict(league_id=league, competition=info["name"]) for league, info in LEAGUES.items()],
         "next_24_hours": [entry(m) for m in sorted(near, key=lambda m: m.utc)],
         "later_if_needed": [entry(m) for m in sorted(later, key=lambda m: m.utc)[:20]],
         "league_candidates": league_candidates,
-        "ranking_candidates": [dict(id=m.id, kickoff_utc=m.utc.isoformat(), competition=m.comp,
+        "ranking_candidates": [dict(id=m.id, kickoff_utc=m.utc.isoformat(), competition=m.comp, league_id=m.league,
+                                    source_url=f"https://www.espn.com/soccer/match/_/gameId/{m.id}",
                                     stage=m.stage, home=team_facts(m.home), away=team_facts(m.away))
                                for m in sorted(matches, key=lambda m: m.utc)
                                if m.state != "post" and not called_off(m.state, m.status)
@@ -1214,7 +1216,8 @@ def build_page(matches, cache, built_at, failed, today):
         f'<span class="svc__count" data-count>{sum(1 for m in focus if m.service == k)} in the next 24 hours</span></div>'
         f'<p class="svc__desc" data-desc></p></div>' for k in OWNER)
 
-    svc_meta = {"order": SERVICE_RANK, "name": SERVICES, "owner": OWNER}
+    svc_meta = {"order": SERVICE_RANK, "name": SERVICES, "owner": OWNER,
+                "leagues": {league: info["name"] for league, info in LEAGUES.items()}}
     used = set()
     for m in matches:
         used.update([m.home.logo_key, m.away.logo_key])
