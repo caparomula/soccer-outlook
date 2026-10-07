@@ -4,17 +4,20 @@
 # new page, so the branch never accumulates history, and the daily push keeps the repository active
 # (GitHub disables scheduled workflows in public repositories after 60 days without activity).
 #
-# Storylines (story.py) are written by Claude with web search on every scheduled build: the
-# early-morning build researches the day from scratch, and the midday and evening builds update
-# that story for the moment (results, team news, lineups) with a smaller search budget. A build
-# after a code push republishes the current story without calling Claude; a manual run chooses.
+# Storylines (story.py) are written by Claude with web search on every scheduled build, in story.py's
+# auto mode: the first run of the day researches from scratch and rates every fixture, later runs
+# update that story for the moment (results, team news, lineups) and re-rate only the next 24 hours,
+# and a run that starts within three hours of the last one keeps it, since GitHub can start a
+# schedule hours late, right before the next. A build after a code push republishes the current
+# story without calling Claude; a manual run chooses.
 # The model and effort can be changed without editing code, through the repository variables
 # STORY_MODEL, STORY_EFFORT and STORY_REFRESH_EFFORT (Settings, Secrets and variables, Actions,
 # Variables); story.py has the defaults. Storylines need the ANTHROPIC_API_KEY repository secret.
 # Without it, or if the call fails, the page is published with the day's earlier story, or none.
 #
 # Which services carry which channels, and where each competition usually lives, is in rights.toml.
-# Its tests run before the build, so a contradictory edit keeps the last good page up (and GitHub
+# The unit tests (rights data, storyline checks, rendering) and the browser checks run before the
+# build, so a contradictory edit or a broken page script keeps the last good page up (and GitHub
 # emails about the failed run). Each build also reports what it couldn't map or vouch for, and
 # keeps one issue labelled "mapping" open while that report has anything in it.
 #
@@ -53,8 +56,24 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Test the rights data
+      - name: Unit tests
         run: python3 -m unittest -v
+
+      - name: Browser checks
+        # The page's script runs only in a browser, where the unit tests can't see it; a change that
+        # breaks it must not be published. Before the storylines, so a failure costs no API calls.
+        run: |
+          python3 -m venv .browser-venv
+          .browser-venv/bin/pip install --quiet -r tests/requirements-browser.txt
+          .browser-venv/bin/python -m playwright install --with-deps chromium
+          .browser-venv/bin/python -m tests.browser
+
+      - name: Keep the browser screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-screenshots
+          path: work/browser/*.png
 
       - name: Build the page
         run: python3 build.py --out site/index.html --facts work/facts.json --warnings work/mapping-report.txt
@@ -75,7 +94,6 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           EVENT: ${{ github.event_name }}
-          SCHEDULE: ${{ github.event.schedule }}
           WANT: ${{ inputs.storylines }}
           STORY_MODEL: ${{ vars.STORY_MODEL }}
           STORY_EFFORT: ${{ vars.STORY_EFFORT }}
@@ -89,7 +107,7 @@ jobs:
             previous=(--previous work/previous-story.json)
           fi
           case "$EVENT" in
-            schedule) if [ "$SCHEDULE" = "50 8 * * *" ]; then mode=full; else mode=refresh; fi ;;
+            schedule) mode=auto ;;      # full for a new day, refresh later, keep if the last run was recent
             workflow_dispatch) mode="${WANT:-refresh}" ;;
             *) mode=keep ;;      # a code push: the news hasn't changed
           esac
