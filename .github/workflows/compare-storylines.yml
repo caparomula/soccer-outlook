@@ -2,9 +2,10 @@
 # anything, so the configuration the daily builds use can be chosen on this workload's evidence
 # rather than on general benchmarks.
 #
-# Each configuration is a full research run billed to the ANTHROPIC_API_KEY secret: roughly $0.35 to
-# $0.75 at list prices, so the default four cost about $2 to $3 together. The run summary shows each
-# one's cost, time, searches and notes, then its headline, lede and notes with the sites it cites.
+# Each configuration is a full run billed to the ANTHROPIC_API_KEY secret: the research and the
+# ratings of every fixture, so the default four cost several dollars together. The run summary shows
+# each one's cost, time, searches and notes, then its overview, league paragraphs, notes and ratings
+# with the sites they cite.
 # To adopt a configuration, set the repository variables STORY_MODEL, STORY_EFFORT and
 # STORY_REFRESH_EFFORT (Settings, Secrets and variables, Actions, Variables).
 name: Compare storyline models

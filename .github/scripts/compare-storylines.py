@@ -29,6 +29,12 @@ def host(url):
     return h[4:] if h.startswith("www.") else h
 
 
+def site(source):
+    """What the page calls a source: its site, or ESPN's facts when story.py marked it so."""
+    facts = source.get("kind") == "facts" or source.get("title") == "ESPN match facts"
+    return "ESPN table and form" if facts else host(source["url"])
+
+
 def cell(text):
     return str(text).replace("|", "\\|").replace("\n", " ")
 
@@ -50,8 +56,8 @@ def main():
     print("Each run researched the same facts from scratch, a few minutes apart, so the web they searched differs "
           "slightly. Costs are estimates at list prices. Judge accuracy with the sources open.")
     print()
-    print("| Configuration | Cost | Time | Searches | Page reads | Notes kept | Dropped | Headline |")
-    print("|---|---|---|---|---|---|---|---|")
+    print("| Configuration | Cost | Time | Searches | Page reads | Notes kept | Dropped | Rated | Headline |")
+    print("|---|---|---|---|---|---|---|---|---|")
     for label, u, story in runs:
         usage = u.get("usage") or {}
         cost = f"${u['cost_usd']:.2f}" if isinstance(u.get("cost_usd"), (int, float)) else "n/a"
@@ -59,7 +65,7 @@ def main():
         headline = (story.get("headline") or f"{len(story.get('league_blurbs') or [])} league blurbs") if story else "*no story*"
         print(f"| {cell(u.get('model', label))} at {cell(u.get('effort', '?'))}{cell(served)} | {cost} | {u.get('seconds', '?')}s "
               f"| {usage.get('searches', '?')} | {usage.get('fetches', '?')} | {u.get('notes', 0)} | {u.get('dropped', '?')} "
-              f"| {cell(headline)} |")
+              f"| {u.get('rated', '?')} | {cell(headline)} |")
     print()
     for label, u, story in runs:
         print(f"<details><summary><b>{cell(u.get('model', label))} at {cell(u.get('effort', '?'))}</b></summary>")
@@ -68,7 +74,7 @@ def main():
             print("No story was written; see this configuration's log group.")
         else:
             for blurb in sorted(story.get("league_blurbs") or [], key=lambda b: -b["interest"]):
-                sites = ", ".join(f"[{host(s['url'])}]({s['url']})" for s in blurb.get("sources") or [])
+                sites = ", ".join(f"[{site(s)}]({s['url']})" for s in blurb.get("sources") or [])
                 print(f"**{blurb['league_id']} · interest {blurb['interest']}/100**")
                 print()
                 print(f"{blurb['text']} ({sites})")
@@ -78,12 +84,12 @@ def main():
                 print()
             if story.get("lede"):
                 print(story["lede"])
-            lede_sites = ", ".join(host(s["url"]) for s in story.get("sources") or [])
+            lede_sites = ", ".join(site(s) for s in story.get("sources") or [])
             if lede_sites:
                 print(f"*Sources: {lede_sites}*")
             print()
             for mid, n in (story.get("notes") or {}).items():
-                sites = ", ".join(f"[{host(s['url'])}]({s['url']})" for s in n.get("sources") or [])
+                sites = ", ".join(f"[{site(s)}]({s['url']})" for s in n.get("sources") or [])
                 print(f"- **{names.get(mid, mid)}**: {n.get('note', '')} ({sites})")
             print()
             fc = story.get("forecast")
@@ -96,9 +102,12 @@ def main():
             print()
             print(f"**Ratings:** {len(ratings)} of {len(facts.get('ranking_candidates', []))} fixtures. "
                   "Fixed standout threshold: 80/100.")
+            facts_only = sum(1 for r in ratings.values() if r.get("sources") and all(site(s) == "ESPN table and form" for s in r["sources"]))
+            print(f"{sum(1 for r in ratings.values() if r.get('blurb'))} card blurbs, {facts_only} resting only on ESPN's table and form.")
             for mid, rating in sorted(ratings.items(), key=lambda pair: -pair[1]["score"])[:10]:
                 print(f"- **{names.get(mid, mid)}: {rating['score']}** "
-                      f"(popularity {rating['popularity']}, gameplay {rating['gameplay']}, impact {rating['impact']})")
+                      f"(popularity {rating['popularity']}, gameplay {rating['gameplay']}, impact {rating['impact']})"
+                      + (f": {rating['blurb']}" if rating.get("blurb") else ""))
         print()
         print("</details>")
         print()

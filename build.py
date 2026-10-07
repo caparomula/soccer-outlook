@@ -1091,27 +1091,6 @@ def team_facts(t):
                                      top_scorer=(f"{t.leader} ({t.leader_goals})" if t.leader and t.leader_goals not in ("", "0") else "")).items() if v}
 
 
-def schedule_by_day(matches, today, days=7):
-    """Compact background counts; the individual fixtures determine the forecast's time window."""
-    out = []
-    for offset in range(days):
-        day = today + timedelta(days=offset)
-        comps = {}
-        for m in sorted(matches, key=lambda m: m.utc):
-            local = m.utc.astimezone(ET)
-            if local.date() != day or LEAGUES[m.league].get("default_off") or called_off(m.state, m.status):
-                continue
-            c = comps.setdefault(m.comp, {"matches": 0, "on_owner_services": 0})
-            c["matches"] += 1
-            c["on_owner_services"] += bool(m.service)
-            if m.state == "post":
-                c["finished"] = c.get("finished", 0) + 1
-            if m.time_valid and "first_kickoff" not in c:
-                c["first_kickoff"] = local.strftime("%I:%M %p ET").lstrip("0")
-        out.append({"date": day.isoformat(), "weekday": day.strftime("%A"), "competitions": comps})
-    return out
-
-
 def write_facts(path, matches, built_at, today):
     """Give Claude service-backed fixtures in the next 24 hours, with later candidates as fallback."""
     def routes(m):
@@ -1174,7 +1153,6 @@ def write_facts(path, matches, built_at, today):
                                for m in sorted(matches, key=lambda m: m.utc)
                                if m.state != "post" and not called_off(m.state, m.status)
                                and (m.utc >= built_at or (m.state == "in" and m.utc >= built_at - timedelta(hours=4)))],
-        "schedule_by_day": schedule_by_day(matches, today),
     }
     played = [m for m in matches if m.state == "post" and m.utc.astimezone(ET).date() == today
               and not called_off(m.state, m.status) and m.score >= 85]
