@@ -84,6 +84,13 @@ class BrowserChecks(unittest.TestCase):
         finally:
             context.close()
 
+    def full_page_shot(self, page, name):
+        """Save a full-page screenshot from the top of the page, where the controls bar is in its place
+        rather than stuck wherever the check had scrolled to."""
+        page.evaluate("window.scrollTo(0, 0)")
+        page.clock.run_for(50)
+        page.screenshot(path=str(self.artifacts / name), full_page=True)
+
     @staticmethod
     def bucket(page, match_id):
         return page.locator(f'li.row[data-id="{match_id}"]').evaluate(
@@ -291,16 +298,14 @@ class BrowserChecks(unittest.TestCase):
         for width in (1280, 820, 600, 390, 320):
             with self.subTest(width=width), self.page("after", width=width, html=html) as (page, _):
                 page.locator("#btn-all").click()
-                expect(page.locator('.hdr #controls .seg')).to_have_count(1)
-                expect(page.locator('.hdr #btn-menu')).to_have_count(1)
-                title, toggle, menu, tally = (page.locator(selector).bounding_box() for selector in ('.hdr h1', '#controls .seg', '#btn-menu', '.hdr__tally'))
-                if width > 900:
-                    self.assertLessEqual(title['x'] + title['width'], toggle['x'])
-                    self.assertLessEqual(toggle['x'] + toggle['width'], menu['x'])
-                    self.assertLessEqual(menu['x'] + menu['width'], tally['x'])
-                else:
-                    self.assertGreaterEqual(toggle['y'], title['y'] + title['height'])
-                    self.assertTrue(menu['x'] >= toggle['x'] + toggle['width'] or menu['y'] >= toggle['y'] + toggle['height'])
+                # The masthead (title, tally) above the bar with the view toggle and Lineup, on one line at every width.
+                expect(page.locator('#bar #controls .seg')).to_have_count(1)
+                expect(page.locator('#bar #btn-menu')).to_have_count(1)
+                title, toggle, menu, tally, bar = (page.locator(selector).bounding_box() for selector in ('.hdr h1', '#controls .seg', '#btn-menu', '.hdr__tally', '#bar'))
+                self.assertLessEqual(title['x'] + title['width'], tally['x'])
+                self.assertGreaterEqual(bar['y'], max(title['y'] + title['height'], tally['y'] + tally['height']) - 1)
+                self.assertLessEqual(toggle['x'] + toggle['width'], menu['x'])
+                self.assertAlmostEqual(toggle['y'] + toggle['height'] / 2, menu['y'] + menu['height'] / 2, delta=2)
                 page.locator('#btn-menu').click()
                 panel = page.locator('#drawer').bounding_box()
                 self.assertGreaterEqual(panel['y'], menu['y'] + menu['height'])
@@ -718,7 +723,7 @@ class BrowserChecks(unittest.TestCase):
                     expect(page.locator(host + ' .editorial-part[data-matches="mls"]')).to_have_css("text-decoration-line", "none")
                     expect(page.locator(host)).to_contain_text("This evening MLS and the Premier League have matches.")
                 page.locator("#btn-filters-close").click()
-                page.screenshot(path=str(self.artifacts / f"phrases-{theme}.png"), full_page=True)
+                self.full_page_shot(page, f"phrases-{theme}.png")
                 page.locator("#btn-all").click()
                 expect(page.locator("#story-lede .editorial-part--filtered")).to_have_text("MLS")
                 page.locator("#btn-menu").click()
@@ -736,8 +741,13 @@ class BrowserChecks(unittest.TestCase):
                 expect(page.locator("#story-lede p, #story-lede div, #story-lede .editorial-tags")).to_have_count(0)
                 expect(page.locator('#story-tags, .editorial-tags, .editorial-tag')).to_have_count(0)
                 expect(page.locator("#period-h")).to_have_count(0)
-                self.assertEqual(page.locator("#story").evaluate("el => el.nextElementSibling.id"), "nextup")
-                self.assertEqual(page.locator("#nextup").evaluate("el => el.nextElementSibling.id"), "picks-section")
+                # The top card is a section of its own, headed, after the overview and before the picks.
+                self.assertEqual(page.locator("#story").evaluate("el => el.nextElementSibling.id"), "nextup-section")
+                self.assertEqual(page.locator("#nextup-section").evaluate("el => el.nextElementSibling.id"), "picks-section")
+                expect(page.locator("#nextup-h")).to_have_text("Next up")
+                expect(page.locator("#nextup-sub")).to_have_text("The soonest kickoff in your lineup")
+                heading, card = page.locator("#nextup-h").bounding_box(), page.locator("#nextup").bounding_box()
+                self.assertLessEqual(heading["y"] + heading["height"], card["y"])
                 expect(page.locator("#nextup")).to_have_attribute("data-match-id", "mls")
                 expect(page.locator("#picks-section")).to_be_visible()
                 expect(page.locator("#picks .pick")).to_have_attribute("data-match-id", "spain")
@@ -748,7 +758,7 @@ class BrowserChecks(unittest.TestCase):
                 self.assertEqual(page.locator("#outlook").evaluate("el => el.firstElementChild.querySelector('h2').id"), "outlook-h")
                 hero = page.locator("#nextup").bounding_box()
                 self.assertLess(hero["y"] + hero["height"], page.viewport_size["height"])
-                page.screenshot(path=str(self.artifacts / f"compact-opening-{width}.png"), full_page=True)
+                self.full_page_shot(page, f"compact-opening-{width}.png")
 
     def test_league_blurbs_choose_interest_after_time_and_service_filters(self):
         fixtures = [("upcoming", "2026-10-07T17:05:00+00:00", "pre", "ESPN+", "esp.1"),
@@ -787,7 +797,7 @@ class BrowserChecks(unittest.TestCase):
                 page.locator('#comp-pills [data-key="eng.1"]').click()
                 expect(lede).to_have_text("Friday French match context.")
                 page.locator("#btn-filters-close").click()
-                page.screenshot(path=str(self.artifacts / f"league-fallback-{width}.png"), full_page=True)
+                self.full_page_shot(page, f"league-fallback-{width}.png")
                 page.locator("#btn-menu").click()
                 page.locator("#btn-clear").click()
                 expect(page.locator("#story")).to_be_hidden()
@@ -823,7 +833,7 @@ class BrowserChecks(unittest.TestCase):
                 expect(page.locator("#picks-section")).to_be_visible()
                 expect(page.locator('#misses [data-id="unknown"]')).to_have_count(0)
                 self.assertEqual(page.locator("#picks .pick").evaluate_all("els => els.map(e => e.dataset.matchId)"), ["routine", "best", "near"])
-                page.screenshot(path=str(self.artifacts / f"ranked-{width}.png"), full_page=True)
+                self.full_page_shot(page, f"ranked-{width}.png")
                 page.locator("#btn-menu").click()
                 page.locator('[data-kind="have"][data-key="apple"]').click()
                 expect(hero).to_have_attribute("data-match-id", "routine")
@@ -851,7 +861,8 @@ class BrowserChecks(unittest.TestCase):
         with self.page("after", html=render_page(build, fixtures=fixtures), story=story) as (page, _):
             # Nothing in the next 24 hours: the soonest match is next up, two days and an hour away ...
             expect(page.locator("#nextup")).to_have_attribute("data-match-id", "early")
-            expect(page.locator("#nextup-status")).to_have_text("Next up · 2:00 pm Fri")
+            expect(page.locator("#nextup-h")).to_have_text("Next up")
+            expect(page.locator("#nextup-status")).to_have_text("Kickoff 2:00 pm Fri")
             expect(page.locator("#nextup-count")).to_have_text("2d 01h")
             # ... and the picks fill from the nearest later window, then the next, never jumping ahead to
             # the best-rated match further out.
@@ -879,7 +890,9 @@ class BrowserChecks(unittest.TestCase):
         for width in (1280, 820, 390, 320):
             with self.subTest(width=width), self.page("after", width=width, html=render_page(build, fixtures=fixtures, league_logos=True), story=story) as (page, feed):
                 expect(page.locator('#nextup')).to_have_attribute('data-match-id', 'upcoming')
-                expect(page.locator('#nextup-status')).to_contain_text('Live now')
+                expect(page.locator('#nextup-h')).to_have_text('Live now')
+                expect(page.locator('#nextup-sub')).to_have_text('Best pick score of the 2 in progress in your lineup')
+                expect(page.locator('#nextup-status')).to_have_text("30'")
                 expect(page.locator('#nextup-rating')).to_have_text('Pick score · 84/100')
                 self.assertEqual(page.locator('#picks .pick').evaluate_all('els => els.map(e => e.dataset.matchId)'), ['live-second', 'mls', 'future'])
                 expect(page.locator('#picks .row__story')).to_have_count(3)
@@ -920,7 +933,7 @@ class BrowserChecks(unittest.TestCase):
                     self.assertLess(emblem['y'] - rect['y'], 25)
                 self.assertLess(max(bars) - min(bars), 1)
                 self.assertLessEqual(page.evaluate('document.documentElement.scrollWidth'), width)
-                page.screenshot(path=str(self.artifacts / f'live-top-three-{width}.png'), full_page=True)
+                self.full_page_shot(page, f'live-top-three-{width}.png')
                 page.locator('#nextup button.more').click()
                 feed['data'] = scoreboard('in')
                 page.clock.run_for(60000)
@@ -950,7 +963,8 @@ class BrowserChecks(unittest.TestCase):
                 page.locator('[data-kind="have"][data-key="espn"]').click()
                 expect(page.locator('#nextup')).to_have_attribute('data-match-id', 'mls')
                 expect(page.locator('#nextup')).not_to_have_class(re.compile(r'\bnextup--live\b'))
-                expect(page.locator('#nextup-status')).to_have_text('Next up · 3:00 pm')
+                expect(page.locator('#nextup-h')).to_have_text('Next up')
+                expect(page.locator('#nextup-status')).to_have_text('Kickoff 3:00 pm')
                 expect(page.locator('#nextup-count')).to_have_text('2h 00m')
                 expect(page.locator('#picks .pick')).to_have_count(0)
                 page.locator('#btn-filters-close').click()
@@ -976,7 +990,8 @@ class BrowserChecks(unittest.TestCase):
                 # time is still to be set, nor the ones outside the lineup; of two at once, the better rated.
                 expect(card).to_have_attribute("data-match-id", "upcoming")
                 expect(card).not_to_have_class(re.compile(r"\bnextup--live\b"))
-                expect(status).to_have_text("Next up · 1:10 pm")
+                expect(page.locator("#nextup-h")).to_have_text("Next up")
+                expect(status).to_have_text("Kickoff 1:10 pm")
                 expect(count).to_have_text("10:00")
                 expect(page.locator('#picks [data-match-id="upcoming"]')).to_have_count(0)
                 # The lower-rated of the two at 1:10 comes first on the page, so only the rating can choose.
@@ -1012,6 +1027,7 @@ class BrowserChecks(unittest.TestCase):
                 # ... and a kickoff without word from ESPN keeps the card, in the words its row uses.
                 page.evaluate("location.hash = '#at-20261007-1311'")
                 expect(card).to_have_attribute("data-match-id", "upcoming")
+                expect(page.locator("#nextup-h")).to_have_text("Next up")      # only ESPN's word makes it live
                 expect(status).to_have_text("Kickoff 1:10 pm · status pending")
                 expect(count).to_have_text("Awaiting score")
                 expect(page.locator('li.row[data-id="upcoming"] .row__live')).to_have_text("Awaiting score")
@@ -1021,7 +1037,9 @@ class BrowserChecks(unittest.TestCase):
                 feed["data"] = scoreboard("in")
                 page.clock.run_for(60000)
                 expect(card).to_have_class(re.compile(r"\bnextup--live\b"))
-                expect(status).to_have_text("Live now · 63'")
+                expect(page.locator("#nextup-h")).to_have_text("Live now")
+                expect(page.locator("#nextup-sub")).to_have_text("In progress in your lineup")
+                expect(status).to_have_text("63'")
                 expect(count).to_have_text("2\u20131")
                 expect(page.locator("#nextup button.more")).to_be_focused()
                 self.assertLessEqual(page.evaluate("document.documentElement.scrollWidth"), width)
@@ -1057,9 +1075,10 @@ class BrowserChecks(unittest.TestCase):
             expect(card).to_have_attribute("data-match-id", "upcoming")
             feed["held"].pop().fulfill(content_type="application/json", body=json.dumps(feed["data"]))
             expect(card).to_have_attribute("data-match-id", "spain")
-            expect(page.locator("#nextup-status")).to_have_text("Next up · 1:05 pm")
+            expect(page.locator("#nextup-h")).to_have_text("Next up")
+            expect(page.locator("#nextup-status")).to_have_text("Kickoff 1:05 pm")
 
-    def test_coffee_link_sits_in_the_masthead_corner_at_every_width(self):
+    def test_coffee_link_ends_the_bar_at_every_width(self):
         for width in (1280, 390, 320):
             with self.subTest(width=width), self.page("after", width=width, touch=width <= 600) as (page, _):
                 link = page.get_by_role("link", name="Buy me a coffee", exact=True)
@@ -1067,11 +1086,10 @@ class BrowserChecks(unittest.TestCase):
                 expect(link).to_have_attribute("href", "https://buymeacoffee.com/caparomula")
                 expect(link).to_have_attribute("target", "_blank")
                 self.assertIn("noopener", link.get_attribute("rel").split())
-                # On the date's line at the masthead's right edge, so on the first screen everywhere.
-                box, header = link.bounding_box(), page.locator("header.hdr").bounding_box()
-                eyebrow = page.locator("#eyebrow").bounding_box()
-                self.assertLess(box["y"], eyebrow["y"] + eyebrow["height"])
-                self.assertAlmostEqual(box["x"] + box["width"], header["x"] + header["width"], delta=1)
+                # At the right end of the bar, on the toggle's line (the bar stays in view; see the bar's check).
+                box, bar, toggle = link.bounding_box(), page.locator("#bar").bounding_box(), page.locator("#controls .seg").bounding_box()
+                self.assertAlmostEqual(box["x"] + box["width"], bar["x"] + bar["width"], delta=1)
+                self.assertAlmostEqual(box["y"] + box["height"] / 2, toggle["y"] + toggle["height"] / 2, delta=2)
                 # The words where there's room; a phone shows the cup and keeps the name for screen readers.
                 words = page.locator(".coffee__txt").bounding_box()
                 if width > 600:
@@ -1080,6 +1098,130 @@ class BrowserChecks(unittest.TestCase):
                     self.assertLessEqual(words["width"], 1)
                 self.assertGreaterEqual(min(box["width"], box["height"]), 24)     # WCAG 2.5.8's minimum target
                 self.assertLessEqual(page.evaluate("document.documentElement.scrollWidth"), width)
+
+    @staticmethod
+    def long_day():
+        """36 matches 25 minutes apart; every third is on a service outside the default lineup."""
+        fixtures = []
+        for i in range(36):
+            hour, minute = divmod(17 * 60 + 10 + i * 25, 60)
+            fixtures.append((f"m{i:02d}", f"2026-10-{7 + hour // 24:02d}T{hour % 24:02d}:{minute:02d}:00+00:00", "pre",
+                             "Peacock" if i % 3 == 2 else "ESPN+", "eng.1"))
+        return render_page(build, fixtures=fixtures)
+
+    def test_bar_stays_at_the_top_keeps_the_readers_place_and_focus_in_view(self):
+        top_row = """() => { const below = document.getElementById('bar').getBoundingClientRect().bottom;
+            const r = [...document.querySelectorAll('#outlook li.row')].find(el => el.getClientRects().length && el.getBoundingClientRect().bottom > below + 1);
+            return { id: r.dataset.id, top: r.getBoundingClientRect().top }; }"""
+        for width in (1280, 390):
+            with self.subTest(width=width), self.page("after", width=width, html=self.long_day(), touch=width <= 600) as (page, _):
+                bar = page.locator("#bar")
+                expect(bar).not_to_have_css("background-color", "rgba(0, 0, 0, 0)")    # what scrolls beneath is hidden
+                page.evaluate("window.scrollTo(0, 2200)")
+                # Deep in the page the view toggle, Lineup and the coffee link are still at the top of the window.
+                box = bar.bounding_box()
+                self.assertAlmostEqual(box["y"], 0, delta=1)
+                for control in (page.locator("#btn-mine"), page.locator("#btn-all"), page.locator("#btn-menu"),
+                                page.get_by_role("link", name="Buy me a coffee", exact=True)):
+                    expect(control).to_be_in_viewport()
+                    self.assertLessEqual(control.bounding_box()["y"] + control.bounding_box()["height"], box["y"] + box["height"])
+                # Switching the view from there keeps the reader's place: the row at the top of the view stays
+                # put, and the rows Everything reveals appear around it.
+                before = page.evaluate(top_row)
+                page.locator("#btn-all").click()
+                expect(page.locator('li.row[data-id="m02"]')).to_be_visible()
+                # (Scroll offsets are whole pixels, so each correction can round by up to a pixel.)
+                row = page.locator(f'li.row[data-id="{before["id"]}"]')
+                self.assertAlmostEqual(row.evaluate("el => el.getBoundingClientRect().top"), before["top"], delta=2)
+                page.locator("#btn-mine").click()
+                expect(page.locator('li.row[data-id="m02"]')).to_be_hidden()
+                self.assertAlmostEqual(row.evaluate("el => el.getBoundingClientRect().top"), before["top"], delta=2)
+                # A row the change hides gives way to the next one shown, in its place: in Everything, put a
+                # Peacock match first in the window, under the bar (where the browser's own scroll anchoring
+                # would lose it), then go back to the lineup, which hides it.
+                page.locator("#btn-all").click()
+                page.evaluate("window.scrollBy(0, document.querySelector('li.row[data-id=m05]').getBoundingClientRect().top + 10)")
+                page.locator("#btn-mine").click()
+                expect(page.locator('li.row[data-id="m05"]')).to_be_hidden()
+                self.assertAlmostEqual(page.locator('li.row[data-id="m06"]').evaluate("el => el.getBoundingClientRect().top"), -10, delta=2)
+                # The Lineup panel opens right beneath its button, scrolled or not.
+                page.locator("#btn-menu").click()
+                panel, menu = page.locator("#drawer").bounding_box(), page.locator("#btn-menu").bounding_box()
+                self.assertGreaterEqual(panel["y"], menu["y"] + menu["height"])
+                self.assertLess(panel["y"], menu["y"] + menu["height"] + 16)
+                page.keyboard.press("Escape")
+                expect(page.locator("#drawer")).to_be_hidden()
+                # Keyboard focus never hides under the bar: Tab onto a Details button that sits beneath it ...
+                details = page.locator("#outlook li.row:visible button.more")
+                page.evaluate("""() => { const all = [...document.querySelectorAll('#outlook li.row button.more')].filter(el => el.getClientRects().length);
+                    window.scrollBy(0, all[12].getBoundingClientRect().top - 20); all[11].focus({ preventScroll: true }); }""")
+                page.keyboard.press("Tab")
+                page.clock.run_for(50)
+                expect(details.nth(12)).to_be_focused()
+                self.assertGreaterEqual(details.nth(12).bounding_box()["y"], bar.bounding_box()["y"] + bar.bounding_box()["height"])
+                # ... and keyboard focus on the bar's own controls doesn't move the page.
+                page.locator("#nextup .team__name a").first.focus()    # the first thing after the bar, far above
+                page.evaluate("window.scrollTo(0, 2200)")
+                page.keyboard.press("Shift+Tab")
+                page.clock.run_for(50)
+                expect(page.get_by_role("link", name="Buy me a coffee", exact=True)).to_be_focused()
+                self.assertEqual(page.evaluate("scrollY"), 2200)
+                page.screenshot(path=str(self.artifacts / f"bar-stuck-{width}.png"))
+
+    def test_top_card_takes_the_rows_layout_with_the_emblem_under_its_countdown(self):
+        fixtures = [("upcoming", "2026-10-07T17:10:00+00:00", "pre", "ESPN+", "eng.1"),
+                    ("spain", "2026-10-07T19:00:00+00:00", "pre", "ESPN+", "esp.1")]
+        story = self.tagged_story()
+        story["rankings"] = {mid: dict(score=score, blurb=f"Context for {mid}: the stakes, team news and recent form.",
+                                       sources=[{"url": "https://example.com/report"}]) for mid, score in (("upcoming", 90), ("spain", 80))}
+        html = render_page(build, fixtures=fixtures, league_logos=True)
+        for width in (1280, 820, 390, 320):
+            with self.subTest(width=width), self.page("after", width=width, html=html, story=story, touch=width <= 600) as (page, _):
+                card = page.locator("#nextup")
+                expect(card).to_have_attribute("data-match-id", "upcoming")
+                box, column, count, emblem, body = (loc.bounding_box() for loc in (
+                    card, card.locator(".nextup__left"), page.locator("#nextup-count"), card.locator(".nextup__league"), card.locator(".match__body")))
+                # The emblem is in the countdown's column, under the countdown, at the foot of the card.
+                self.assertAlmostEqual(emblem["x"], column["x"], delta=1)
+                self.assertGreaterEqual(emblem["y"], count["y"] + count["height"])
+                self.assertAlmostEqual(emblem["y"] + emblem["height"], column["y"] + column["height"], delta=1)
+                self.assertAlmostEqual(column["y"] + column["height"], box["y"] + box["height"] - 13, delta=1)
+                # The match beside that column, as in a schedule row, with home, v and away on one line where there's room.
+                self.assertGreaterEqual(body["x"], column["x"] + column["width"])
+                if width >= 820:
+                    lines = card.locator(".row__teams > .team, .row__teams > .vs").evaluate_all(
+                        "els => els.map(e => { const r = e.getBoundingClientRect(); return [r.top, r.bottom]; })")
+                    self.assertLess(max(top for top, _ in lines), min(bottom for _, bottom in lines))
+                # The broadcaster: its own 212-pixel column on the right, as in the row; under the match where the
+                # row puts it there; and not at all on a phone, where the colored pill says it.
+                watch = card.locator(".nextup__watch")
+                if width > 820:
+                    chip = watch.bounding_box()
+                    self.assertGreaterEqual(chip["x"], body["x"] + body["width"])
+                    self.assertAlmostEqual(chip["x"], box["x"] + box["width"] - 1 - 16 - 212, delta=1)
+                    self.assertLess(chip["y"], body["y"] + 20)
+                elif width > 600:
+                    chip = watch.bounding_box()
+                    self.assertGreaterEqual(chip["y"], body["y"] + body["height"] - 1)
+                    self.assertAlmostEqual(chip["x"], body["x"], delta=1)
+                else:
+                    expect(watch).to_be_hidden()
+                    # "Next up" over "1:10 pm" and the score's label over its value, in the narrow column.
+                    # "Pick score" over "92": each part one box from the column's edge (an inline part that
+                    # wraps has a box per line), the separator gone.
+                    parts = page.locator("#nextup-rating > span:visible").evaluate_all(
+                        "els => els.map(e => { const r = e.getClientRects(); return [r.length, r[0].left, r[0].top]; })")
+                    self.assertEqual(len(parts), 2)
+                    for boxes, left, _ in parts:
+                        self.assertEqual(boxes, 1)
+                        self.assertAlmostEqual(left, column["x"], delta=1)
+                    self.assertGreater(parts[1][2], parts[0][2])
+                    expect(page.locator("#nextup-rating")).to_have_text("Pick score · 92/100")    # 80% of 90, 20% of 100
+                    expect(page.locator("#nextup-status")).to_have_text("Kickoff 1:10 pm")
+                    status = page.locator("#nextup-status").bounding_box()
+                    self.assertLessEqual(status["x"] + status["width"], column["x"] + column["width"] + 1)
+                self.assertLessEqual(page.evaluate("document.documentElement.scrollWidth"), width)
+                card.screenshot(path=str(self.artifacts / f"top-card-{width}.png"))
 
     def test_league_priority_breaks_kickoff_ties_persists_and_resets(self):
         fixtures = [("eng", "2026-10-07T18:00:00+00:00", "pre", "ESPN+", "eng.1"),
@@ -1208,7 +1350,7 @@ class BrowserChecks(unittest.TestCase):
                     expect(page.locator(f'{card}[data-match-id="{mid}"] .row__story')).to_contain_text(f"Match news for {mid}.")
                     expect(page.locator(f'li.row[data-id="{mid}"] .row__story')).to_contain_text(f"Match news for {mid}.")
                 expect(page.locator('details[data-b="later"]')).to_have_attribute("open", "")
-                page.screenshot(path=str(self.artifacts / f"empty-near-{width}.png"), full_page=True)
+                self.full_page_shot(page, f"empty-near-{width}.png")
 
     def test_later_overview_is_retained_and_rolls_into_window(self):
         html = render_page(build, fixtures=[

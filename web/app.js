@@ -386,6 +386,38 @@
   }
   window.addEventListener('resize', positionDrawer);
   window.addEventListener('scroll', positionDrawer, { passive: true });
+  // The controls bar stays at the top of the window. Keyboard focus that lands under it is scrolled
+  // clear once the browser has scrolled it into view (WCAG 2.4.11). CSS scroll padding can't do
+  // this: browsers count the stuck bar's own controls as hidden behind it too, and focusing the view
+  // toggle far down the page threw the reader hundreds of pixels back up. Only a Tab moves the page:
+  // focus put back after a redraw uses preventScroll and stays where the reader left it.
+  var bar = document.getElementById('bar'), tabbing = false;
+  // The bar keeps to one line where it can: when its controls would wrap, it goes tight (the styles
+  // say what that drops). Measured rather than set by width, since fonts and text size decide it.
+  function fitBar() {
+    if (!bar) return;
+    var items = [bar.querySelector('.seg'), btnMenu, bar.querySelector('.coffee')];
+    var mid = function (el) { var r = el.getBoundingClientRect(); return r.top + r.height / 2; };
+    var oneLine = function () { return items.every(function (el) { return Math.abs(mid(el) - mid(items[0])) < 4; }); };
+    bar.classList.remove('bar--tight');
+    if (!oneLine()) bar.classList.add('bar--tight');
+  }
+  fitBar();
+  window.addEventListener('resize', fitBar);
+  if (document.fonts) { document.fonts.addEventListener('loadingdone', fitBar); document.fonts.ready.then(fitBar); }
+  document.addEventListener('keydown', function (ev) {
+    if (ev.key !== 'Tab') return;
+    tabbing = true; setTimeout(function () { tabbing = false; }, 0);
+  }, true);
+  document.addEventListener('focusin', function (ev) {
+    var el = ev.target;
+    if (!tabbing || !bar || !el.closest || el.closest('.bar, #drawer, #match-preview, #match-dialog')) return;
+    requestAnimationFrame(function () {
+      if (document.activeElement !== el) return;
+      var below = bar.getBoundingClientRect().bottom, rect = el.getBoundingClientRect();
+      if (rect.height && rect.top < below + 4 && rect.bottom > 0) window.scrollBy(0, rect.top - below - 8);
+    });
+  });
   document.addEventListener('click', function (ev) {
     // The priority list can replace the clicked button before this event reaches document.
     // Its original event path still identifies it as a click inside the panel.
@@ -523,7 +555,12 @@
     return result;
   }
   var lastSig = '', foldContext = '', foldChoices = {};
+  // Everything a redraw changes, from which rows are shown to the rebuilt sections, happens inside
+  // keepPlace, so the reader's place is measured before any of it moves.
   function render(force) {
+    if (keepPlace(function () { return draw(force); })) refreshDetailPreview();
+  }
+  function draw(force) {
     var now = nowMs();
     renderLeagueOrder();
     var groups = {}; ORDER.forEach(function (b) { groups[b] = []; });
@@ -544,10 +581,33 @@
       var pending = r._state !== 'in';
       l.hidden = r._b !== 'live'; l.textContent = pending ? 'Awaiting score' : 'Live'; l.classList.toggle('row__live--pending', pending);
     });
-    if (!force && sig === lastSig) { renderSummary(groups, all, now); return; }
+    if (!force && sig === lastSig) { renderSummary(groups, all, now); return false; }
     lastSig = sig;
     keepFocus(function () { rebuild(groups, all, now); });
-    refreshDetailPreview();
+    return true;
+  }
+  // A redraw re-inserts the schedule's rows, which the browser's scroll anchoring can't follow, so
+  // a change of view or lineup from the bar, or a live update, would leave the reader elsewhere on
+  // the page. Note what is at the top of the reader's view (a schedule row, else a section) and
+  // where, run the update, and scroll it back there. A row the change hides gives way to the first
+  // shown row that kicks off no earlier, so the reader stays at the same time of day.
+  function keepPlace(update) {
+    if (window.scrollY <= 0) return update();
+    var shown = function (el) { return el.isConnected && el.getClientRects().length > 0; };
+    var below = bar ? bar.getBoundingClientRect().bottom : 0;
+    var anchor = Array.from(document.querySelectorAll('#app > section:not(#outlook), #app > article, #app > footer, #outlook li.row'))
+      .find(function (el) { return shown(el) && el.getBoundingClientRect().bottom > below + 1; });
+    if (!anchor) return update();
+    var was = anchor.getBoundingClientRect().top, result = update(), place = anchor;
+    if (!shown(place) && anchor.matches('li.row')) {
+      place = rows.filter(function (r) { return shown(r) && r._k >= anchor._k; })
+        .sort(function (a, c) { return a._k - c._k || a.getBoundingClientRect().top - c.getBoundingClientRect().top; })[0];
+    }
+    if (place && shown(place)) {
+      var moved = place.getBoundingClientRect().top - was;
+      if (Math.abs(moved) >= 1) window.scrollBy(0, moved);
+    }
+    return result;
   }
   function rebuild(groups, all, now) {
     var sparse = upcoming(groups).filter(function (r) { return inFocus(r, now); }).length < 5;
@@ -607,7 +667,7 @@
   }
 
   // ---- the top card (live now, or next up) and kickoff countdowns ------------------------------
-  var nextupEl = document.getElementById('nextup'), nextRow = null;
+  var nextupEl = document.getElementById('nextup'), nextupSection = document.getElementById('nextup-section'), nextRow = null;
   function fmtCount(ms) {
     var s = Math.max(0, Math.floor(ms / 1000)), d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600);
     var m = Math.floor((s % 3600) / 60), sec = s % 60;
@@ -649,32 +709,49 @@
     var live = available.filter(function (r) { return r._state === 'in' && r._b === 'live'; }).sort(byRating);
     var next = available.filter(function (r) { return r._state === 'pre' && r._tv; }).sort(function (a, b) { return byTime(a, b) || byRating(a, b); });
     nextRow = live[0] || next[0] || null;
-    nextupEl.hidden = !nextRow;
+    nextupSection.hidden = nextupEl.hidden = !nextRow;
     if (!nextRow) { nextupEl.removeAttribute('data-match-id'); return; }
+    // The heading names the card ("Next up" or "Live now", from nextupText); the line under it, how
+    // its match was chosen.
+    var choice = ratingOf(nextRow) ? 'Best pick score' : 'First to kick off';
+    setText(document.getElementById('nextup-sub'), nextRow._state !== 'in' ? 'The soonest kickoff in your lineup'
+      : live.length > 1 ? choice + ' of the ' + live.length + ' in progress in your lineup' : 'In progress in your lineup');
     nextRow._card.render('nextup', now, nextupEl);
     tickNextup();
   }
-  // The card's two lines: the clock over the score, the kickoff over a countdown, or, once the
+  // The card's heading, status and count. "Live now" only once ESPN reports the match under way,
+  // over its clock and score; before that "Next up", over the kickoff and a countdown, and once the
   // kickoff time has passed without word from ESPN, the words its schedule row and pick card use.
   // The live poll updates each competition as its answer comes and redraws once all have answered,
   // so a tick in between can find the card's match just finished: it reads as its row does ("FT"
-  // over the score) until that redraw moves the card on.
+  // over the score) until that redraw moves the card on. A status in two parts ("Kickoff 1:10 pm",
+  // "status pending") is stacked by a phone's narrow column.
   function nextupText(r, now) {
-    var clk = clockOf(r);
-    if (r._state === 'in') return { status: 'Live now' + (clk ? ' · ' + clk : ''), count: scoreOf(r) || 'In progress' };
-    if (r._state === 'post') return { status: clk || 'FT', count: scoreOf(r) };
-    var when = timeLabel(r) + dayTag(r, now);
-    return r._k > now ? { status: 'Next up · ' + when, count: fmtCount(r._k - now) }
-      : { status: 'Kickoff ' + when + ' · status pending', count: 'Awaiting score' };
+    var clk = clockOf(r), title = r._state === 'pre' ? 'Next up' : 'Live now';
+    if (r._state === 'in') return { title: title, what: clk, when: '', count: scoreOf(r) || 'In progress' };
+    if (r._state === 'post') return { title: title, what: clk || 'FT', when: '', count: scoreOf(r) };
+    var kickoff = 'Kickoff ' + timeLabel(r) + dayTag(r, now);
+    return r._k > now ? { title: title, what: kickoff, when: '', count: fmtCount(r._k - now) }
+      : { title: title, what: kickoff, when: 'status pending', count: 'Awaiting score' };
   }
   function setText(el, text) { if (el && el.textContent !== text) el.textContent = text; }
+  // "A · B" in three spans; the separator is empty when there is no B.
+  function pairHtml() { return '<span class="pair__a"></span><span class="pair__sep"></span><span class="pair__b"></span>'; }
+  function setPair(el, a, b) {
+    setText(el.children[0], a); setText(el.children[1], b ? ' · ' : ''); setText(el.children[2], b || '');
+  }
+  // Words ("Awaiting score") are set smaller than figures, so they don't widen the column.
+  function showNextupText(status, count, text) {
+    setText(document.getElementById('nextup-h'), text.title);
+    setPair(status, text.what, text.when);
+    setText(count, text.count);
+    count.classList.toggle('nextup__count--words', !/\d/.test(text.count));
+  }
   function tickNextup() {
     var now = nowMs();
-    if (nextRow && !nextupEl.hidden) {
-      var text = nextupText(nextRow, now);
+    if (nextRow && !nextupSection.hidden) {
       nextupEl.classList.toggle('nextup--live', nextRow._state === 'in');
-      setText(document.getElementById('nextup-status'), text.status);
-      setText(document.getElementById('nextup-count'), text.count);
+      showNextupText(document.getElementById('nextup-status'), document.getElementById('nextup-count'), nextupText(nextRow, now));
     }
     rows.forEach(function (r) { r._card.tick(r, now); });
     picksEl.querySelectorAll('.pick').forEach(function (card) { card._matchCard.tick(card, now); });
@@ -895,11 +972,11 @@
     host.className = (top ? 'nextup' + (r._state === 'in' ? ' nextup--live' : '') : 'pick') + ' svc-' + r._svc;
     host.dataset.matchRole = role; host.dataset.matchId = r.getAttribute('data-id');
     host._row = r; host._matchCard = this; host.replaceChildren();
-    var emblem = r.querySelector('.row__league .lg');
+    var emblem = r.querySelector('.row__league .lg'), badge = null;
     if (emblem) {
-      var badge = emblem.cloneNode(true); badge.classList.add('match__league');
-      if (role === 'pick') badge.classList.add('pick__league');
-      badge.title = r.getAttribute('data-comp'); host.appendChild(badge);
+      badge = emblem.cloneNode(true); badge.classList.add('match__league', top ? 'nextup__league' : 'pick__league');
+      badge.title = r.getAttribute('data-comp');
+      if (!top) host.appendChild(badge);
     }
     var head = document.createElement('div'); head.className = top ? 'nextup__left' : 'pick__head';
     var rating = ratingOf(r), label = document.createElement('div');
@@ -909,10 +986,10 @@
     head.appendChild(label);
     if (top) {
       label.id = 'nextup-rating'; label.hidden = !rating;
-      var text = nextupText(r, now);
-      var status = document.createElement('div'); status.className = 'nextup__status'; status.id = 'nextup-status';
+      if (rating) { label.classList.add('pair'); label.innerHTML = pairHtml(); setPair(label, 'Pick score', blendedScore(r) + '/100'); }
+      var status = document.createElement('div'); status.className = 'nextup__status pair'; status.id = 'nextup-status';
       var count = document.createElement('div'); count.className = 'nextup__count'; count.id = 'nextup-count';
-      status.textContent = text.status; count.textContent = text.count;
+      status.innerHTML = pairHtml(); showNextupText(status, count, nextupText(r, now));
       head.appendChild(status); head.appendChild(count);
     } else {
       var when = document.createElement('div'); when.className = 'pick__when';
@@ -925,6 +1002,7 @@
         (showET && r._tv ? (r._state === 'in' ? ' · ' : '') + fmtET.format(new Date(r._k)) + ' ET' : '');
       head.appendChild(kickoff);
     }
+    if (top && badge) head.appendChild(badge);
     host.appendChild(head);
     var content = r.querySelector('.row__body').cloneNode(true);
     content.classList.add('match__body');
@@ -938,12 +1016,13 @@
       name.replaceChildren(link);
     });
     content.querySelector('.row__detail').remove();
-    var watch = r.querySelector('.row__watch');
-    if (watch) {
-      var service = watch.cloneNode(true); service.className = 'match__watch';
-      content.insertBefore(service, content.querySelector('.pills'));
-    }
+    var watch = r.querySelector('.row__watch'), service = watch && watch.cloneNode(true);
+    if (service) service.className = 'match__watch' + (top ? ' nextup__watch' : '');
+    // A pick is tall and narrow, so its broadcaster goes in the body; the top card has the row's
+    // short, wide shape, and its own column for it.
+    if (service && !top) content.insertBefore(service, content.querySelector('.pills'));
     host.appendChild(content);
+    if (service && top) host.appendChild(service);
     if (role === 'pick') {
       var colors = document.createElement('div'); colors.className = 'pick__colors'; colors.setAttribute('aria-hidden', 'true');
       [r.getAttribute('data-hc'), r.getAttribute('data-ac')].forEach(function (c) {
@@ -1396,9 +1475,11 @@
   }
   function refreshLiveText() {
     var now = nowMs();
-    keepFocus(function () {
-      if (nextRow) nextRow._card.render('nextup', now, nextupEl);
-      picksEl.querySelectorAll('.pick').forEach(function (a) { if (a._row) a._row._card.render('pick', now, a); });
+    keepPlace(function () {
+      keepFocus(function () {
+        if (nextRow) nextRow._card.render('nextup', now, nextupEl);
+        picksEl.querySelectorAll('.pick').forEach(function (a) { if (a._row) a._row._card.render('pick', now, a); });
+      });
     });
     refreshDetailPreview();
     watchIcons();

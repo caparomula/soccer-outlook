@@ -52,12 +52,17 @@ a { color: inherit; }
 .svc-off, .fpill--none { --svc: var(--svc-off); }
 
 /* Header */
-.hdr { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 10px 16px; padding-bottom: 14px; border-bottom: 2px solid var(--fg); }
-.hdr__top { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 4px 12px; }
-.hdr__eyebrow { font-family: var(--display); font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em; font-size: 13px; color: var(--muted); }
-/* A way to say thanks, in the masthead's corner: on the first screen everywhere, quieter than the
-   controls, and set like the date beside it. A phone shows the cup alone; its name stays for
-   screen readers. */
+.hdr { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px 16px; padding-bottom: 12px; }
+.hdr__eyebrow { grid-column: 1 / -1; font-family: var(--display); font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em; font-size: 13px; color: var(--muted); }
+/* The masthead ends in a bar with what a reader reaches for anywhere on the page: the view, the
+   lineup and the coffee link. The bar stays at the top of the window while the date, the title and
+   the tally scroll away; pinning the whole masthead would take a quarter of a phone's screen. Its
+   page-colored background hides what scrolls beneath, and its rule is the masthead's. The drawer
+   (z-index 30), the details preview and dialog sit above it. */
+.bar { position: sticky; top: 0; z-index: 20; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+  gap: 8px 12px; padding: 10px 0; background: var(--bg); border-bottom: 2px solid var(--fg); }
+/* A way to say thanks, at the bar's end: in reach everywhere, quieter than the controls, and set like
+   the masthead's date. A phone shows the cup alone; its name stays for screen readers. */
 .coffee { flex: none; display: inline-flex; align-items: center; gap: 6px; padding: 3px 11px 3px 8px; border: 1px solid var(--line-strong);
   border-radius: 999px; font-family: var(--display); font-weight: 600; font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase;
   color: var(--muted); text-decoration: none; white-space: nowrap; }
@@ -95,12 +100,19 @@ a { color: inherit; }
 .miss__story { margin-top: 6px; font-size: 13.5px; color: var(--fg); }
 
 /* Next up */
-.nextup { position: relative; margin-top: 18px; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 18px; align-items: start; background: var(--card); border: 1px solid var(--line); border-left: 5px solid var(--accent); border-radius: var(--radius); padding: 12px 16px; }
+/* The top card has a schedule row's short, wide shape, so it takes the row's layout rather than the
+   tall pick card's: the countdown column, with the league's emblem at its foot; the match; and the
+   broadcaster in a column of its own. Narrower screens fold it as they fold the row. */
+.nextup { display: grid; grid-template-columns: 148px minmax(0, 1fr) 212px; gap: 8px 18px; align-items: start; background: var(--card); border: 1px solid var(--line); border-left: 5px solid var(--accent); border-radius: var(--radius); padding: 12px 16px; }
 .nextup--live { border-left-color: var(--amber); }
 .nextup__status { font-family: var(--display); font-weight: 700; font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); }
 .nextup--live .nextup__status { color: var(--amber); }
 .nextup__count { font-family: var(--display); font-weight: 700; font-size: 38px; line-height: 1; font-variant-numeric: tabular-nums; min-width: 5ch; }
-.nextup__left { display: flex; flex-direction: column; gap: 4px; }
+.nextup__left { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; align-self: stretch; min-width: 0; }
+.nextup__count { white-space: nowrap; }   /* figures stay on one line; words may wrap */
+.nextup__count--words { font-size: 22px; line-height: 1.1; white-space: normal; }
+.nextup__league { margin: auto 0 0; width: 30px; height: 32px; }
+.nextup__watch { justify-self: start; min-width: 0; max-width: 100%; padding-top: 4px; }
 
 /* Picks */
 .sec { margin-top: 32px; }
@@ -124,8 +136,8 @@ a { color: inherit; }
 .match__body .team__name a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .match__body .story-src { white-space: normal; }
 .match__body .row__story { font-size: 14px; line-height: 1.4; }
-.match__body .pill, .match__watch .chip { white-space: normal; overflow-wrap: anywhere; }
-.match__watch { margin-top: 8px; }
+.match__body .pill, .pick .match__watch .chip { white-space: normal; overflow-wrap: anywhere; }
+.pick .match__watch { margin-top: 8px; }
 .match__kickoff { margin-top: 5px; font-size: 12px; color: var(--muted); }
 .pick .match__body { margin-top: 12px; }
 .pick .row__teams { flex-direction: column; align-items: stretch; gap: 9px; }
@@ -134,8 +146,6 @@ a { color: inherit; }
 .pick .row__meta { margin-top: 10px; gap: 3px 8px; }
 .pick .venue { flex-basis: 100%; }
 .pick .venue::before { content: none; }
-.nextup .match__body { padding-right: 42px; }
-.nextup .match__league { position: absolute; top: 14px; right: 14px; width: 32px; height: 32px; margin: 0; }
 
 /* Controls */
 .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
@@ -300,7 +310,7 @@ html.has-match-dialog, .has-match-dialog body { overflow: hidden; }
 .pill__free { font-weight: 400; opacity: 0.8; }
 .pill__free::before { content: "\00b7"; margin-right: 5px; }
 .row__watch { justify-self: start; min-width: 0; max-width: 100%; padding-top: 4px; }
-.row__watch .chip { max-width: 100%; white-space: normal; flex-wrap: wrap; gap: 3px 7px; }
+.row__watch .chip, .nextup__watch .chip { max-width: 100%; white-space: normal; flex-wrap: wrap; gap: 3px 7px; }
 .chip { display: inline-flex; align-items: center; gap: 7px; font-family: var(--display); font-weight: 600; font-size: 15px; letter-spacing: 0.03em; padding: 5px 11px 5px 9px; border-radius: 999px; border: 1px solid var(--svc); color: var(--svc); white-space: nowrap; }
 .chip__via { color: var(--muted); font-weight: 600; }
 .chip__via::before { content: "\00b7"; margin-right: 6px; }
@@ -355,12 +365,11 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
 .foot { margin-top: 40px; padding-top: 14px; border-top: 1px solid var(--line-strong); font-size: 13.5px; color: var(--muted); }
 .foot p { margin: 0 0 8px; max-width: 80ch; }
 
-@media (max-width: 900px) {
-  .hdr { grid-template-columns: minmax(0, 1fr) auto; }
-  .hdr__tally { grid-column: 2; grid-row: 2; }
-  .hdr .controls { grid-column: 1 / -1; grid-row: 3; }
-}
 @media (max-width: 820px) {
+  .nextup { grid-template-columns: 132px minmax(0, 1fr); }
+  .nextup__left { grid-row: 1 / span 2; }
+  .nextup__watch { grid-column: 2; padding-top: 0; }
+  .nextup__league { width: 28px; }
   .row { grid-template-columns: 64px minmax(0, 1fr); }
   .row__league .lg { width: 28px; }
   .row__time { grid-row: 1 / span 2; }
@@ -374,18 +383,32 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
   .row__watch { grid-column: 2; justify-self: start; padding-top: 0; }
   .row--on .row__time { grid-row: 1; }
   .row--on .row__watch { display: none; }   /* the colored pill already says it on a phone */
-  .nextup { grid-template-columns: 1fr; }
-  .nextup__count { font-size: 32px; }
-  .nextup .match__body { padding-right: 0; }
+  .nextup { grid-template-columns: 76px minmax(0, 1fr); column-gap: 10px; padding: 12px 10px 12px 9px; }
+  .nextup__watch { display: none; }   /* the colored pill already says it on a phone, as in the row */
+  .nextup__count { font-size: 26px; min-width: 0; }
+  .nextup__count--words { font-size: 17px; }
+  .nextup__league { width: 24px; height: 28px; }
+  .nextup .pair > span { display: block; }   /* "Next up" over "1:10 pm" in the narrow column */
+  .nextup .pair > .pair__sep { display: none; }
   .row__time .t { font-size: 22px; }
   .hdr h1 { font-size: clamp(28px, 8vw, 40px); }
   .hdr__tally .big { font-size: 32px; }
   .hdr__tally .small { font-size: 12px; max-width: 16ch; }
-  .hdr .seg button { font-size: 13px; padding-inline: 8px; }
-  .hdr .menu-btn { font-size: 13px; padding-inline: 10px; }
-  .hdr__top { column-gap: 8px; }
+  .bar { column-gap: 8px; }
+  .bar .seg button { font-size: 13px; padding-inline: 8px; }
+  .bar .menu-btn { font-size: 13px; padding-inline: 10px; }
   .coffee { padding: 5px; }
   .coffee__txt { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+}
+/* Where the bar's controls would wrap (a narrow phone, a fallback or enlarged font), the script marks
+   it tight: Lineup shows its icon alone, keeping its name for screen readers, and the toggle's
+   padding narrows, so the bar stays one line at the top of the window. */
+.bar--tight { column-gap: 6px; }
+.bar--tight .menu-btn__caret { display: none; }
+.bar--tight .menu-btn { padding-inline: 9px; }
+.bar--tight .seg button { padding-inline: 6px; }
+.bar--tight .menu-btn__txt { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+@media (max-width: 600px) {
   .controls__lbl { min-width: 0; width: 100%; }
 }
 @media (prefers-reduced-motion: no-preference) {

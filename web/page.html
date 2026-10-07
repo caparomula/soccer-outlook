@@ -37,14 +37,11 @@
     <div class="drawer__foot"><button type="button" class="link" id="btn-reset">Reset to defaults</button><button type="button" class="fbtn" id="btn-filters-close">Done</button></div>
   </div>
   <header class="hdr">
-    <div class="hdr__top">
-      <div class="hdr__eyebrow" id="eyebrow">Your lineup · Next 24 hours</div>
-      <a class="coffee" href="https://buymeacoffee.com/caparomula" target="_blank" rel="noopener">
-        <svg class="coffee__cup" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path class="coffee__fill" d="M4.5 10h11v4.5a4.5 4.5 0 0 1-4.5 4.5H9a4.5 4.5 0 0 1-4.5-4.5z"/><path d="M15.5 11.5h1.25a2.25 2.25 0 0 1 0 4.5H15.3"/><path d="M8 3.5c-.9 1 .9 2 0 3M12 3.5c-.9 1 .9 2 0 3"/><path d="M3 21.5h14"/></svg>
-        <span class="coffee__txt">Buy me a coffee</span>
-      </a>
-    </div>
+    <div class="hdr__eyebrow" id="eyebrow">Your lineup · Next 24 hours</div>
     <h1>Soccer Outlook</h1>
+    <div class="hdr__tally"><div class="big" id="tally-n">@@N_ON@@</div><div class="small" id="tally-txt">of @@N_ALL@@ matches in the next 24 hours are on your services</div></div>
+  </header>
+  <div class="bar" id="bar">
     <div class="controls mode-mine" id="controls">
       <div class="seg" role="group" aria-label="Which matches to show">
         <button type="button" id="btn-mine" aria-pressed="true">On my services</button>
@@ -52,17 +49,23 @@
       </div>
       <button type="button" class="menu-btn" id="btn-menu" aria-expanded="false" aria-controls="drawer" aria-haspopup="dialog">
         <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 5h14M3 10h14M3 15h14"/><circle cx="13" cy="5" r="2.3"/><circle cx="7" cy="10" r="2.3"/><circle cx="11" cy="15" r="2.3"/></svg>
-        <span>Lineup</span><span class="menu-btn__caret" aria-hidden="true">&#9662;</span>
+        <span class="menu-btn__txt">Lineup</span><span class="menu-btn__caret" aria-hidden="true">&#9662;</span>
       </button>
     </div>
-    <div class="hdr__tally"><div class="big" id="tally-n">@@N_ON@@</div><div class="small" id="tally-txt">of @@N_ALL@@ matches in the next 24 hours are on your services</div></div>
-  </header>
+    <a class="coffee" href="https://buymeacoffee.com/caparomula" target="_blank" rel="noopener">
+      <svg class="coffee__cup" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path class="coffee__fill" d="M4.5 10h11v4.5a4.5 4.5 0 0 1-4.5 4.5H9a4.5 4.5 0 0 1-4.5-4.5z"/><path d="M15.5 11.5h1.25a2.25 2.25 0 0 1 0 4.5H15.3"/><path d="M8 3.5c-.9 1 .9 2 0 3M12 3.5c-.9 1 .9 2 0 3"/><path d="M3 21.5h14"/></svg>
+      <span class="coffee__txt">Buy me a coffee</span>
+    </a>
+  </div>
   <section class="story" id="story" aria-labelledby="story-h" hidden>
     <h2 class="story__eyebrow" id="story-h">Storyline</h2>
     <p class="story__lede" id="story-lede"></p>
     <p class="story__by" id="story-by"></p>
   </section>
-  <article class="nextup" id="nextup" hidden></article>
+  <section class="sec" id="nextup-section" aria-labelledby="nextup-h" hidden>
+    <div class="sec__h"><h2 id="nextup-h">Next up</h2><p id="nextup-sub"></p></div>
+    <article class="nextup" id="nextup"></article>
+  </section>
 
   <section class="sec" id="picks-section" aria-labelledby="picks-h" hidden>
     <div class="sec__h"><h2 id="picks-h">Top three</h2><p id="picks-sub">Match interest and your league priorities</p></div>
