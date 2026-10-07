@@ -11,7 +11,6 @@ import json
 import os
 from pathlib import Path
 import re
-import shutil
 import sys
 import tempfile
 from threading import Thread
@@ -33,10 +32,10 @@ class QuietHandler(SimpleHTTPRequestHandler):
 
 class BrowserChecks(unittest.TestCase):
     @contextmanager
-    def page(self, target, *, width=1280, theme="light", at="20261007-1300", html=None, story=None, touch=False):
+    def page(self, target, *, width=1280, theme="light", at="20261007-1300", html=None, story=None, touch=False, locale="en-US"):
         context = self.browser.new_context(
             viewport={"width": width, "height": 900 if width > 600 else 844},
-            locale="en-US", timezone_id="America/New_York", color_scheme=theme,
+            locale=locale, timezone_id="America/New_York", color_scheme=theme,
             device_scale_factor=1, has_touch=touch)
         page = context.new_page()
         errors = []
@@ -140,9 +139,13 @@ class BrowserChecks(unittest.TestCase):
                         for state in ("schedule", "lineup", "details"):
                             if state == "lineup":
                                 page.locator("#btn-menu").click()
+                                expect(page.locator("#drawer")).to_be_visible()
                             elif state == "details":
                                 page.keyboard.press("Escape")
                                 page.locator('li[data-id="upcoming"] .more').click()
+                                expect(page.locator("#match-dialog")).to_be_visible()
+                            # Without a baseline there is nothing to compare pixels with; the layout must still fit.
+                            self.assertLessEqual(page.evaluate("document.documentElement.scrollWidth"), width, state)
                             page.evaluate("window.scrollTo(0, 0)")
                             # Let scrolling and sticky layers finish painting with the paused clock.
                             page.clock.run_for(50)
@@ -1129,6 +1132,159 @@ class BrowserChecks(unittest.TestCase):
                 expect(page.locator("#schedule-summary")).to_contain_text("1 live · 5 upcoming")
 
 
+    # ---- fixes from the October review: focus, preview, priority keys, saved settings, labels ----------
+    @staticmethod
+    def overview_story(sources=None):
+        sources = [{"url": "https://news.example/a", "title": "A"}] if sources is None else sources
+        text = "Arsenal meet Chelsea with the league lead at stake."
+        return {"version": 1, "date": "2026-10-07", "generated_at": "2026-10-07T17:00:00Z", "focus_until": "2026-10-08T17:00:00Z",
+                "notes": {}, "league_order": ["eng.1"], "league_blurbs": [],
+                "lede_items": [{"text": text, "match_ids": ["upcoming"], "segments": [{"text": text, "match_ids": ["upcoming"]}],
+                                "sources": sources}]}
+
+    def test_keyboard_focus_survives_minute_ticks_goals_and_card_rebuilds(self):
+        with self.page("after", story=self.overview_story()) as (page, feed):
+            page.locator("#story-by a").first.focus()
+            page.evaluate("window.__link = document.activeElement")
+            page.clock.run_for(61000)       # the minute tick redraws the overview's facts, not its text
+            # The same element, not a rebuilt copy: rebuilding unchanged text also loses a selection.
+            self.assertTrue(page.evaluate("window.__link.isConnected && document.activeElement === window.__link"))
+            details = page.locator('li.row[data-id="upcoming"] button.more')
+            details.focus()
+            feed["data"] = scoreboard("in")
+            page.clock.run_for(60000)       # a goal re-renders the schedule and moves the row
+            expect(page.locator('li.row[data-id="upcoming"]')).to_have_attribute("data-state", "in")
+            self.assertTrue(details.evaluate("el => el === document.activeElement"))
+            pick = page.locator('#picks .pick[data-match-id="upcoming"] button.more')
+            pick.focus()
+            page.evaluate("window.__oldButton = document.activeElement")
+            clocked = deepcopy(scoreboard("in"))
+            clocked["events"][0]["competitions"][0]["status"]["displayClock"] = "64'"
+            feed["data"] = clocked
+            page.clock.run_for(60000)       # a clock change rebuilds the pick cards
+            expect(page.locator('li.row[data-id="upcoming"] .row__status')).to_have_text("64'")
+            self.assertTrue(page.evaluate("!window.__oldButton.isConnected && document.activeElement.matches("
+                                          "'#picks .pick[data-match-id=\"upcoming\"] button.more')"))
+
+    def test_hover_preview_stays_open_through_a_live_update(self):
+        with self.page("after") as (page, feed):
+            page.locator('li.row[data-id="upcoming"] button.more').hover()
+            page.clock.run_for(250)
+            preview = page.locator("#match-preview")
+            expect(preview).to_be_visible()
+            box = preview.bounding_box()
+            page.mouse.move(box["x"] + box["width"] / 2, box["y"] + min(20, box["height"] / 2))
+            feed["data"] = scoreboard("in")
+            page.clock.run_for(60000)
+            expect(page.locator('li.row[data-id="upcoming"]')).to_have_attribute("data-state", "in")
+            expect(preview).to_be_visible()
+            page.mouse.move(5, 5)
+            page.clock.run_for(400)
+            expect(preview).to_be_hidden()
+
+    def test_league_priority_buttons_move_a_league_repeatedly_from_the_keyboard(self):
+        with self.page("after") as (page, _):
+            page.locator("#btn-menu").click()
+            page.locator(".league-priority > summary").click()
+            first = page.locator("#league-order li").first
+            league = first.get_attribute("data-league")
+            name = page.evaluate("id => JSON.parse(document.getElementById('service-meta').textContent).leagues[id]", league)
+            page.get_by_role("button", name=f"Move {name} down", exact=True).focus()
+            page.keyboard.press("Enter")
+            page.keyboard.press("Enter")
+            expect(page.locator("#league-order li").nth(2)).to_have_attribute("data-league", league)
+            self.assertEqual(page.evaluate("document.activeElement.getAttribute('aria-label')"), f"Move {name} down")
+
+    def test_malformed_saved_settings_fall_back_to_defaults(self):
+        with self.page("after") as (page, _):
+            page.evaluate("""() => {
+                localStorage.setItem('ssg2-comp-off', '{}'); localStorage.setItem('ssg5-leagues', '[1]');
+                localStorage.setItem('ssg3-have', '"espn"'); localStorage.setItem('ssg4-league-order', '"x"');
+                localStorage.setItem('ssg4-service-order', '5'); }""")
+            page.reload()
+            page.clock.run_for(1)
+            expect(page.locator('li.row[data-id="upcoming"]')).to_be_visible()
+            page.locator("#btn-menu").click()
+            expect(page.locator('[data-kind="have"][aria-pressed="true"]')).to_have_count(len(build.OWNER))
+
+    def test_saved_leagues_leave_unseen_competitions_at_their_default(self):
+        hidden = next(lg for lg, info in build.LEAGUES.items() if info.get("default_off"))
+        fixtures = [("pl", "2026-10-07T18:00:00+00:00", "pre", "ESPN+", "eng.1"),
+                    ("quiet", "2026-10-07T19:00:00+00:00", "pre", "ESPN+", hidden)]
+        with self.page("after", html=render_page(build, fixtures=fixtures)) as (page, _):
+            # Saved in the earlier format on a day without that competition's fixtures.
+            page.evaluate("localStorage.setItem('ssg2-comp-off', JSON.stringify(['esp.1']))")
+            page.reload()
+            page.clock.run_for(1)
+            expect(page.locator('li.row[data-id="pl"]')).to_be_visible()
+            expect(page.locator('li.row[data-id="quiet"]')).to_be_hidden()
+            page.locator("#btn-menu").click()
+            page.locator(f'#drawer [data-kind="comp"][data-key="{hidden}"]').click()
+            expect(page.locator('li.row[data-id="quiet"]')).to_be_visible()
+            self.assertEqual(page.evaluate("JSON.parse(localStorage.getItem('ssg5-leagues'))"), {"on": [hidden], "off": ["esp.1"]})
+            self.assertIsNone(page.evaluate("localStorage.getItem('ssg2-comp-off')"))
+
+    def test_us_national_team_shows_by_default_until_its_competition_is_switched_off(self):
+        fixtures = [("usa", "2026-10-07T23:00:00+00:00", "pre", "HBO Max", "fifa.friendly.w"),
+                    ("india", "2026-10-07T23:30:00+00:00", "pre", "HBO Max", "fifa.friendly.w")]
+        names = {"usa": ("United States", "Spain"), "india": ("India", "Russia")}
+        with self.page("after", html=render_page(build, fixtures=fixtures, team_names=names)) as (page, _):
+            usa, india = page.locator('li.row[data-id="usa"]'), page.locator('li.row[data-id="india"]')
+            expect(usa).to_be_visible()
+            expect(india).to_be_hidden()
+            page.locator("#btn-menu").click()
+            pill = page.locator('#drawer [data-kind="comp"][data-key="fifa.friendly.w"]')
+            pill.click()
+            expect(india).to_be_visible()
+            pill.click()                     # switched off by the viewer, not by default: both go
+            expect(usa).to_be_hidden()
+            expect(india).to_be_hidden()
+            page.locator("#btn-reset").click()
+            expect(usa).to_be_visible()
+
+    def test_24_hour_clocks_keep_their_minutes(self):
+        fixtures = [("next", "2026-10-07T18:00:00+00:00", "pre", "ESPN+")]
+        with self.page("after", html=render_page(build, fixtures=fixtures), locale="en-GB") as (page, _):
+            expect(page.locator("#schedule-summary")).to_contain_text("Next kickoff · 14:00")
+
+    def test_kickoff_without_word_from_espn_awaits_its_score(self):
+        with self.page("after", at="20261007-1310") as (page, _):
+            expect(page.locator('li.row[data-id="upcoming"] .row__live')).to_have_text("Awaiting score")
+            expect(page.locator('li.row[data-id="live"] .row__live')).to_have_text("Live")
+
+    def test_cards_without_ratings_are_not_called_picks(self):
+        with self.page("after") as (page, _):
+            expect(page.locator("#picks-h")).to_have_text("Upcoming")
+            expect(page.locator("#picks-sub")).to_have_text("In kickoff order · no ratings yet")
+        story = self.overview_story()
+        story["rankings"] = {mid: {"score": 50, "popularity": 50, "gameplay": 50, "impact": 50} for mid in ("upcoming", "midnight", "late")}
+        with self.page("after", story=story) as (page, _):
+            expect(page.locator("#picks-h")).to_have_text("Top three")
+
+    def test_malformed_story_does_not_stop_filters_or_scores(self):
+        story = self.overview_story(sources="not a list")
+        story.update(league_order="eng.1", notes={"upcoming": {"note": "A note.", "sources": "nope"}},
+                     rankings={"upcoming": {"score": 60, "popularity": 60, "gameplay": 60, "impact": 60, "blurb": 7,
+                                            "sources": [{"url": "https://news.example/x", "title": 99}]}},
+                     league_blurbs=["junk", None, {"segments": "junk"}])
+        with self.page("after", story=story) as (page, feed):
+            expect(page.locator("#story-lede")).to_contain_text("league lead")
+            page.locator("#btn-menu").click()
+            page.locator("#btn-clear").click()
+            expect(page.locator('li.row[data-id="upcoming"]')).to_be_hidden()
+            page.locator("#btn-reset").click()
+            page.locator("#btn-filters-close").click()
+            feed["data"] = scoreboard("in")
+            page.clock.run_for(60000)
+            expect(page.locator('li.row[data-id="upcoming"]')).to_have_attribute("data-state", "in")
+
+    def test_sources_name_espn_facts_and_number_a_repeated_site(self):
+        sources = [{"url": "https://www.espn.com/soccer/match/_/gameId/upcoming", "title": "ESPN table and form", "kind": "facts"},
+                   {"url": "https://news.example/a", "title": "A"}, {"url": "https://news.example/b", "title": "B"}]
+        with self.page("after", story=self.overview_story(sources)) as (page, _):
+            expect(page.locator("#story-by a")).to_have_text(["ESPN table and form", "news.example", "news.example (2)"])
+            self.assertIn("not from reporting", page.locator("#story-by a").first.get_attribute("title"))
+
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -1155,8 +1311,9 @@ def main():
         server = ThreadingHTTPServer(("127.0.0.1", 0), partial(QuietHandler, directory=directory))
         thread = Thread(target=server.serve_forever, daemon=True)
         thread.start()
-        executable = os.environ.get("BROWSER_EXECUTABLE") or shutil.which("chromium")
-        browser = playwright.chromium.launch(executable_path=executable)
+        # Playwright's own Chromium, the version it was built against, unless BROWSER_EXECUTABLE names
+        # another. A runner's system Chromium (GitHub's images put one on PATH) changes from week to week.
+        browser = playwright.chromium.launch(executable_path=os.environ.get("BROWSER_EXECUTABLE") or None)
         try:
             BrowserChecks.browser = browser
             BrowserChecks.base = f"http://127.0.0.1:{server.server_port}"

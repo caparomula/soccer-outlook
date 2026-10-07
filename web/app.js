@@ -3,11 +3,13 @@
   var DAY_START = 4;                 // a sports day runs 4 am to 4 am local time
   var FOCUS_MS = 24 * 60 * 60000;
   var LIVE_MS = 125 * 60000;
-  var LS = { mode: 'ssg2-mode', comp: 'ssg2-comp-off', priority: 'ssg4-league-order', services: 'ssg4-service-order' };
+  var LS = { mode: 'ssg2-mode', have: 'ssg3-have', leagues: 'ssg5-leagues', compOff: 'ssg2-comp-off', priority: 'ssg4-league-order', services: 'ssg4-service-order' };
   var app = document.getElementById('app');
   var body = document.getElementById('outlook-body');
   var rows = Array.prototype.slice.call(document.querySelectorAll('li.row'));
   if (!rows.length) return;
+  var ROW_BY_ID = Object.create(null);
+  rows.forEach(function (r) { ROW_BY_ID[r.getAttribute('data-id')] = r; });
   var controls = document.getElementById('controls');
   // A hash such as #at-20261003-2130 pins "now" (viewer-local) so a perspective can be previewed.
   function nowMs() { var m = /^#at-(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})$/.exec(location.hash || ''); return m ? new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]).getTime() : Date.now(); }
@@ -34,6 +36,7 @@
     r._lg = r.getAttribute('data-lg');
     r._score = parseInt(r.getAttribute('data-score'), 10) || 0;
     r._state = r.getAttribute('data-state');
+    r._featured = r.getAttribute('data-featured') === '1';
     try { r._o = JSON.parse(r.getAttribute('data-o') || '[]'); } catch (e) { r._o = []; }
     r._unk = r._o.some(function (o) { return o.u; });   // a channel the page doesn't recognize
     try { r._r = r.hasAttribute('data-r') ? JSON.parse(r.getAttribute('data-r')) : null; } catch (e) { r._r = null; }
@@ -102,13 +105,44 @@
   var mode = read(LS.mode) === 'all' ? 'all' : 'mine';
   var drawerOpen = false;
   var drawer = document.getElementById('drawer'), btnMenu = document.getElementById('btn-menu');
-  var storedHave = read('ssg3-have');
+  var storedHave = read(LS.have);
   var HAVE = {};
-  (Array.isArray(storedHave) ? storedHave : SERVICES.owner).forEach(function (k) { HAVE[k] = true; });
-  var compOff = {};
-  var storedComp = read(LS.comp);
-  if (storedComp) { storedComp.forEach(function (k) { compOff[k] = true; }); }
-  else { drawer.querySelectorAll('[data-kind="comp"][data-default-off="1"]').forEach(function (b) { compOff[b.getAttribute('data-key')] = true; }); }
+  (Array.isArray(storedHave) ? storedHave : SERVICES.owner).forEach(function (k) { if (typeof k === 'string') HAVE[k] = true; });
+  // Competitions: the viewer's explicit choices (true on, false off) are kept per league, and a league
+  // without one follows its default. Saving only the leagues switched off made a default-off league
+  // that had no fixtures when the viewer saved come back switched on. The earlier format, a list of
+  // switched-off leagues, is read once as explicit offs. Anything malformed is ignored, not fatal.
+  var DEFAULT_OFF = {};
+  drawer.querySelectorAll('[data-kind="comp"][data-default-off="1"]').forEach(function (b) { DEFAULT_OFF[b.getAttribute('data-key')] = true; });
+  var compChoice = {}, compOff = {};
+  (function () {
+    var saved = read(LS.leagues), old = read(LS.compOff);
+    if (saved && typeof saved === 'object' && !Array.isArray(saved)) {
+      [['on', true], ['off', false]].forEach(function (pair) {
+        (Array.isArray(saved[pair[0]]) ? saved[pair[0]] : []).forEach(function (k) { if (typeof k === 'string') compChoice[k] = pair[1]; });
+      });
+    } else if (Array.isArray(old)) {
+      old.forEach(function (k) { if (typeof k === 'string') compChoice[k] = false; });
+    }
+  })();
+  function hasChoice(id) { return Object.prototype.hasOwnProperty.call(compChoice, id); }
+  function applyCompChoices() {
+    compOff = {};
+    drawer.querySelectorAll('[data-kind="comp"]').forEach(function (b) {
+      var k = b.getAttribute('data-key');
+      if (hasChoice(k) ? !compChoice[k] : DEFAULT_OFF[k]) compOff[k] = true;
+    });
+  }
+  function saveCompChoices() {
+    var on = [], off = [];
+    Object.keys(compChoice).forEach(function (k) { (compChoice[k] ? on : off).push(k); });
+    write(LS.leagues, { on: on, off: off });
+    try { localStorage.removeItem(LS.compOff); } catch (e) {}
+  }
+  applyCompChoices();
+  // A match of a team build.py features (the US national teams) shows while its competition is off
+  // by default; a viewer who switches the competition off hides it too.
+  function compHidden(r) { return !!compOff[r._lg] && !(r._featured && !hasChoice(r._lg)); }
   var storedPriority = read(LS.priority);
   var storedServiceOrder = read(LS.services);
   var leagueNames = SERVICES.leagues || {};
@@ -125,7 +159,7 @@
   }
   function leagueOrder() {
     var base = Object.keys(leagueNames), order = [];
-    var preferred = Array.isArray(storedPriority) ? storedPriority : (STORY && STORY.s && STORY.s.league_order || []);
+    var preferred = Array.isArray(storedPriority) ? storedPriority : (STORY && STORY.s && Array.isArray(STORY.s.league_order) ? STORY.s.league_order : []);
     preferred.concat(base).forEach(function (id) { if (base.indexOf(id) >= 0 && order.indexOf(id) < 0) order.push(id); });
     return order;
   }
@@ -149,11 +183,11 @@
   function filterEnabled(kind, id) { return kind === 'have' ? !!HAVE[id] : !compOff[id]; }
   function setFilterEnabled(kind, id, enabled) {
     if (kind === 'have') { if (enabled) HAVE[id] = true; else delete HAVE[id]; }
-    else { if (enabled) delete compOff[id]; else compOff[id] = true; }
+    else { compChoice[id] = !!enabled; if (enabled) delete compOff[id]; else compOff[id] = true; }
   }
   function persistFilters(kind) {
-    if (kind === 'have') { storedHave = Object.keys(HAVE); write('ssg3-have', storedHave); evaluateAll(); }
-    else write(LS.comp, Object.keys(compOff));
+    if (kind === 'have') { storedHave = Object.keys(HAVE); write(LS.have, storedHave); evaluateAll(); }
+    else saveCompChoices();
   }
   function storeFilterOrder(kind, order) {
     if (kind === 'comp') { storedPriority = order; write(LS.priority, order); }
@@ -332,7 +366,7 @@
   function passes(r) {
     // This view promises availability; unconfirmed coverage belongs in Everything.
     if (mode === 'mine' && !onSvc(r)) return false;
-    if (compOff[r._lg]) return false;
+    if (compHidden(r)) return false;
     return true;
   }
   // The lineup panel: opened from the Lineup button, closed by it, by Done, by Escape or by a tap
@@ -368,9 +402,10 @@
     if (b.id === 'btn-mine' || b.id === 'btn-all') { mode = b.id === 'btn-all' ? 'all' : 'mine'; write(LS.mode, mode); }
     else if (b.id === 'btn-reset') {
       mode = 'mine'; HAVE = {}; SERVICES.owner.forEach(function (k) { HAVE[k] = true; }); storedHave = null;
-      compOff = {}; drawer.querySelectorAll('[data-kind="comp"][data-default-off="1"]').forEach(function (x) { compOff[x.getAttribute('data-key')] = true; });
+      compChoice = {}; applyCompChoices();
       storedPriority = null; storedServiceOrder = null;
-      write(LS.mode, mode); try { localStorage.removeItem(LS.comp); localStorage.removeItem('ssg3-have'); localStorage.removeItem(LS.priority); localStorage.removeItem(LS.services); } catch (e) {}
+      write(LS.mode, mode);
+      try { [LS.leagues, LS.compOff, LS.have, LS.priority, LS.services].forEach(function (k) { localStorage.removeItem(k); }); } catch (e) {}
       evaluateAll();
     }
     else if (b.hasAttribute('data-move-league')) {
@@ -380,19 +415,21 @@
       order.splice(target, 0, order.splice(index, 1)[0]);
       var focusLeague = b.getAttribute('data-move-league');
       saveLeagueOrder(order);
+      // Stay on the button that was pressed, so pressing it again moves the league further; at the
+      // end of the list, where it is disabled, take the other one.
       var moved = document.querySelector('#league-order [data-league="' + focusLeague + '"]');
-      moved.querySelector('button:not(:disabled)').focus({ preventScroll: true });
+      var same = moved.querySelector('[data-direction="' + direction + '"]');
+      (same && !same.disabled ? same : moved.querySelector('button:not(:disabled)')).focus({ preventScroll: true });
       return;
     }
     else if (b.id === 'btn-clear' || b.id === 'btn-select-services') {
       HAVE = {};
       if (b.id === 'btn-select-services') SERVICES.order.forEach(function (k) { HAVE[k] = true; });
-      storedHave = Object.keys(HAVE); write('ssg3-have', storedHave); evaluateAll();
+      storedHave = Object.keys(HAVE); write(LS.have, storedHave); evaluateAll();
     }
     else if (b.id === 'btn-clear-leagues' || b.id === 'btn-select-leagues') {
-      compOff = {};
-      if (b.id === 'btn-clear-leagues') drawer.querySelectorAll('[data-kind="comp"]').forEach(function (x) { compOff[x.getAttribute('data-key')] = true; });
-      write(LS.comp, Object.keys(compOff));
+      drawer.querySelectorAll('[data-kind="comp"]').forEach(function (x) { compChoice[x.getAttribute('data-key')] = b.id === 'btn-select-leagues'; });
+      applyCompChoices(); saveCompChoices();
     }
     else if (b.hasAttribute('data-kind')) { setFilterEnabled(b.dataset.kind, b.dataset.key, !filterEnabled(b.dataset.kind, b.dataset.key)); persistFilters(b.dataset.kind); }
     else return;
@@ -458,12 +495,39 @@
   document.getElementById('outlook-sub').textContent = 'The next 24 hours; later fixtures follow below';
 
   // ---- rendering -----------------------------------------------------------------------------
+  // Re-rendering moves rows and rebuilds cards, the overview and the details preview; a focused
+  // element that is moved or replaced drops focus to the page, so a keyboard user lost their place
+  // every minute. Note the focused element and where it lives, run the update, then put focus back
+  // on it, or on its counterpart: same kind of element, label and link, in the rebuilt card for
+  // the same match and role, or in the same section.
+  function keepFocus(update) {
+    var el = document.activeElement;
+    if (!el || el === document.body || !el.isConnected) return update();
+    var host = el.closest('[data-match-role]'), scope = el.closest('#story, #match-preview, #schedule-summary, #lineup, #misses');
+    var key = { role: host && host.dataset.matchRole, id: host && (host.dataset.matchId || host.getAttribute('data-id')),
+                scope: !host && scope ? scope.id : '', tag: el.tagName, cls: el.className, href: el.getAttribute('href'), text: el.textContent };
+    var result = update();
+    if (el.isConnected && el.getClientRects().length) {
+      if (document.activeElement !== el) el.focus({ preventScroll: true });
+      return result;
+    }
+    var places = key.role ? Array.from(document.querySelectorAll('[data-match-role="' + key.role + '"]')).filter(function (h) {
+      return (h.dataset.matchId || h.getAttribute('data-id')) === key.id;
+    }) : key.scope ? [document.getElementById(key.scope)] : [];
+    for (var i = 0; i < places.length; i++) {
+      var twin = Array.from(places[i].querySelectorAll(key.tag)).find(function (c) {
+        return c.className === key.cls && c.getAttribute('href') === key.href && c.textContent === key.text && c.getClientRects().length;
+      });
+      if (twin) { twin.focus({ preventScroll: true }); break; }
+    }
+    return result;
+  }
   var lastSig = '', foldContext = '', foldChoices = {};
   function render(force) {
     var now = nowMs();
     renderLeagueOrder();
     var groups = {}; ORDER.forEach(function (b) { groups[b] = []; });
-    var sig = mode + '|' + Object.keys(HAVE).join(',') + '|' + Object.keys(compOff).join(',') + '|';
+    var sig = mode + '|' + Object.keys(HAVE).join(',') + '|' + Object.keys(compOff).join(',') + '|' + JSON.stringify(compChoice) + '|';
     var all = {}; ORDER.forEach(function (b) { all[b] = []; });
     rows.forEach(function (r) {
       var b = bucketOf(r, now);
@@ -474,11 +538,18 @@
       sig += (b || '-') + ':';
     });
     ORDER.forEach(function (b) { all[b].sort(function (a, c) { return a._k - c._k || c._score - a._score; }); });
-    rows.forEach(function (r) { var l = r.querySelector('.row__live'); if (l) l.hidden = r._b !== 'live'; });
+    // "Live" once ESPN says so; a kickoff time that has passed without word is awaiting its score.
+    rows.forEach(function (r) {
+      var l = r.querySelector('.row__live'); if (!l) return;
+      var pending = r._state !== 'in';
+      l.hidden = r._b !== 'live'; l.textContent = pending ? 'Awaiting score' : 'Live'; l.classList.toggle('row__live--pending', pending);
+    });
     if (!force && sig === lastSig) { renderSummary(groups, all, now); return; }
     lastSig = sig;
-    hideDetailPreview();
-
+    keepFocus(function () { rebuild(groups, all, now); });
+    refreshDetailPreview();
+  }
+  function rebuild(groups, all, now) {
     var sparse = upcoming(groups).filter(function (r) { return inFocus(r, now); }).length < 5;
     var context = mode + '|' + Object.keys(HAVE).join(',') + '|' + Object.keys(compOff).join(',') + '|' + sparse;
     if (context !== foldContext) { foldContext = context; foldChoices = {}; }
@@ -493,7 +564,6 @@
       var title = TITLES[b];
       var when = '';
       if (b === 'tomorrow') when = fmtDay.format(new Date(list[0]._k));
-      if (b === 'live') title = 'Live now';
       h.innerHTML = '<span></span><span class="when"></span><span class="bucket__count"></span>';
       h.firstChild.textContent = title;
       h.children[1].textContent = when;
@@ -531,7 +601,7 @@
     var park = document.getElementById('park') || (function () { var p = document.createElement('div'); p.id = 'park'; p.hidden = true; document.body.appendChild(p); return p; })();
     rows.forEach(function (r) { if (!r._b) park.appendChild(r); });
     body.innerHTML = ''; body.appendChild(frag);
-    renderNextup(groups, now); renderPicks(groups, now); renderMisses(all, now); renderLineup(all, now); renderSummary(groups, all, now);
+    renderNextup(now); renderPicks(now); renderMisses(all, now); renderLineup(all, now); renderSummary(groups, all, now);
     watchIcons();
     positionDrawer();
   }
@@ -567,7 +637,7 @@
   function availableUpcoming(now) {
     return rows.filter(function (r) { return r._b && editorialPasses(r) && r._state !== 'post' && (r._k > now || r._b === 'live'); });
   }
-  function renderNextup(groups, now) {
+  function renderNextup(now) {
     var pool = availableUpcoming(now).filter(function (r) { return r._state === 'in' && r._b === 'live'; });
     nextRow = pool.sort(byRating)[0] || null;
     nextupEl.hidden = !nextRow;
@@ -597,6 +667,8 @@
   }
   function fillDetails(surface, state) {
     var prefix = surface === detailDialog ? 'match-dialog' : 'match-preview';
+    var detail = state.card.row.querySelector('.row__detail');
+    surface._signature = detail ? detail.innerHTML : '';
     surface.dataset.matchId = state.card.row.getAttribute('data-id');
     document.getElementById(prefix + '-title').textContent = matchName(state.card.row);
     document.getElementById(prefix + '-content').replaceChildren(state.card.detailsContent());
@@ -621,19 +693,32 @@
     clearTimeout(previewTimer); clearTimeout(previewCloseTimer);
     previewCloseTimer = setTimeout(function () { if (!detailPreview.contains(document.activeElement)) hideDetailPreview(); }, 220);
   }
+  function visibleEl(el) { return el && el.isConnected && el.getClientRects().length > 0; }
+  // The Details button for the same match in the same role, which a re-render may have rebuilt.
+  function liveTrigger(state) {
+    if (visibleEl(state.trigger)) return state.trigger;
+    var host = Array.from(document.querySelectorAll('[data-match-role], .miss')).find(function (el) {
+      return (el._matchCard || el._row && el._row._card) === state.card && (el.dataset.matchRole || 'miss') === state.role;
+    });
+    var button = host && host.querySelector('button.more');
+    return visibleEl(button) ? button : null;
+  }
   function restoreDetailFocus(state) {
     if (!state) return;
-    function visible(el) { return el && el.isConnected && el.getClientRects().length > 0; }
-    var button = state.trigger;
-    if (!visible(button)) {
-      var hosts = Array.from(document.querySelectorAll('[data-match-role], .miss'));
-      var host = hosts.find(function (el) {
-        return (el._matchCard || el._row && el._row._card) === state.card && (el.dataset.matchRole || 'miss') === state.role;
-      });
-      button = host && host.querySelector('button.more');
-    }
-    if (!visible(button)) button = state.card.row.querySelector('button.more');
-    (visible(button) ? button : btnMenu).focus({ preventScroll: true });
+    var button = liveTrigger(state) || state.card.row.querySelector('button.more');
+    (visibleEl(button) ? button : btnMenu).focus({ preventScroll: true });
+  }
+  // A live update rebuilds cards; the preview stays open while it or its button is hovered or holds
+  // focus, and shows the match's current details. Otherwise it closes, as before.
+  function refreshDetailPreview() {
+    if (!previewState) return;
+    var trigger = liveTrigger(previewState);
+    var held = detailPreview.matches(':hover') || detailPreview.contains(document.activeElement) || (trigger && trigger.matches(':hover'));
+    if (!held) { hideDetailPreview(); return; }
+    if (trigger) previewState.trigger = trigger;
+    var detail = previewState.card.row.querySelector('.row__detail');
+    if (detailPreview._signature !== (detail ? detail.innerHTML : '')) keepFocus(function () { fillDetails(detailPreview, previewState); });
+    if (trigger) positionDetailPreview();
   }
   function openDetailDialog(button) {
     var state = detailsFor(button); if (!state) return;
@@ -666,7 +751,14 @@
   document.addEventListener('pointerdown', function (ev) {
     if (!detailPreview.contains(ev.target) && !ev.target.closest('button.more')) hideDetailPreview();
   });
-  window.addEventListener('scroll', function (ev) { if (!detailPreview.contains(ev.target)) hideDetailPreview(); }, true);
+  // A preview being read follows its button when the page scrolls, including the scroll the browser
+  // makes itself when a goal moves a row above it; any other preview closes. One still waiting to
+  // open opens only if the pointer is still on its button.
+  window.addEventListener('scroll', function (ev) {
+    if (detailPreview.contains(ev.target) || !previewState) return;
+    var trigger = liveTrigger(previewState), held = detailPreview.matches(':hover') || detailPreview.contains(document.activeElement);
+    if (held && trigger) { previewState.trigger = trigger; positionDetailPreview(); } else hideDetailPreview();
+  }, true);
   window.addEventListener('resize', hideDetailPreview);
   document.getElementById('match-dialog-close').addEventListener('click', function () { detailDialog.close(); });
   detailDialog.addEventListener('keydown', function (ev) {
@@ -704,7 +796,7 @@
 
   function upcoming(groups) { return [].concat(groups.live, groups.morning, groups.afternoon, groups.evening, groups.tonight, groups.tomorrow); }
   function logoClone(r, i, cls) { var l = r.querySelectorAll('.logo')[i]; var c = l ? l.cloneNode(true) : document.createElement('i'); c.className = cls + (c.className.indexOf('logo--txt') > -1 ? ' logo--txt' : '') + (l ? ' ' + Array.prototype.filter.call(l.classList, function (x) { return x.indexOf('l-') === 0; }).join(' ') : ''); return c; }
-  function timeLabel(r) { if (!r._tv) return 'TBD'; var st = splitTime(new Date(r._k)); return st.t + ' ' + st.ap; }
+  function timeLabel(r) { if (!r._tv) return 'TBD'; var st = splitTime(new Date(r._k)); return st.ap ? st.t + ' ' + st.ap : st.t; }
   function dayTag(r, now) { var idx = dayIndex(r._k, now); return idx === 0 ? '' : idx === 1 ? ' tomorrow' : ' ' + fmtShortDay.format(new Date(r._k)); }
 
   function setPickWhen(when, r, now) {
@@ -718,20 +810,22 @@
     return sc ? 'live ' + sc + (clk ? ', ' + clk : '') : timeLabel(r) + dayTag(r, now);
   }
   function ratingDetails(rating) { return 'Popularity ' + rating.popularity + ' · Expected gameplay ' + rating.gameplay + ' · Competitive impact ' + rating.impact; }
-  function renderPicks(groups, now) {
+  function renderPicks(now) {
     var available = availableUpcoming(now).filter(function (r) { return r !== nextRow; });
     var chosen = available.filter(function (r) { return inFocus(r, now); }).sort(byRating).slice(0, 3);
     var later = available.filter(function (r) { return !inFocus(r, now); }).sort(byTime);
     while (chosen.length < 3 && later.length) {
-      var boundary = later[0]._k + FOCUS_MS, window = later.filter(function (r) { return r._k < boundary; });
-      chosen = chosen.concat(window.sort(byRating).slice(0, 3 - chosen.length));
+      var boundary = later[0]._k + FOCUS_MS, span = later.filter(function (r) { return r._k < boundary; });
+      chosen = chosen.concat(span.sort(byRating).slice(0, 3 - chosen.length));
       later = later.filter(function (r) { return r._k >= boundary; });
     }
     chosen.sort(function (a, b) { return byTime(a, b) || byRating(a, b); });
     document.getElementById('picks-section').hidden = !chosen.length;
     picksEl.innerHTML = '';
-    document.getElementById('picks-h').textContent = chosen.length === 3 ? 'Top three' : chosen.length === 2 ? 'Top two' : 'Top pick';
-    document.getElementById('picks-sub').textContent = 'Selected by interest + league priority · shown in kickoff order';
+    // Without ratings the cards are simply the next matches; calling them picks would claim a judgment.
+    var rated = chosen.some(function (r) { return ratingOf(r); });
+    document.getElementById('picks-h').textContent = !rated ? 'Upcoming' : chosen.length === 3 ? 'Top three' : chosen.length === 2 ? 'Top two' : 'Top pick';
+    document.getElementById('picks-sub').textContent = rated ? 'Selected by interest + league priority · shown in kickoff order' : 'In kickoff order · no ratings yet';
     chosen.forEach(function (r) { picksEl.appendChild(r._card.render('pick', now)); });
   }
 
@@ -837,16 +931,15 @@
 
   function matchBlurb(r) {
     var rating = ratingOf(r), note = STORY.notes[r.getAttribute('data-id')];
-    if (rating && rating.blurb) return { note: rating.blurb, sources: rating.sources || [] };
+    if (rating && typeof rating.blurb === 'string' && rating.blurb) return { note: rating.blurb, sources: rating.sources };
     if (note) return note;
-    // During a data rollout, reuse only authored text referring to this exact match.
-    var s = STORY.s || {}, candidates = s.league_blurbs || [];
-    var item = candidates.find(function (candidate) { var refs = referencedRows(candidate); return refs.length === 1 && refs[0] === r; });
+    // During a data rollout, reuse only authored text referring to this exact match (indexed once per story).
+    var item = STORY.single && STORY.single[r.getAttribute('data-id')];
     return item ? { note: item.segments.map(function (part) { return part.text; }).join(''), sources: item.sources } : null;
   }
 
   function renderMisses(groups, now) {
-    var pool = upcoming(groups).filter(function (r) { return inFocus(r, now) && r._svc === 'none' && !r._unk && r._o.length && r._score >= 85 && !compOff[r._lg]; }).sort(function (a, c) { return c._score - a._score || a._k - c._k; }).slice(0, 4);
+    var pool = upcoming(groups).filter(function (r) { return inFocus(r, now) && r._svc === 'none' && !r._unk && r._o.length && r._score >= 85 && !compHidden(r); }).sort(function (a, c) { return c._score - a._score || a._k - c._k; }).slice(0, 4);
     missesEl.innerHTML = '';
     pool.forEach(function (r) {
       var id = r.getAttribute('data-id');
@@ -866,7 +959,7 @@
   }
 
   function renderLineup(groups, now) {
-    var week = upcoming(groups).concat(groups.later).filter(function (r) { return !compOff[r._lg] && r._state !== 'post'; });
+    var week = upcoming(groups).concat(groups.later).filter(function (r) { return !compHidden(r) && r._state !== 'post'; });
     var today = week.filter(function (r) { return inFocus(r, now); });
     var host = document.getElementById('lineup'); host.innerHTML = '';
     var ids = serviceOrder().filter(function (id) { return HAVE[id]; });
@@ -894,7 +987,8 @@
     var st = splitTime(new Date(r._k));
     if (st.t === '12:00' && st.ap === 'pm') return 'noon';
     if (st.t === '12:00' && st.ap === 'am') return 'midnight';
-    return st.t.replace(/:00$/, '') + ' ' + st.ap;
+    // "8 pm" on a 12-hour clock; a 24-hour clock keeps its minutes, or "20:00" would read as "20".
+    return st.ap ? st.t.replace(/:00$/, '') + ' ' + st.ap : st.t;
   }
   // What a row shows now: "2–1" and "67'" (each empty before kickoff, or when it isn't known).
   function scoreOf(r) {
@@ -915,7 +1009,7 @@
   }
   function periodSummary(list, now) {
     var remaining = list.filter(function (r) { return r._state !== 'post'; });
-    var selected = remaining.filter(function (r) { return !compOff[r._lg]; });
+    var selected = remaining.filter(function (r) { return !compHidden(r); });
     var hidden = remaining.length - selected.length;
     if (!selected.length) return hidden ? matchCount(hidden) + ' hidden by competition filters.' : 'No remaining matches in the loaded schedule.';
     var live = selected.filter(function (r) { return r._state === 'in'; }).length;
@@ -938,7 +1032,7 @@
     if (r._unk || !r._o.length) return 'coverage unconfirmed';
     return r._o.map(function (o) { return o.l; }).join(', ') + ' (not in your lineup)';
   }
-  function composeSchedule(all, now) {
+  function composeSchedule(now) {
     var focus = rows.filter(function (r) { return inFocus(r, now); });
     var lines = [{ label: 'Next 24 hours', text: periodSummary(focus, now) }];
     var future = rows.filter(function (r) {
@@ -963,7 +1057,7 @@
       p.appendChild(document.createTextNode(text)); host.appendChild(p); return p;
     }
     var summary = document.getElementById('schedule-summary'); summary.innerHTML = '';
-    composeSchedule(all, now).forEach(function (line) { para(summary, line.text, line.label); });
+    composeSchedule(now).forEach(function (line) { para(summary, line.text, line.label); });
     if (app.getAttribute('data-incomplete') === '1') {
       para(summary, 'Some fixtures may be missing because ESPN did not answer every request.').className = 'schedule-summary__note';
     }
@@ -998,12 +1092,18 @@
   }
   function safeUrl(u) { return typeof u === 'string' && /^https?:\/\/[^\s]+$/i.test(u) ? u : ''; }
   function hostOf(u) { var m = /^https?:\/\/(?:www\.)?([^\/:?#]+)/i.exec(u); return m ? m[1] : 'source'; }
+  // Each link says where it goes. A page story.py marks as ESPN's facts was not read as reporting, so
+  // it is named for what it supports, and two articles from one site are numbered, not repeated.
+  function isFactsSource(s) { return s.kind === 'facts' || s.title === 'ESPN match facts'; }
   function sourceLinks(sources, max) {
-    var frag = document.createDocumentFragment();
-    (sources || []).slice(0, max).forEach(function (s, i) {
+    var frag = document.createDocumentFragment(), labels = {};
+    (Array.isArray(sources) ? sources : []).slice(0, max).forEach(function (s) {
       var url = safeUrl(s && s.url); if (!url) return;
+      var facts = isFactsSource(s), label = facts ? 'ESPN table and form' : hostOf(url);
+      labels[label] = (labels[label] || 0) + 1;
       var a = document.createElement('a'); a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer';
-      a.textContent = hostOf(url); a.title = (s.title || '').slice(0, 200);
+      a.textContent = labels[label] > 1 ? label + ' (' + labels[label] + ')' : label;
+      a.title = facts ? 'From ESPN\'s table, form and stage for this match, not from reporting' : (typeof s.title === 'string' ? s.title.slice(0, 200) : '');
       if (frag.childNodes.length) frag.appendChild(document.createTextNode(', '));
       frag.appendChild(a);
     });
@@ -1019,10 +1119,10 @@
   }
   function rowsForIds(ids) {
     if (!Array.isArray(ids)) return null;
-    var found = ids.map(function (id) { return rows.find(function (r) { return r.getAttribute('data-id') === id; }); });
+    var found = ids.map(function (id) { return typeof id === 'string' ? ROW_BY_ID[id] : null; });
     return found.every(Boolean) ? found : null;
   }
-  function editorialPasses(r) { return onSvc(r) && !compOff[r._lg]; }
+  function editorialPasses(r) { return onSvc(r) && !compHidden(r); }
   function referencedRows(item) {
     if (!item || !Array.isArray(item.segments) || !item.segments.length) return [];
     var found = [], valid = item.segments.every(function (part) {
@@ -1079,32 +1179,54 @@
       blurbs.sort(function (a, b) { return b.interest - a.interest || firstKickoff(a) - firstKickoff(b); });
       lead = blurbs.length ? [blurbs[0]] : lead;
     }
-    var hasNear = lead.some(near);
-    storyEl.hidden = !lead.length;
-    var lede = document.getElementById('story-lede'); lede.innerHTML = '';
-    var sources = [];
-    lead.forEach(function (item, i) {
-      var rendered = editorialItem(item);
-      if (i) lede.appendChild(document.createTextNode(' '));
-      lede.appendChild(rendered);
-      (item.sources || []).forEach(function (source) { if (!sources.some(function (s) { return s.url === source.url; })) sources.push(source); });
+    var hasNear = lead.some(near), sources = [];
+    lead.forEach(function (item) {
+      (Array.isArray(item.sources) ? item.sources : []).forEach(function (source) {
+        if (source && typeof source.url === 'string' && !sources.some(function (s) { return s.url === source.url; })) sources.push(source);
+      });
     });
-    document.getElementById('story-h').textContent = hasNear ? 'Overview' : 'Overview · Further ahead';
-    if (lead.length && lead[0].league_id) storyEl.setAttribute('data-league', lead[0].league_id);
-    else storyEl.removeAttribute('data-league');
-    var storyBy = document.getElementById('story-by'); storyBy.textContent = 'Written by Claude';
-    var links = sourceLinks(sources, 4);
-    if (links.childNodes.length) { storyBy.appendChild(document.createTextNode(' · ')); storyBy.appendChild(links); }
+    // Called every minute: rebuilding unchanged text would drop the focus and selection of anyone on it.
+    var signature = JSON.stringify([hasNear, sources.map(function (s) { return s.url; }), lead.map(function (item) {
+      return item.segments.map(function (part) { var refs = rowsForIds(part.match_ids); return [part.text, !!(refs && refs.length && !refs.every(editorialPasses))]; });
+    })]);
+    if (storyEl._signature === signature) return;
+    storyEl._signature = signature;
+    keepFocus(function () {
+      storyEl.hidden = !lead.length;
+      var lede = document.getElementById('story-lede'); lede.innerHTML = '';
+      lead.forEach(function (item, i) {
+        if (i) lede.appendChild(document.createTextNode(' '));
+        lede.appendChild(editorialItem(item));
+      });
+      document.getElementById('story-h').textContent = hasNear ? 'Overview' : 'Overview · Further ahead';
+      if (lead.length && lead[0].league_id) storyEl.setAttribute('data-league', lead[0].league_id);
+      else storyEl.removeAttribute('data-league');
+      var storyBy = document.getElementById('story-by'); storyBy.textContent = 'Written by Claude';
+      var links = sourceLinks(sources, 4);
+      if (links.childNodes.length) { storyBy.appendChild(document.createTextNode(' · ')); storyBy.appendChild(links); }
+    });
   }
   function applyStory(s) {
-    if (!s || s.version !== 1 || typeof s.headline !== 'string' || typeof s.lede !== 'string') return;
-    var written = Date.parse(s.generated_at || '');
+    if (!s || typeof s !== 'object' || s.version !== 1) return;
+    // Shapes story.py guarantees, checked again here: a malformed field must not stop the page's
+    // filters and live scores, which every later render would otherwise throw on.
+    ['lede_items', 'league_blurbs', 'league_order'].forEach(function (k) { if (!Array.isArray(s[k])) s[k] = []; });
+    s.league_order = s.league_order.filter(function (k) { return typeof k === 'string'; });
+    s.lede_items = s.lede_items.filter(function (item) { return item && typeof item === 'object'; });
+    s.league_blurbs = s.league_blurbs.filter(function (item) { return item && typeof item === 'object'; });
+    var written = Date.parse(typeof s.generated_at === 'string' ? s.generated_at : '');
     if (!(written > 0) || !storyIsCurrent(s, written, nowMs())) return;
     if (STORY.s && STORY.written >= written) return;   // the one on show already, or a newer one
     clearStory(true);
     var notes = {};
-    Object.keys(s.notes || {}).forEach(function (id) { var n = s.notes[id]; if (n && typeof n.note === 'string' && n.note) notes[id] = n; });
-    STORY = { notes: notes, s: s, written: written, rankings: s.rankings && typeof s.rankings === 'object' ? s.rankings : {} };
+    var rawNotes = s.notes && typeof s.notes === 'object' && !Array.isArray(s.notes) ? s.notes : {};
+    Object.keys(rawNotes).forEach(function (id) { var n = rawNotes[id]; if (n && typeof n.note === 'string' && n.note) notes[id] = n; });
+    STORY = { notes: notes, s: s, written: written, single: {},
+              rankings: s.rankings && typeof s.rankings === 'object' && !Array.isArray(s.rankings) ? s.rankings : {} };
+    s.league_blurbs.forEach(function (item) {
+      var refs = referencedRows(item), id = refs.length === 1 && refs[0].getAttribute('data-id');
+      if (id && !STORY.single[id]) STORY.single[id] = item;
+    });
     renderLeagueOrder();
     render(true);
   }
@@ -1113,7 +1235,7 @@
   function clearStory(quiet) {
     if (!STORY.s) return;
     STORY = { notes: {} };
-    document.getElementById('story').hidden = true;
+    var storyEl = document.getElementById('story'); storyEl.hidden = true; storyEl._signature = null;
     Array.prototype.slice.call(document.querySelectorAll('.row__story')).forEach(function (el) { el.parentNode.removeChild(el); });
     if (!quiet) render(true);
   }
@@ -1147,7 +1269,7 @@
     if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname) && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?\//.test(b)) LIVE.base = b;
   })();
   function liveDue(r, now) {
-    if (!r._tv || r._state === 'post' || compOff[r._lg] || now < r._k - LIVE.leadMs) return false;
+    if (!r._tv || r._state === 'post' || compHidden(r) || now < r._k - LIVE.leadMs) return false;
     if (now < r._k + LIVE.tailMs) return true;
     return !r._asked && now < r._k + LIVE.lookbackMs;
   }
@@ -1248,9 +1370,11 @@
   }
   function refreshLiveText() {
     var now = nowMs();
-    hideDetailPreview();
-    if (nextRow) nextRow._card.render('live', now, nextupEl);
-    picksEl.querySelectorAll('.pick').forEach(function (a) { if (a._row) a._row._card.render('pick', now, a); });
+    keepFocus(function () {
+      if (nextRow) nextRow._card.render('live', now, nextupEl);
+      picksEl.querySelectorAll('.pick').forEach(function (a) { if (a._row) a._row._card.render('pick', now, a); });
+    });
+    refreshDetailPreview();
     watchIcons();
     missesEl.querySelectorAll('.miss').forEach(function (d) { var t = d.querySelector('.miss__time'); if (d._row && t) t.textContent = missTime(d._row, now); });
   }
