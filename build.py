@@ -1012,8 +1012,8 @@ def row_html(m, cache):
                         for t in (m.home, m.away))
     status = f'<span class="row__status"{"" if m.status else " hidden"}>{esc(m.status)}</span>'
     lgkey = logo_key(LEAGUE_LOGOS.get(m.league, "")) if LEAGUE_LOGOS.get(m.league) else ""
-    lglogo = f'<i class="lg l-{lgkey}"></i>' if lgkey and lgkey in cache else ""
-    meta = [f'<span class="comp">{lglogo}{esc(m.comp)}</span>']
+    lglogo = f'<i class="lg l-{lgkey}" aria-hidden="true"></i>' if lgkey and lgkey in cache else ""
+    meta = [f'<span class="comp">{esc(m.comp)}</span>']
     if m.stage:
         meta.append(f'<span class="stage">{esc(m.stage)}</span>')
     if m.venue:
@@ -1028,6 +1028,7 @@ def row_html(m, cache):
         f'data-state="{m.state}" data-home="{esc(m.home.name)}" data-away="{esc(m.away.name)}" data-comp="{esc(m.comp)}" '
         f'data-outlet="{esc(m.outlet)}" data-hc="{m.home.color}" data-ac="{m.away.color}" data-o="{esc(outlets_json)}"' + (f' data-r="{esc(rule_json)}"' if rule_json else "") + '>'
         f'<div class="row__time">{time_html}<span class="row__et" hidden></span><span class="row__until" hidden></span><span class="row__live" hidden>Live</span>{status}</div>'
+        f'<div class="row__league" title="{esc(m.comp)}">{lglogo}</div>'
         f'<div class="row__body">'
         f'<div class="row__teams">{team_html(m.home, cache, score_h)}<span class="vs">v</span>{team_html(m.away, cache, score_a)}</div>'
         f'<div class="row__meta">{"".join(meta)}</div>{goals_html(m)}{note}'

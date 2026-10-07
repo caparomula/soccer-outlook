@@ -13,7 +13,7 @@ class FixedDatetime(datetime):
         return BUILT_AT.astimezone(tz) if tz else BUILT_AT.replace(tzinfo=None)
 
 
-def render_page(builder, *, fragment=False, fixtures=None, failed=(), facts_path=None, team_names=None):
+def render_page(builder, *, fragment=False, fixtures=None, failed=(), facts_path=None, team_names=None, league_logos=False):
     """Exercise the real renderer with fixed time, rights, teams, scores and a table."""
     with (patch.object(builder, "TODAY", TODAY),
           patch.object(builder, "datetime", FixedDatetime),
@@ -58,7 +58,13 @@ def render_page(builder, *, fragment=False, fixtures=None, failed=(), facts_path
         builder.STANDINGS["eng.1"] = {"tables": [("", table)]}
         if facts_path is not None:
             builder.write_facts(facts_path, matches, BUILT_AT, TODAY)
-        page = builder.build_page(matches, {}, BUILT_AT, failed, TODAY)
+        cache = {}
+        if league_logos:
+            for i, league in enumerate(dict.fromkeys(m.league for m in matches)):
+                url = f'https://fixture.example/leaguelogos/soccer/500/{i}.png'
+                builder.LEAGUE_LOGOS[league] = url
+                cache[builder.logo_key(url)] = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%23905bc9'/%3E%3C/svg%3E"
+        page = builder.build_page(matches, cache, BUILT_AT, failed, TODAY)
         return page if fragment else builder.as_document(page)
 
 

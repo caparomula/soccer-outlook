@@ -126,7 +126,7 @@ class BrowserChecks(unittest.TestCase):
                  "b": ("Brighton & Hove Albion", "Paris Saint-Germain"),
                  "c": ("Wolverhampton Wanderers", "New York Red Bulls"),
                  "d": ("Club Atlético Independiente", "Deportivo Riestra")}
-        html = render_page(build, fixtures=fixtures, team_names=names)
+        html = render_page(build, fixtures=fixtures, team_names=names, league_logos=True)
         for width in (1280, 820, 600, 390, 320):
             with self.subTest(width=width), self.page("after", width=width, html=html) as (page, _):
                 page.locator("#btn-all").click()
@@ -135,6 +135,12 @@ class BrowserChecks(unittest.TestCase):
                     expect(row.locator('.row__teams')).to_have_css('display', 'flex')
                     expect(row.locator('.team').first).to_have_css('display', 'flex')
                     expect(row.locator('.vs')).to_be_visible()
+                    clock = row.locator('.row__time').bounding_box()
+                    emblem = row.locator('.row__league .lg').bounding_box()
+                    teams = row.locator('.row__teams').bounding_box()
+                    self.assertGreaterEqual(emblem['x'], clock['x'] + clock['width'])
+                    self.assertGreaterEqual(teams['x'], emblem['x'] + emblem['width'])
+                    expect(row.locator('.row__meta .lg')).to_have_count(0)
                 self.assertLessEqual(page.evaluate('document.documentElement.scrollWidth'), width)
                 page.locator('#outlook').screenshot(path=str(self.artifacts / f"compact-rows-{width}.png"))
 
@@ -568,14 +574,28 @@ class BrowserChecks(unittest.TestCase):
         story["league_order"] = ["eng.1", "esp.1", "usa.1"]
         story["rankings"] = {mid: dict(score=score, blurb=f"Specific context for {mid}.", sources=[{"url": "https://example.com/report"}])
                              for mid, score in (("upcoming", 80), ("live-second", 80.5), ("mls", 90), ("future", 70), ("fourth", 40))}
+        story['rankings']['live-second']['blurb'] = 'A longer match preview with team news and recent form, demonstrating that every card keeps its color bar aligned even when the commentary takes several more lines than its neighboring cards.'
         for width in (1280, 390):
-            with self.subTest(width=width), self.page("after", width=width, html=render_page(build, fixtures=fixtures), story=story) as (page, feed):
+            with self.subTest(width=width), self.page("after", width=width, html=render_page(build, fixtures=fixtures, league_logos=True), story=story) as (page, feed):
                 expect(page.locator('#nextup')).to_have_attribute('data-match-id', 'upcoming')
                 expect(page.locator('#nextup-status')).to_contain_text('Live now')
                 expect(page.locator('#nextup-rating')).to_have_text('Pick score · 84/100')
                 self.assertEqual(page.locator('#picks .pick').evaluate_all('els => els.map(e => e.dataset.matchId)'), ['mls', 'live-second', 'future'])
                 expect(page.locator('#picks .pick__story')).to_have_count(3)
                 expect(page.locator('#picks .pick__sources a')).to_have_count(3)
+                expect(page.locator('#picks .pick__league')).to_have_count(3)
+                bars = []
+                for card in page.locator('#picks .pick').all():
+                    rect = card.bounding_box()
+                    bar = card.locator('.pick__colors').bounding_box()
+                    sources = card.locator('.pick__sources').bounding_box()
+                    emblem = card.locator('.pick__league').bounding_box()
+                    bars.append(bar['y'])
+                    self.assertAlmostEqual(rect['y'] + rect['height'] - (bar['y'] + bar['height']), 13, delta=1)
+                    self.assertGreater(bar['y'], sources['y'] + sources['height'])
+                    self.assertGreater(emblem['x'], rect['x'] + rect['width'] / 2)
+                    self.assertLess(emblem['y'] - rect['y'], 25)
+                self.assertLess(max(bars) - min(bars), 1)
                 self.assertLessEqual(page.evaluate('document.documentElement.scrollWidth'), width)
                 page.screenshot(path=str(self.artifacts / f'live-top-three-{width}.png'), full_page=True)
                 feed['data'] = scoreboard('post')

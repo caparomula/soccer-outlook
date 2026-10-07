@@ -444,6 +444,8 @@
     chosen.forEach(function (r) {
       var a = document.createElement('article'); a.className = 'pick svc-' + r._svc; a._row = r;
       a.setAttribute('data-match-id', r.getAttribute('data-id'));
+      var emblem = r.querySelector('.row__league .lg');
+      if (emblem) { var leagueLogo = emblem.cloneNode(true); leagueLogo.classList.add('pick__league'); leagueLogo.title = r.getAttribute('data-comp'); a.appendChild(leagueLogo); }
       var rating = ratingOf(r), ratingLabel = document.createElement('div'); ratingLabel.className = 'pick__rating';
       ratingLabel.textContent = rating ? 'Pick score · ' + blendedScore(r) + '/100' : 'Upcoming';
       if (rating) ratingLabel.title = scoreDetails(r); a.appendChild(ratingLabel);
