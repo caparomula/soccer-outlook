@@ -107,7 +107,7 @@ a { color: inherit; }
 .picks { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
 .pick { position: relative; display: block; text-decoration: none; background: var(--card); border: 1px solid var(--line); border-top: 4px solid var(--svc); border-radius: var(--radius); padding: 14px 14px 28px; min-width: 0; }
 .pick__rating, .pick__when { padding-right: 48px; }
-.pick .pick__league { position: absolute; top: 14px; right: 14px; width: 38px; height: 38px; margin: 0; background-color: var(--logo-pad); border-radius: 5px; }
+.pick .pick__league { position: absolute; top: 14px; right: 14px; width: 38px; height: 38px; padding: 3px; margin: 0; border-radius: 5px; }
 .pick__names a { text-decoration: none; }
 .pick__names a:hover { text-decoration: underline; }
 .pick__names a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -181,6 +181,7 @@ a { color: inherit; }
 .seg button:focus-visible, .fpill:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .fpill { appearance: none; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line-strong); background: var(--card); color: var(--fg); border-radius: 999px; padding: 4px 10px; font: 600 13px var(--body); cursor: pointer; }
 .fpill .dot { width: 8px; height: 8px; }
+.fpill .lg { flex: none; width: 22px; height: 22px; padding: 1px; margin: 0; }
 .fpill__n { color: var(--muted); font-weight: 400; font-variant-numeric: tabular-nums; }
 .fpill[aria-pressed="false"] { background: transparent; color: var(--muted); border-style: dashed; }
 .fpill[aria-pressed="false"] .dot { opacity: 0.35; }
@@ -201,7 +202,7 @@ a { color: inherit; }
 .rows { list-style: none; margin: 0; padding: 0; }
 .row { display: grid; grid-template-columns: 76px 30px minmax(0, 1fr) 212px; gap: 8px 14px; align-items: start; padding: 12px 0; border-bottom: 1px solid var(--line); }
 .row__league { padding-top: 2px; }
-.row__league .lg { width: 30px; height: 32px; margin: 0; background-color: var(--logo-pad); border-radius: 4px; }
+.row__league .lg { width: 30px; height: 32px; margin: 0; }
 .row--off { color: var(--muted); }
 .row--off .team__name { color: var(--muted); }
 .row--off .logo { filter: grayscale(0.6); opacity: 0.75; }
@@ -224,7 +225,10 @@ a { color: inherit; }
 .form { display: inline-flex; gap: 2px; }
 .f { width: 8px; height: 8px; border-radius: 2px; background: var(--draw); display: inline-block; }
 .f-w { background: var(--win); } .f-l { background: var(--loss); }
-.lg { width: 16px; height: 16px; display: inline-block; background: center / contain no-repeat; vertical-align: -3px; margin-right: 5px; }
+/* ESPN supplies full-color league marks for light surfaces. A consistent badge keeps
+   dark artwork legible in either theme without recoloring the league's identity. */
+.lg { width: 22px; height: 22px; display: inline-block; padding: 2px; border: 1px solid #d4d8cf; border-radius: 4px;
+  background: #f7f8f4 center / contain no-repeat; background-origin: content-box; vertical-align: -5px; margin-right: 5px; }
 .logo--sm { width: 18px; height: 18px; vertical-align: -4px; margin-right: 6px; border-radius: 3px; }
 .row__goals { margin-top: 4px; font-size: 13px; color: var(--muted); }
 .row__goals b { color: var(--fg); font-weight: 600; }
@@ -329,7 +333,7 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
   .picks { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; gap: 10px; padding-bottom: 6px; scrollbar-width: thin; }
   .pick { flex: 0 0 76%; scroll-snap-align: start; }
   .row { grid-template-columns: 52px 24px minmax(0, 1fr); column-gap: 8px; }
-  .row__league .lg { width: 24px; height: 28px; }
+  .row__league .lg { width: 24px; height: 28px; padding: 1px; }
   .row__watch { grid-column: 3; justify-self: start; padding-top: 0; }
   .row--on .row__watch { display: none; }   /* the colored pill already says it on a phone */
   .nextup { grid-template-columns: 1fr; }

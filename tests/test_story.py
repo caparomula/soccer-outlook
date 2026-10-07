@@ -35,6 +35,19 @@ def raw_story(**over):
 
 
 class Forecast(unittest.TestCase):
+    def test_literal_unicode_escapes_are_normalized_in_new_and_kept_editorial(self):
+        text = r"Hincapi\u00e9 and Atl\\u00e9tico; Alavés."
+        raw = raw_story(lede_items=[item(text)])
+        result = story.clean_story(raw, FACTS, SEEN)
+        self.assertEqual(result['lede'], 'Hincapié and Atlético; Alavés.')
+        previous = {'version': 1, 'rankings': {'1': {'blurb': text, 'sources': [{'url': r'https://example.com/\u00e9'}]}}}
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'story.json'
+            path.write_text(json.dumps(previous))
+            kept = story.load_previous(path)
+        self.assertEqual(kept['rankings']['1']['blurb'], 'Hincapié and Atlético; Alavés.')
+        self.assertEqual(kept['rankings']['1']['sources'], previous['rankings']['1']['sources'])
+
     def test_storyline_is_one_short_paragraph_of_complete_tagged_sentences(self):
         sentences = [item("A" * 210 + "."), item("B" * 210 + "."), item("C" * 210 + ".")]
         result = story.clean_story(raw_story(lede_items=sentences), FACTS, SEEN)

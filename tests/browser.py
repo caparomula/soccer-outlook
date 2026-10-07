@@ -619,18 +619,23 @@ class BrowserChecks(unittest.TestCase):
         story['league_order'] = ['eng.1', 'esp.1']
         story['rankings'] = {mid: dict(score=score) for mid, score in [('eng', 80), ('esp', 80.5), ('unconfirmed-live', 40)]}
         for width in (1280, 390):
-            with self.subTest(width=width), self.page('after', width=width, html=render_page(build, fixtures=fixtures), story=story, touch=width <= 600) as (page, _):
+            with self.subTest(width=width), self.page('after', width=width, html=render_page(build, fixtures=fixtures, league_logos=True), story=story, touch=width <= 600) as (page, _):
                 expect(page.locator('#nextup')).to_be_hidden()  # kickoff time alone is not a confirmed live game
                 expect(page.locator('#picks .pick').first).to_have_attribute('data-match-id', 'eng')
                 page.locator('#btn-menu').click()
+                expect(page.locator('#comp-pills .lg')).to_have_count(2)
+                self.assertTrue(page.locator('#comp-pills .lg').evaluate_all(
+                    "els => els.every(el => getComputedStyle(el).backgroundImage !== 'none')"))
+                self.assertLessEqual(page.locator('#drawer').evaluate('el => el.scrollWidth - el.clientWidth'), 1)
                 page.locator('.league-priority > summary').click()
                 page.get_by_role('button', name='Move La Liga up', exact=True).click()
+                expect(page.locator('#drawer')).to_be_visible()
                 expect(page.locator('#picks .pick').first).to_have_attribute('data-match-id', 'esp')
                 self.assertEqual(page.locator('#comp-pills .fpill').first.get_attribute('data-key'), 'esp.1')
                 page.reload()
                 expect(page.locator('#picks .pick').first).to_have_attribute('data-match-id', 'esp')
                 page.locator('#btn-menu').click()
-                page.locator('#comp-pills [data-key="esp.1"]').click()
+                page.locator('#comp-pills [data-key="esp.1"] .lg').click()
                 expect(page.locator('#picks .pick').first).to_have_attribute('data-match-id', 'eng')
                 page.locator('#btn-reset').click()
                 expect(page.locator('#picks .pick').first).to_have_attribute('data-match-id', 'eng')

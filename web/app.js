@@ -205,7 +205,10 @@
     else if (refocus) btnMenu.focus({ preventScroll: true });
   }
   document.addEventListener('click', function (ev) {
-    if (drawerOpen && !drawer.contains(ev.target) && !btnMenu.contains(ev.target)) setDrawer(false, false);
+    // The priority list can replace the clicked button before this event reaches document.
+    // Its original event path still identifies it as a click inside the panel.
+    var path = ev.composedPath();
+    if (drawerOpen && path.indexOf(drawer) < 0 && path.indexOf(btnMenu) < 0) setDrawer(false, false);
   });
   document.addEventListener('keydown', function (ev) {
     if (drawerOpen && (ev.key === 'Escape' || ev.key === 'Esc')) { ev.preventDefault(); setDrawer(false, true); }

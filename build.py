@@ -999,6 +999,12 @@ def detail_html(m, cache):
     return f'<div class="row__detail" hidden><div class="detail__grid">{"".join(cols)}</div>{venue_p}{recap}{links_p}</div>'
 
 
+def league_logo_html(league, cache):
+    url = LEAGUE_LOGOS.get(league, "")
+    key = logo_key(url) if url else ""
+    return f'<i class="lg l-{key}" aria-hidden="true"></i>' if key and key in cache else ""
+
+
 def row_html(m, cache):
     t, ap, local = et_parts(m.utc)
     avail = "row--on" if m.service else "row--off"
@@ -1011,8 +1017,7 @@ def row_html(m, cache):
     score_h, score_a = (f'<b class="score"{"" if played and t.score != "" else " hidden"}>{esc(t.score) if played else ""}</b>'
                         for t in (m.home, m.away))
     status = f'<span class="row__status"{"" if m.status else " hidden"}>{esc(m.status)}</span>'
-    lgkey = logo_key(LEAGUE_LOGOS.get(m.league, "")) if LEAGUE_LOGOS.get(m.league) else ""
-    lglogo = f'<i class="lg l-{lgkey}" aria-hidden="true"></i>' if lgkey and lgkey in cache else ""
+    lglogo = league_logo_html(m.league, cache)
     meta = [f'<span class="comp">{esc(m.comp)}</span>']
     if m.stage:
         meta.append(f'<span class="stage">{esc(m.stage)}</span>')
@@ -1055,8 +1060,7 @@ def tables_html(matches, cache):
             continue
         soon = datetime.now(timezone.utc) + timedelta(days=3)
         playing = {t.id for m in matches if m.league == lg and m.state != "post" and m.utc <= soon for t in (m.home, m.away)}
-        lgkey = logo_key(LEAGUE_LOGOS.get(lg, "")) if LEAGUE_LOGOS.get(lg) else ""
-        lglogo = f'<i class="lg l-{lgkey}"></i>' if lgkey and lgkey in cache else ""
+        lglogo = league_logo_html(lg, cache)
         groups = []
         for gname, rows in st["tables"]:
             body = ""
@@ -1209,7 +1213,7 @@ def build_page(matches, cache, built_at, failed, today):
             comps.append((info["name"], lg, n, bool(info.get("default_off"))))
     comps.sort(key=lambda c: (-c[2], c[0]))
     comp_pills = "".join(
-        f'<button type="button" class="fpill" data-kind="comp" data-key="{esc(lg)}" data-default-off="{"1" if off else "0"}" aria-pressed="{"false" if off else "true"}"><span class="fpill__grip" aria-hidden="true">⠿</span>{esc(name)}'
+        f'<button type="button" class="fpill" data-kind="comp" data-key="{esc(lg)}" data-default-off="{"1" if off else "0"}" aria-pressed="{"false" if off else "true"}"><span class="fpill__grip" aria-hidden="true">⠿</span>{league_logo_html(lg, cache)}{esc(name)}'
         f'<span class="fpill__n">{n}</span></button>' for name, lg, n, off in comps)
 
     lineup = "".join(

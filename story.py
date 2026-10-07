@@ -264,6 +264,28 @@ def clip(text, limit):
     return cut[:cut.rfind(" ")].rstrip(",;:") + "…"
 
 
+def normalize_editorial(value):
+    """Decode Unicode escapes a model has written literally inside already-decoded prose.
+
+    Touch only editorial fields: preserve citation URLs and fixture IDs exactly as supplied.
+    Existing UTF-8 text is unchanged, and lone surrogate escapes remain printable text.
+    """
+    if isinstance(value, list):
+        return [normalize_editorial(item) for item in value]
+    if not isinstance(value, dict):
+        return value
+    result = {}
+    for key, item in value.items():
+        if key in {"blurb", "note", "text", "lede", "headline", "later_reason"} and isinstance(item, str):
+            def decode(match):
+                code = int(match.group(1), 16)
+                return match.group(0) if 0xD800 <= code <= 0xDFFF else chr(code)
+            result[key] = re.sub(r"\\+u([0-9a-fA-F]{4})", decode, item)
+        else:
+            result[key] = normalize_editorial(item)
+    return result
+
+
 def verified(urls, seen, limit):
     out = []
     for u in urls or []:
@@ -304,6 +326,7 @@ def clean_story(raw, facts, seen):
     dict for story.json, or None when what is left is not worth showing."""
     if not isinstance(raw, dict):
         return None
+    raw = normalize_editorial(raw)
     matches = news_matches(facts)
     seen = dict(seen)
     for m in list(matches.values()) + facts.get("ranking_candidates", []):
@@ -625,7 +648,7 @@ def report_cost(totals, served, effort, mode, seconds):
 def load_previous(path):
     try:
         with open(path, encoding="utf-8") as f:
-            prev = json.load(f)
+            prev = normalize_editorial(json.load(f))
         return prev if isinstance(prev, dict) and prev.get("version") == 1 else None
     except (OSError, ValueError, TypeError):
         return None
