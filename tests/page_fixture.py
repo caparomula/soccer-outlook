@@ -13,8 +13,13 @@ class FixedDatetime(datetime):
         return BUILT_AT.astimezone(tz) if tz else BUILT_AT.replace(tzinfo=None)
 
 
-def render_page(builder, *, fragment=False, fixtures=None, failed=(), facts_path=None, team_names=None, league_logos=False):
-    """Exercise the real renderer with fixed time, rights, teams, scores and a table."""
+def render_page(builder, *, fragment=False, fixtures=None, failed=(), facts_path=None, team_names=None, league_logos=False,
+                tbd=()):
+    """Exercise the real renderer with fixed time, rights, teams, scores and a table.
+
+    Fixtures named in `tbd` have a kickoff time to be set (ESPN's timeValid false); their kickoff
+    is then only a placeholder on the right day.
+    """
     with (patch.object(builder, "TODAY", TODAY),
           patch.object(builder, "datetime", FixedDatetime),
           patch.dict(builder.UNKNOWN_OUTLETS, {}, clear=True),
@@ -47,7 +52,7 @@ def render_page(builder, *, fragment=False, fixtures=None, failed=(), facts_path
             rule = builder.usual_home(league, home.name) if not outlets else None
             service, basis, outlet = builder.evaluate(outlets, rule, set(builder.OWNER))
             matches.append(builder.Match(
-                id=match_id, utc=datetime.fromisoformat(kickoff), time_valid=True,
+                id=match_id, utc=datetime.fromisoformat(kickoff), time_valid=match_id not in tbd,
                 league=league, comp=builder.LEAGUES[league]["name"], stage="", note="",
                 home=home, away=away, venue="Fixture Stadium", state=state,
                 status="FT" if state == "post" else "30'" if state == "in" else "",

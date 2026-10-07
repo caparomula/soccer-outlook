@@ -606,10 +606,12 @@
     positionDrawer();
   }
 
-  // ---- featured live match and kickoff countdowns ---------------------------------------------------------
+  // ---- the top card (live now, or next up) and kickoff countdowns ------------------------------
   var nextupEl = document.getElementById('nextup'), nextRow = null;
   function fmtCount(ms) {
-    var s = Math.max(0, Math.floor(ms / 1000)), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+    var s = Math.max(0, Math.floor(ms / 1000)), d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600);
+    var m = Math.floor((s % 3600) / 60), sec = s % 60;
+    if (d >= 1) return d + 'd ' + (h < 10 ? '0' : '') + h + 'h';
     if (h >= 1) return h + 'h ' + (m < 10 ? '0' : '') + m + 'm';
     return m + ':' + (sec < 10 ? '0' : '') + sec;
   }
@@ -637,20 +639,42 @@
   function availableUpcoming(now) {
     return rows.filter(function (r) { return r._b && editorialPasses(r) && r._state !== 'post' && (r._k > now || r._b === 'live'); });
   }
+  // The top card answers "what can I watch now, or next?" among the matches that pass the lineup:
+  // the best-rated match ESPN reports in progress, or else the soonest confirmed kickoff however
+  // far ahead (a time to be set can't be put in order, as in the summary's "Next kickoff"; such a
+  // match stays in the picks and the schedule). A kickoff that passes without word from ESPN keeps
+  // the card, as its schedule row keeps the Live section, until ESPN reports it or the window closes.
   function renderNextup(now) {
-    var pool = availableUpcoming(now).filter(function (r) { return r._state === 'in' && r._b === 'live'; });
-    nextRow = pool.sort(byRating)[0] || null;
+    var available = availableUpcoming(now);
+    var live = available.filter(function (r) { return r._state === 'in' && r._b === 'live'; }).sort(byRating);
+    var next = available.filter(function (r) { return r._state === 'pre' && r._tv; }).sort(function (a, b) { return byTime(a, b) || byRating(a, b); });
+    nextRow = live[0] || next[0] || null;
     nextupEl.hidden = !nextRow;
     if (!nextRow) { nextupEl.removeAttribute('data-match-id'); return; }
-    nextRow._card.render('live', now, nextupEl);
+    nextRow._card.render('nextup', now, nextupEl);
     tickNextup();
   }
+  // The card's two lines: the clock over the score, the kickoff over a countdown, or, once the
+  // kickoff time has passed without word from ESPN, the words its schedule row and pick card use.
+  // The live poll updates each competition as its answer comes and redraws once all have answered,
+  // so a tick in between can find the card's match just finished: it reads as its row does ("FT"
+  // over the score) until that redraw moves the card on.
+  function nextupText(r, now) {
+    var clk = clockOf(r);
+    if (r._state === 'in') return { status: 'Live now' + (clk ? ' · ' + clk : ''), count: scoreOf(r) || 'In progress' };
+    if (r._state === 'post') return { status: clk || 'FT', count: scoreOf(r) };
+    var when = timeLabel(r) + dayTag(r, now);
+    return r._k > now ? { status: 'Next up · ' + when, count: fmtCount(r._k - now) }
+      : { status: 'Kickoff ' + when + ' · status pending', count: 'Awaiting score' };
+  }
+  function setText(el, text) { if (el && el.textContent !== text) el.textContent = text; }
   function tickNextup() {
     var now = nowMs();
     if (nextRow && !nextupEl.hidden) {
-      var sc = scoreOf(nextRow), clk = clockOf(nextRow);
-      document.getElementById('nextup-status').textContent = 'Live now' + (clk ? ' · ' + clk : '');
-      document.getElementById('nextup-count').textContent = sc || 'In progress';
+      var text = nextupText(nextRow, now);
+      nextupEl.classList.toggle('nextup--live', nextRow._state === 'in');
+      setText(document.getElementById('nextup-status'), text.status);
+      setText(document.getElementById('nextup-count'), text.count);
     }
     rows.forEach(function (r) { r._card.tick(r, now); });
     picksEl.querySelectorAll('.pick').forEach(function (card) { card._matchCard.tick(card, now); });
@@ -866,8 +890,9 @@
       r.dataset.matchRole = role; r._matchCard = this; this.tick(r, now);
       return r;
     }
+    var top = role === 'nextup';
     host = host || document.createElement('article');
-    host.className = (role === 'live' ? 'nextup nextup--live' : 'pick') + ' svc-' + r._svc;
+    host.className = (top ? 'nextup' + (r._state === 'in' ? ' nextup--live' : '') : 'pick') + ' svc-' + r._svc;
     host.dataset.matchRole = role; host.dataset.matchId = r.getAttribute('data-id');
     host._row = r; host._matchCard = this; host.replaceChildren();
     var emblem = r.querySelector('.row__league .lg');
@@ -876,18 +901,19 @@
       if (role === 'pick') badge.classList.add('pick__league');
       badge.title = r.getAttribute('data-comp'); host.appendChild(badge);
     }
-    var head = document.createElement('div'); head.className = role === 'live' ? 'nextup__left' : 'pick__head';
+    var head = document.createElement('div'); head.className = top ? 'nextup__left' : 'pick__head';
     var rating = ratingOf(r), label = document.createElement('div');
-    label.className = role === 'live' ? 'nextup__rating' : 'pick__rating';
+    label.className = top ? 'nextup__rating' : 'pick__rating';
     label.textContent = rating ? 'Pick score · ' + blendedScore(r) + '/100' : 'Upcoming';
     if (rating) label.title = scoreDetails(r);
     head.appendChild(label);
-    if (role === 'live') {
+    if (top) {
       label.id = 'nextup-rating'; label.hidden = !rating;
+      var text = nextupText(r, now);
       var status = document.createElement('div'); status.className = 'nextup__status'; status.id = 'nextup-status';
-      status.textContent = 'Live now' + (clockOf(r) ? ' · ' + clockOf(r) : '');
-      var score = document.createElement('div'); score.className = 'nextup__count'; score.id = 'nextup-count';
-      score.textContent = scoreOf(r) || 'In progress'; head.appendChild(status); head.appendChild(score);
+      var count = document.createElement('div'); count.className = 'nextup__count'; count.id = 'nextup-count';
+      status.textContent = text.status; count.textContent = text.count;
+      head.appendChild(status); head.appendChild(count);
     } else {
       var when = document.createElement('div'); when.className = 'pick__when';
       when.innerHTML = '<span class="t"></span><span class="ap"></span>'; setPickWhen(when, r, now); head.appendChild(when);
@@ -902,7 +928,7 @@
     host.appendChild(head);
     var content = r.querySelector('.row__body').cloneNode(true);
     content.classList.add('match__body');
-    if (role === 'live') content.id = 'nextup-match';
+    if (top) content.id = 'nextup-match';
     content.querySelectorAll('.team__name').forEach(function (name) {
       var link = document.createElement('a'); link.href = '#outlook'; link.textContent = name.textContent;
       link.addEventListener('click', function (ev) {
@@ -1371,7 +1397,7 @@
   function refreshLiveText() {
     var now = nowMs();
     keepFocus(function () {
-      if (nextRow) nextRow._card.render('live', now, nextupEl);
+      if (nextRow) nextRow._card.render('nextup', now, nextupEl);
       picksEl.querySelectorAll('.pick').forEach(function (a) { if (a._row) a._row._card.render('pick', now, a); });
     });
     refreshDetailPreview();
