@@ -109,6 +109,10 @@ LEAGUES = {
 # ----------------------------------------------------------------------------------------------
 RIGHTS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "rights.toml")
 OWNER = ["hbo", "fox", "para", "espn", "apple", "usa", "prime", "netflix", "disney"]
+# Teams whose matches are shown by default even in a competition that is off by default (LEAGUES'
+# default_off), as ESPN names them: switching women's friendlies off by default hid the USWNT
+# against the world champions. A viewer who switches the competition off still hides them.
+FEATURED_TEAMS = ("United States",)
 STALE_AFTER_DAYS = 180      # an entry in rights.toml not checked for this long is reported
 LAPSE_NOTICE_DAYS = 30      # a usual home is reported this long before its season ends
 TODAY = datetime.now(ET).date()   # the build's Eastern date; main() sets it, --date included
@@ -600,7 +604,6 @@ def pretty_stage(league, comp):
             return f"League {m.group(1)} · Group {m.group(2)}"
     if group:
         return group
-    slug = ((comp.get("season") or {}).get("slug") or "")
     return ""
 
 
@@ -619,6 +622,15 @@ VOID_STATUSES = ("canceled", "cancelled", "postponed")
 def called_off(state, status):
     """A match ESPN has closed without playing it; its 0-0 is a placeholder, not a score."""
     return state == "post" and status.lower() in VOID_STATUSES
+
+
+def featured(m):
+    return m.home.name in FEATURED_TEAMS or m.away.name in FEATURED_TEAMS
+
+
+def shown_by_default(m):
+    """Whether the page shows the match before a viewer changes the competition filters."""
+    return not LEAGUES[m.league].get("default_off") or featured(m)
 
 
 def interpret(league, ev):
@@ -725,7 +737,8 @@ def interpret(league, ev):
         attendance = 0
     link = ""
     for l in ev.get("links") or []:
-        if l.get("href"):
+        # The page opens this link; anything but an http(s) URL from the feed is ignored.
+        if isinstance(l.get("href"), str) and re.match(r"https?://", l["href"]):
             link = l["href"]
             break
 
@@ -848,7 +861,7 @@ def et_parts(dt):
 
 def logo_html(team, cache, cls="logo"):
     if team.logo_key and team.logo_key in cache:
-        return f'<i class="{cls} l-{esc(team.logo_key)}" role="img" aria-label=""></i>'
+        return f'<i class="{cls} l-{esc(team.logo_key)}" aria-hidden="true"></i>'
     return f'<i class="{cls} logo--txt" aria-hidden="true">{esc(team.abbr[:3])}</i>'
 
 
@@ -1032,12 +1045,14 @@ def row_html(m, cache):
         f'<li class="row {avail}" data-id="{esc(m.id)}" data-utc="{m.utc.strftime("%Y-%m-%dT%H:%M:%SZ")}" data-tv="{tv}" '
         f'data-lg="{esc(m.league)}" data-svc="{m.service or "none"}" data-basis="{m.basis}" data-score="{m.score}" '
         f'data-state="{m.state}" data-home="{esc(m.home.name)}" data-away="{esc(m.away.name)}" data-comp="{esc(m.comp)}" '
+        + ('data-featured="1" ' if featured(m) else "") +
         f'data-outlet="{esc(m.outlet)}" data-hc="{m.home.color}" data-ac="{m.away.color}" data-o="{esc(outlets_json)}"' + (f' data-r="{esc(rule_json)}"' if rule_json else "") + '>'
         f'<div class="row__time">{league_badge}<div class="row__kickoff">{time_html}<span class="row__et" hidden></span><span class="row__until" hidden></span><span class="row__live" hidden>Live</span>{status}</div></div>'
         f'<div class="row__body">'
         f'<div class="row__teams">{team_html(m.home, cache, score_h)}<span class="vs">v</span>{team_html(m.away, cache, score_a)}</div>'
         f'<div class="row__meta">{"".join(meta)}</div>{goals_html(m)}{note}'
-        f'<div class="pills">{pills_html(m)}<button type="button" class="more" aria-haspopup="dialog" aria-controls="match-dialog">Details</button></div>'
+        f'<div class="pills">{pills_html(m)}<button type="button" class="more" aria-haspopup="dialog" aria-controls="match-dialog" '
+        f'aria-label="Details: {esc(m.home.name)} v {esc(m.away.name)}">Details</button></div>'
         f'{detail_html(m, cache)}'
         f'</div>'
         f'<div class="row__watch">{chip_html(m)}</div>'
@@ -1103,7 +1118,7 @@ def write_facts(path, matches, built_at, today):
             id=m.id,
             kickoff_utc=m.utc.isoformat(), time_confirmed=m.time_valid, state=m.state, league_id=m.league,
             source_url=f"https://www.espn.com/soccer/match/_/gameId/{m.id}",
-            available_service_ids=routes(m), default_competition=not LEAGUES[m.league].get("default_off", False),
+            available_service_ids=routes(m), default_competition=shown_by_default(m),
             kickoff=(local.strftime("%a %b ") + str(local.day) + local.strftime(", %I:%M %p ET").replace(" 0", " ")) if m.time_valid else local.strftime("%a %b ") + str(local.day) + ", time TBD",
             competition=m.comp, stage=m.stage, venue=m.venue, note=m.note,
             home=team_facts(m.home), away=team_facts(m.away),
@@ -1178,7 +1193,7 @@ def build_page(matches, cache, built_at, failed, today):
             f'<section class="bucket" data-static="1"><h3 class="bucket__h">{esc(label)}<span class="bucket__count"></span></h3>'
             f'<ol class="rows">{"".join(row_html(m, cache) for m in ms)}</ol></section>')
 
-    focus = [m for m in matches if m.state != "post" and not LEAGUES[m.league].get("default_off")
+    focus = [m for m in matches if m.state != "post" and shown_by_default(m)
              and built_at - timedelta(minutes=125) <= m.utc < built_at + timedelta(hours=24)]
 
     have_buttons = {k: (
