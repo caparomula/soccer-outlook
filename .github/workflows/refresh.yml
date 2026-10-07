@@ -60,13 +60,27 @@ jobs:
         run: python3 -m unittest -v
 
       - name: Browser checks
-        # The page's script runs only in a browser, where the unit tests can't see it; a change that
-        # breaks it must not be published. Before the storylines, so a failure costs no API calls.
+        # The page's script runs only in a browser, where the unit tests can't see it, so a check that
+        # fails keeps the last good page up; before the storylines, it costs no API calls. No apt-get:
+        # GitHub's image already has Chromium's libraries, and on 7 October an Ubuntu mirror stalled
+        # this step for 17 minutes. If the browser can't be installed or started, which says nothing
+        # about the page, it is published without the checks and the run says so (browser.yml still
+        # checks every push).
+        timeout-minutes: 10
         run: |
-          python3 -m venv .browser-venv
-          .browser-venv/bin/pip install --quiet -r tests/requirements-browser.txt
-          .browser-venv/bin/python -m playwright install --with-deps chromium
-          .browser-venv/bin/python -m tests.browser
+          if ! { python3 -m venv .browser-venv &&
+                 timeout 180 .browser-venv/bin/pip install --quiet -r tests/requirements-browser.txt &&
+                 timeout 300 .browser-venv/bin/python -m playwright install chromium; }; then
+            echo "::warning::Couldn't install the browser for the checks; publishing without them."
+            exit 0
+          fi
+          status=0
+          .browser-venv/bin/python -m tests.browser || status=$?
+          if [ "$status" -eq 77 ]; then     # tests/browser.py: Chromium couldn't start
+            echo "::warning::Chromium couldn't start; publishing without the browser checks."
+            exit 0
+          fi
+          exit "$status"
 
       - name: Keep the browser screenshots
         if: failure()

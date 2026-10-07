@@ -1286,6 +1286,11 @@ class BrowserChecks(unittest.TestCase):
             self.assertIn("not from reporting", page.locator("#story-by a").first.get_attribute("title"))
 
 
+# Exit status when Chromium can't start: the checks didn't run, which says nothing about the page.
+# 77 is automake's "skipped"; Python and argparse already use 1 and 2 for their own errors.
+NOT_RUN = 77
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--baseline-build", type=Path,
@@ -1311,17 +1316,23 @@ def main():
         server = ThreadingHTTPServer(("127.0.0.1", 0), partial(QuietHandler, directory=directory))
         thread = Thread(target=server.serve_forever, daemon=True)
         thread.start()
-        # Playwright's own Chromium, the version it was built against, unless BROWSER_EXECUTABLE names
-        # another. A runner's system Chromium (GitHub's images put one on PATH) changes from week to week.
-        browser = playwright.chromium.launch(executable_path=os.environ.get("BROWSER_EXECUTABLE") or None)
         try:
-            BrowserChecks.browser = browser
-            BrowserChecks.base = f"http://127.0.0.1:{server.server_port}"
-            BrowserChecks.targets = list(pages)
-            BrowserChecks.artifacts = args.artifacts.resolve()
-            result = unittest.TextTestRunner(verbosity=2).run(unittest.defaultTestLoader.loadTestsFromTestCase(BrowserChecks))
+            # Playwright's own Chromium, the version it was built against, unless BROWSER_EXECUTABLE names
+            # another. A runner's system Chromium (GitHub's images put one on PATH) changes from week to week.
+            try:
+                browser = playwright.chromium.launch(executable_path=os.environ.get("BROWSER_EXECUTABLE") or None)
+            except Exception as e:
+                print(f"Chromium could not start: {e}", file=sys.stderr)
+                return NOT_RUN
+            try:
+                BrowserChecks.browser = browser
+                BrowserChecks.base = f"http://127.0.0.1:{server.server_port}"
+                BrowserChecks.targets = list(pages)
+                BrowserChecks.artifacts = args.artifacts.resolve()
+                result = unittest.TextTestRunner(verbosity=2).run(unittest.defaultTestLoader.loadTestsFromTestCase(BrowserChecks))
+            finally:
+                browser.close()
         finally:
-            browser.close()
             server.shutdown()
             server.server_close()
             thread.join()
