@@ -1668,6 +1668,10 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
   var META = {}; try { META = JSON.parse(document.getElementById('league-meta').textContent) || {}; } catch (e) {}
   // A hash such as #at-20261003-2130 pins "now" (viewer-local) so a perspective can be previewed.
   function nowMs() { var m = /^#at-(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})$/.exec(location.hash || ''); return m ? new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]).getTime() : Date.now(); }
+  // The Eastern calendar date (YYYYMMDD) of an instant. ESPN files a match under it (a 9 pm Eastern
+  // kickoff is 01:00 UTC the next day), and a storyline is written for it, since the build runs on it.
+  var fmtEtYmd = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' });
+  function etYmd(k) { var p = {}; fmtEtYmd.formatToParts(new Date(k)).forEach(function (x) { p[x.type] = x.value; }); return p.year + p.month + p.day; }
   var picksEl = document.getElementById('picks'), missesEl = document.getElementById('misses');
   var SERVICES = { order: [], name: {}, owner: [] };
   try { SERVICES = JSON.parse(document.getElementById('service-meta').textContent) || SERVICES; } catch (e) {}
@@ -2217,8 +2221,20 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
   }
 
   // ---- storylines: story.json, written by story.py at each rebuild, published beside the page ----
+  // A story is shown only on the day it was written for. Its date is the build's Eastern date; a
+  // viewer elsewhere also sees it through their own calendar day. A preview written in the afternoon
+  // says "tonight", and a build after a code push republishes the story without new research, so
+  // past midnight yesterday's story would preview matches that are over: it stays hidden until the
+  // morning's run replaces it. The age limit is a backstop for a story with no date.
   var STORY = { notes: {} };
   var STORY_MAX_AGE_H = 30;
+  function localYmd(k) { var d = new Date(k); return '' + d.getFullYear() + ('0' + (d.getMonth() + 1)).slice(-2) + ('0' + d.getDate()).slice(-2); }
+  function storyIsCurrent(s, written, now) {
+    if ((now - written) / 3600000 > STORY_MAX_AGE_H) return false;
+    if (typeof s.date !== 'string') return true;
+    var day = s.date.replace(/-/g, '');
+    return day === etYmd(now) || day === localYmd(now);
+  }
   function safeUrl(u) { return typeof u === 'string' && /^https?:\/\/[^\s]+$/i.test(u) ? u : ''; }
   function hostOf(u) { var m = /^https?:\/\/(?:www\.)?([^\/:?#]+)/i.exec(u); return m ? m[1] : 'source'; }
   function sourceLinks(sources, max) {
@@ -2243,7 +2259,7 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
   function applyStory(s) {
     if (!s || s.version !== 1 || typeof s.headline !== 'string' || typeof s.lede !== 'string') return;
     var written = Date.parse(s.generated_at || '');
-    if (!(written > 0) || (nowMs() - written) / 3600000 > STORY_MAX_AGE_H) return;
+    if (!(written > 0) || !storyIsCurrent(s, written, nowMs())) return;
     var notes = {};
     Object.keys(s.notes || {}).forEach(function (id) { var n = s.notes[id]; if (n && typeof n.note === 'string' && n.note) notes[id] = n; });
     STORY = { notes: notes };
@@ -2287,9 +2303,6 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
     var m = /[?&]scoresbase=([^&#]+)/.exec(location.search), b = m ? decodeURIComponent(m[1]) : '';
     if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname) && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?\//.test(b)) LIVE.base = b;
   })();
-  // ESPN files a match under its Eastern calendar date (a 9 pm Eastern kickoff is 01:00 UTC the next day).
-  var fmtEtYmd = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' });
-  function etYmd(k) { var p = {}; fmtEtYmd.formatToParts(new Date(k)).forEach(function (x) { p[x.type] = x.value; }); return p.year + p.month + p.day; }
   function liveDue(r, now) {
     if (!r._tv || r._state === 'post' || compOff[r._lg] || now < r._k - LIVE.leadMs) return false;
     if (now < r._k + LIVE.tailMs) return true;
