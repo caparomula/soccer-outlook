@@ -34,6 +34,12 @@ def raw_story(**over):
 
 
 class Forecast(unittest.TestCase):
+    def test_tool_schema_uses_supported_array_constraints(self):
+        # Anthropic's strict tool schema rejects maxItems; enforce the editorial cap locally.
+        self.assertNotIn('"maxItems"', json.dumps(story.PUBLISH_TOOL))
+        result = story.clean_story(raw_story(forecast={"items": [item()] * 5}), FACTS, SEEN)
+        self.assertEqual(len(result["forecast"]["items"]), 3)
+
     def test_keeps_sentences_with_exact_fixture_references_and_sources(self):
         result = story.clean_story(raw_story(), FACTS, SEEN)
         self.assertEqual(result["forecast"]["items"][0]["match_ids"], ["1"])

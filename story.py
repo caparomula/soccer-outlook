@@ -98,7 +98,7 @@ PUBLISH_TOOL = {
         "properties": {
             "headline": {"type": "array", "items": SEGMENT_SCHEMA,
                          "description": "A headline, sentence case, about 80 characters, with separately tagged phrases. It must concern only fixtures in the lede."},
-            "lede_items": {"type": "array", "maxItems": 3, "items": EDITORIAL_SCHEMA,
+            "lede_items": {"type": "array", "items": EDITORIAL_SCHEMA,
                            "description": "Up to three sentences on the most pertinent story in the next 24 hours."},
             "later_reason": {"type": "string", "description": "Empty when covering the next 24 hours. Otherwise briefly explain why research found no pertinent story sooner; low stature or absent major leagues do not establish that."},
             "notes": {
@@ -116,7 +116,7 @@ PUBLISH_TOOL = {
             "forecast": {
                 "type": "object", "additionalProperties": False, "required": ["items"],
                 "description": "Short-range researched context, with independently filterable phrases; do not repeat the lede or the browser's counts and coverage summary.",
-                "properties": {"items": {"type": "array", "maxItems": 3, "items": EDITORIAL_SCHEMA}},
+                "properties": {"items": {"type": "array", "items": EDITORIAL_SCHEMA}},
             },
         },
     },
