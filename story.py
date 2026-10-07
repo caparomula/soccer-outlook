@@ -46,11 +46,11 @@ from zoneinfo import ZoneInfo
 
 ET = ZoneInfo("America/New_York")
 DEFAULT_MODEL = "claude-opus-5-5"
-# Effort per mode. Full runs research and write the day's story, where depth matters; refresh runs
-# update it, a lighter task, at Opus 5.5's own default. The published curves for research work are
-# nearly flat between medium and high, so .github/workflows/compare-storylines.yml exists to check
-# that on this workload before the full runs change.
-DEFAULT_EFFORT = {"full": "high", "refresh": "medium"}
+# Effort per mode: both at Opus 5.5's own default. On research work Anthropic's published curves are
+# nearly flat, medium matching high's accuracy at 70-87% of the cost (Optimizing for cost and
+# intelligence, checked 2026-10-07). .github/workflows/compare-storylines.yml checks that on this
+# workload; the repository variables STORY_EFFORT and STORY_REFRESH_EFFORT override these.
+DEFAULT_EFFORT = {"full": "medium", "refresh": "medium"}
 EFFORTS = ("low", "medium", "high", "xhigh", "max")
 BUDGETS = {"full": (12, 6), "refresh": (5, 2)}   # (web searches, full-page reads) per run
 MAX_TOKENS = 64000                    # a backstop only: streamed, and billed only when used
