@@ -201,6 +201,25 @@ class BrowserChecks(unittest.TestCase):
             page.locator("#btn-clear").click()
             expect(summary).to_contain_text("No services selected")
 
+    def test_unlisted_matches_remain_visible_on_my_services(self):
+        fixtures = [("unlisted", "2026-10-07T18:00:00+00:00", "pre", None, "fifa.friendly.w"),
+                    ("off-lineup", "2026-10-07T19:00:00+00:00", "pre", "Peacock", "eng.1")]
+        html = render_page(build, fixtures=fixtures)
+        story = self.tagged_story()
+        part = {"segments": [{"text": "Relevant match with coverage pending.", "match_ids": ["unlisted"]}], "sources": []}
+        story["lede_items"] = [part]
+        story["forecast"]["items"] = [part]
+        with self.page("after", html=html, story=story) as (page, _):
+            expect(page.locator('li.row[data-id="unlisted"]')).to_be_visible()
+            expect(page.locator('li.row[data-id="off-lineup"]')).to_be_hidden()
+            expect(page.locator("#schedule-summary")).to_contain_text("1 with unconfirmed coverage")
+            expect(page.locator("#forecast .editorial-part--filtered")).to_have_count(0)
+            expect(page.locator("#tally-n")).to_have_text("0")
+            page.locator("#btn-menu").click()
+            page.locator('#comp-pills [data-key="fifa.friendly.w"]').click()
+            expect(page.locator('li.row[data-id="unlisted"]')).to_be_hidden()
+            expect(page.locator("#forecast .editorial-part--filtered")).to_have_count(1)
+
     def test_counts_all_leagues_and_groups_simultaneous_kickoffs(self):
         for leagues in (["usa.1"] * 6 + ["usa.nwsl"] * 6, ["caf.nations"] * 4):
             fixtures = [(str(i), "2026-10-07T18:00:00+00:00", "pre", "ESPN+", league)

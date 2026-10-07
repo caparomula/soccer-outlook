@@ -110,7 +110,8 @@
     });
   }
   function passes(r) {
-    if (mode === 'mine' && r._svc === 'none' && !r._unk) return false;
+    // Missing listings cannot establish that a match is outside the viewer's lineup.
+    if (mode === 'mine' && r._svc === 'none' && !r._unk && r._o.length) return false;
     if (compOff[r._lg]) return false;
     return true;
   }
