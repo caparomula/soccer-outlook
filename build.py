@@ -70,7 +70,7 @@ LEAGUES = {
     "fra.1": dict(name="Ligue 1", tier=2),
     "usa.1": dict(name="MLS", tier=2),
     "mex.1": dict(name="Liga MX", tier=2),
-    "usa.nwsl": dict(name="NWSL", tier=2),
+    "usa.nwsl": dict(name="NWSL", tier=2, default_off=True),
     "eng.w.1": dict(name="Women's Super League", tier=2),
     "uefa.champions": dict(name="Champions League", tier=1),
     "uefa.europa": dict(name="Europa League", tier=2),
@@ -78,7 +78,7 @@ LEAGUES = {
     "uefa.wchampions": dict(name="Women's Champions League", tier=2),
     "uefa.nations": dict(name="Nations League", tier=2),
     "fifa.friendly": dict(name="Men's friendly", tier=2),
-    "fifa.friendly.w": dict(name="Women's friendly", tier=2),
+    "fifa.friendly.w": dict(name="Women's friendly", tier=2, default_off=True),
     "concacaf.nations.league": dict(name="Concacaf Nations League", tier=3),
     "eng.2": dict(name="Championship", tier=3),
     "eng.fa": dict(name="FA Cup", tier=2),
@@ -108,7 +108,7 @@ LEAGUES = {
 # they pick their own in the page; the choice stays in that viewer's browser.
 # ----------------------------------------------------------------------------------------------
 RIGHTS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "rights.toml")
-OWNER = ["hbo", "fox", "para", "espn", "apple", "usa", "prime", "netflix", "disney", "free"]
+OWNER = ["hbo", "fox", "para", "espn", "apple", "usa", "prime", "netflix", "disney"]
 STALE_AFTER_DAYS = 180      # an entry in rights.toml not checked for this long is reported
 LAPSE_NOTICE_DAYS = 30      # a usual home is reported this long before its season ends
 TODAY = datetime.now(ET).date()   # the build's Eastern date; main() sets it, --date included

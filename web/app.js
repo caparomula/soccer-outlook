@@ -93,7 +93,7 @@
 
   function filterSummary() {
     var n = Object.keys(HAVE).length, c = Object.keys(compOff).length, parts = [];
-    parts.push(Array.isArray(storedHave) ? n + (n === 1 ? ' service' : ' services') : "owner's lineup");
+    parts.push(n + (n === 1 ? ' service' : ' services'));
     if (c) parts.push(c + (c === 1 ? ' competition hidden' : ' competitions hidden'));
     return parts.join(', ');
   }
@@ -138,8 +138,15 @@
       write(LS.mode, mode); try { localStorage.removeItem(LS.comp); localStorage.removeItem('ssg3-have'); } catch (e) {}
       evaluateAll();
     }
-    else if (b.id === 'btn-clear') {   // every service off, to pick a lineup from nothing; competitions stay as they are
-      HAVE = {}; storedHave = []; write('ssg3-have', storedHave); evaluateAll();
+    else if (b.id === 'btn-clear' || b.id === 'btn-select-services') {
+      HAVE = {};
+      if (b.id === 'btn-select-services') SERVICES.order.forEach(function (k) { HAVE[k] = true; });
+      storedHave = Object.keys(HAVE); write('ssg3-have', storedHave); evaluateAll();
+    }
+    else if (b.id === 'btn-clear-leagues' || b.id === 'btn-select-leagues') {
+      compOff = {};
+      if (b.id === 'btn-clear-leagues') drawer.querySelectorAll('[data-kind="comp"]').forEach(function (x) { compOff[x.getAttribute('data-key')] = true; });
+      write(LS.comp, Object.keys(compOff));
     }
     else if (b.getAttribute('data-kind') === 'have') {
       var k = b.getAttribute('data-key'); if (HAVE[k]) delete HAVE[k]; else HAVE[k] = true;

@@ -8,7 +8,9 @@ The page focuses on the rolling next 24 hours, including live matches. Claude re
 
 ## Your lineup
 
-Tap **Lineup** at the top right of the page (it stays there as you scroll) and tap the services you have and the competitions you want. Every match is then judged against your lineup; the choice stays in your browser. **Clear all** deselects every service so you can build a lineup from nothing, and **Reset to the default** brings back the owner's lineup, `OWNER` in `build.py`.
+Tap **Lineup** at the top right of the page (it stays there as you scroll) and tap the services you have and the competitions you want. Every match is then judged against your lineup; the choice stays in your browser. Broadcasters and leagues each have **Select all** and **Clear all** controls. **Reset to defaults** restores both groups and the **On my services** view.
+
+The default services are HBO Max, Fox One, Paramount+, ESPN Unlimited, Apple TV, USA Network, Prime Video, Netflix and Disney+. All competitions are enabled except Women's friendly, USL Championship, USL League One and NWSL. These defaults are set by `OWNER` and the `LEAGUES` entries marked `default_off` in `build.py`. Saved browser choices take precedence until reset.
 
 ## How it runs
 

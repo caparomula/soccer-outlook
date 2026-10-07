@@ -158,6 +158,61 @@ class BrowserChecks(unittest.TestCase):
                 self.assertIsNone(page.evaluate("localStorage.getItem('ssg3-have')"))
                 expect(page.locator('[data-kind="have"][aria-pressed="true"]')).to_have_count(len(build.OWNER))
 
+    def test_bulk_filters_are_independent_persist_and_reset_to_screenshot_defaults(self):
+        enabled_services = {"hbo", "fox", "para", "espn", "apple", "usa", "prime", "netflix", "disney"}
+        hidden_leagues = {"fifa.friendly.w", "usa.usl.1", "usa.usl.l1", "usa.nwsl"}
+        leagues = ["eng.1", "esp.1", *sorted(hidden_leagues)]
+        html = render_page(build, fixtures=[
+            (f"match-{i}", "2026-10-07T18:00:00+00:00", "pre", "ESPN+", league)
+            for i, league in enumerate(leagues)])
+
+        def keys(page, kind, pressed):
+            return set(page.locator(f'[data-kind="{kind}"][aria-pressed="{pressed}"]').evaluate_all(
+                "buttons => buttons.map(b => b.dataset.key)"))
+
+        for width in (1280, 390):
+            with self.subTest(width=width), self.page("after", width=width, html=html) as (page, _):
+                self.assertEqual(keys(page, "have", "true"), enabled_services)
+                self.assertEqual(keys(page, "comp", "false"), hidden_leagues)
+                expect(page.locator('li.row:visible')).to_have_count(2)
+                page.locator("#btn-menu").click()
+                expect(page.locator("#filter-sum")).to_have_text("9 services, 4 competitions hidden")
+                self.assertLessEqual(page.evaluate("document.documentElement.scrollWidth"), width)
+                page.locator("#drawer").screenshot(path=str(self.artifacts / f"bulk-filters-{width}.png"))
+
+                page.get_by_role("button", name="Select all broadcasters", exact=True).click()
+                expect(page.locator('[data-kind="have"][aria-pressed="true"]')).to_have_count(len(build.SERVICES))
+                self.assertEqual(keys(page, "comp", "false"), hidden_leagues)
+                page.get_by_role("button", name="Clear all leagues", exact=True).click()
+                expect(page.locator('li.row:visible')).to_have_count(0)
+                expect(page.locator('[data-kind="have"][aria-pressed="true"]')).to_have_count(len(build.SERVICES))
+                page.reload()
+                self.assertEqual(keys(page, "comp", "false"), set(leagues))
+                expect(page.locator('[data-kind="have"][aria-pressed="true"]')).to_have_count(len(build.SERVICES))
+
+                page.locator("#btn-menu").click()
+                page.get_by_role("button", name="Select all leagues", exact=True).click()
+                expect(page.locator('li.row:visible')).to_have_count(len(leagues))
+                page.get_by_role("button", name="Clear all broadcasters", exact=True).click()
+                expect(page.locator('li.row:visible')).to_have_count(0)
+                self.assertEqual(keys(page, "comp", "true"), set(leagues))
+                page.reload()
+                expect(page.locator('[data-kind="have"][aria-pressed="true"]')).to_have_count(0)
+                self.assertEqual(keys(page, "comp", "true"), set(leagues))
+
+                page.locator("#btn-all").click()
+                expect(page.locator('li.row:visible')).to_have_count(len(leagues))
+                page.locator("#btn-menu").click()
+                page.get_by_role("button", name="Reset to defaults", exact=True).click()
+                self.assertEqual(keys(page, "have", "true"), enabled_services)
+                self.assertEqual(keys(page, "comp", "false"), hidden_leagues)
+                expect(page.locator("#btn-mine")).to_have_attribute("aria-pressed", "true")
+                expect(page.locator('li.row:visible')).to_have_count(2)
+                page.reload()
+                self.assertEqual(keys(page, "have", "true"), enabled_services)
+                self.assertEqual(keys(page, "comp", "false"), hidden_leagues)
+                expect(page.locator('li.row:visible')).to_have_count(2)
+
     def test_midnight_and_sports_day_boundary(self):
         cases = [
             ("20261007-2359", "Tonight", "Tonight", "Tomorrow"),
@@ -234,6 +289,10 @@ class BrowserChecks(unittest.TestCase):
         story["lede_items"] = [part]
         story["forecast"]["items"] = [part]
         with self.page("after", html=html, story=story) as (page, _):
+            # Exercise broadcast availability independently of the default league exclusions.
+            page.locator("#btn-menu").click()
+            page.locator('#comp-pills [data-key="fifa.friendly.w"]').click()
+            page.locator("#btn-filters-close").click()
             for mid in ("unlisted", "unknown", "off-lineup", "usual-off-lineup"):
                 expect(page.locator(f'li.row[data-id="{mid}"]')).to_be_hidden()
             expect(page.locator("#schedule-summary")).to_contain_text("with unconfirmed coverage")
@@ -260,6 +319,9 @@ class BrowserChecks(unittest.TestCase):
             fixtures = [(str(i), "2026-10-07T18:00:00+00:00", "pre", "ESPN+", league)
                         for i, league in enumerate(leagues)]
             with self.subTest(leagues=leagues), self.page("after", html=render_page(build, fixtures=fixtures)) as (page, _):
+                page.locator("#btn-menu").click()
+                page.get_by_role("button", name="Select all leagues", exact=True).click()
+                page.locator("#btn-filters-close").click()
                 summary = page.locator("#schedule-summary")
                 expect(summary).to_contain_text(f"{len(leagues)} upcoming in selected competitions")
                 next_kickoff = summary.locator("p").filter(has_text="Next kickoff")

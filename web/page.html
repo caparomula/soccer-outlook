@@ -12,10 +12,12 @@
   </button>
   <div class="drawer" id="drawer" role="dialog" aria-labelledby="drawer-h" tabindex="-1" hidden>
     <div class="drawer__head"><h2 id="drawer-h">Lineup &amp; filters</h2><span class="drawer__sum" id="filter-sum"></span></div>
-    <div class="controls__row" id="have-pills"><span class="controls__lbl">You have</span>@@HAVE_PILLS@@</div>
+    <div class="drawer__group-head"><h3 class="controls__lbl" id="have-h">Broadcasters</h3><span class="drawer__links"><button type="button" class="link" id="btn-select-services" aria-label="Select all broadcasters">Select all</button><button type="button" class="link" id="btn-clear" aria-label="Clear all broadcasters">Clear all</button></span></div>
+    <div class="controls__row" id="have-pills" role="group" aria-labelledby="have-h">@@HAVE_PILLS@@</div>
     <p class="drawer__hint">Tap the services you have and every match is judged against them. The default is the page owner's lineup; your choice stays in this browser. Fubo means its Pro plan; a cable, YouTube TV or Hulu + Live TV package counts as the live-TV bundle.</p>
-    <div class="controls__row" id="comp-pills"><span class="controls__lbl">Competitions</span>@@COMP_PILLS@@</div>
-    <div class="drawer__foot"><span class="drawer__links"><button type="button" class="link" id="btn-reset">Reset to the default</button><button type="button" class="link" id="btn-clear" aria-label="Clear all services" title="Deselect every service, then pick the ones you want">Clear all</button></span><button type="button" class="fbtn" id="btn-filters-close">Done</button></div>
+    <div class="drawer__group-head"><h3 class="controls__lbl" id="comp-h">Leagues &amp; competitions</h3><span class="drawer__links"><button type="button" class="link" id="btn-select-leagues" aria-label="Select all leagues">Select all</button><button type="button" class="link" id="btn-clear-leagues" aria-label="Clear all leagues">Clear all</button></span></div>
+    <div class="controls__row" id="comp-pills" role="group" aria-labelledby="comp-h">@@COMP_PILLS@@</div>
+    <div class="drawer__foot"><button type="button" class="link" id="btn-reset">Reset to defaults</button><button type="button" class="fbtn" id="btn-filters-close">Done</button></div>
   </div>
   <header class="hdr">
     <div class="hdr__eyebrow" id="eyebrow">Your lineup · Next 24 hours</div>
