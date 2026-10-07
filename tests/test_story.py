@@ -69,27 +69,12 @@ class Forecast(unittest.TestCase):
             self.assertNotIn("forecast", result)
             self.assertEqual(list(result["notes"]), ["1"])
 
-    def test_later_requires_explanation_and_no_near_story(self):
+    def test_later_stories_are_preserved_alongside_nearer_news(self):
         later = item(ids=["later"])
-        raw = raw_story(headline=[{"text": "Later headline", "match_ids": ["later"]}], lede_items=[later], notes=[], forecast={"items": [later]})
-        result = story.clean_story(raw, FACTS, SEEN)
-        self.assertEqual(result["lede_items"], [])
-        self.assertNotIn("forecast", result)
-        raw["later_reason"] = "No supported near-term angle after research."
-        result = story.clean_story(raw, FACTS, SEEN)
-        self.assertEqual(result["forecast"]["items"][0]["match_ids"], ["later"])
-        raw["forecast"]["items"].insert(0, item())
-        result = story.clean_story(raw, FACTS, SEEN)
-        self.assertEqual(len(result["forecast"]["items"]), 1)
-        self.assertEqual(result["lede_items"], [])
-        self.assertEqual(result["headline"], "")
-        self.assertEqual(result["later_reason"], "")
-
-    def test_near_match_note_also_prevents_later_lead(self):
-        result = story.clean_story(raw_story(lede_items=[item(ids=["later"])],
-                                           forecast={"items": []}, later_reason="No news soon."), FACTS, SEEN)
-        self.assertEqual(result["lede_items"], [])
-        self.assertEqual(result["later_reason"], "")
+        result = story.clean_story(raw_story(lede_items=[later], forecast={"items": [item(), later]}), FACTS, SEEN)
+        self.assertEqual(len(result["forecast"]["items"]), 2)
+        self.assertEqual(result["lede_items"][0]["match_ids"], ["later"])
+        self.assertEqual(list(result["notes"]), ["1"])
 
     def test_later_fallback_survives_when_near_news_is_not_on_default_services(self):
         facts = {"next_24_hours": [{"id": "1"}], "later_if_needed": [{"id": "later"}]}
@@ -136,7 +121,7 @@ class Forecast(unittest.TestCase):
             self.assertIn("rolling next 24 hours", prompt)
             self.assertIn("prioritize", prompt.lower())
             self.assertIn("unconfirmed coverage is not evidence of availability", prompt)
-            self.assertIn("nothing of interest", prompt)
+            self.assertIn("Nothing of interest", prompt)
             self.assertIn("team, league and broadcaster tags", prompt)
         self.assertIn("Exclude general club news, financial investigations", story.SYSTEM)
         self.assertIn("An upcoming international break", story.SYSTEM)
@@ -168,6 +153,22 @@ class RollingFacts(unittest.TestCase):
         self.assertTrue(all(m["available_service_ids"] for m in facts["next_24_hours"] + facts["later_if_needed"]))
         # Ratings cover the full slate, including unknown broadcasts, but no finished matches.
         self.assertEqual({m["id"] for m in facts["ranking_candidates"]}, {"live", "inside", "edge", "unlisted", "hidden"})
+        candidates = {group["league_id"]: group["matches"] for group in facts["league_candidates"]}
+        self.assertEqual(candidates["eng.1"][0]["id"], "live")
+        self.assertNotIn("fifa.friendly.w", candidates)
+
+    def test_later_leagues_are_not_lost_when_other_leagues_fill_the_digest(self):
+        from tests.page_fixture import render_page
+        fixtures = [(str(i), "2026-10-09T18:00:00+00:00", "pre", "ESPN+", "esp.1") for i in range(21)]
+        fixtures.append(("later-league", "2026-10-11T18:00:00+00:00", "pre", "ESPN+", "eng.1"))
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "facts.json"
+            render_page(build, fixtures=fixtures, facts_path=path)
+            facts = json.loads(path.read_text())
+        self.assertNotIn("later-league", {m["id"] for m in facts["later_if_needed"]})
+        candidates = {group["league_id"]: group["matches"] for group in facts["league_candidates"]}
+        self.assertEqual(candidates["eng.1"][0]["id"], "later-league")
+        self.assertEqual(len(candidates["esp.1"]), 21)
 
 
 class Rankings(unittest.TestCase):
@@ -214,6 +215,53 @@ class Rankings(unittest.TestCase):
         self.assertTrue(retry["is_error"])
         self.assertEqual(retry["tool_use_id"], "publish")
         self.assertIn("IDs: 2", retry["content"])
+
+
+class LeagueBlurbs(unittest.TestCase):
+    FACTS = dict(FACTS, league_candidates=[
+        {"league_id": "eng.1", "matches": [{"id": "1", "source_url": SOURCE}]},
+        {"league_id": "esp.1", "matches": [{"id": "later", "source_url": SOURCE}]},
+    ])
+
+    def test_keeps_one_scored_paragraph_per_league_including_later(self):
+        raw = raw_story(league_blurbs=[dict(item(), league_id="eng.1", interest=50),
+                                      dict(item(ids=["later"]), league_id="esp.1", interest=90)])
+        # Supplied ESPN facts can support useful context without an unrelated web article.
+        result = story.clean_story(raw, self.FACTS, {})
+        self.assertEqual(result["blurb_coverage"], {"written": 2, "total": 2})
+        self.assertEqual([b["interest"] for b in result["league_blurbs"]], [50, 90])
+        self.assertEqual(result["league_blurbs"][1]["match_ids"], ["later"])
+
+    def test_rejects_mislabeled_unsourced_oversized_and_invalid_interest(self):
+        good = dict(item(), league_id="eng.1", interest=50)
+        for bad in (dict(good, league_id="esp.1"), dict(good, league_id="missing"),
+                    dict(good, interest=True), dict(good, interest=101), dict(good, interest=-1),
+                    dict(good, interest="90"), dict(good, sources=["https://unseen.example/a"]),
+                    dict(item("A" * 451), league_id="eng.1", interest=50)):
+            with self.subTest(bad=bad):
+                result = story.clean_story(raw_story(league_blurbs=[bad, good, dict(good, interest=99)]), self.FACTS, SEEN)
+                self.assertEqual(len(result["league_blurbs"]), 1)
+                self.assertEqual(result["league_blurbs"][0]["interest"], 50)
+
+    def test_refresh_keeps_blurb_sources(self):
+        self.assertIn(story.url_key(SOURCE), story.earlier_sources({"league_blurbs": [{"sources": [{"url": SOURCE}]}]}))
+
+    def test_missing_league_alone_triggers_a_repair_request(self):
+        facts = dict(self.FACTS, built_at="2026-10-07T17:00:00Z", weekday="Wednesday", date="2026-10-07", owner_services=["ESPN"])
+        blurbs = [dict(item(), league_id="eng.1", interest=50), dict(item(ids=["later"]), league_id="esp.1", interest=80)]
+        sdk = MagicMock()
+        stream = sdk.Anthropic.return_value.beta.messages.stream
+        replies = []
+        for content in (blurbs[:1], blurbs):
+            call = SimpleNamespace(type="tool_use", name="publish_story", id="publish", input=raw_story(league_blurbs=content))
+            replies.append(SimpleNamespace(model="test-model", usage=SimpleNamespace(input_tokens=1, output_tokens=1), content=[call], stop_reason="tool_use"))
+        stream.return_value.__enter__.return_value.get_final_message.side_effect = replies
+        totals = dict.fromkeys(("in", "out", "cache_write", "cache_read", "searches", "fetches"), 0)
+        with patch.dict(sys.modules, {"anthropic": sdk}):
+            result, _ = story.write_story(facts, "test-model", "medium", "full", None, totals)
+        self.assertEqual(result["blurb_coverage"], {"written": 2, "total": 2})
+        self.assertEqual(stream.call_count, 2)
+        self.assertIn("league blurbs: esp.1", stream.call_args.kwargs["messages"][-1]["content"][0]["content"])
 
 
 def match(mid, league, et_hour, day, state="pre", status="", service="", comp=None, time_valid=True):

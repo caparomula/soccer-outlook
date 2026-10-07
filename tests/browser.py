@@ -117,7 +117,7 @@ class BrowserChecks(unittest.TestCase):
                                 diff.save(self.artifacts / f"diff-{width}-{theme}-{state}.png")
                             self.assertEqual(changed, 0, f"Screenshot mismatch; inspect {self.artifacts}")
 
-    def test_team_columns_align_with_long_names_and_different_broadcasters(self):
+    def test_compact_team_format_wraps_long_names_without_overflow(self):
         fixtures = [("a", "2026-10-07T16:30:00+00:00", "in", "ESPN+"),
                     ("b", "2026-10-07T16:30:00+00:00", "in", "CBS Sports Network"),
                     ("c", "2026-10-07T18:00:00+00:00", "pre", "Apple TV"),
@@ -130,29 +130,13 @@ class BrowserChecks(unittest.TestCase):
         for width in (1280, 820, 600, 390, 320):
             with self.subTest(width=width), self.page("after", width=width, html=html) as (page, _):
                 page.locator("#btn-all").click()
-                geometry = page.locator('li.row:visible').evaluate_all("""rows => rows.map(row => {
-                    const teams = [...row.querySelectorAll('.row__teams > .team')];
-                    const pos = el => { const r = el.getBoundingClientRect(); return {x: r.x, y: r.y, right: r.right}; };
-                    return {teams: teams.map(t => pos(t.querySelector('.team__name'))),
-                            logos: teams.map(t => pos(t.querySelector('.logo'))),
-                            scores: teams.map(t => pos(t.querySelector('.score'))),
-                            watch: pos(row.querySelector('.row__watch')),
-                            fits: teams.every(t => t.scrollWidth <= t.clientWidth + 1)};
-                })""")
-                self.assertEqual(len(geometry), 4)
-                for side in (0, 1):
-                    self.assertLess(max(r['teams'][side]['x'] for r in geometry) - min(r['teams'][side]['x'] for r in geometry), 1)
-                    self.assertLess(max(r['logos'][side]['x'] for r in geometry) - min(r['logos'][side]['x'] for r in geometry), 1)
-                    self.assertAlmostEqual(geometry[0]['scores'][side]['right'], geometry[1]['scores'][side]['right'], delta=1)
-                for row in geometry:
-                    self.assertTrue(row['fits'])
-                    if width <= 600:
-                        self.assertAlmostEqual(row['teams'][0]['x'], row['teams'][1]['x'], delta=1)
-                        self.assertGreater(row['teams'][1]['y'], row['teams'][0]['y'])
-                    else:
-                        self.assertGreater(row['teams'][1]['x'], row['teams'][0]['x'] + 100)
+                expect(page.locator('li.row:visible')).to_have_count(4)
+                for row in page.locator('li.row:visible').all():
+                    expect(row.locator('.row__teams')).to_have_css('display', 'flex')
+                    expect(row.locator('.team').first).to_have_css('display', 'flex')
+                    expect(row.locator('.vs')).to_be_visible()
                 self.assertLessEqual(page.evaluate('document.documentElement.scrollWidth'), width)
-                page.locator('#outlook').screenshot(path=str(self.artifacts / f"aligned-rows-{width}.png"))
+                page.locator('#outlook').screenshot(path=str(self.artifacts / f"compact-rows-{width}.png"))
 
     def test_lineup_persists_and_resets(self):
         for target in self.targets:
@@ -409,6 +393,50 @@ class BrowserChecks(unittest.TestCase):
                     page.evaluate("at => location.hash = '#at-20261007-' + at", at)
                     expect(page.locator("#period-h")).to_have_text(label)
 
+    def test_league_blurbs_choose_interest_after_time_and_service_filters(self):
+        fixtures = [("upcoming", "2026-10-07T17:05:00+00:00", "pre", "ESPN+", "esp.1"),
+                    ("mls", "2026-10-07T19:00:00+00:00", "pre", "Apple TV", "usa.1"),
+                    ("off", "2026-10-07T20:00:00+00:00", "pre", "Peacock", "usa.nwsl"),
+                    ("pl", "2026-10-09T18:00:00+00:00", "pre", "ESPN+", "eng.1"),
+                    ("france", "2026-10-09T20:00:00+00:00", "pre", "FS1", "fra.1"),
+                    ("far", "2026-10-12T18:00:00+00:00", "pre", "ESPN+", "ita.1")]
+        story = self.tagged_story()
+        story["lede_items"], story["forecast"] = [], {"items": []}
+        story["league_blurbs"] = [dict(league_id=league, interest=interest,
+                                            segments=[{"text": text, "match_ids": [mid]}], sources=[])
+                                   for mid, league, interest, text in (
+                                       ("upcoming", "esp.1", 50, "Spanish match context."),
+                                       ("mls", "usa.1", 80, "MLS match context."),
+                                       ("off", "usa.nwsl", 99, "Unavailable match context."),
+                                       ("pl", "eng.1", 95, "Friday Premier League context."),
+                                       ("france", "fra.1", 90, "Friday French match context."),
+                                       ("far", "ita.1", 100, "Much later Italian context."))]
+        for width in (1280, 390):
+            with self.subTest(width=width), self.page("after", width=width, html=render_page(build, fixtures=fixtures), story=story) as (page, feed):
+                lede = page.locator("p#story-lede")
+                expect(lede).to_have_text("MLS match context.")
+                expect(page.locator("#story-lede .editorial-item")).to_have_count(1)
+                page.locator("#btn-menu").click()
+                page.locator('[data-kind="have"][data-key="apple"]').click()
+                expect(lede).to_have_text("Spanish match context.")
+                feed["data"] = scoreboard("post")
+                page.clock.run_for(60000)
+                expect(lede).to_have_text("Friday Premier League context.")
+                expect(page.locator("#story-h")).to_have_text("Storyline · Further ahead")
+                page.locator('#comp-pills [data-key="eng.1"]').click()
+                expect(lede).to_have_text("Friday French match context.")
+                page.locator("#btn-filters-close").click()
+                page.screenshot(path=str(self.artifacts / f"league-fallback-{width}.png"), full_page=True)
+                page.locator("#btn-menu").click()
+                page.locator("#btn-clear").click()
+                expect(page.locator("#story")).to_be_hidden()
+                page.locator("#btn-filters-close").click()
+                page.locator("#btn-all").click()
+                expect(page.locator("#story")).to_be_hidden()
+                page.locator("#btn-menu").click()
+                page.locator('[data-kind="have"][data-key="fox"]').click()
+                expect(lede).to_have_text("Friday French match context.")
+
     def test_ranked_headline_and_absolute_standouts_follow_filters(self):
         fixtures = [("routine", "2026-10-07T18:00:00+00:00", "pre", "ESPN+", "eng.1"),
                     ("best", "2026-10-07T19:00:00+00:00", "pre", "Apple TV", "usa.1"),
@@ -476,7 +504,7 @@ class BrowserChecks(unittest.TestCase):
             expect(page.locator('li.row[data-id="edge"]')).to_be_visible()
             expect(page.locator('details[data-b="later"]')).to_have_attribute("open", "")
 
-    def test_later_editorial_only_as_researched_fallback_and_rolls_into_window(self):
+    def test_later_editorial_is_retained_and_rolls_into_window(self):
         html = render_page(build, fixtures=[
             ("upcoming", "2026-10-07T17:05:00+00:00", "pre", "ESPN+"),
             ("usual", "2026-10-08T18:00:00+00:00", "pre", "ESPN+")])
@@ -499,7 +527,7 @@ class BrowserChecks(unittest.TestCase):
             expect(page.locator("#forecast")).to_contain_text("Next 24 hours")
         story["later_reason"] = ""
         with self.page("after", html=html, story=story) as (page, _):
-            expect(page.locator("#forecast")).to_be_hidden()
+            expect(page.locator("#forecast")).to_contain_text("Later context")
 
     def test_match_notes_follow_services_even_in_everything_mode(self):
         fixtures = [("peacock", "2026-10-07T18:00:00+00:00", "pre", "Peacock", "eng.1")]

@@ -2,12 +2,12 @@
 """Writes the day's storylines for Soccer Outlook with Claude and web search.
 
 build.py --facts supplies matches with known service coverage in the next 24 hours and later fallback candidates.
-Claude researches fixture-specific context and prioritizes available matches for the default lineup. It publishes separately
-referenced phrases for the headline, lede and forecast, plus match notes. Every sentence cites verified
+Claude writes one interest-rated paragraph per league, plus forecast items and match notes, all with separately
+referenced phrases. Every paragraph cites researched reporting or supplied ESPN match facts, with
 sources and exact fixture IDs. The browser derives team, league and broadcaster tags from those
 fixtures and dims phrases excluded by the visitor's filters.
 
-Later stories are permitted only when research finds nothing pertinent in the next 24 hours.
+Later stories are retained as alternatives; the browser prefers relevant near-term news after filtering.
 The browser supplies factual schedule counts and coverage independently. Old untagged stories keep
 their match notes but cannot supply opening commentary; the next research run supplies tagged text.
 
@@ -66,7 +66,7 @@ PRICE_SEARCH = 0.01                   # per web search on any model; web fetch c
 
 SYSTEM = """You write the daily storylines for Soccer Outlook, a soccer schedule with visitor-controlled competition and service filters. News serves upcoming matches available through the visitor's selected services. The news candidate lists contain only fixtures with listed or usual service coverage; ranking_candidates separately contains the full upcoming slate. Prioritize the default lineup for the opening; visitors can select other services and the browser filters the text accordingly. The page already lists kickoff times, channels, table positions, recent form and top scorers. Cover only facts that directly affect a specific upcoming fixture: the stakes, player availability, likely selection supported by reporting, a relevant matchup, or a scheduling change. An upcoming international break belongs only when explaining its effect on a listed fixture. Exclude general club news, financial investigations, ownership stories, or unrelated managerial controversy. Mentioning a team that has a fixture is not enough: explain the concrete match connection.
 
-Research with web search before writing, and read a full article when a search snippet is not enough. Prefer recent reporting from established outlets: clubs and federations, major newspapers, broadcasters, wire services. For news, state only what you read in this session. If you cannot confirm something, leave it out rather than guess, and never predict results or invent lineups, injuries or quotes. Do not restate the schedule data as news.
+Research with web search before writing, and read a full article when a search snippet is not enough. Prefer recent reporting from established outlets: clubs and federations, major newspapers, broadcasters, wire services. For news, state only what you read in this session or what the supplied ESPN facts establish. If you cannot confirm something, leave it out rather than guess, and never predict results or invent lineups, injuries or quotes. Do not merely repeat kickoff times and channels as news. Supplied ESPN match facts may support useful fixture-specific context when fresh reporting is unavailable.
 
 Also rate every fixture in ranking_candidates using the fixed rubric supplied by the user. Ratings are editorial judgments from the fixture facts and established appeal, separate from sourced news.
 
@@ -96,12 +96,21 @@ PUBLISH_TOOL = {
     "eager_input_streaming": True,
     "input_schema": {
         "type": "object", "additionalProperties": False,
-        "required": ["headline", "lede_items", "later_reason", "notes", "forecast", "ranked_matches"],
+        "required": ["league_blurbs", "notes", "forecast", "ranked_matches"],
         "properties": {
-            "headline": {"type": "array", "items": SEGMENT_SCHEMA,
-                         "description": "A headline, sentence case, about 80 characters, with separately tagged phrases. It must concern only fixtures in the lede."},
-            "lede_items": {"type": "array", "items": EDITORIAL_SCHEMA,
-                           "description": "One compact paragraph of two or three sentences, at most 450 characters total, about pertinent upcoming matches. Split its sentences into items for filtering, not separate paragraphs. Avoid repeating the headline or forecast."},
+            "league_blurbs": {
+                "type": "array", "description": "One sourced, independently usable paragraph for EVERY league_candidates entry. Rate its news interest independently of service filters. Do not omit later leagues.",
+                "items": {"type": "object", "additionalProperties": False,
+                          "required": ["league_id", "interest", "segments", "sources"],
+                          "properties": {
+                              "league_id": {"type": "string", "description": "Exact league_candidates league_id."},
+                              "interest": {"type": "integer", "description": "0–100 editorial interest of this fixture-specific story: routine useful context to unusually compelling stakes/news. Not match quality or an outcome probability."},
+                              "segments": {"type": "array", "items": SEGMENT_SCHEMA,
+                                           "description": "One short paragraph, one to three sentences, at most 450 characters total. Tag each match-specific phrase. Reference only supplied upcoming fixtures from this league."},
+                              "sources": {"type": "array", "items": {"type": "string"},
+                                          "description": "URLs read in this research or supplied ESPN source_url links supporting only facts supplied in the input."},
+                          }},
+            },
             "ranked_matches": {
                 "type": "array", "description": "Rate EVERY ranking_candidates fixture exactly once on the fixed rubric, not just the highlights. Ratings are independent of services and filters.",
                 "items": {"type": "object", "additionalProperties": False,
@@ -113,7 +122,6 @@ PUBLISH_TOOL = {
                               "impact": {"type": "integer", "description": "0–100: competitive stakes of this particular fixture, supported by stage/table context."},
                           }},
             },
-            "later_reason": {"type": "string", "description": "Empty unless including later fallback news because there is no pertinent next-24-hour story on the default lineup and competitions. Explain that gap; do not infer a lack of interest from league stature."},
             "notes": {
                 "type": "array", "description": "Up to eight researched match notes. Fewer is fine; never pad the count with later matches.",
                 "items": {
@@ -135,22 +143,25 @@ PUBLISH_TOOL = {
     },
 }
 
-FOCUS_GUIDE = ("The focus is the rolling next 24 hours, from built_at to focus_until, including matches live now. "
-               "Research next_24_hours first, across all its leagues regardless of stature. Find what is pertinent "
-               "there. Prioritize matches with watch_on and default_competition=true for the opening. Only if there is "
-               "nothing of interest on that default lineup in the next 24 hours should you include later_if_needed "
-               "as a fallback, starting with the soonest pertinent available fixture. Explain this in later_reason. "
-               "The browser hides a blurb entirely if none of its matches has service coverage on the visitor's "
-               "selection; it dims excluded phrases only inside a blurb that still has a relevant match. A match "
-               "with unconfirmed coverage is not evidence of availability. Do not pad a short story. "
-               "Use segments in the headline, lede_items and forecast items to tag exact phrases with fixture IDs. "
-               "The page derives team, league and broadcaster tags from those IDs. Tag a team/league name and "
-               "its related claim separately from unrelated fixtures; neutral joining words get []. For example, "
-               "a sentence naming MLS and the Premier League must have separate tagged segments for each league, "
-               "so excluding MLS dims only its words, without altering the rest of the sentence. Preserve spaces "
-               "and punctuation across segments. Never mix near and later fixtures "
-               "in one item. Avoid 'your services', 'today' and 'tomorrow' in editorial text: selections and the "
-               "clock change after publication. Give actual dates and Eastern times when needed. ")
+FOCUS_GUIDE = ("Supply exactly one league_blurbs paragraph for EVERY league_candidates entry, even leagues whose "
+               "next fixtures are beyond 24 hours. Each paragraph is independently usable: one to three sentences, "
+               "at most 450 characters, about a supplied upcoming fixture or fixtures in that league. Prefer "
+               "fixtures with watch_on in that league's nearest supplied window. Assign an interest score from "
+               "0 to 100 for the story itself. The browser prioritizes the rolling next 24 hours after service and "
+               "competition filters, chooses the highest-interest eligible paragraph there, and otherwise chooses "
+               "the highest-interest paragraph in the nearest later 24-hour window. There is no minimum score "
+               "for a blurb: always offer useful fixture-specific context, including later leagues. "
+               "Research fresh match previews, competitive stakes, player availability and scheduling context. "
+               "If fresh reporting is unavailable, explain a matchup using the supplied table, form, stage or "
+               "scheduling facts and cite its supplied ESPN source_url. Those URLs support supplied facts only; "
+               "external claims still require a source read in this session. Do not simply repeat kickoff times "
+               "and channels, add faux announcing or invent news. Nothing of interest in breaking news does not "
+               "mean an empty paragraph. A match with unconfirmed coverage is not evidence of availability. "
+               "Keep each paragraph within one league and one time window. Use segments to tag exact phrases "
+               "with fixture IDs. The page derives team, league and broadcaster tags from those IDs. Tag a "
+               "team/league name and its related claim separately from unrelated fixtures; neutral joining words "
+               "get []. Preserve spaces and punctuation. Avoid 'your services', 'today' and 'tomorrow': selections "
+               "and the clock change. Give actual dates and Eastern times when needed. ")
 
 FORECAST_GUIDE = (FOCUS_GUIDE + "Write up to three short forecast items with researched context and source URLs. "
                   "An empty list is better than canned commentary. The browser separately shows factual counts, "
@@ -247,23 +258,52 @@ def verified(urls, seen, limit):
     return out
 
 
+def news_matches(facts):
+    matches = {m["id"]: m for key in ("next_24_hours", "later_if_needed") for m in facts.get(key, [])}
+    matches.update({m["id"]: m for league in facts.get("league_candidates", []) for m in league["matches"]})
+    return matches
+
+
+def clean_blurbs(raw, facts, seen):
+    leagues = {group["league_id"]: {m["id"] for m in group["matches"]} for group in facts.get("league_candidates", [])}
+    near_ids = {m["id"] for m in facts.get("next_24_hours", [])}
+    blurbs = {}
+    for blurb in raw if isinstance(raw, list) else []:
+        if not isinstance(blurb, dict):
+            continue
+        league, interest = blurb.get("league_id"), blurb.get("interest")
+        if not isinstance(league, str) or league not in leagues or league in blurbs:
+            continue
+        if type(interest) is not int or not 0 <= interest <= 100:
+            continue
+        items = clean_items([blurb], leagues[league], near_ids, seen)
+        if items and len(items[0]["text"]) <= 450:
+            blurbs[league] = dict(items[0], league_id=league, interest=interest)
+    return list(blurbs.values())
+
+
 def clean_story(raw, facts, seen):
     """Validates the tool input against the facts and the pages actually read. Returns the story
     dict for story.json, or None when what is left is not worth showing."""
     if not isinstance(raw, dict):
         return None
-    matches = {m["id"]: m for key in ("next_24_hours", "later_if_needed") for m in facts.get(key, [])}
+    matches = news_matches(facts)
+    seen = dict(seen)
+    for m in matches.values():
+        if m.get("source_url"):
+            seen.setdefault(url_key(m["source_url"]), (m["source_url"], "ESPN match facts"))
     ids = set(matches)
+    # Keep validation of the older opening format for existing snapshots and comparison fixtures.
     headline_segments = clean_segments(raw.get("headline"), ids)
     headline = "".join(part["text"] for part in headline_segments)
     if len(headline) > 160:
         headline, headline_segments = "", []
     near_ids = {m["id"] for m in facts.get("next_24_hours", [])}
     later_reason = clip(raw.get("later_reason", ""), 300)
-    lede_items = clean_items(raw.get("lede_items"), ids, near_ids, seen, bool(later_reason))
+    lede_items = clean_items(raw.get("lede_items"), ids, near_ids, seen)
     forecast_raw = raw.get("forecast")
     forecast_items = clean_items(forecast_raw.get("items") if isinstance(forecast_raw, dict) else None,
-                                 ids, near_ids, seen, bool(later_reason))
+                                 ids, near_ids, seen)
     notes, dropped = {}, 0
     for n in raw.get("notes") or []:
         if not isinstance(n, dict) or n.get("match_id") not in ids or n.get("match_id") in notes:
@@ -277,18 +317,6 @@ def clean_story(raw, facts, seen):
         notes[n["match_id"]] = {"note": text, "sources": sources}
     if dropped:
         log(f"dropped {dropped} note(s) with an unknown match id or no verified source")
-    # Near-term news for the default lineup takes precedence. Retained fallback items can serve
-    # other filter choices; the browser always prefers relevant near-term text for its viewer.
-    default_near = {m["id"] for m in facts.get("next_24_hours", [])
-                    if m.get("watch_on") and m.get("default_competition", True)}
-    if (any(set(item["match_ids"]) & default_near for item in lede_items + forecast_items)
-            or set(notes) & default_near):
-        lede_items = [item for item in lede_items if set(item["match_ids"]) <= near_ids]
-        forecast_items = [item for item in forecast_items if set(item["match_ids"]) <= near_ids]
-        notes = {mid: note for mid, note in notes.items() if mid in near_ids}
-        later_reason = ""
-    if not later_reason:
-        notes = {mid: note for mid, note in notes.items() if mid in near_ids}
     # Keep complete tagged sentences; never truncate through a fixture reference.
     compact_lede = []
     for item in lede_items:
@@ -304,9 +332,12 @@ def clean_story(raw, facts, seen):
              "later_reason": later_reason, "_dropped": dropped}
     if forecast_items:
         story["forecast"] = {"items": forecast_items}
+    story["league_blurbs"] = clean_blurbs(raw.get("league_blurbs"), facts, seen)
+    story["blurb_coverage"] = {"written": len(story["league_blurbs"]), "total": len(facts.get("league_candidates", []))}
     story["rankings"] = clean_rankings(raw.get("ranked_matches"), facts)
     story["ranking_coverage"] = {"rated": len(story["rankings"]), "total": len(facts.get("ranking_candidates", []))}
     return story
+
 
 def clean_rankings(raw, facts):
     """Validate ratings and calculate the fixed score without renormalizing against this slate."""
@@ -341,7 +372,7 @@ def clean_segments(raw, ids):
     return parts
 
 
-def clean_items(raw, ids, near_ids, seen, allow_later):
+def clean_items(raw, ids, near_ids, seen, limit=3):
     """Keep sourced text with complete phrase references; never clip through a tagged phrase."""
     if not isinstance(raw, list):
         return []
@@ -355,12 +386,12 @@ def clean_items(raw, ids, near_ids, seen, allow_later):
         if not refs or not text.strip() or len(text) > 520:
             continue
         near = set(refs) & near_ids
-        if (near and not set(refs) <= near_ids) or (not near and not allow_later):
+        if near and not set(refs) <= near_ids:
             continue
         sources = verified(item.get("sources"), seen, 3)
         if sources:
             items.append({"text": text, "match_ids": refs, "segments": parts, "sources": sources})
-        if len(items) == 3:
+        if len(items) == limit:
             break
     return items
 
@@ -378,7 +409,7 @@ def user_prompt(facts, budget):
             "prioritize it for the opening. 'played_today', when "
             "present, gives the day's notable results so far, for context.\n\n"
             f"{json.dumps(facts, ensure_ascii=False, indent=1)}\n\n"
-            "Write storylines for up to eight pertinent matches, with no minimum count. Use the match ids exactly as given. "
+            "Write a paragraph for every supplied league, plus up to eight match notes. Use the match ids exactly as given. "
             f"{FORECAST_GUIDE} {RANKING_GUIDE} "
             f"You have up to {budget[0]} web searches and {budget[1]} page reads.")
 
@@ -392,6 +423,7 @@ def refresh_prompt(facts, previous, budget):
                          for mid, n in (previous.get("notes") or {}).items() if isinstance(n, dict)]}
     if isinstance(previous.get("forecast"), dict):
         earlier["forecast"] = previous["forecast"]
+    earlier["league_blurbs"] = previous.get("league_blurbs") or []
     if isinstance(previous.get("rankings"), dict):
         earlier["rankings"] = previous["rankings"]
     return (f"It is {clock(facts['built_at'])} on {facts['weekday']}, {facts['date']}, US Eastern time. The household's "
@@ -405,8 +437,8 @@ def refresh_prompt(facts, previous, budget):
             "since they were written: team news, confirmed lineups, injuries and suspensions, and results that change "
             "what is at stake. Drop general club news from the earlier story even if still true; every retained note "
             "must affect a specific upcoming fixture. Keep qualifying notes with their sources exactly as given; revise or replace "
-            "the others, and add notes for matches that have become the day's stories. Rewrite the headline and lede "
-            "so they focus on the next 24 hours from this build; past results are context, not the lead. Notes are only for matches in the lists "
+            "the others, and add notes for matches that have become the day's stories. Supply a paragraph for every league, "
+            "including later options for filter changes; past results are context, not the lead. Notes are only for matches in the lists "
             "above. Use the match ids exactly as given. "
             f"{FORECAST_GUIDE} {RANKING_GUIDE} Rewrite it for this moment. "
             f"You have up to {budget[0]} web searches and {budget[1]} page reads. Call publish_story once with the "
@@ -421,7 +453,7 @@ def earlier_sources(previous):
     for n in (previous.get("notes") or {}).values():
         if isinstance(n, dict):
             cited += n.get("sources") or []
-    for item in previous.get("lede_items") or []:
+    for item in (previous.get("lede_items") or []) + (previous.get("league_blurbs") or []):
         if isinstance(item, dict):
             cited += item.get("sources") or []
     forecast = previous.get("forecast")
@@ -447,7 +479,7 @@ def write_story(facts, model, effort, mode, previous, totals):
     seen = earlier_sources(previous) if mode == "refresh" else {}
     served = model
     nudged = False
-    ratings_retried = False
+    publication_retried = False
     for attempt in range(1, MAX_REQUESTS + 1):
         with client.beta.messages.stream(
             model=model,
@@ -492,18 +524,25 @@ def write_story(facts, model, effort, mode, previous, totals):
             story = clean_story(raw, facts, seen)
             missing = sorted({m["id"] for m in facts.get("ranking_candidates", [])}
                              - set(story.get("rankings", {}) if story else {}))
-            if story and missing and not ratings_retried and attempt < MAX_REQUESTS:
-                ratings_retried = True
-                log(f"requesting missing or invalid ratings for {len(missing)} fixtures")
+            missing_leagues = sorted({group["league_id"] for group in facts.get("league_candidates", [])}
+                                     - {item["league_id"] for item in (story or {}).get("league_blurbs", [])})
+            if story and (missing or missing_leagues) and not publication_retried and attempt < MAX_REQUESTS:
+                publication_retried = True
+                log(f"requesting missing or invalid ratings for {len(missing)} fixtures and blurbs for {len(missing_leagues)} leagues")
                 messages.append({"role": "assistant", "content": message.content})
                 messages.append({"role": "user", "content": [{
                     "type": "tool_result", "tool_use_id": call.id, "is_error": True,
-                    "content": "The ranked_matches list is incomplete. Call publish_story again with the same news "
-                               "and ALL ratings, including valid ratings for these IDs: " + ", ".join(missing),
+                    "content": "The publication is incomplete. Call publish_story again with ALL ratings and ALL league_blurbs. "
+                               "Missing/invalid rating IDs: " + ", ".join(missing) + ". Missing/invalid league blurbs: "
+                               + ", ".join(missing_leagues) + ". Write a sourced paragraph for each, even beyond 24 hours. "
+                               "If no fresh reporting is available, use supplied match facts and cite its ESPN source_url. "
+                               "Keep each paragraph within 450 characters and its fixture references within that league.",
                 }]})
                 continue
             if missing:
                 log(f"ranking coverage incomplete: {len(missing)} fixtures remain unrated")
+            if missing_leagues:
+                log(f"blurb coverage incomplete: {len(missing_leagues)} leagues remain without a paragraph")
             return story, served
         if message.stop_reason == "pause_turn":
             messages.append({"role": "assistant", "content": message.content})
@@ -604,7 +643,7 @@ def main():
         story, served = None, model
     seconds = time.monotonic() - started
     cost = report_cost(totals, served, effort, mode, seconds) if any(totals.values()) else None
-    published = bool(story and (story["notes"] or story["lede_items"] or story.get("forecast") or story.get("rankings")))
+    published = bool(story and (story["notes"] or story["lede_items"] or story.get("forecast") or story.get("league_blurbs") or story.get("rankings")))
     if args.usage_out:
         save(args.usage_out, {"mode": mode, "model": model, "served": served, "effort": effort,
                               "budget": {"searches": BUDGETS[mode][0], "page_reads": BUDGETS[mode][1]}, "usage": totals,
@@ -618,7 +657,7 @@ def main():
                      services=facts.get("owner_service_ids") or [], focus_until=facts.get("focus_until"),
                      generated_at=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
         save(args.out, story)
-        log(f"wrote {len(story['notes'])} notes in {seconds:.0f}s")
+        log(f"wrote {len(story['league_blurbs'])} league blurbs, {len(story['notes'])} notes and {len(story['rankings'])} ratings in {seconds:.0f}s")
         return 0
     if todays:
         save(args.out, todays)

@@ -1118,6 +1118,7 @@ def write_facts(path, matches, built_at, today):
         return {k: v for k, v in dict(
             id=m.id,
             kickoff_utc=m.utc.isoformat(), time_confirmed=m.time_valid, state=m.state, league_id=m.league,
+            source_url=f"https://www.espn.com/soccer/match/_/gameId/{m.id}",
             available_service_ids=routes(m), default_competition=not LEAGUES[m.league].get("default_off", False),
             kickoff=(local.strftime("%a %b ") + str(local.day) + local.strftime(", %I:%M %p ET").replace(" 0", " ")) if m.time_valid else local.strftime("%a %b ") + str(local.day) + ", time TBD",
             competition=m.comp, stage=m.stage, venue=m.venue, note=m.note,
@@ -1140,6 +1141,16 @@ def write_facts(path, matches, built_at, today):
     near = [m for m in upcoming if built_at <= m.utc < until
             or (m.state == "in" and built_at - timedelta(hours=4) <= m.utc < built_at)]
     later = [m for m in upcoming if m.utc >= until]
+    league_candidates = []
+    for league in LEAGUES:
+        candidates = sorted((m for m in near + later if m.league == league), key=lambda m: m.utc)
+        if not candidates:
+            continue
+        # Keep each league's nearest window, even when other competitions fill the main digest.
+        boundary = until if candidates[0].utc < until else candidates[0].utc + timedelta(hours=24)
+        first_window = [m for m in candidates if m.utc < boundary]
+        league_candidates.append(dict(league_id=league, competition=LEAGUES[league]["name"],
+                                      matches=[entry(m) for m in first_window]))
     by_stature = lambda ms: sorted(ms, key=lambda m: (-m.score, m.utc))
     facts = {
         "date": today.isoformat(),
@@ -1149,7 +1160,8 @@ def write_facts(path, matches, built_at, today):
         "owner_services": [SERVICES[k] for k in OWNER],
         "owner_service_ids": list(OWNER),   # recorded in story.json: the lineup the forecast was written for
         "next_24_hours": [entry(m) for m in sorted(near, key=lambda m: m.utc)],
-        "later_if_needed": [entry(m) for m in sorted(later, key=lambda m: (m.utc, -m.score))[:20]],
+        "later_if_needed": [entry(m) for m in sorted(later, key=lambda m: m.utc)[:20]],
+        "league_candidates": league_candidates,
         "ranking_candidates": [dict(id=m.id, kickoff_utc=m.utc.isoformat(), competition=m.comp,
                                     stage=m.stage, home=team_facts(m.home), away=team_facts(m.away))
                                for m in sorted(matches, key=lambda m: m.utc)

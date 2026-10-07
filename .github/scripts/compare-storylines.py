@@ -56,7 +56,7 @@ def main():
         usage = u.get("usage") or {}
         cost = f"${u['cost_usd']:.2f}" if isinstance(u.get("cost_usd"), (int, float)) else "n/a"
         served = f" (served by {u['served']})" if u.get("served") and u.get("served") != u.get("model") else ""
-        headline = story.get("headline", "") if story else "*no story*"
+        headline = (story.get("headline") or f"{len(story.get('league_blurbs') or [])} league blurbs") if story else "*no story*"
         print(f"| {cell(u.get('model', label))} at {cell(u.get('effort', '?'))}{cell(served)} | {cost} | {u.get('seconds', '?')}s "
               f"| {usage.get('searches', '?')} | {usage.get('fetches', '?')} | {u.get('notes', 0)} | {u.get('dropped', '?')} "
               f"| {cell(headline)} |")
@@ -67,9 +67,17 @@ def main():
         if not story:
             print("No story was written; see this configuration's log group.")
         else:
-            print(f"**{story.get('headline', '')}**")
-            print()
-            print(story.get("lede", ""))
+            for blurb in sorted(story.get("league_blurbs") or [], key=lambda b: -b["interest"]):
+                sites = ", ".join(f"[{host(s['url'])}]({s['url']})" for s in blurb.get("sources") or [])
+                print(f"**{blurb['league_id']} · interest {blurb['interest']}/100**")
+                print()
+                print(f"{blurb['text']} ({sites})")
+                print()
+            if story.get("headline"):
+                print(f"**{story['headline']}**")
+                print()
+            if story.get("lede"):
+                print(story["lede"])
             lede_sites = ", ".join(host(s["url"]) for s in story.get("sources") or [])
             if lede_sites:
                 print(f"*Sources: {lede_sites}*")

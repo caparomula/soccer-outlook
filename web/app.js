@@ -650,15 +650,41 @@
     var s = STORY.s, storyEl = document.getElementById('story'), forecastEl = document.getElementById('forecast');
     var lead = s && Array.isArray(s.lede_items) ? s.lede_items : [];
     var forecast = s && s.forecast && Array.isArray(s.forecast.items) ? s.forecast.items : [];
-    function near(item) { var refs = referencedRows(item); return refs.some(editorialPasses) && refs.every(function (r) { return inFocus(r, now); }); }
-    var hasNear = lead.concat(forecast).some(near);
-    function relevant(item) {
+    function eligible(item) {
       var refs = referencedRows(item);
-      if (!refs.some(editorialPasses)) return false;
-      if (hasNear) return near(item);
-      return s && s.later_reason && refs.length && refs.every(function (r) { return r._state !== 'post' && r._k >= now + FOCUS_MS; });
+      return refs.some(editorialPasses) && refs.every(function (r) { return r._state !== 'post' && (r._k >= now || inFocus(r, now)); });
     }
-    lead = lead.filter(relevant); forecast = forecast.filter(relevant);
+    function firstKickoff(item) {
+      return Math.min.apply(Math, referencedRows(item).filter(editorialPasses).map(function (r) { return Math.max(now, r._k); }));
+    }
+    function near(item) { return eligible(item) && firstKickoff(item) < now + FOCUS_MS; }
+    var blurbs = s && Array.isArray(s.league_blurbs) ? s.league_blurbs.filter(function (item) {
+      return typeof item.interest === 'number' && item.interest >= 0 && item.interest <= 100 && eligible(item);
+    }) : [];
+    if (blurbs.length) {
+      var nearBlurbs = blurbs.filter(near);
+      if (nearBlurbs.length) blurbs = nearBlurbs;
+      else {
+        var first = Math.min.apply(Math, blurbs.map(firstKickoff));
+        blurbs = blurbs.filter(function (item) { return firstKickoff(item) < first + FOCUS_MS; });
+      }
+      blurbs.sort(function (a, b) { return b.interest - a.interest || firstKickoff(a) - firstKickoff(b); });
+      lead = [blurbs[0]];
+    } else if (s && Array.isArray(s.league_blurbs) && s.league_blurbs.length) lead = [];
+    // Blurbs have already been chosen by availability, time window and Claude's interest score.
+    // Legacy paragraphs still get the same near-first treatment during a data-format rollout.
+    if (!s || !Array.isArray(s.league_blurbs) || !s.league_blurbs.length) {
+      lead = lead.filter(eligible);
+      if (lead.some(near)) lead = lead.filter(near);
+    }
+    var hasNear = lead.some(near);
+    forecast = forecast.filter(eligible);
+    var forecastNear = forecast.some(near);
+    if (forecastNear) forecast = forecast.filter(near);
+    else if (forecast.length) {
+      var firstForecast = Math.min.apply(Math, forecast.map(firstKickoff));
+      forecast = forecast.filter(function (item) { return firstKickoff(item) < firstForecast + FOCUS_MS; });
+    }
     storyEl.hidden = !lead.length; forecastEl.hidden = !forecast.length;
     rows.forEach(function (r) {
       var note = r.querySelector('.row__story');
@@ -678,7 +704,9 @@
       (item.sources || []).forEach(function (source) { if (!sources.some(function (s) { return s.url === source.url; })) sources.push(source); });
     });
     document.getElementById('story-h').textContent = hasNear ? 'Storyline' : 'Storyline · Further ahead';
-    var storyBy = document.getElementById('story-by'); storyBy.textContent = 'Researched and written by Claude';
+    if (lead.length && lead[0].league_id) storyEl.setAttribute('data-league', lead[0].league_id);
+    else storyEl.removeAttribute('data-league');
+    var storyBy = document.getElementById('story-by'); storyBy.textContent = 'Written by Claude';
     var links = sourceLinks(sources, 4);
     if (links.childNodes.length) { storyBy.appendChild(document.createTextNode(' · ')); storyBy.appendChild(links); }
     forecastEl.innerHTML = '';
@@ -686,7 +714,7 @@
     if (forecast.length) {
       var by = document.createElement('p'); by.className = 'forecast__by';
       var wt = splitTime(new Date(STORY.written));
-      by.textContent = 'Forecast by Claude · ' + (hasNear ? 'Next 24 hours' : 'Further ahead') + ' · updated ' + wt.t + ' ' + wt.ap + '. Editorial times are Eastern.';
+      by.textContent = 'Forecast by Claude · ' + (forecastNear ? 'Next 24 hours' : 'Further ahead') + ' · updated ' + wt.t + ' ' + wt.ap + '. Editorial times are Eastern.';
       forecastEl.appendChild(by);
     }
   }
