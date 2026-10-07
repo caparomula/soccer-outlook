@@ -12,18 +12,37 @@ Tap **Lineup** at the top right of the page (it stays there as you scroll) and t
 
 ## How it runs
 
-`build.py` is a single Python script with no dependencies beyond the standard library and `curl`; `story.py` adds the Anthropic Python SDK. It fetches eleven days of fixtures and the current standings from ESPN's public scoreboard API, maps each listed broadcaster to the streaming services that carry it, applies each competition's usual home when channels are not posted yet (both from `rights.toml`, below), and writes one HTML file. The page's own script does the rest in the browser: bucketing by the viewer's clock, the lineup, filters, the countdown and live scores.
+`build.py` uses Python 3.11 or newer and `curl`; `story.py` adds the Anthropic Python SDK. It fetches eleven days of fixtures and the current standings from ESPN's public scoreboard API, maps each listed broadcaster to the streaming services that carry it, applies each competition's usual home when channels are not posted yet (both from `rights.toml`, below), and writes one HTML file. The page's own script does the rest in the browser: bucketing by the viewer's clock, the lineup, filters, the countdown and live scores.
 
-The workflow in `.github/workflows/refresh.yml` runs the script three times a day and publishes the page to the `gh-pages` branch, which GitHub Pages serves. It can also be run by hand from the Actions tab (**Refresh outlook**, then **Run workflow**), and it runs on every change to `build.py`, `rights.toml` or the tests.
+Edit the page structure in `web/page.html`, the styles in `web/styles.css`, and browser behavior in `web/app.js`. The generator reads these files relative to `build.py` and inlines them into the generated HTML, including with `--fragment`. The small document wrapper and reset styles remain in `build.py`. Rebuild after editing an asset; deployment still consists of the generated HTML and optional `story.json`.
+
+The workflow in `.github/workflows/refresh.yml` runs the script three times a day and publishes the page to the `gh-pages` branch, which GitHub Pages serves. It can also be run by hand from the Actions tab (**Refresh outlook**, then **Run workflow**), and it runs on changes to the generator, story script, rights data, `web/`, tests or workflow scripts.
 
 To test and build locally:
 
 ```sh
 python3 -m unittest -v
-python3 build.py --out site/index.html --warnings mapping-report.txt
+python3 build.py --out site/index.html --warnings work/mapping-report.txt
 ```
 
 Add `--date YYYY-MM-DD` to build as of another day. Open the page with `#at-YYYYMMDD-HHMM` on the URL to preview it as of another local time.
+
+### Browser checks
+
+The optional browser tests use Playwright and Chromium. From the repository root:
+
+```sh
+python3 -m venv .venv
+.venv/bin/python -m pip install -r tests/requirements-browser.txt
+.venv/bin/python -m playwright install chromium
+.venv/bin/python -m tests.browser
+```
+
+On Linux, Playwright may also need system libraries (`python -m playwright install --with-deps chromium`). Set `BROWSER_EXECUTABLE` to use an existing Chromium binary; a `chromium` on PATH is used automatically. These dependencies are only for testing.
+
+The checks use a synthetic schedule, a fixed clock and local scoreboard responses; they need no ESPN access or API key. They cover lineup persistence/reset, the midnight and 4 a.m. boundaries, live-to-final score updates, and failed requests. Desktop/mobile screenshots in light/dark themes, with the lineup and match details open, are saved under `work/browser/`. External fonts are replaced with the same fallback fonts for reproducibility. `.github/workflows/browser.yml` runs these checks on relevant pushes and pull requests and saves the screenshots.
+
+For a before/after comparison, pass `--baseline-build /path/to/original/build.py` to the browser command. Keep its `rights.toml` beside it, along with `web/` for revisions that use extracted assets. Both generators receive identical fixture data and build time. The comparison requires byte-identical document and fragment HTML and compares screenshot pixels in all 12 viewport/theme/UI combinations, then runs the behavior checks against both versions. Pixel comparisons use pixelmatch's standard antialiasing detection and perceptual threshold of 0.1, since Chromium can paint a few edge pixels differently even for identical pages; any remaining differing pixel fails the check and produces a diff image. Use this when restructuring code without intentional output changes; ordinary browser runs exercise the current version only.
 
 ## Live scores
 

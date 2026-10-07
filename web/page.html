@@ -1,0 +1,83 @@
+<title>Soccer Outlook</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&display=swap">
+<style>
+@@STYLES@@</style>
+<style id="logos">@@LOGO_CSS@@</style>
+<script type="application/json" id="league-meta">@@LEAGUE_META@@</script>
+<script type="application/json" id="service-meta">@@SERVICE_META@@</script>
+
+<div class="wrap" id="app" data-built="@@BUILT_ISO@@">
+  <button type="button" class="menu-btn" id="btn-menu" aria-expanded="false" aria-controls="drawer" aria-haspopup="dialog">
+    <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 5h14M3 10h14M3 15h14"/><circle cx="13" cy="5" r="2.3"/><circle cx="7" cy="10" r="2.3"/><circle cx="11" cy="15" r="2.3"/></svg>
+    <span>Lineup</span><span class="menu-btn__caret" aria-hidden="true">&#9662;</span>
+  </button>
+  <div class="drawer" id="drawer" role="dialog" aria-labelledby="drawer-h" tabindex="-1" hidden>
+    <div class="drawer__head"><h2 id="drawer-h">Lineup &amp; filters</h2><span class="drawer__sum" id="filter-sum"></span></div>
+    <div class="controls__row" id="have-pills"><span class="controls__lbl">You have</span>@@HAVE_PILLS@@</div>
+    <p class="drawer__hint">Tap the services you have and every match is judged against them. The default is the page owner's lineup; your choice stays in this browser. Fubo means its Pro plan; a cable, YouTube TV or Hulu + Live TV package counts as the live-TV bundle.</p>
+    <div class="controls__row" id="comp-pills"><span class="controls__lbl">Competitions</span>@@COMP_PILLS@@</div>
+    <div class="drawer__foot"><span class="drawer__links"><button type="button" class="link" id="btn-reset">Reset to the default</button><button type="button" class="link" id="btn-clear" aria-label="Clear all services" title="Deselect every service, then pick the ones you want">Clear all</button></span><button type="button" class="fbtn" id="btn-filters-close">Done</button></div>
+  </div>
+  <header class="hdr">
+    <div class="hdr__eyebrow" id="eyebrow">Your lineup · the week ahead</div>
+    <h1>Soccer Outlook</h1>
+    <div class="hdr__tally"><div class="big" id="tally-n">@@N_ON@@</div><div class="small" id="tally-txt">of @@N_ALL@@ upcoming matches tracked this week are on your services</div></div>
+  </header>
+  <section class="story" id="story" aria-labelledby="story-h" hidden>
+    <div class="story__eyebrow">Storylines</div>
+    <h2 class="story__h" id="story-h"></h2>
+    <p class="story__lede" id="story-lede"></p>
+    <p class="story__by" id="story-by"></p>
+  </section>
+  <div class="forecast" id="forecast"><p>Matches on @@OWNER_PROSE@@, from the moment you open this page through the week ahead.</p></div>
+  <p class="fresh" id="fresh">Fixtures and broadcasters from ESPN as of @@BUILT_ET@@. Rebuilt early morning, midday and evening. Times shown in Eastern.</p>
+  <p class="fresh" id="livenote" hidden></p>
+  <div class="stale" id="stale" hidden></div>
+  <div class="nextup" id="nextup" hidden>
+    <div class="nextup__left"><div class="nextup__status" id="nextup-status">Kickoff in</div><div class="nextup__count" id="nextup-count">–</div></div>
+    <div class="nextup__match" id="nextup-match"></div>
+  </div>
+
+  <section class="sec" aria-labelledby="picks-h">
+    <div class="sec__h"><h2 id="picks-h">Worth planning around</h2><p id="picks-sub">On your services, today and tomorrow</p></div>
+    <div class="picks" id="picks">@@PICKS@@</div>
+  </section>
+
+  <div class="controls mode-mine" id="controls">
+    <div class="controls__row controls__bar">
+      <div class="seg" role="group" aria-label="Which matches to show">
+        <button type="button" id="btn-mine" aria-pressed="true">On my services</button>
+        <button type="button" id="btn-all" aria-pressed="false">Everything</button>
+      </div>
+    </div>
+  </div>
+
+  <section class="sec" id="outlook" aria-labelledby="outlook-h" style="margin-top:18px">
+    <div class="sec__h"><h2 id="outlook-h">The outlook</h2><p id="outlook-sub">Grouped by Eastern day until the page script runs</p></div>
+    <div id="outlook-body">@@OUTLOOK@@</div>
+  </section>
+
+  <section class="sec" aria-labelledby="miss-h">
+    <div class="sec__h"><h2 id="miss-h">Good ones you can't get</h2><p>Today and tomorrow, with where they actually are</p></div>
+    <div class="misses" id="misses"></div>
+  </section>
+
+  <section class="sec" aria-labelledby="lineup-h">
+    <div class="sec__h"><h2 id="lineup-h">Your lineup</h2><p>The services you have, counting every competition</p></div>
+    <div class="lineup" id="lineup">@@LINEUP@@</div>
+  </section>
+
+  <section class="sec" id="tables" aria-labelledby="tables-h">
+    <div class="sec__h"><h2 id="tables-h">Tables</h2><p>Standings for the leagues playing this week; teams with a match in the next three days are shaded</p></div>
+    @@TABLES@@
+  </section>
+
+  <footer class="foot">
+    <p>A colored pill means the broadcaster is inside one of the services you have selected; a grey pill is one you don't have; a dashed pill marks the league's usual home when ESPN has not listed the channel yet, which is normal more than a few days out. Fox One includes FOX, FS1, FS2, Big Ten Network and Fox Deportes but not Fox Soccer Plus. ESPN Unlimited includes every ESPN network, ESPN on ABC and ESPN+. TNT and TBS matches stream on HBO Max; CBS matches stream on Paramount+ Premium. Fubo's Pro plan has FOX, FS1, FS2, ESPN, ESPN2, ABC, CBS, CBS Sports Network, NBC, USA Network, Telemundo and beIN Sports, but not TNT, TBS, Univision or TUDN; ESPNU and Universo need its Elite plan, and ESPN Deportes, Fox Deportes and Fox Soccer Plus its International Sports Plus add-on. Most Bundesliga matches stream free on Fandango, with about 30 a season on USA Network; Peacock doesn't carry USA Network's or NBCSN's Premier League matches. Assignments can move on the day, so a glance at the app before kickoff is still worth it.</p>
+    @@FAILED@@
+    <p>Fixtures, scores, broadcasters and logos from ESPN's public scoreboard; while matches are on, your browser checks the scores there once a minute. Rights notes from Fox Sports, CBS Sports, ESPN and World Soccer Talk. Built by <a href="https://github.com/caparomula/soccer-outlook">a small open generator</a> on GitHub. Storylines and the forecast are written by Claude, fresh each morning and updated at each rebuild: the storylines researched on the web, each linking its sources, and the forecast from ESPN's schedule. They can be wrong. Without a current story, the page composes the forecast itself.</p>
+  </footer>
+</div>
+
+<script>
+@@SCRIPT@@</script>

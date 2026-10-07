@@ -10,6 +10,7 @@ import tempfile
 import textwrap
 import unittest
 from datetime import date
+from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
@@ -34,10 +35,11 @@ class Repository(unittest.TestCase):
 
     def test_every_service_has_its_colors(self):
         # A service without its colors renders as an uncolored pill: easy to miss, so check it.
+        styles = (Path(build.__file__).resolve().parent / "web" / "styles.css").read_text(encoding="utf-8")
         for sid in build.SERVICES:
             with self.subTest(service=sid):
-                self.assertEqual(build.TEMPLATE.count(f"--svc-{sid}:"), 3, "light, dark and forced-dark colors")
-                self.assertEqual(build.TEMPLATE.count(f".svc-{sid} {{"), 1)
+                self.assertEqual(styles.count(f"--svc-{sid}:"), 3, "light, dark and forced-dark colors")
+                self.assertEqual(styles.count(f".svc-{sid} {{"), 1)
 
     def test_every_channel_maps_to_defined_services(self):
         for name, o in build.OUTLETS.items():

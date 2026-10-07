@@ -36,7 +36,7 @@ on:
         default: refresh
   push:
     branches: [main]
-    paths: ["build.py", "story.py", "rights.toml", "tests/**", ".github/workflows/refresh.yml", ".github/scripts/**"]
+    paths: ["build.py", "story.py", "rights.toml", "web/**", "tests/**", ".github/workflows/refresh.yml", ".github/scripts/**"]
 
 permissions:
   contents: write
