@@ -1,0 +1,55 @@
+# Writes today's storylines once per model and effort and lays them side by side, without publishing
+# anything, so the configuration the daily builds use can be chosen on this workload's evidence
+# rather than on general benchmarks.
+#
+# Each configuration is a full research run billed to the ANTHROPIC_API_KEY secret: roughly $0.35 to
+# $0.75 at list prices, so the default four cost about $2 to $3 together. The run summary shows each
+# one's cost, time, searches and notes, then its headline, lede and notes with the sites it cites.
+# To adopt a configuration, set the repository variables STORY_MODEL, STORY_EFFORT and
+# STORY_REFRESH_EFFORT (Settings, Secrets and variables, Actions, Variables).
+name: Compare storyline models
+
+on:
+  workflow_dispatch:
+    inputs:
+      configs:
+        description: "model:effort pairs to compare, separated by spaces"
+        type: string
+        default: "claude-opus-5-5:high claude-opus-5-5:medium claude-sonnet-5-5:high claude-sonnet-5-5:medium"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: compare-storylines
+  cancel-in-progress: false
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Build today's facts
+        run: python3 build.py --out work/page.html --facts work/facts.json
+
+      - name: Write storylines with each configuration
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CONFIGS: ${{ inputs.configs }}
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install --quiet "anthropic>=1.11,<2"
+          mkdir -p work/compare
+          for config in $CONFIGS; do
+            model="${config%%:*}"
+            effort="${config#*:}"
+            label=$(printf '%s-%s' "$model" "$effort" | tr -c 'A-Za-z0-9._-' '_')
+            echo "::group::${model} at ${effort}"
+            # One run at a time, so they don't compete for rate limits; a failed one doesn't stop the rest.
+            timeout 15m .venv/bin/python story.py --facts work/facts.json --mode full --model "$model" --effort "$effort" \
+              --out "work/compare/${label}.json" --usage-out "work/compare/${label}.usage.json" || true
+            echo "::endgroup::"
+          done
+          python3 .github/scripts/compare-storylines.py work/facts.json work/compare >> "$GITHUB_STEP_SUMMARY"

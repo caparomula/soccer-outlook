@@ -2,25 +2,37 @@
 """Writes the day's storylines for Soccer Outlook with Claude and web search.
 
 build.py --facts writes the matches worth talking about (today and tomorrow, on the owner's services
-and elsewhere, plus the biggest of the week) with only what ESPN reports. This script hands those
-facts to Claude Opus 5.5 with the web search and web fetch tools, asks for a headline, a short lede
-and a note on each notable match, and receives them through one tool call, publish_story.
+and elsewhere, plus the biggest of the week, and the day's notable results so far) with only what
+ESPN reports. This script hands those facts to Claude with the web search and web fetch tools, asks
+for a headline, a short lede and a note on each notable match, and receives them through one tool
+call, publish_story.
 
 The page shows what it writes, so every claim has to be traceable. The model is told to state only
 what it read in this session, and the script keeps only the source links that appeared in the search
 and fetch results of this run; a note left with no verified source is dropped. The output is
 story.json, published beside the page, which loads it if it is less than 30 hours old.
 
-Modes:
-  auto   reuse the previous story when it was written for today's date, else write a new one
-  force  write a new one; on failure keep the previous story if it is still for today
+Modes, one per kind of build:
+  full     research the day from scratch (the early-morning build)
+  refresh  update today's story for the moment: the model gets the earlier story and its sources,
+           searches only for what may have changed (team news, lineups, results), and keeps what
+           still holds. A smaller search budget makes it cheaper than a full run. Without a story
+           for today it runs as full. (The midday and evening builds.)
+  keep     republish the current story unchanged, whatever its date, and never call the API (builds
+           after a code change: the news hasn't changed, and a push should never cost anything; the
+           page hides a story more than 30 hours old)
+On failure, full and refresh keep the previous story if it is for today.
+
+Model and effort come from --model and --effort, else STORY_MODEL and STORY_EFFORT (STORY_REFRESH_EFFORT
+for refresh runs), else the defaults below. --usage-out writes the run's tokens, searches, cost and
+time as JSON, for comparing configurations (.github/workflows/compare-storylines.yml).
 
 Without ANTHROPIC_API_KEY the script reuses today's previous story if there is one and otherwise
 writes nothing, so the page simply shows no storylines. It exits 0 unless its arguments are wrong:
 a failed story must never block the schedule from being published.
 
 Usage: python story.py --facts work/facts.json --out site/story.json [--previous old-story.json]
-                       [--mode auto|force]
+                       [--mode full|refresh|keep] [--model ID] [--effort LEVEL] [--usage-out FILE]
 """
 import argparse
 import json
@@ -30,16 +42,28 @@ import sys
 import time
 from datetime import datetime, timezone
 from urllib.parse import urlsplit
+from zoneinfo import ZoneInfo
 
-MODEL = "claude-opus-5-5"
-EFFORT = "high"                      # intelligence-sensitive writing; Opus 5.5 defaults to medium
-MAX_TOKENS = 32000                    # streamed, so a large ceiling costs nothing unless used
+ET = ZoneInfo("America/New_York")
+DEFAULT_MODEL = "claude-opus-5-5"
+# Effort per mode. Full runs research and write the day's story, where depth matters; refresh runs
+# update it, a lighter task, at Opus 5.5's own default. The published curves for research work are
+# nearly flat between medium and high, so .github/workflows/compare-storylines.yml exists to check
+# that on this workload before the full runs change.
+DEFAULT_EFFORT = {"full": "high", "refresh": "medium"}
+EFFORTS = ("low", "medium", "high", "xhigh", "max")
+BUDGETS = {"full": (12, 6), "refresh": (5, 2)}   # (web searches, full-page reads) per run
+MAX_TOKENS = 64000                    # a backstop only: streamed, and billed only when used
 MAX_REQUESTS = 6                      # pause_turn continuations plus one nudge to publish
-SEARCH_LIMIT = 12                     # web searches per run, at about a cent each
-FETCH_LIMIT = 6                       # full-page reads per run
-# Opus 5.5 list prices in USD, for the cost log only: input, cache write (1.25x), cache read (0.1x),
-# output, and one web search.
-PRICE_IN, PRICE_CACHE_WRITE, PRICE_CACHE_READ, PRICE_OUT, PRICE_SEARCH = 4.00 / 1e6, 5.00 / 1e6, 0.40 / 1e6, 20.00 / 1e6, 0.01
+# List prices in USD per token, for the cost line only (checked 2026-10-07 against
+# https://platform.claude.com/docs/en/about-claude/pricing): input, 5-minute cache write, cache read,
+# output. Both models take the dynamic-filtering web tools, effort and server-side fallbacks, which
+# this script relies on; Haiku 4.5 takes none of them, so it isn't offered.
+PRICES = {
+    "claude-opus-5-5": (4.00e-6, 5.00e-6, 0.20e-6, 20.00e-6),
+    "claude-sonnet-5-5": (2.00e-6, 2.50e-6, 0.20e-6, 10.00e-6),
+}
+PRICE_SEARCH = 0.01                   # per web search on any model; web fetch costs only its tokens
 
 SYSTEM = """You write the daily storylines for Soccer Outlook, a personal web page that shows one household which soccer matches they can watch on their streaming services. The page already lists kickoff times, channels, table positions, recent form and top scorers. Your part is what a knowledgeable friend would add: why a match matters, what is at stake, who is missing or returning, rivalries, records and milestones, a manager under pressure, a debut.
 
@@ -78,11 +102,15 @@ PUBLISH_TOOL = {
     },
 }
 
-TOOLS = [
-    {"type": "web_search_20260209", "name": "web_search", "max_uses": SEARCH_LIMIT},
-    {"type": "web_fetch_20260209", "name": "web_fetch", "max_uses": FETCH_LIMIT},
-    PUBLISH_TOOL,
-]
+
+
+def tools(budget):
+    searches, fetches = budget
+    return [
+        {"type": "web_search_20260209", "name": "web_search", "max_uses": searches},
+        {"type": "web_fetch_20260209", "name": "web_fetch", "max_uses": fetches},
+        PUBLISH_TOOL,
+    ]
 
 
 def log(msg):
@@ -175,37 +203,87 @@ def clean_story(raw, facts, seen):
         notes[n["match_id"]] = {"note": text, "sources": sources}
     if dropped:
         log(f"dropped {dropped} note(s) with an unknown match id or no verified source")
-    return {"headline": headline, "lede": lede, "sources": verified(raw.get("lede_sources"), seen, 6), "notes": notes}
+    return {"headline": headline, "lede": lede, "sources": verified(raw.get("lede_sources"), seen, 6), "notes": notes,
+            "_dropped": dropped}
 
 
-def user_prompt(facts):
+def clock(iso):
+    """'4:52 pm' in Eastern time, from an ISO timestamp in UTC."""
+    t = datetime.fromisoformat(iso.replace("Z", "+00:00")).astimezone(ET)
+    return t.strftime("%I:%M %p").lstrip("0").lower()
+
+
+def user_prompt(facts, budget):
     return (f"Today is {facts['weekday']}, {facts['date']}, in US Eastern time. The household's services are "
             f"{', '.join(facts['owner_services'])}.\n\n"
             "Here are the candidate matches, ranked by a rough measure of stature. 'watch_on' says where the "
-            "household can watch; it is absent when the match is not on their services.\n\n"
+            "household can watch; it is absent when the match is not on their services. 'played_today', when "
+            "present, gives the day's notable results so far, for context.\n\n"
             f"{json.dumps(facts, ensure_ascii=False, indent=1)}\n\n"
             "Write storylines for the four to eight most interesting matches of today and tomorrow, favoring "
             "ones the household can watch but including anything unmissable elsewhere. A big match later in "
-            "the week can earn a note if it is the story of the week. Use the match ids exactly as given.")
+            "the week can earn a note if it is the story of the week. Use the match ids exactly as given. "
+            f"You have up to {budget[0]} web searches and {budget[1]} page reads.")
 
 
-def write_story(facts):
-    """Runs the research and returns (story dict or None, served model)."""
+def refresh_prompt(facts, previous, budget):
+    """The update run's request: the story as published earlier today, then the facts as they are now."""
+    earlier = {"headline": previous.get("headline", ""), "lede": previous.get("lede", ""),
+               "lede_sources": [s["url"] for s in previous.get("sources") or [] if isinstance(s, dict) and s.get("url")],
+               "notes": [{"match_id": mid, "note": n.get("note", ""), "sources": [s["url"] for s in n.get("sources") or []
+                                                                               if isinstance(s, dict) and s.get("url")]}
+                         for mid, n in (previous.get("notes") or {}).items() if isinstance(n, dict)]}
+    return (f"It is {clock(facts['built_at'])} on {facts['weekday']}, {facts['date']}, US Eastern time. The household's "
+            f"services are {', '.join(facts['owner_services'])}.\n\n"
+            f"At {clock(previous['generated_at'])} you published these storylines:\n\n"
+            f"{json.dumps(earlier, ensure_ascii=False, indent=1)}\n\n"
+            "Here are the matches as they stand now, ranked by a rough measure of stature. Finished matches are no "
+            "longer listed; 'played_today', when present, gives the day's notable results so far.\n\n"
+            f"{json.dumps(facts, ensure_ascii=False, indent=1)}\n\n"
+            "Update the storylines for this moment rather than starting over. Search only for what may have changed "
+            "since they were written: team news, confirmed lineups, injuries and suspensions, and results that change "
+            "what is at stake. Keep any note that still holds, with its sources exactly as given; revise or replace "
+            "the others, and add notes for matches that have become the day's stories. Rewrite the headline and lede "
+            "so they read right for now; a notable result can lead the lede. Notes are only for matches in the lists "
+            "above. Use the match ids exactly as given. "
+            f"You have up to {budget[0]} web searches and {budget[1]} page reads. Call publish_story once with the "
+            "complete set of notes, kept ones included.")
+
+
+def earlier_sources(previous):
+    """The pages a story published earlier today cited, all checked against that run's own results, so a
+    refresh can keep a note and its sources without reading them again."""
+    seen = {}
+    cited = list(previous.get("sources") or [])
+    for n in (previous.get("notes") or {}).values():
+        if isinstance(n, dict):
+            cited += n.get("sources") or []
+    for s in cited:
+        if isinstance(s, dict) and isinstance(s.get("url"), str) and url_key(s["url"]):
+            seen.setdefault(url_key(s["url"]), (s["url"], s.get("title", "") or ""))
+    return seen
+
+
+def write_story(facts, model, effort, mode, previous, totals):
+    """Runs the research and returns (story dict or None, served model), adding the usage of every
+    request to `totals` as it goes, so a run that fails partway still reports what it spent."""
     import anthropic   # imported here so reuse and no-key paths work without the package
 
     client = anthropic.Anthropic(max_retries=3)
-    messages = [{"role": "user", "content": user_prompt(facts)}]
-    seen, served = {}, MODEL
-    totals = {"in": 0, "cache_write": 0, "cache_read": 0, "out": 0, "searches": 0, "fetches": 0}
+    budget = BUDGETS[mode]
+    prompt = refresh_prompt(facts, previous, budget) if mode == "refresh" else user_prompt(facts, budget)
+    messages = [{"role": "user", "content": prompt}]
+    seen = earlier_sources(previous) if mode == "refresh" else {}
+    served = model
     nudged = False
     for attempt in range(1, MAX_REQUESTS + 1):
         with client.beta.messages.stream(
-            model=MODEL,
+            model=model,
             max_tokens=MAX_TOKENS,
             system=SYSTEM,
             messages=messages,
-            tools=TOOLS,
-            output_config={"effort": EFFORT},
+            tools=tools(budget),
+            output_config={"effort": effort},
             cache_control={"type": "ephemeral"},   # continuations resend the research so far; cached at a tenth of the price
             betas=["server-side-fallback-2026-07-01"],
             fallbacks="default",
@@ -239,9 +317,7 @@ def write_story(facts):
                     raw = json.loads(raw)
                 except ValueError:
                     raw = None
-            story = clean_story(raw, facts, seen)
-            report_cost(totals, served)
-            return story, served
+            return clean_story(raw, facts, seen), served
         if message.stop_reason == "pause_turn":
             messages.append({"role": "assistant", "content": message.content})
             continue
@@ -252,18 +328,28 @@ def write_story(facts):
             continue
         log(f"stopped without publishing: {message.stop_reason}")
         break
-    report_cost(totals, served)
     return None, served
 
 
-def report_cost(totals, served):
-    cost = (totals["in"] * PRICE_IN + totals["cache_write"] * PRICE_CACHE_WRITE + totals["cache_read"] * PRICE_CACHE_READ
-            + totals["out"] * PRICE_OUT + totals["searches"] * PRICE_SEARCH)
-    line = (f"Storylines: {served}; input {totals['in']:,} tokens fresh, {totals['cache_write']:,} cache-written, "
-            f"{totals['cache_read']:,} cache-read; output {totals['out']:,} tokens; {totals['searches']} searches, "
-            f"{totals['fetches']} page reads; about ${cost:.2f} at Opus 5.5 list prices")
+def cost_of(totals, model):
+    """Estimated cost in USD at list prices, or None for a model this script has no prices for."""
+    prices = PRICES.get(model)
+    if not prices:
+        return None
+    p_in, p_write, p_read, p_out = prices
+    return (totals["in"] * p_in + totals["cache_write"] * p_write + totals["cache_read"] * p_read + totals["out"] * p_out
+            + totals["searches"] * PRICE_SEARCH)
+
+
+def report_cost(totals, served, effort, mode, seconds):
+    cost = cost_of(totals, served)
+    priced = f"about ${cost:.2f} at {served} list prices" if cost is not None else "no price table for this model"
+    line = (f"Storylines ({mode}): {served} at {effort} effort; input {totals['in']:,} tokens fresh, "
+            f"{totals['cache_write']:,} cache-written, {totals['cache_read']:,} cache-read; output {totals['out']:,} "
+            f"tokens; {totals['searches']} searches, {totals['fetches']} page reads; {seconds:.0f}s; {priced}")
     log(line)
     summary(line)
+    return cost
 
 
 def load_previous(path):
@@ -286,19 +372,35 @@ def main():
     ap.add_argument("--facts", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--previous", help="the story.json currently published, to reuse or fall back on")
-    ap.add_argument("--mode", choices=("auto", "force"), default="auto")
+    ap.add_argument("--mode", choices=("full", "refresh", "keep"), default="keep")
+    ap.add_argument("--model", help=f"default: STORY_MODEL, else {DEFAULT_MODEL}")
+    ap.add_argument("--effort", choices=EFFORTS, help="default: STORY_EFFORT or STORY_REFRESH_EFFORT, else by mode")
+    ap.add_argument("--usage-out", help="write the run's tokens, searches, cost and time here as JSON")
     args = ap.parse_args()
 
     with open(args.facts, encoding="utf-8") as f:
         facts = json.load(f)
     previous = load_previous(args.previous) if args.previous else None
-    todays = previous if previous and previous.get("date") == facts["date"] else None
+    todays = previous if previous and previous.get("date") == facts["date"] and previous.get("generated_at") else None
 
-    if args.mode == "auto" and todays:
-        save(args.out, todays)
-        log("reused today's storylines")
-        summary("Storylines: reused this morning's.")
+    if args.mode == "keep":
+        if previous:
+            save(args.out, previous)
+        log("kept the current storylines" if previous else "no storylines to keep")
+        summary("Storylines: kept the current ones." if previous else "Storylines: none to keep.")
         return 0
+    mode = "refresh" if args.mode == "refresh" and todays else "full"
+    if args.mode != mode:
+        log("no storylines for today yet, so this refresh writes them from scratch")
+    model = args.model or os.environ.get("STORY_MODEL") or DEFAULT_MODEL
+    if model not in PRICES:
+        log(f"{model} isn't one this script supports ({', '.join(PRICES)}); using {DEFAULT_MODEL}")
+        model = DEFAULT_MODEL
+    effort_var = "STORY_REFRESH_EFFORT" if mode == "refresh" else "STORY_EFFORT"
+    effort = args.effort or os.environ.get(effort_var) or DEFAULT_EFFORT[mode]
+    if effort not in EFFORTS:
+        log(f"effort {effort!r} isn't one of {', '.join(EFFORTS)}; using {DEFAULT_EFFORT[mode]}")
+        effort = DEFAULT_EFFORT[mode]
     if not os.environ.get("ANTHROPIC_API_KEY"):
         if todays:
             save(args.out, todays)
@@ -307,16 +409,27 @@ def main():
         return 0
 
     started = time.monotonic()
+    totals = {"in": 0, "cache_write": 0, "cache_read": 0, "out": 0, "searches": 0, "fetches": 0}
     try:
-        story, served = write_story(facts)
+        story, served = write_story(facts, model, effort, mode, todays, totals)
     except Exception as e:     # any failure here must leave the page publishable
         log(f"storyline request failed: {type(e).__name__}: {e}")
-        story, served = None, MODEL
-    if story and story["notes"]:
-        story.update(version=1, date=facts["date"], model=served,
+        story, served = None, model
+    seconds = time.monotonic() - started
+    cost = report_cost(totals, served, effort, mode, seconds) if any(totals.values()) else None
+    published = bool(story and story["notes"])
+    if args.usage_out:
+        save(args.usage_out, {"mode": mode, "model": model, "served": served, "effort": effort,
+                              "budget": {"searches": BUDGETS[mode][0], "page_reads": BUDGETS[mode][1]}, "usage": totals,
+                              "cost_usd": round(cost, 4) if cost is not None else None, "seconds": round(seconds, 1),
+                              "published": published, "notes": len(story["notes"]) if story else 0,
+                              "dropped": story["_dropped"] if story else None})
+    if published:
+        story.pop("_dropped", None)
+        story.update(version=1, date=facts["date"], model=served, effort=effort, kind=mode,
                      generated_at=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
         save(args.out, story)
-        log(f"wrote {len(story['notes'])} notes in {time.monotonic() - started:.0f}s")
+        log(f"wrote {len(story['notes'])} notes in {seconds:.0f}s")
         return 0
     if todays:
         save(args.out, todays)

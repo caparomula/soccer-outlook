@@ -4,10 +4,14 @@
 # new page, so the branch never accumulates history, and the daily push keeps the repository active
 # (GitHub disables scheduled workflows in public repositories after 60 days without activity).
 #
-# Storylines (story.py) are written by Claude with web search on the early-morning run, or on a
-# manual run with "Write fresh storylines" ticked; the other runs carry the morning's forward.
-# They need the ANTHROPIC_API_KEY repository secret. Without it, or if the call fails, the page is
-# published without storylines.
+# Storylines (story.py) are written by Claude with web search on every scheduled build: the
+# early-morning build researches the day from scratch, and the midday and evening builds update
+# that story for the moment (results, team news, lineups) with a smaller search budget. A build
+# after a code push republishes the current story without calling Claude; a manual run chooses.
+# The model and effort can be changed without editing code, through the repository variables
+# STORY_MODEL, STORY_EFFORT and STORY_REFRESH_EFFORT (Settings, Secrets and variables, Actions,
+# Variables); story.py has the defaults. Storylines need the ANTHROPIC_API_KEY repository secret.
+# Without it, or if the call fails, the page is published with the day's earlier story, or none.
 #
 # Which services carry which channels, and where each competition usually lives, is in rights.toml.
 # Its tests run before the build, so a contradictory edit keeps the last good page up (and GitHub
@@ -25,10 +29,11 @@ on:
     - cron: "50 22 * * *"
   workflow_dispatch:
     inputs:
-      story:
-        description: "Write fresh storylines with Claude (uses the Anthropic API key)"
-        type: boolean
-        default: false
+      storylines:
+        description: "Storylines: update today's, write new ones from scratch, or keep today's"
+        type: choice
+        options: [refresh, full, keep]
+        default: refresh
   push:
     branches: [main]
     paths: ["build.py", "story.py", "rights.toml", "tests/**", ".github/workflows/refresh.yml", ".github/scripts/**"]
@@ -69,8 +74,12 @@ jobs:
         timeout-minutes: 15
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          EVENT: ${{ github.event_name }}
           SCHEDULE: ${{ github.event.schedule }}
-          WANT_STORY: ${{ inputs.story }}
+          WANT: ${{ inputs.storylines }}
+          STORY_MODEL: ${{ vars.STORY_MODEL }}
+          STORY_EFFORT: ${{ vars.STORY_EFFORT }}
+          STORY_REFRESH_EFFORT: ${{ vars.STORY_REFRESH_EFFORT }}
         run: |
           python3 -m venv .venv
           .venv/bin/pip install --quiet "anthropic>=1.11,<2"
@@ -79,8 +88,12 @@ jobs:
           if curl -fsS --max-time 30 "${site_url}/story.json" -o work/previous-story.json; then
             previous=(--previous work/previous-story.json)
           fi
-          mode=auto
-          if [ "$SCHEDULE" = "50 8 * * *" ] || [ "$WANT_STORY" = "true" ]; then mode=force; fi
+          case "$EVENT" in
+            schedule) if [ "$SCHEDULE" = "50 8 * * *" ]; then mode=full; else mode=refresh; fi ;;
+            workflow_dispatch) mode="${WANT:-refresh}" ;;
+            *) mode=keep ;;      # a code push: the news hasn't changed
+          esac
+          echo "storyline mode: ${mode}"
           .venv/bin/python story.py --facts work/facts.json --out site/story.json "${previous[@]}" --mode "$mode"
 
       - name: Publish to gh-pages

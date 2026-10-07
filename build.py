@@ -1117,8 +1117,9 @@ def team_facts(t):
 
 def write_facts(path, matches, built_at, today):
     """Writes the facts story.py hands to the model: the most notable matches today and tomorrow,
-    split into ones the owner can watch and ones elsewhere, plus the biggest of the rest of the week.
-    Only what ESPN reported; the model is asked to research everything else."""
+    split into ones the owner can watch and ones elsewhere, plus the biggest of the rest of the week,
+    and the day's notable results so far, which the midday and evening updates can lead with. Only
+    what ESPN reported; the model is asked to research everything else."""
     def entry(m):
         local = m.utc.astimezone(ET)
         return {k: v for k, v in dict(
@@ -1130,7 +1131,15 @@ def write_facts(path, matches, built_at, today):
             broadcasters=[o.label for o in m.outlets],
             stature=m.score).items() if v not in ("", [], None)}
 
-    upcoming = [m for m in matches if m.state != "post"]
+    def result(m):
+        team = {m.home.id: m.home.name, m.away.id: m.away.name}
+        goals = [f"{who} {minute}" + (f" ({note})" if note else "") + f", for {team.get(tid, '?')}" for minute, tid, who, note in m.goals]
+        return {k: v for k, v in dict(id=m.id, competition=m.comp, stage=m.stage, status=m.status,
+                                      result=f"{m.home.name} {m.home.score}-{m.away.score} {m.away.name}", goals=goals).items()
+                if v not in ("", [], None)}
+
+    # Competitions the page hides by default (USL) would get notes on rows nobody sees.
+    upcoming = [m for m in matches if m.state != "post" and not LEAGUES[m.league].get("default_off")]
     near = [m for m in upcoming if today <= m.utc.astimezone(ET).date() <= today + timedelta(days=1)]
     later = [m for m in upcoming if m.utc.astimezone(ET).date() > today + timedelta(days=1)]
     by_stature = lambda ms: sorted(ms, key=lambda m: (-m.score, m.utc))
@@ -1143,6 +1152,10 @@ def write_facts(path, matches, built_at, today):
         "today_and_tomorrow_elsewhere": [entry(m) for m in by_stature([m for m in near if not m.service and m.score >= 85])[:8]],
         "later_this_week_biggest": [entry(m) for m in by_stature([m for m in later if m.score >= 125])[:6]],
     }
+    played = [m for m in matches if m.state == "post" and m.utc.astimezone(ET).date() == today
+              and not called_off(m.state, m.status) and m.score >= 85]
+    if played:
+        facts["played_today"] = [result(m) for m in by_stature(played)[:6]]
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(facts, f, ensure_ascii=False, indent=1)
@@ -1637,7 +1650,7 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
   <footer class="foot">
     <p>A colored pill means the broadcaster is inside one of the services you have selected; a grey pill is one you don't have; a dashed pill marks the league's usual home when ESPN has not listed the channel yet, which is normal more than a few days out. Fox One includes FOX, FS1, FS2, Big Ten Network and Fox Deportes but not Fox Soccer Plus. ESPN Unlimited includes every ESPN network, ESPN on ABC and ESPN+. TNT and TBS matches stream on HBO Max; CBS matches stream on Paramount+ Premium. Fubo's Pro plan has FOX, FS1, FS2, ESPN, ESPN2, ABC, CBS, CBS Sports Network, NBC, USA Network, Telemundo and beIN Sports, but not TNT, TBS, Univision or TUDN; ESPNU and Universo need its Elite plan, and ESPN Deportes, Fox Deportes and Fox Soccer Plus its International Sports Plus add-on. Most Bundesliga matches stream free on Fandango, with about 30 a season on USA Network; Peacock doesn't carry USA Network's or NBCSN's Premier League matches. Assignments can move on the day, so a glance at the app before kickoff is still worth it.</p>
     @@FAILED@@
-    <p>Fixtures, scores, broadcasters and logos from ESPN's public scoreboard; while matches are on, your browser checks the scores there once a minute. Rights notes from Fox Sports, CBS Sports, ESPN and World Soccer Talk. Built by <a href="https://github.com/caparomula/soccer-outlook">a small open generator</a> on GitHub. Storylines are researched on the web and written by Claude once a day; they can be wrong, so each one links its sources.</p>
+    <p>Fixtures, scores, broadcasters and logos from ESPN's public scoreboard; while matches are on, your browser checks the scores there once a minute. Rights notes from Fox Sports, CBS Sports, ESPN and World Soccer Talk. Built by <a href="https://github.com/caparomula/soccer-outlook">a small open generator</a> on GitHub. Storylines are researched on the web and written by Claude, fresh each morning and updated at each rebuild; they can be wrong, so each one links its sources.</p>
   </footer>
 </div>
 
@@ -2203,7 +2216,7 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
     else el.hidden = true;
   }
 
-  // ---- storylines: story.json, written once a day by story.py, published beside the page --------
+  // ---- storylines: story.json, written by story.py at each rebuild, published beside the page ----
   var STORY = { notes: {} };
   var STORY_MAX_AGE_H = 30;
   function safeUrl(u) { return typeof u === 'string' && /^https?:\/\/[^\s]+$/i.test(u) ? u : ''; }
