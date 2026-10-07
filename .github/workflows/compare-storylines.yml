@@ -3,9 +3,10 @@
 # rather than on general benchmarks.
 #
 # Each configuration is a full run billed to the ANTHROPIC_API_KEY secret: the research and the
-# ratings of every fixture, so the default four cost several dollars together. The run summary shows
-# each one's cost, time, searches and notes, then its overview, league paragraphs, notes and ratings
-# with the sites they cite.
+# ratings of every fixture. A full Opus 5.5 run at medium effort cost about $1.80 on 7 October 2026;
+# high effort costs more and Sonnet 5.5 about half as much, so the default four come to roughly $6-8
+# together (list fewer to spend less). The run summary shows each one's cost, time, searches and
+# notes, then its overview, league paragraphs, notes and ratings with the sites they cite.
 # To adopt a configuration, set the repository variables STORY_MODEL, STORY_EFFORT and
 # STORY_REFRESH_EFFORT (Settings, Secrets and variables, Actions, Variables).
 name: Compare storyline models
