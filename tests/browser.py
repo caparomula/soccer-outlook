@@ -158,9 +158,10 @@ class BrowserChecks(unittest.TestCase):
                 self.assertIsNone(page.evaluate("localStorage.getItem('ssg3-have')"))
                 expect(page.locator('[data-kind="have"][aria-pressed="true"]')).to_have_count(len(build.OWNER))
 
-    def test_bulk_filters_are_independent_persist_and_reset_to_screenshot_defaults(self):
+    def test_bulk_filters_are_independent_persist_and_reset_to_owner_defaults(self):
         enabled_services = {"hbo", "fox", "para", "espn", "apple", "usa", "prime", "netflix", "disney"}
-        hidden_leagues = {"fifa.friendly.w", "usa.usl.1", "usa.usl.l1", "usa.nwsl"}
+        hidden_leagues = {"fifa.friendly.w", "usa.usl.1", "usa.usl.l1", "usa.nwsl",
+                          "ned.1", "fra.1", "uefa.europa.conf", "uefa.europa"}
         leagues = ["eng.1", "esp.1", *sorted(hidden_leagues)]
         html = render_page(build, fixtures=[
             (f"match-{i}", "2026-10-07T18:00:00+00:00", "pre", "ESPN+", league)
@@ -176,7 +177,7 @@ class BrowserChecks(unittest.TestCase):
                 self.assertEqual(keys(page, "comp", "false"), hidden_leagues)
                 expect(page.locator('li.row:visible')).to_have_count(2)
                 page.locator("#btn-menu").click()
-                expect(page.locator("#filter-sum")).to_have_text("9 services, 4 competitions hidden")
+                expect(page.locator("#filter-sum")).to_have_text("9 services, 8 competitions hidden")
                 self.assertLessEqual(page.evaluate("document.documentElement.scrollWidth"), width)
                 page.locator("#drawer").screenshot(path=str(self.artifacts / f"bulk-filters-{width}.png"))
 
@@ -470,6 +471,10 @@ class BrowserChecks(unittest.TestCase):
                                        ("far", "ita.1", 100, "Much later Italian context."))]
         for width in (1280, 390):
             with self.subTest(width=width), self.page("after", width=width, html=render_page(build, fixtures=fixtures), story=story) as (page, feed):
+                # Exercise news ranking independently of the owner's league defaults.
+                page.locator("#btn-menu").click()
+                page.get_by_role("button", name="Select all leagues", exact=True).click()
+                page.locator("#btn-filters-close").click()
                 lede = page.locator("p#story-lede")
                 expect(lede).to_have_text("MLS match context.")
                 expect(page.locator("#story-lede .editorial-item")).to_have_count(1)
