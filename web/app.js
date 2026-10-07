@@ -336,12 +336,21 @@
   }
   // The lineup panel: opened from the Lineup button, closed by it, by Done, by Escape or by a tap
   // outside. Opening moves focus into the panel; closing from the keyboard returns it to the button.
+  function positionDrawer() {
+    if (!drawerOpen) return;
+    var rect = btnMenu.getBoundingClientRect(), width = Math.min(600, window.innerWidth - 32);
+    var top = Math.max(8, Math.min(rect.bottom + 8, window.innerHeight - 180));
+    var right = Math.min(Math.max(16, window.innerWidth - rect.right), window.innerWidth - width - 16);
+    drawer.style.setProperty('--drawer-top', top + 'px'); drawer.style.setProperty('--drawer-right', right + 'px');
+  }
   function setDrawer(open, refocus) {
     if (!open && filterDrag) finishFilterDrag({ pointerId: filterDrag.id, type: 'pointercancel' });
     drawerOpen = open; applyFilterUI();
-    if (open) { drawer.scrollTop = 0; drawer.focus({ preventScroll: true }); }
+    if (open) { positionDrawer(); drawer.scrollTop = 0; drawer.focus({ preventScroll: true }); }
     else if (refocus) btnMenu.focus({ preventScroll: true });
   }
+  window.addEventListener('resize', positionDrawer);
+  window.addEventListener('scroll', positionDrawer, { passive: true });
   document.addEventListener('click', function (ev) {
     // The priority list can replace the clicked button before this event reaches document.
     // Its original event path still identifies it as a click inside the panel.
@@ -523,6 +532,7 @@
     body.innerHTML = ''; body.appendChild(frag);
     renderNextup(groups, now); renderPicks(groups, now); renderMisses(all, now); renderLineup(all, now); renderSummary(groups, all, now);
     watchIcons();
+    positionDrawer();
   }
 
   // ---- next up: the Pit Dash countdown ---------------------------------------------------------
@@ -895,29 +905,7 @@
     el.setAttribute('data-matches', refs.map(function (r) { return r.getAttribute('data-id'); }).join(' '));
     var text = document.createElement('span'); text.className = 'editorial-item__text';
     appendEditorialText(text, item.segments); el.appendChild(text);
-    var tags = document.createElement('div'); tags.className = 'editorial-tags'; tags.setAttribute('aria-label', 'Teams, competitions and broadcasters');
-    var entries = {};
-    function tag(kind, key, label, r) {
-      var id = kind + ':' + key;
-      if (!entries[id]) entries[id] = { kind: kind, key: key, label: label, rows: [] };
-      entries[id].rows.push(r);
-    }
-    refs.forEach(function (r) {
-      tag('comp', r._lg, r.getAttribute('data-comp'), r);
-      ['home', 'away'].forEach(function (side) { var name = r.getAttribute('data-' + side); tag('team', name, name, r); });
-      if (r._o.length) r._o.forEach(function (o) { tag('broadcaster', o.l, o.l, r); });
-      else if (r._r) tag('broadcaster', r._r.l, r._r.l + ' (usual coverage)', r);
-      else tag('broadcaster', 'unknown', 'Coverage unconfirmed', r);
-    });
-    Object.keys(entries).forEach(function (key) {
-      var entry = entries[key], filtered = !entry.rows.some(editorialPasses);
-      var t = document.createElement('span'); t.className = 'editorial-tag' + (filtered ? ' editorial-tag--filtered' : '');
-      t.setAttribute('data-kind', entry.kind); t.setAttribute('data-key', entry.key); t.textContent = entry.label;
-      if (filtered) t.title = 'Excluded by your filters';
-      tags.appendChild(t);
-    });
-    if (inline) return { text: el, tags: tags };
-    el.appendChild(tags);
+    if (inline) return el;
     var links = sourceLinks(item.sources, 3);
     if (links.childNodes.length) { var src = document.createElement('span'); src.className = 'story-src'; src.appendChild(links); el.appendChild(src); }
     return el;
@@ -961,16 +949,11 @@
       if (note) note.hidden = !editorialPasses(r) || r._state === 'post' || (r._state !== 'in' && r._k < now);
     });
     var lede = document.getElementById('story-lede'); lede.innerHTML = '';
-    var tags = document.getElementById('story-tags'); tags.innerHTML = '';
-    var tagKeys = {}, sources = [];
+    var sources = [];
     lead.forEach(function (item, i) {
       var rendered = editorialItem(item, true);
       if (i) lede.appendChild(document.createTextNode(' '));
-      lede.appendChild(rendered.text);
-      Array.prototype.forEach.call(rendered.tags.children, function (tag) {
-        var key = tag.getAttribute('data-kind') + ':' + tag.getAttribute('data-key');
-        if (!tagKeys[key]) { tags.appendChild(tag.cloneNode(true)); tagKeys[key] = true; }
-      });
+      lede.appendChild(rendered);
       (item.sources || []).forEach(function (source) { if (!sources.some(function (s) { return s.url === source.url; })) sources.push(source); });
     });
     document.getElementById('story-h').textContent = hasNear ? 'Overview' : 'Overview · Further ahead';

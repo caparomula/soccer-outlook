@@ -175,6 +175,22 @@ class BrowserChecks(unittest.TestCase):
         for width in (1280, 820, 600, 390, 320):
             with self.subTest(width=width), self.page("after", width=width, html=html) as (page, _):
                 page.locator("#btn-all").click()
+                expect(page.locator('.hdr #controls .seg')).to_have_count(1)
+                expect(page.locator('.hdr #btn-menu')).to_have_count(1)
+                title, toggle, menu, tally = (page.locator(selector).bounding_box() for selector in ('.hdr h1', '#controls .seg', '#btn-menu', '.hdr__tally'))
+                if width > 900:
+                    self.assertLessEqual(title['x'] + title['width'], toggle['x'])
+                    self.assertLessEqual(toggle['x'] + toggle['width'], menu['x'])
+                    self.assertLessEqual(menu['x'] + menu['width'], tally['x'])
+                else:
+                    self.assertGreaterEqual(toggle['y'], title['y'] + title['height'])
+                    self.assertTrue(menu['x'] >= toggle['x'] + toggle['width'] or menu['y'] >= toggle['y'] + toggle['height'])
+                page.locator('#btn-menu').click()
+                panel = page.locator('#drawer').bounding_box()
+                self.assertGreaterEqual(panel['y'], menu['y'] + menu['height'])
+                self.assertLessEqual(panel['x'] + panel['width'], width)
+                self.assertLessEqual(panel['y'] + panel['height'], page.viewport_size['height'])
+                page.locator('#btn-filters-close').click()
                 expect(page.locator('li.row:visible')).to_have_count(4)
                 for row in page.locator('li.row:visible').all():
                     expect(row.locator('.row__teams')).to_have_css('display', 'flex')
@@ -533,8 +549,8 @@ class BrowserChecks(unittest.TestCase):
                 editorial = page.locator("#forecast")
                 expect(editorial.locator('.editorial-item')).to_have_count(1)
                 expect(editorial).to_contain_text("Context for Chicago and Vancouver.")
-                expect(editorial.locator('[data-kind="comp"]')).to_have_text("MLS")
-                expect(editorial.locator('[data-kind="broadcaster"]')).to_have_text("Apple TV")
+                expect(editorial.locator('.editorial-tags, .editorial-tag')).to_have_count(0)
+                expect(editorial.locator('.editorial-part[data-matches="mls"]')).to_have_text("Context for Chicago and Vancouver.")
                 page.locator("#btn-menu").click()
                 page.locator('#comp-pills [data-key="usa.1"]').click()
                 expect(editorial).to_contain_text("Context for the Spanish match.")
@@ -591,6 +607,7 @@ class BrowserChecks(unittest.TestCase):
             with self.subTest(width=width), self.page("after", width=width, html=render_page(build, fixtures=fixtures), story=story) as (page, _):
                 expect(page.locator("p#story-lede")).to_have_text("An MLS storyline. A Spanish storyline.")
                 expect(page.locator("#story-lede p, #story-lede div, #story-lede .editorial-tags")).to_have_count(0)
+                expect(page.locator('#story-tags, .editorial-tags, .editorial-tag')).to_have_count(0)
                 expect(page.locator("#period-h")).to_have_count(0)
                 self.assertEqual(page.locator("#story").evaluate("el => el.nextElementSibling.id"), "nextup")
                 self.assertEqual(page.locator("#nextup").evaluate("el => el.nextElementSibling.id"), "picks-section")
