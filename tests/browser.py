@@ -117,6 +117,43 @@ class BrowserChecks(unittest.TestCase):
                                 diff.save(self.artifacts / f"diff-{width}-{theme}-{state}.png")
                             self.assertEqual(changed, 0, f"Screenshot mismatch; inspect {self.artifacts}")
 
+    def test_team_columns_align_with_long_names_and_different_broadcasters(self):
+        fixtures = [("a", "2026-10-07T16:30:00+00:00", "in", "ESPN+"),
+                    ("b", "2026-10-07T16:30:00+00:00", "in", "CBS Sports Network"),
+                    ("c", "2026-10-07T18:00:00+00:00", "pre", "Apple TV"),
+                    ("d", "2026-10-07T18:00:00+00:00", "pre", "beIN Sports")]
+        names = {"a": ("FC", "Borussia Mönchengladbach"),
+                 "b": ("Brighton & Hove Albion", "Paris Saint-Germain"),
+                 "c": ("Wolverhampton Wanderers", "New York Red Bulls"),
+                 "d": ("Club Atlético Independiente", "Deportivo Riestra")}
+        html = render_page(build, fixtures=fixtures, team_names=names)
+        for width in (1280, 820, 600, 390, 320):
+            with self.subTest(width=width), self.page("after", width=width, html=html) as (page, _):
+                page.locator("#btn-all").click()
+                geometry = page.locator('li.row:visible').evaluate_all("""rows => rows.map(row => {
+                    const teams = [...row.querySelectorAll('.row__teams > .team')];
+                    const pos = el => { const r = el.getBoundingClientRect(); return {x: r.x, y: r.y, right: r.right}; };
+                    return {teams: teams.map(t => pos(t.querySelector('.team__name'))),
+                            logos: teams.map(t => pos(t.querySelector('.logo'))),
+                            scores: teams.map(t => pos(t.querySelector('.score'))),
+                            watch: pos(row.querySelector('.row__watch')),
+                            fits: teams.every(t => t.scrollWidth <= t.clientWidth + 1)};
+                })""")
+                self.assertEqual(len(geometry), 4)
+                for side in (0, 1):
+                    self.assertLess(max(r['teams'][side]['x'] for r in geometry) - min(r['teams'][side]['x'] for r in geometry), 1)
+                    self.assertLess(max(r['logos'][side]['x'] for r in geometry) - min(r['logos'][side]['x'] for r in geometry), 1)
+                    self.assertAlmostEqual(geometry[0]['scores'][side]['right'], geometry[1]['scores'][side]['right'], delta=1)
+                for row in geometry:
+                    self.assertTrue(row['fits'])
+                    if width <= 600:
+                        self.assertAlmostEqual(row['teams'][0]['x'], row['teams'][1]['x'], delta=1)
+                        self.assertGreater(row['teams'][1]['y'], row['teams'][0]['y'])
+                    else:
+                        self.assertGreater(row['teams'][1]['x'], row['teams'][0]['x'] + 100)
+                self.assertLessEqual(page.evaluate('document.documentElement.scrollWidth'), width)
+                page.locator('#outlook').screenshot(path=str(self.artifacts / f"aligned-rows-{width}.png"))
+
     def test_lineup_persists_and_resets(self):
         for target in self.targets:
             with self.subTest(target=target), self.page(target) as (page, _):

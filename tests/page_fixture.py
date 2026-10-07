@@ -13,7 +13,7 @@ class FixedDatetime(datetime):
         return BUILT_AT.astimezone(tz) if tz else BUILT_AT.replace(tzinfo=None)
 
 
-def render_page(builder, *, fragment=False, fixtures=None, failed=(), facts_path=None):
+def render_page(builder, *, fragment=False, fixtures=None, failed=(), facts_path=None, team_names=None):
     """Exercise the real renderer with fixed time, rights, teams, scores and a table."""
     with (patch.object(builder, "TODAY", TODAY),
           patch.object(builder, "datetime", FixedDatetime),
@@ -36,10 +36,11 @@ def render_page(builder, *, fragment=False, fixtures=None, failed=(), facts_path
         for fixture in fixtures:
             match_id, kickoff, state, channel = fixture[:4]
             league = fixture[4] if len(fixture) > 4 else "eng.1"
-            home = builder.Team("Arsenal", "ARS", "", "", id="1", color="ef0107",
+            home_name, away_name = (team_names or {}).get(match_id, ("Arsenal", "Chelsea"))
+            home = builder.Team(home_name, "ARS", "", "", id="1", color="ef0107",
                                 score="2" if state == "post" else "0", form="WWDLW",
                                 rank=1, pts="18", size=2, leader="A. Player", leader_goals="6")
-            away = builder.Team("Chelsea", "CHE", "", "", id="2", color="034694",
+            away = builder.Team(away_name, "CHE", "", "", id="2", color="034694",
                                 score="1" if state == "post" else "0", form="WLWDW",
                                 rank=2, pts="15", size=2)
             outlets = [builder.map_outlet(channel, league)] if channel else []
