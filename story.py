@@ -38,9 +38,12 @@ Modes, one per kind of build:
            Without a story for today it runs as full.
   keep     republish the current story unchanged, whatever its date, and never call the API (builds
            after a code change: the news hasn't changed, and a push should never cost anything)
-  auto     the scheduled builds: full when there is no story for today, keep when today's is less
-           than MIN_GAP_HOURS old (GitHub can start a schedule hours late, right before the next one),
-           otherwise refresh
+  daily    the scheduled builds: full when there is no story for today, otherwise keep, so the day's
+           storylines are written once, by its first scheduled build that succeeds (normally the
+           early-morning one; if that fails or never starts, the next one)
+  auto     full when there is no story for today, keep when today's is less than MIN_GAP_HOURS old
+           (GitHub can start a schedule hours late, right before the next one), otherwise refresh:
+           storylines updated through the day, at the cost of those updates as well
 On failure, a refresh keeps today's earlier news, and ratings are still attempted.
 
 Model and effort come from --model and --effort, else STORY_MODEL and STORY_EFFORT (STORY_REFRESH_EFFORT
@@ -53,7 +56,7 @@ writes nothing, so the page simply shows no storylines. It exits 0 unless its ar
 a failed story must never block the schedule from being published.
 
 Usage: python story.py --facts work/facts.json --out site/story.json [--previous old-story.json]
-                       [--mode auto|full|refresh|keep] [--model ID] [--effort LEVEL] [--usage-out FILE]
+                       [--mode daily|auto|full|refresh|keep] [--model ID] [--effort LEVEL] [--usage-out FILE]
 """
 import argparse
 import json
@@ -1023,8 +1026,12 @@ def story_age_hours(story, now):
 
 
 def choose_mode(requested, todays, now):
-    """auto: full without a story for today, keep when today's is under MIN_GAP_HOURS old, else
-    refresh. A refresh without a story for today runs as full."""
+    """daily: full without a story for today, else keep. auto: full without a story for today, keep
+    when today's is under MIN_GAP_HOURS old, else refresh. A refresh without a story for today runs
+    as full."""
+    if requested == "daily":
+        return ("keep", "today's storylines are written; they are written once a day") if todays \
+            else ("full", "no storylines for today yet")
     if requested == "auto":
         age = story_age_hours(todays, now) if todays else None
         if age is None:
@@ -1042,7 +1049,7 @@ def main():
     ap.add_argument("--facts", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--previous", help="the story.json currently published, to reuse or fall back on")
-    ap.add_argument("--mode", choices=("auto", "full", "refresh", "keep"), default="keep")
+    ap.add_argument("--mode", choices=("daily", "auto", "full", "refresh", "keep"), default="keep")
     ap.add_argument("--model", help=f"default: STORY_MODEL, else {DEFAULT_MODEL}")
     ap.add_argument("--effort", choices=EFFORTS, help="default: STORY_EFFORT or STORY_REFRESH_EFFORT, else by mode")
     ap.add_argument("--usage-out", help="write the run's tokens, searches, cost and time here as JSON")

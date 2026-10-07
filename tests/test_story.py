@@ -497,6 +497,28 @@ class Modes(unittest.TestCase):
         for mode in ("full", "keep"):
             self.assertEqual(choose(mode, None, self.NOW)[0], mode)
 
+    def test_daily_mode_writes_the_days_story_once_and_never_refreshes_it(self):
+        choose = story.choose_mode
+        self.assertEqual(choose("daily", None, self.NOW)[0], "full")
+        for written in ("2026-10-07T16:30:00Z", "2026-10-07T08:55:00Z", "garbled"):    # fresh, hours old, unreadable
+            self.assertEqual(choose("daily", {"generated_at": written}, self.NOW)[0], "keep")
+
+    def test_daily_runs_write_only_when_today_has_no_story(self):
+        today = {"version": 1, "date": "2026-10-07", "generated_at": "2026-10-07T08:55:00Z", "lede": "This morning's."}
+        yesterday = {"version": 1, "date": "2026-10-06", "generated_at": "2026-10-06T08:55:00Z", "lede": "Yesterday's."}
+        self.assertEqual(self.main("daily", today), today)          # the midday and evening builds: no API call
+        modes = []
+        written = {"headline": "", "headline_segments": [], "lede": "Today's.", "lede_items": [], "sources": [],
+                   "notes": {}, "later_reason": "", "league_blurbs": [], "league_order": [], "_dropped": 0,
+                   "rankings": {"1": {"score": 50}}, "ranking_coverage": {"rated": 1, "total": 1, "carried": 0}}
+
+        def writer(*args, **kwargs):
+            modes.append(next(a for a in args if a in ("full", "refresh")))
+            return dict(written), "test-model"
+        result = self.main("daily", yesterday, writer=writer)      # the morning build, or the next if it failed
+        self.assertEqual(modes, ["full"])
+        self.assertEqual((result["date"], result["kind"], result["lede"]), ("2026-10-07", "full", "Today's."))
+
     def main(self, mode, previous, key="test-key", writer=None):
         with tempfile.TemporaryDirectory() as tmp:
             facts_path, prev_path, out = Path(tmp) / "facts.json", Path(tmp) / "prev.json", Path(tmp) / "story.json"
