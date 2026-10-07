@@ -238,25 +238,38 @@ class BrowserChecks(unittest.TestCase):
             page.locator("#btn-clear").click()
             expect(summary).to_contain_text("No services selected")
 
-    def test_unlisted_matches_remain_visible_on_my_services(self):
+    def test_unconfirmed_matches_only_appear_under_everything(self):
         fixtures = [("unlisted", "2026-10-07T18:00:00+00:00", "pre", None, "fifa.friendly.w"),
-                    ("off-lineup", "2026-10-07T19:00:00+00:00", "pre", "Peacock", "eng.1")]
+                    ("unknown", "2026-10-07T18:00:00+00:00", "pre", "Mystery Sports+", "esp.1"),
+                    ("off-lineup", "2026-10-07T19:00:00+00:00", "pre", "Peacock", "eng.1"),
+                    ("usual-off-lineup", "2026-10-07T19:00:00+00:00", "pre", None, "eng.1"),
+                    ("later", "2026-10-10T18:00:00+00:00", "pre", "ESPN+", "esp.1")]
         html = render_page(build, fixtures=fixtures)
         story = self.tagged_story()
         part = {"segments": [{"text": "Relevant match with coverage pending.", "match_ids": ["unlisted"]}], "sources": []}
         story["lede_items"] = [part]
         story["forecast"]["items"] = [part]
         with self.page("after", html=html, story=story) as (page, _):
-            expect(page.locator('li.row[data-id="unlisted"]')).to_be_visible()
-            expect(page.locator('li.row[data-id="off-lineup"]')).to_be_hidden()
-            expect(page.locator("#schedule-summary")).to_contain_text("1 with unconfirmed coverage")
+            for mid in ("unlisted", "unknown", "off-lineup", "usual-off-lineup"):
+                expect(page.locator(f'li.row[data-id="{mid}"]')).to_be_hidden()
+            expect(page.locator("#schedule-summary")).to_contain_text("with unconfirmed coverage")
+            expect(page.locator("#outlook-body > .empty")).to_contain_text("No matches on your selected services and competitions in the next 24 hours.")
+            self.assertTrue(page.locator("#outlook-body").evaluate("el => el.firstElementChild.classList.contains('empty')"))
             expect(page.locator("#forecast")).to_be_hidden()
             expect(page.locator("#story")).to_be_hidden()
             expect(page.locator("#tally-n")).to_have_text("0")
+            page.locator("#btn-all").click()
+            for mid in ("unlisted", "unknown", "off-lineup", "usual-off-lineup"):
+                expect(page.locator(f'li.row[data-id="{mid}"]')).to_be_visible()
+            expect(page.locator("#forecast")).to_be_hidden()
+            expect(page.locator("#story")).to_be_hidden()
             page.locator("#btn-menu").click()
             page.locator('#comp-pills [data-key="fifa.friendly.w"]').click()
             expect(page.locator('li.row[data-id="unlisted"]')).to_be_hidden()
             expect(page.locator("#forecast")).to_be_hidden()
+            page.locator("#btn-filters-close").click()
+            page.locator("#btn-mine").click()
+            expect(page.locator('li.row[data-id="unknown"]')).to_be_hidden()
 
     def test_counts_all_leagues_and_groups_simultaneous_kickoffs(self):
         for leagues in (["usa.1"] * 6 + ["usa.nwsl"] * 6, ["caf.nations"] * 4):

@@ -110,8 +110,8 @@
     });
   }
   function passes(r) {
-    // Missing listings cannot establish that a match is outside the viewer's lineup.
-    if (mode === 'mine' && r._svc === 'none' && !r._unk && r._o.length) return false;
+    // This view promises availability; unconfirmed coverage belongs in Everything.
+    if (mode === 'mine' && !onSvc(r)) return false;
     if (compOff[r._lg]) return false;
     return true;
   }
@@ -268,8 +268,8 @@
     });
     if (!anyUpcoming) {
       var e = document.createElement('p'); e.className = 'empty';
-      e.textContent = mode === 'mine' ? 'Nothing left on your services in this window with the current filters. Try "Everything" or turn a competition back on.' : 'Nothing left in this window with the current filters.';
-      frag.appendChild(e);
+      e.textContent = mode === 'mine' ? 'No matches on your selected services and competitions in the next 24 hours. Choose "Everything" to include other matches, including unconfirmed coverage, or adjust your filters.' : 'No matches in the next 24 hours with these competition filters.';
+      frag.insertBefore(e, frag.firstChild);
     }
     // Rows not placed (outside the window) are parked out of sight.
     var park = document.getElementById('park') || (function () { var p = document.createElement('div'); p.id = 'park'; p.hidden = true; document.body.appendChild(p); return p; })();
