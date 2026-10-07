@@ -311,6 +311,11 @@ class BrowserChecks(unittest.TestCase):
                     emblem = row.locator('.row__league .lg').bounding_box()
                     teams = row.locator('.row__teams').bounding_box()
                     self.assertAlmostEqual(emblem['x'], clock['x'], delta=1)
+                    rail = row.locator('.row__kickoff').bounding_box()
+                    self.assertAlmostEqual(emblem['y'], clock['y'] + 2, delta=1)
+                    self.assertAlmostEqual(rail['y'] + rail['height'], clock['y'] + clock['height'], delta=1)
+                    content_box = row.bounding_box()
+                    self.assertAlmostEqual(clock['y'] + clock['height'], content_box['y'] + content_box['height'] - 13, delta=1)
                     self.assertLessEqual(emblem['y'] + emblem['height'], kickoff['y'])
                     self.assertGreaterEqual(teams['x'], clock['x'] + clock['width'])
                     expect(row.locator('.row__time .row__league')).to_have_count(1)
@@ -788,8 +793,9 @@ class BrowserChecks(unittest.TestCase):
                 expect(page.locator("#picks .pick")).to_have_attribute("data-match-id", "far")
                 expect(page.locator('li.row[data-id="far"]')).to_have_count(1)
 
-    def test_top_three_follow_ratings_filters_and_near_window(self):
-        fixtures = [("routine", "2026-10-07T18:00:00+00:00", "pre", "ESPN+", "eng.1"),
+    def test_top_three_select_by_rating_but_display_chronologically(self):
+        fixtures = [("low", "2026-10-07T17:30:00+00:00", "pre", "Apple TV", "usa.1"),
+                    ("routine", "2026-10-07T18:00:00+00:00", "pre", "ESPN+", "eng.1"),
                     ("best", "2026-10-07T19:00:00+00:00", "pre", "Apple TV", "usa.1"),
                     ("near", "2026-10-08T16:59:00+00:00", "pre", "ESPN+", "esp.1"),
                     ("far", "2026-10-10T17:00:00+00:00", "pre", "ESPN+", "esp.1"),
@@ -797,18 +803,18 @@ class BrowserChecks(unittest.TestCase):
                     ("finished", "2026-10-07T16:00:00+00:00", "post", "ESPN+", "eng.1")]
         story = self.tagged_story()
         story["rankings"] = {mid: dict(popularity=score, gameplay=score, impact=score, score=score)
-                             for mid, score in (("routine", 60), ("best", 90), ("near", 80), ("far", 95), ("unknown", 100), ("finished", 100))}
+                             for mid, score in (("low", 10), ("routine", 60), ("best", 90), ("near", 80), ("far", 95), ("unknown", 100), ("finished", 100))}
         for width in (1280, 390):
             with self.subTest(width=width), self.page("after", width=width, html=render_page(build, fixtures=fixtures), story=story) as (page, _):
                 hero = page.locator("#nextup")
                 expect(hero).to_be_hidden()
                 expect(page.locator("#picks-section")).to_be_visible()
                 expect(page.locator('#misses [data-id="unknown"]')).to_have_count(0)
-                self.assertEqual(page.locator("#picks .pick").evaluate_all("els => els.map(e => e.dataset.matchId)"), ["best", "near", "routine"])
+                self.assertEqual(page.locator("#picks .pick").evaluate_all("els => els.map(e => e.dataset.matchId)"), ["routine", "best", "near"])
                 page.screenshot(path=str(self.artifacts / f"ranked-{width}.png"), full_page=True)
                 page.locator("#btn-menu").click()
                 page.locator('[data-kind="have"][data-key="apple"]').click()
-                self.assertEqual(page.locator("#picks .pick").evaluate_all("els => els.map(e => e.dataset.matchId)"), ["far", "near", "routine"])
+                self.assertEqual(page.locator("#picks .pick").evaluate_all("els => els.map(e => e.dataset.matchId)"), ["routine", "near", "far"])
                 page.locator('#comp-pills [data-key="esp.1"]').click()
                 expect(page.locator("#picks .pick")).to_have_attribute("data-match-id", "routine")
                 expect(page.locator("#picks-section")).to_be_visible()
@@ -828,7 +834,7 @@ class BrowserChecks(unittest.TestCase):
         story["rankings"] = {mid: dict(score=score) for mid, score in (("early", 50), ("best", 70), ("too-far", 90), ("upcoming", 85))}
         with self.page("after", html=render_page(build, fixtures=fixtures), story=story) as (page, _):
             expect(page.locator("#nextup")).to_be_hidden()
-            self.assertEqual(page.locator("#picks .pick").evaluate_all("els => els.map(e => e.dataset.matchId)"), ["too-far", "best", "early"])
+            self.assertEqual(page.locator("#picks .pick").evaluate_all("els => els.map(e => e.dataset.matchId)"), ["early", "best", "too-far"])
         with self.page("after", story=story) as (page, feed):
             expect(page.locator("#nextup")).to_have_attribute("data-match-id", "live")
             expect(page.locator('#picks [data-match-id="upcoming"]')).to_have_count(1)
@@ -854,7 +860,7 @@ class BrowserChecks(unittest.TestCase):
                 expect(page.locator('#nextup')).to_have_attribute('data-match-id', 'upcoming')
                 expect(page.locator('#nextup-status')).to_contain_text('Live now')
                 expect(page.locator('#nextup-rating')).to_have_text('Pick score · 84/100')
-                self.assertEqual(page.locator('#picks .pick').evaluate_all('els => els.map(e => e.dataset.matchId)'), ['mls', 'live-second', 'future'])
+                self.assertEqual(page.locator('#picks .pick').evaluate_all('els => els.map(e => e.dataset.matchId)'), ['live-second', 'mls', 'future'])
                 expect(page.locator('#picks .row__story')).to_have_count(3)
                 expect(page.locator('#picks .story-src a')).to_have_count(3)
                 expect(page.locator('#picks .pick__league')).to_have_count(3)
@@ -928,9 +934,9 @@ class BrowserChecks(unittest.TestCase):
                 expect(page.locator('#nextup')).to_be_hidden()
                 expect(page.locator('#picks .pick')).to_have_count(1)
 
-    def test_league_priority_blends_with_interest_persists_and_resets(self):
+    def test_league_priority_breaks_kickoff_ties_persists_and_resets(self):
         fixtures = [("eng", "2026-10-07T18:00:00+00:00", "pre", "ESPN+", "eng.1"),
-                    ("esp", "2026-10-07T19:00:00+00:00", "pre", "ESPN+", "esp.1"),
+                    ("esp", "2026-10-07T18:00:00+00:00", "pre", "ESPN+", "esp.1"),
                     ("unconfirmed-live", "2026-10-07T16:45:00+00:00", "pre", "ESPN+", "eng.1")]
         story = self.tagged_story()
         story['league_order'] = ['eng.1', 'esp.1']
@@ -938,7 +944,7 @@ class BrowserChecks(unittest.TestCase):
         for width in (1280, 390):
             with self.subTest(width=width), self.page('after', width=width, html=render_page(build, fixtures=fixtures, league_logos=True), story=story, touch=width <= 600) as (page, _):
                 expect(page.locator('#nextup')).to_be_hidden()  # kickoff time alone is not a confirmed live game
-                expect(page.locator('#picks .pick').first).to_have_attribute('data-match-id', 'eng')
+                expect(page.locator('#picks .pick:not([data-match-id="unconfirmed-live"])').first).to_have_attribute('data-match-id', 'eng')
                 page.locator('#btn-menu').click()
                 expect(page.locator('#comp-pills .lg')).to_have_count(2)
                 self.assertTrue(page.locator('#comp-pills .lg').evaluate_all(
@@ -947,15 +953,15 @@ class BrowserChecks(unittest.TestCase):
                 page.locator('.league-priority > summary').click()
                 page.get_by_role('button', name='Move La Liga up', exact=True).click()
                 expect(page.locator('#drawer')).to_be_visible()
-                expect(page.locator('#picks .pick').first).to_have_attribute('data-match-id', 'esp')
+                expect(page.locator('#picks .pick:not([data-match-id="unconfirmed-live"])').first).to_have_attribute('data-match-id', 'esp')
                 self.assertEqual(page.locator('#comp-pills .fpill').first.get_attribute('data-key'), 'esp.1')
                 page.reload()
-                expect(page.locator('#picks .pick').first).to_have_attribute('data-match-id', 'esp')
+                expect(page.locator('#picks .pick:not([data-match-id="unconfirmed-live"])').first).to_have_attribute('data-match-id', 'esp')
                 page.locator('#btn-menu').click()
                 page.locator('#comp-pills [data-key="esp.1"] .lg').click()
-                expect(page.locator('#picks .pick').first).to_have_attribute('data-match-id', 'eng')
+                expect(page.locator('#picks .pick:not([data-match-id="unconfirmed-live"])').first).to_have_attribute('data-match-id', 'eng')
                 page.locator('#btn-reset').click()
-                expect(page.locator('#picks .pick').first).to_have_attribute('data-match-id', 'eng')
+                expect(page.locator('#picks .pick:not([data-match-id="unconfirmed-live"])').first).to_have_attribute('data-match-id', 'eng')
                 self.assertIsNone(page.evaluate("localStorage.getItem('ssg4-league-order')"))
                 source = page.locator('#comp-pills [data-key="esp.1"] .fpill__grip')
                 source.scroll_into_view_if_needed()
@@ -978,10 +984,10 @@ class BrowserChecks(unittest.TestCase):
                 self.assertEqual(page.evaluate("JSON.parse(localStorage.getItem('ssg4-league-order'))[0]"), 'esp.1')
                 expect(page.locator('#comp-pills [data-key="esp.1"]')).to_have_attribute('aria-pressed', 'true')
                 expect(page.locator('#comp-pills [data-key="eng.1"]')).to_have_attribute('aria-pressed', 'true')
-                expect(page.locator('#picks .pick').first).to_have_attribute('data-match-id', 'esp')
+                expect(page.locator('#picks .pick:not([data-match-id="unconfirmed-live"])').first).to_have_attribute('data-match-id', 'esp')
                 expect(page.locator('.fpill--drag-ghost')).to_have_count(0)
                 page.reload()
-                expect(page.locator('#picks .pick').first).to_have_attribute('data-match-id', 'esp')
+                expect(page.locator('#picks .pick:not([data-match-id="unconfirmed-live"])').first).to_have_attribute('data-match-id', 'esp')
                 page.locator('#btn-menu').click()
                 page.locator('#comp-pills [data-key="esp.1"]').click()
                 expect(page.locator('#comp-pills [data-key="esp.1"]')).to_have_attribute('aria-pressed', 'false')

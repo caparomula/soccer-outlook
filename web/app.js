@@ -727,11 +727,11 @@
       chosen = chosen.concat(window.sort(byRating).slice(0, 3 - chosen.length));
       later = later.filter(function (r) { return r._k >= boundary; });
     }
-    chosen.sort(byRating);
+    chosen.sort(function (a, b) { return byTime(a, b) || byRating(a, b); });
     document.getElementById('picks-section').hidden = !chosen.length;
     picksEl.innerHTML = '';
     document.getElementById('picks-h').textContent = chosen.length === 3 ? 'Top three' : chosen.length === 2 ? 'Top two' : 'Top pick';
-    document.getElementById('picks-sub').textContent = 'Next 24 hours first · match interest + league priority';
+    document.getElementById('picks-sub').textContent = 'Selected by interest + league priority · shown in kickoff order';
     chosen.forEach(function (r) { picksEl.appendChild(r._card.render('pick', now)); });
   }
 
