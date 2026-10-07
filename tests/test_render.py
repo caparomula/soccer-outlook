@@ -1,11 +1,13 @@
 """The standalone page must include its assets regardless of the caller's cwd."""
 from html.parser import HTMLParser
+import io
 import json
 from pathlib import Path
 import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 import build
 from tests.page_fixture import render_page
@@ -43,6 +45,56 @@ class Rendering(unittest.TestCase):
                                     capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("--fragment", result.stdout)
+
+
+class MalformedFeed(unittest.TestCase):
+    """ESPN's lists can hold nulls: on 7 October 2026 the Saudi Pro League table gave a team
+    `logos: [null]` and every build crashed. A bad entry must cost at most that entry."""
+
+    @staticmethod
+    def entry(team_id, name, rank, logos):
+        return {"team": {"id": team_id, "displayName": name, "logos": logos},
+                "stats": [{"name": "rank", "value": rank}, None, {"name": "points", "displayValue": "9"}]}
+
+    def test_a_team_without_a_usable_logo_keeps_its_row(self):
+        table = build.standings_of({"children": [None, {"name": "", "standings": {"entries": [
+            self.entry("1", "Al Faisaly", 2, [None]),
+            self.entry("2", "Al Hilal", 1, [None, {"href": "https://a.espncdn.com/hilal.png"}]),
+            None]}}]})
+        rows = table["tables"][0][1]
+        self.assertEqual([(r["name"], r["rank"], r["logo"], r["pts"]) for r in rows],
+                         [("Al Hilal", 1, "https://a.espncdn.com/hilal.png", "9"), ("Al Faisaly", 2, "", "9")])
+        self.assertEqual(sorted(table["by_team"]), ["1", "2"])
+
+    def test_a_table_in_another_shape_costs_only_that_table(self):
+        good = {"children": [{"name": "", "standings": {"entries": [self.entry("2", "Arsenal", 1, [])]}}]}
+        answers = {"eng.1": good, "esp.1": {"children": [{"name": "", "standings": {"entries": [{"team": "x"}]}}]},
+                   "ita.1": {"children": "junk"}, "fra.1": {"standings": [1, 2]},
+                   "ger.1": {"children": [{"name": "", "standings": "unavailable"}]}}     # reaches the guard
+        def fake_curl(url, attempts=3):
+            league = url.split("/soccer/")[1].split("/")[0]
+            return json.dumps(answers[league]).encode() if league in answers else None
+        with patch.object(build, "curl_bytes", fake_curl), patch("sys.stderr", io.StringIO()):
+            out = build.fetch_standings(list(answers), 2)
+        self.assertEqual(list(out), ["eng.1"])
+
+    def test_nulls_inside_an_event_cost_only_what_they_held(self):
+        event = Markup.event()
+        comp = event["competitions"][0]
+        comp["competitors"][0].update(records=[None], leaders=[None, {"name": "goals", "leaders": [None]}])
+        comp.update(notes=[None], headlines=[None], geoBroadcasts=[],
+                    details=[None, {"scoringPlay": True, "athletesInvolved": [None], "team": {"id": "660"}}])
+        match = build.interpret("fifa.friendly.w", event)
+        self.assertEqual((match.home.record, match.note), ("", ""))
+
+    def test_an_event_that_cannot_be_read_is_skipped_not_fatal(self):
+        broken = Markup.event()
+        broken["id"] = "8"
+        broken["competitions"][0]["status"] = "postponed"      # a string where an object belongs
+        with patch("sys.stderr", io.StringIO()) as err:
+            matches = build.interpret_all({"fifa.friendly.w": {"8": broken, "9": Markup.event()}})
+        self.assertEqual([m.id for m in matches], ["9"])
+        self.assertIn("skip fifa.friendly.w 8", err.getvalue())
 
 
 class Markup(unittest.TestCase):

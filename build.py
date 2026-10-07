@@ -485,6 +485,13 @@ def curl_bytes(url, timeout=40, attempts=3):
     return None
 
 
+def dicts(items):
+    """The entries of an ESPN list that are objects. Its lists can hold nulls (on 7 October 2026 the
+    Saudi Pro League table gave Al Faisaly `logos: [null]`, and every build crashed on it), and one
+    bad entry must cost at most that entry."""
+    return [x for x in items if isinstance(x, dict)] if isinstance(items, list) else []
+
+
 def fetch_scoreboards(days, workers):
     """Returns ({league: {event_id: event}}, {league: logo url}, [failed (league, day)])."""
     jobs = [(lg, day) for lg in LEAGUES for day in days]
@@ -504,12 +511,14 @@ def fetch_scoreboards(days, workers):
     failed = []
     with cf.ThreadPoolExecutor(workers) as ex:
         for lg, day, data in ex.map(one, jobs):
-            if data is None:
+            if not isinstance(data, dict):
                 failed.append((lg, day))
                 continue
-            for ev in data.get("events", []):
-                merged[lg][ev["id"]] = ev
-            for lo in (data.get("leagues") or [{}])[0].get("logos") or []:
+            for ev in dicts(data.get("events")):
+                if ev.get("id") is not None:
+                    merged[lg][ev["id"]] = ev
+            league_info = dicts(data.get("leagues"))
+            for lo in dicts(league_info[0].get("logos")) if league_info else []:
                 if "dark" not in (lo.get("rel") or []) and lo.get("href") and lg not in logos:
                     logos[lg] = lo["href"]
     return merged, logos, failed
@@ -521,7 +530,7 @@ NO_TABLE = {"fifa.friendly", "fifa.friendly.w", "eng.fa", "eng.league_cup", "esp
 
 
 def _stat(entry, name):
-    for st in entry.get("stats") or []:
+    for st in dicts(entry.get("stats")):
         if st.get("name") == name:
             return st.get("displayValue") or (str(st.get("value")) if st.get("value") is not None else "")
     return ""
@@ -546,34 +555,62 @@ def fetch_standings(leagues, workers):
         for lg, data in ex.map(one, [lg for lg in leagues if lg not in NO_TABLE]):
             if not data:
                 continue
-            groups = data.get("children") or []
-            if not groups and data.get("standings"):
-                groups = [{"name": "", "standings": data["standings"]}]
-            by_team, tables = {}, []
-            for g in groups:
-                gname = g.get("name") or ""
-                entries = (g.get("standings") or {}).get("entries") or []
-                rows = []
-                for e in entries:
-                    t = e.get("team") or {}
-                    try:
-                        rank = int(float(_stat(e, "rank") or 0))
-                    except ValueError:
-                        rank = 0
-                    row = dict(id=str(t.get("id") or ""), name=t.get("displayName") or "", logo=((t.get("logos") or [{}])[0].get("href") or ""),
-                               rank=rank, pts=_stat(e, "points"), rec=_stat(e, "overall"), gp=_stat(e, "gamesPlayed"),
-                               gd=_stat(e, "pointDifferential"), form="", group=gname, size=len(entries), note=(e.get("note") or {}).get("description") or "")
-                    rows.append(row)
-                    if row["id"]:
-                        by_team[row["id"]] = row
-                rows.sort(key=lambda r: (r["rank"] or 999, r["name"]))
-                tables.append((gname, rows))
-            if by_team:
-                out[lg] = {"by_team": by_team, "tables": tables}
+            try:
+                table = standings_of(data)
+            except (AttributeError, KeyError, TypeError, ValueError) as e:
+                # A table ESPN sends in an unexpected shape costs that table, never the build.
+                print(f"skip standings {lg}: {e!r}", file=sys.stderr)
+                continue
+            if table["by_team"]:
+                out[lg] = table
     return out
 
 
+def standings_of(data):
+    """One league's standings answer as {"by_team": ..., "tables": ...}."""
+    groups = dicts(data.get("children"))
+    if not groups and isinstance(data.get("standings"), dict):
+        groups = [{"name": "", "standings": data["standings"]}]
+    by_team, tables = {}, []
+    for g in groups:
+        gname = g.get("name") or ""
+        entries = dicts((g.get("standings") or {}).get("entries"))
+        rows = []
+        for e in entries:
+            t = e.get("team") if isinstance(e.get("team"), dict) else {}
+            try:
+                rank = int(float(_stat(e, "rank") or 0))
+            except ValueError:
+                rank = 0
+            logo = next((lo["href"] for lo in dicts(t.get("logos")) if lo.get("href")), "")
+            row = dict(id=str(t.get("id") or ""), name=t.get("displayName") or "", logo=logo,
+                       rank=rank, pts=_stat(e, "points"), rec=_stat(e, "overall"), gp=_stat(e, "gamesPlayed"),
+                       gd=_stat(e, "pointDifferential"), form="", group=gname, size=len(entries), note=(e.get("note") or {}).get("description") or "")
+            rows.append(row)
+            if row["id"]:
+                by_team[row["id"]] = row
+        rows.sort(key=lambda r: (r["rank"] or 999, r["name"]))
+        tables.append((gname, rows))
+    return {"by_team": by_team, "tables": tables}
+
+
 STANDINGS = {}
+
+
+def interpret_all(merged):
+    """The matches in the merged scoreboards. An event in a shape interpret() doesn't expect costs
+    that event, named on stderr, never the build."""
+    matches = []
+    for lg, events in merged.items():
+        for ev in events.values():
+            try:
+                m = interpret(lg, ev)
+            except (AttributeError, KeyError, ValueError, TypeError) as e:
+                print(f"skip {lg} {ev.get('id')}: {e!r}", file=sys.stderr)
+                continue
+            if m:
+                matches.append(m)
+    return matches
 
 
 # ----------------------------------------------------------------------------------------------
@@ -654,11 +691,11 @@ def interpret(league, ev):
                     logo_key=logo_key(url) if url else "", logo_url=url, score=str(c.get("score") or ""),
                     winner=bool(c.get("winner")), id=str(t.get("id") or ""))
         team.form = (c.get("form") or "")[-5:]
-        recs = c.get("records") or []
+        recs = dicts(c.get("records"))
         team.record = (recs[0].get("summary") or "") if recs else ""
-        for grp in c.get("leaders") or []:
-            if grp.get("name") == "goals" and grp.get("leaders"):
-                top = grp["leaders"][0]
+        for grp in dicts(c.get("leaders")):
+            if grp.get("name") == "goals" and dicts(grp.get("leaders")):
+                top = dicts(grp.get("leaders"))[0]
                 ath = top.get("athlete") or {}
                 team.leader = ath.get("shortName") or ath.get("displayName") or ""
                 team.leader_goals = top.get("displayValue") or ""
@@ -698,7 +735,7 @@ def interpret(league, ev):
     if not stage and league in ("esp.copa_del_rey", "eng.fa", "eng.league_cup", "ger.dfb_pokal", "ita.coppa_italia",
                                 "uefa.champions", "uefa.europa", "uefa.europa.conf", "uefa.wchampions") and season_slug:
         stage = season_slug.replace("-", " ").capitalize()
-    notes = comp.get("notes") or []
+    notes = dicts(comp.get("notes"))
     note = (notes[0].get("headline") or notes[0].get("text") or "") if notes else ""
 
     v = comp.get("venue") or ev.get("venue") or {}
@@ -722,14 +759,14 @@ def interpret(league, ev):
     service, basis, outlet = evaluate(outlets, rule, set(OWNER))
 
     goals = []
-    for d in comp.get("details") or []:
+    for d in dicts(comp.get("details")):
         if not d.get("scoringPlay") or d.get("shootout"):
             continue
-        who = (d.get("athletesInvolved") or [{}])[0]
+        who = (dicts(d.get("athletesInvolved")) or [{}])[0]
         note = "pen" if d.get("penaltyKick") else ("og" if d.get("ownGoal") else "")
         goals.append(((d.get("clock") or {}).get("displayValue") or "", str((d.get("team") or {}).get("id") or ""),
                       who.get("shortName") or who.get("displayName") or "", note))
-    heads = comp.get("headlines") or []
+    heads = dicts(comp.get("headlines"))
     recap = (heads[0].get("description") or "") if heads else ""
     try:
         attendance = int(comp.get("attendance") or 0)
@@ -1359,16 +1396,7 @@ def main():
     merged, league_logos, failed = fetch_scoreboards(days, args.workers)
     LEAGUE_LOGOS.update(league_logos)
     STANDINGS.update(fetch_standings(list(LEAGUES), args.workers))
-    matches = []
-    for lg, events in merged.items():
-        for ev in events.values():
-            try:
-                m = interpret(lg, ev)
-            except (KeyError, ValueError, TypeError) as e:
-                print(f"skip {lg} {ev.get('id')}: {e!r}", file=sys.stderr)
-                continue
-            if m:
-                matches.append(m)
+    matches = interpret_all(merged)
     if not matches:
         print("FAIL no fixtures fetched", file=sys.stderr)
         return 2
