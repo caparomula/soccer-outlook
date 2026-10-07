@@ -396,8 +396,6 @@
       var pills = r.querySelector('.pills'); if (pills) where.innerHTML = pills.innerHTML;
       var more = where.querySelector('button.more'); if (more) { more.textContent = 'Details'; more.setAttribute('aria-expanded', 'false'); }
       bodyEl.className = 'miss__body'; bodyEl.appendChild(names);
-      var mn = STORY.notes[r.getAttribute('data-id')];
-      if (mn) bodyEl.appendChild(storyLine(mn, 'miss__story'));
       bodyEl.appendChild(where);
       d.appendChild(teams); d.appendChild(bodyEl);
       // The card gets its own copy of the row's details panel: the row itself is hidden whenever
@@ -568,6 +566,7 @@
     var found = ids.map(function (id) { return rows.find(function (r) { return r.getAttribute('data-id') === id; }); });
     return found.every(Boolean) ? found : null;
   }
+  function editorialPasses(r) { return onSvc(r) && !compOff[r._lg]; }
   function referencedRows(item) {
     if (!item || !Array.isArray(item.segments) || !item.segments.length) return [];
     var found = [], valid = item.segments.every(function (part) {
@@ -580,7 +579,7 @@
   }
   function appendEditorialText(host, segments) {
     segments.forEach(function (part) {
-      var refs = rowsForIds(part.match_ids), filtered = refs && refs.length && !refs.every(passes);
+      var refs = rowsForIds(part.match_ids), filtered = refs && refs.length && !refs.every(editorialPasses);
       var span = document.createElement('span'); span.className = 'editorial-part' + (filtered ? ' editorial-part--filtered' : '');
       span.textContent = part.text;
       if (part.match_ids.length) span.setAttribute('data-matches', part.match_ids.join(' '));
@@ -609,7 +608,7 @@
       else tag('broadcaster', 'unknown', 'Coverage unconfirmed', r);
     });
     Object.keys(entries).forEach(function (key) {
-      var entry = entries[key], filtered = !entry.rows.some(passes);
+      var entry = entries[key], filtered = !entry.rows.some(editorialPasses);
       var t = document.createElement('span'); t.className = 'editorial-tag' + (filtered ? ' editorial-tag--filtered' : '');
       t.setAttribute('data-kind', entry.kind); t.setAttribute('data-key', entry.key); t.textContent = entry.label;
       if (filtered) t.title = 'Excluded by your filters';
@@ -624,16 +623,21 @@
     var s = STORY.s, storyEl = document.getElementById('story'), forecastEl = document.getElementById('forecast');
     var lead = s && Array.isArray(s.lede_items) ? s.lede_items : [];
     var forecast = s && s.forecast && Array.isArray(s.forecast.items) ? s.forecast.items : [];
-    function near(item) { var refs = referencedRows(item); return refs.length && refs.every(function (r) { return inFocus(r, now); }); }
+    function near(item) { var refs = referencedRows(item); return refs.some(editorialPasses) && refs.every(function (r) { return inFocus(r, now); }); }
     var hasNear = lead.concat(forecast).some(near);
     function relevant(item) {
       var refs = referencedRows(item);
+      if (!refs.some(editorialPasses)) return false;
       if (hasNear) return near(item);
       return s && s.later_reason && refs.length && refs.every(function (r) { return r._state !== 'post' && r._k >= now + FOCUS_MS; });
     }
     var leadCount = lead.length;
     lead = lead.filter(relevant); forecast = forecast.filter(relevant);
     storyEl.hidden = !lead.length; forecastEl.hidden = !forecast.length;
+    rows.forEach(function (r) {
+      var note = r.querySelector('.row__story');
+      if (note) note.hidden = !editorialPasses(r) || r._state === 'post' || (r._state !== 'in' && r._k < now);
+    });
     var lede = document.getElementById('story-lede'); lede.innerHTML = '';
     lead.forEach(function (item) { lede.appendChild(editorialItem(item)); });
     var heading = document.getElementById('story-h'); heading.innerHTML = '';

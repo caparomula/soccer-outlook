@@ -1129,12 +1129,17 @@ def schedule_by_day(matches, today, days=7):
 
 
 def write_facts(path, matches, built_at, today):
-    """Give Claude every fixture in the next 24 hours, with later candidates only as a fallback."""
+    """Give Claude service-backed fixtures in the next 24 hours, with later candidates as fallback."""
+    def routes(m):
+        return sorted({sid for outlet in m.outlets for sid in outlet.via}
+                      | (set(m.rule.via) if m.rule else set()))
+
     def entry(m):
         local = m.utc.astimezone(ET)
         return {k: v for k, v in dict(
             id=m.id,
             kickoff_utc=m.utc.isoformat(), time_confirmed=m.time_valid, state=m.state, league_id=m.league,
+            available_service_ids=routes(m), default_competition=not LEAGUES[m.league].get("default_off", False),
             kickoff=(local.strftime("%a %b ") + str(local.day) + local.strftime(", %I:%M %p ET").replace(" 0", " ")) if m.time_valid else local.strftime("%a %b ") + str(local.day) + ", time TBD",
             competition=m.comp, stage=m.stage, venue=m.venue, note=m.note,
             home=team_facts(m.home), away=team_facts(m.away),
@@ -1149,9 +1154,9 @@ def write_facts(path, matches, built_at, today):
                                       result=f"{m.home.name} {m.home.score}-{m.away.score} {m.away.name}", goals=goals).items()
                 if v not in ("", [], None)}
 
-    # News considers all competitions; the browser applies each visitor's filters.
+    # Unknown coverage stays in the schedule, but cannot support a recommendation to watch.
     until = built_at + timedelta(hours=24)
-    upcoming = [m for m in matches if m.state != "post"
+    upcoming = [m for m in matches if m.state != "post" and routes(m)
                 and not called_off(m.state, m.status)]
     near = [m for m in upcoming if built_at <= m.utc < until
             or (m.state == "in" and built_at - timedelta(hours=4) <= m.utc < built_at)]
@@ -1165,7 +1170,7 @@ def write_facts(path, matches, built_at, today):
         "owner_services": [SERVICES[k] for k in OWNER],
         "owner_service_ids": list(OWNER),   # recorded in story.json: the lineup the forecast was written for
         "next_24_hours": [entry(m) for m in sorted(near, key=lambda m: m.utc)],
-        "later_if_needed": [entry(m) for m in sorted(later, key=lambda m: (m.utc.date(), -m.score, m.utc))[:16]],
+        "later_if_needed": [entry(m) for m in sorted(later, key=lambda m: (m.utc, -m.score))[:20]],
         "schedule_by_day": schedule_by_day(matches, today),
     }
     played = [m for m in matches if m.state == "post" and m.utc.astimezone(ET).date() == today

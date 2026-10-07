@@ -17,7 +17,7 @@ import story  # noqa: E402   (imports without the anthropic package, which only 
 
 SOURCE = "https://example.com/a"
 SEEN = {story.url_key(SOURCE): (SOURCE, "A")}
-FACTS = {"next_24_hours": [{"id": "1"}, {"id": "2"}], "later_if_needed": [{"id": "later"}]}
+FACTS = {"next_24_hours": [{"id": "1", "watch_on": "ESPN"}, {"id": "2", "watch_on": "Apple TV"}], "later_if_needed": [{"id": "later"}]}
 
 
 def item(text="Researched context.", ids=None, sources=None):
@@ -83,6 +83,13 @@ class Forecast(unittest.TestCase):
         self.assertEqual(result["lede_items"], [])
         self.assertEqual(result["later_reason"], "")
 
+    def test_later_fallback_survives_when_near_news_is_not_on_default_services(self):
+        facts = {"next_24_hours": [{"id": "1"}], "later_if_needed": [{"id": "later"}]}
+        result = story.clean_story(raw_story(later_reason="Nothing available on the default lineup sooner.",
+                                           forecast={"items": [item(), item(ids=["later"])]}), facts, SEEN)
+        self.assertEqual(len(result["forecast"]["items"]), 2)
+        self.assertTrue(result["later_reason"])
+
     def test_mixed_time_windows_rejected_without_losing_other_items(self):
         result = story.clean_story(raw_story(forecast={"items": [item(ids=["1", "later"]), item()]}), FACTS, SEEN)
         self.assertEqual(len(result["forecast"]["items"]), 1)
@@ -114,14 +121,18 @@ class Forecast(unittest.TestCase):
         self.assertIn(story.url_key(SOURCE), seen)
         self.assertIn(story.url_key("https://example.com/b"), seen)
 
-    def test_prompt_focus_and_access_independence_in_both_modes(self):
+    def test_prompt_focus_services_and_fixture_specific_news(self):
         facts = {"built_at": "2026-10-07T16:55:00Z", "weekday": "Wednesday", "date": "2026-10-07", "owner_services": ["HBO Max"]}
         previous = {"generated_at": "2026-10-07T08:55:00Z", "headline": "h", "lede": "l", "notes": {}}
         for prompt in (story.user_prompt(facts, (5, 2)), story.refresh_prompt(facts, previous, (5, 2))):
             self.assertIn("rolling next 24 hours", prompt)
-            self.assertIn("Assume every match is viewable", prompt)
+            self.assertIn("prioritize", prompt.lower())
+            self.assertIn("unconfirmed coverage is not evidence of availability", prompt)
             self.assertIn("nothing of interest", prompt)
             self.assertIn("team, league and broadcaster tags", prompt)
+        self.assertIn("Exclude general club news, financial investigations", story.SYSTEM)
+        self.assertIn("An upcoming international break", story.SYSTEM)
+        self.assertIn("specific upcoming fixture", story.SYSTEM)
 
 
 class RollingFacts(unittest.TestCase):
@@ -132,6 +143,7 @@ class RollingFacts(unittest.TestCase):
             ("inside", "2026-10-08T16:59:00+00:00", "pre", "Peacock", "usa.1"),
             ("edge", "2026-10-08T17:00:00+00:00", "pre", "ESPN+", "esp.1"),
             ("finished", "2026-10-07T16:00:00+00:00", "post", "ESPN+", "eng.1"),
+            ("unlisted", "2026-10-07T18:00:00+00:00", "pre", None, "fifa.friendly.w"),
             ("hidden", "2026-10-07T19:00:00+00:00", "pre", "ESPN+",
              next(lg for lg, info in build.LEAGUES.items() if info.get("default_off"))),
         ]
@@ -145,6 +157,7 @@ class RollingFacts(unittest.TestCase):
         self.assertEqual(facts["next_24_hours"][0]["league_id"], "eng.1")
         self.assertEqual(facts["next_24_hours"][0]["home"]["id"], "1")
         self.assertEqual(facts["next_24_hours"][-1]["broadcasters"], ["Peacock"])
+        self.assertTrue(all(m["available_service_ids"] for m in facts["next_24_hours"] + facts["later_if_needed"]))
 
 
 def match(mid, league, et_hour, day, state="pre", status="", service="", comp=None, time_valid=True):

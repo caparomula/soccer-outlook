@@ -250,12 +250,13 @@ class BrowserChecks(unittest.TestCase):
             expect(page.locator('li.row[data-id="unlisted"]')).to_be_visible()
             expect(page.locator('li.row[data-id="off-lineup"]')).to_be_hidden()
             expect(page.locator("#schedule-summary")).to_contain_text("1 with unconfirmed coverage")
-            expect(page.locator("#forecast .editorial-part--filtered")).to_have_count(0)
+            expect(page.locator("#forecast")).to_be_hidden()
+            expect(page.locator("#story")).to_be_hidden()
             expect(page.locator("#tally-n")).to_have_text("0")
             page.locator("#btn-menu").click()
             page.locator('#comp-pills [data-key="fifa.friendly.w"]').click()
             expect(page.locator('li.row[data-id="unlisted"]')).to_be_hidden()
-            expect(page.locator("#forecast .editorial-part--filtered")).to_have_count(1)
+            expect(page.locator("#forecast")).to_be_hidden()
 
     def test_counts_all_leagues_and_groups_simultaneous_kickoffs(self):
         for leagues in (["usa.1"] * 6 + ["usa.nwsl"] * 6, ["caf.nations"] * 4):
@@ -311,7 +312,7 @@ class BrowserChecks(unittest.TestCase):
                 "forecast": {"items": [item("Context for Chicago and Vancouver.", "mls"),
                                        item("Context for the Spanish match.", "spain")]}}
 
-    def test_tagged_sentences_dim_independently_for_leagues_and_services(self):
+    def test_irrelevant_blurbs_are_hidden_independently_for_leagues_and_services(self):
         fixtures = [("mls", "2026-10-07T18:00:00+00:00", "pre", "Apple TV", "usa.1"),
                     ("spain", "2026-10-07T19:00:00+00:00", "pre", "ESPN+", "esp.1")]
         html = render_page(build, fixtures=fixtures).replace('data-home="Arsenal"', 'data-home="Chicago"').replace('data-away="Chelsea"', 'data-away="Vancouver"')
@@ -329,21 +330,19 @@ class BrowserChecks(unittest.TestCase):
                 page.locator('[data-kind="have"][data-key="netflix"]').click()
                 expect(spain.locator(".editorial-part")).to_have_class("editorial-part")
                 page.locator('#comp-pills [data-key="usa.1"]').click()
-                expect(mls.locator(".editorial-part")).to_have_class("editorial-part editorial-part--filtered")
-                expect(mls).to_be_visible()
-                expect(mls.locator('.editorial-item__text')).to_have_css("text-decoration-line", "none")
-                expect(page.locator('#story-lede .editorial-part[data-matches="mls"]')).to_have_class("editorial-part editorial-part--filtered")
+                expect(mls).to_have_count(0)
+                expect(page.locator('#story-lede .editorial-part[data-matches="mls"]')).to_have_count(0)
                 expect(spain.locator(".editorial-part")).to_have_class("editorial-part")
                 page.locator('#comp-pills [data-key="usa.1"]').click()
                 page.locator("#btn-clear").click()
-                expect(spain.locator(".editorial-part")).to_have_class("editorial-part editorial-part--filtered")
+                expect(editorial).to_be_hidden()
                 page.locator('[data-kind="have"][data-key="espn"]').click()
                 expect(spain.locator(".editorial-part")).to_have_class("editorial-part")
-                expect(mls.locator(".editorial-part")).to_have_class("editorial-part editorial-part--filtered")
+                expect(mls).to_have_count(0)
                 page.locator("#btn-filters-close").click()
                 page.screenshot(path=str(self.artifacts / f"tagged-{width}-filtered.png"), full_page=True)
                 page.locator("#btn-all").click()
-                expect(mls.locator(".editorial-part")).to_have_class("editorial-part")
+                expect(mls).to_have_count(0)
                 expect(spain.locator(".editorial-part")).to_have_class("editorial-part")
                 page.locator("#btn-menu").click()
                 page.locator("#btn-reset").click()
@@ -378,7 +377,7 @@ class BrowserChecks(unittest.TestCase):
                 page.locator("#btn-filters-close").click()
                 page.screenshot(path=str(self.artifacts / f"phrases-{theme}.png"), full_page=True)
                 page.locator("#btn-all").click()
-                expect(page.locator("#forecast .editorial-part--filtered")).to_have_count(0)
+                expect(page.locator("#forecast .editorial-part--filtered")).to_have_text("MLS")
                 page.locator("#btn-menu").click()
                 page.locator('#comp-pills [data-key="usa.1"]').click()
                 expect(page.locator("#forecast .editorial-part--filtered")).to_have_text("MLS")
@@ -403,27 +402,62 @@ class BrowserChecks(unittest.TestCase):
             expect(page.locator('details[data-b="later"]')).to_have_attribute("open", "")
 
     def test_later_editorial_only_as_researched_fallback_and_rolls_into_window(self):
+        html = render_page(build, fixtures=[
+            ("upcoming", "2026-10-07T17:05:00+00:00", "pre", "ESPN+"),
+            ("usual", "2026-10-08T18:00:00+00:00", "pre", "ESPN+")])
         story = self.tagged_story()
         story["lede_items"] = []
         near = {"segments": [{"text": "Near context.", "match_ids": ["upcoming"]}], "sources": []}
         later = {"segments": [{"text": "Later context.", "match_ids": ["usual"]}], "sources": []}
         story["forecast"]["items"] = [near, later]
         story["later_reason"] = "No pertinent story found sooner."
-        with self.page("after", story=story) as (page, _):
+        with self.page("after", html=html, story=story) as (page, _):
             expect(page.locator("#forecast")).to_contain_text("Near context")
             expect(page.locator("#forecast")).not_to_contain_text("Later context")
             page.locator("#btn-menu").click()
             page.locator('#comp-pills [data-key="eng.1"]').click()
-            expect(page.locator("#forecast")).to_contain_text("Near context")
-            expect(page.locator("#forecast")).not_to_contain_text("Later context")
+            expect(page.locator("#forecast")).to_be_hidden()
         story["forecast"]["items"] = [later]
-        with self.page("after", story=story) as (page, _):
+        with self.page("after", html=html, story=story) as (page, _):
             expect(page.locator("#forecast")).to_contain_text("Further ahead")
             page.evaluate("location.hash = '#at-20261007-1401'")
             expect(page.locator("#forecast")).to_contain_text("Next 24 hours")
         story["later_reason"] = ""
-        with self.page("after", story=story) as (page, _):
+        with self.page("after", html=html, story=story) as (page, _):
             expect(page.locator("#forecast")).to_be_hidden()
+
+    def test_match_notes_follow_services_even_in_everything_mode(self):
+        fixtures = [("peacock", "2026-10-07T18:00:00+00:00", "pre", "Peacock", "eng.1")]
+        story = self.tagged_story()
+        story["notes"] = {"peacock": {"note": "Match-specific lineup news.", "sources": []}}
+        with self.page("after", html=render_page(build, fixtures=fixtures), story=story) as (page, _):
+            page.locator("#btn-all").click()
+            expect(page.locator('li.row[data-id="peacock"]')).to_be_visible()
+            expect(page.locator('.row__story')).to_be_hidden()
+            expect(page.locator('.miss__story')).to_have_count(0)
+            page.locator("#btn-menu").click()
+            page.locator('[data-kind="have"][data-key="peacock"]').click()
+            expect(page.locator('.row__story')).to_be_visible()
+
+    def test_filtering_near_news_can_reveal_available_later_fallback(self):
+        fixtures = [("near", "2026-10-07T18:00:00+00:00", "pre", "Apple TV", "usa.1"),
+                    ("later", "2026-10-09T18:00:00+00:00", "pre", "ESPN+", "esp.1")]
+        story = self.tagged_story()
+        story["lede_items"] = []
+        story["later_reason"] = "Fallback for lineups without the earlier match."
+        story["forecast"]["items"] = [
+            {"segments": [{"text": "Near match context.", "match_ids": ["near"]}], "sources": []},
+            {"segments": [{"text": "Later match context.", "match_ids": ["later"]}], "sources": []}]
+        with self.page("after", html=render_page(build, fixtures=fixtures), story=story) as (page, _):
+            expect(page.locator("#forecast")).to_contain_text("Near match context")
+            expect(page.locator("#forecast")).not_to_contain_text("Later match context")
+            page.locator("#btn-menu").click()
+            page.locator('[data-kind="have"][data-key="apple"]').click()
+            expect(page.locator("#forecast")).not_to_contain_text("Near match context")
+            expect(page.locator("#forecast")).to_contain_text("Later match context")
+            expect(page.locator("#forecast")).to_contain_text("Further ahead")
+            page.locator('[data-kind="have"][data-key="apple"]').click()
+            expect(page.locator("#forecast")).to_contain_text("Near match context")
 
     def test_legacy_expired_unknown_and_completed_editorial_do_not_leak(self):
         story = self.tagged_story()

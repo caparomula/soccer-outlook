@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Writes the day's storylines for Soccer Outlook with Claude and web search.
 
-build.py --facts supplies every match in the next 24 hours and later candidates as a fallback.
-Claude researches all competitions without prioritizing broadcast access. It publishes separately
+build.py --facts supplies matches with known service coverage in the next 24 hours and later fallback candidates.
+Claude researches fixture-specific context and prioritizes available matches for the default lineup. It publishes separately
 referenced phrases for the headline, lede and forecast, plus match notes. Every sentence cites verified
 sources and exact fixture IDs. The browser derives team, league and broadcaster tags from those
 fixtures and dims phrases excluded by the visitor's filters.
@@ -64,7 +64,7 @@ PRICES = {
 }
 PRICE_SEARCH = 0.01                   # per web search on any model; web fetch costs only its tokens
 
-SYSTEM = """You write the daily storylines for Soccer Outlook, a soccer schedule with visitor-controlled competition and service filters. Assume every match is viewable while selecting news; broadcast access must never decide editorial importance. The page already lists kickoff times, channels, table positions, recent form and top scorers. Your part is what a knowledgeable friend would add: why a match matters, what is at stake, who is missing or returning, rivalries, records and milestones, a manager under pressure, a debut.
+SYSTEM = """You write the daily storylines for Soccer Outlook, a soccer schedule with visitor-controlled competition and service filters. News serves upcoming matches available through the visitor's selected services. Only candidates with listed or usual service coverage are supplied. Prioritize the default lineup for the opening; visitors can select other services and the browser filters the text accordingly. The page already lists kickoff times, channels, table positions, recent form and top scorers. Cover only facts that directly affect a specific upcoming fixture: the stakes, player availability, likely selection supported by reporting, a relevant matchup, or a scheduling change. An upcoming international break belongs only when explaining its effect on a listed fixture. Exclude general club news, financial investigations, ownership stories, or unrelated managerial controversy. Mentioning a team that has a fixture is not enough: explain the concrete match connection.
 
 Research with web search before writing, and read a full article when a search snippet is not enough. Prefer recent reporting from established outlets: clubs and federations, major newspapers, broadcasters, wire services. State only what you read in this session. If you cannot confirm something, leave it out rather than guess, and never predict results or invent lineups, injuries or quotes. Do not restate the schedule data as news.
 
@@ -82,7 +82,7 @@ EDITORIAL_SCHEMA = {
     "type": "object", "additionalProperties": False, "required": ["segments", "sources"],
     "properties": {
         "segments": {"type": "array", "items": SEGMENT_SCHEMA,
-                     "description": "One short sentence, about 180-300 characters, split at independently filterable phrases. Concatenating all text fragments must reproduce the sentence exactly. Every mentioned team or league and its related claims must reference its fixtures."},
+                     "description": "One short sentence, about 180-300 characters, split at independently filterable phrases. Concatenating all text fragments must reproduce the sentence exactly. Every mentioned team or league and its related claims must reference its fixtures. Each sentence must explain something specific about that upcoming match; no general club news."},
         "sources": {"type": "array", "items": {"type": "string"},
                     "description": "One to three URLs read in this session supporting this sentence."},
     },
@@ -100,7 +100,7 @@ PUBLISH_TOOL = {
                          "description": "A headline, sentence case, about 80 characters, with separately tagged phrases. It must concern only fixtures in the lede."},
             "lede_items": {"type": "array", "items": EDITORIAL_SCHEMA,
                            "description": "Up to three sentences on the most pertinent story in the next 24 hours."},
-            "later_reason": {"type": "string", "description": "Empty when covering the next 24 hours. Otherwise briefly explain why research found no pertinent story sooner; low stature or absent major leagues do not establish that."},
+            "later_reason": {"type": "string", "description": "Empty unless including later fallback news because there is no pertinent next-24-hour story on the default lineup and competitions. Explain that gap; do not infer a lack of interest from league stature."},
             "notes": {
                 "type": "array", "description": "Up to eight researched match notes. Fewer is fine; never pad the count with later matches.",
                 "items": {
@@ -124,10 +124,12 @@ PUBLISH_TOOL = {
 
 FOCUS_GUIDE = ("The focus is the rolling next 24 hours, from built_at to focus_until, including matches live now. "
                "Research next_24_hours first, across all its leagues regardless of stature. Find what is pertinent "
-               "there. Only if that research finds nothing of interest should the headline, lede or forecast use "
-               "later_if_needed, starting with the soonest pertinent fixture; explain the decision in later_reason. "
-               "Assume every match is viewable: do not favor the owner's services or omit matches elsewhere. "
-               "The visitor's filters decide what fits their lineup. Do not pad a short story with distant fixtures. "
+               "there. Prioritize matches with watch_on and default_competition=true for the opening. Only if there is "
+               "nothing of interest on that default lineup in the next 24 hours should you include later_if_needed "
+               "as a fallback, starting with the soonest pertinent available fixture. Explain this in later_reason. "
+               "The browser hides a blurb entirely if none of its matches has service coverage on the visitor's "
+               "selection; it dims excluded phrases only inside a blurb that still has a relevant match. A match "
+               "with unconfirmed coverage is not evidence of availability. Do not pad a short story. "
                "Use segments in the headline, lede_items and forecast items to tag exact phrases with fixture IDs. "
                "The page derives team, league and broadcaster tags from those IDs. Tag a team/league name and "
                "its related claim separately from unrelated fixtures; neutral joining words get []. For example, "
@@ -249,9 +251,12 @@ def clean_story(raw, facts, seen):
         notes[n["match_id"]] = {"note": text, "sources": sources}
     if dropped:
         log(f"dropped {dropped} note(s) with an unknown match id or no verified source")
-    # One researched near-term item is enough to keep the whole opening focused on this window.
-    if (any(set(item["match_ids"]) <= near_ids for item in lede_items + forecast_items)
-            or set(notes) & near_ids):
+    # Near-term news for the default lineup takes precedence. Retained fallback items can serve
+    # other filter choices; the browser always prefers relevant near-term text for its viewer.
+    default_near = {m["id"] for m in facts.get("next_24_hours", [])
+                    if m.get("watch_on") and m.get("default_competition", True)}
+    if (any(set(item["match_ids"]) & default_near for item in lede_items + forecast_items)
+            or set(notes) & default_near):
         lede_items = [item for item in lede_items if set(item["match_ids"]) <= near_ids]
         forecast_items = [item for item in forecast_items if set(item["match_ids"]) <= near_ids]
         notes = {mid: note for mid, note in notes.items() if mid in near_ids}
@@ -319,7 +324,7 @@ def user_prompt(facts, budget):
     return (f"Today is {facts['weekday']}, {facts['date']}, in US Eastern time. The household's services are "
             f"{', '.join(facts['owner_services'])}.\n\n"
             "Here are the candidate matches. 'watch_on' records where the default household could watch; "
-            "it must not affect editorial selection. 'played_today', when "
+            "prioritize it for the opening. 'played_today', when "
             "present, gives the day's notable results so far, for context.\n\n"
             f"{json.dumps(facts, ensure_ascii=False, indent=1)}\n\n"
             "Write storylines for up to eight pertinent matches, with no minimum count. Use the match ids exactly as given. "
@@ -345,7 +350,8 @@ def refresh_prompt(facts, previous, budget):
             f"{json.dumps(facts, ensure_ascii=False, indent=1)}\n\n"
             "Update the storylines for this moment rather than starting over. Search only for what may have changed "
             "since they were written: team news, confirmed lineups, injuries and suspensions, and results that change "
-            "what is at stake. Keep any note that still holds, with its sources exactly as given; revise or replace "
+            "what is at stake. Drop general club news from the earlier story even if still true; every retained note "
+            "must affect a specific upcoming fixture. Keep qualifying notes with their sources exactly as given; revise or replace "
             "the others, and add notes for matches that have become the day's stories. Rewrite the headline and lede "
             "so they focus on the next 24 hours from this build; past results are context, not the lead. Notes are only for matches in the lists "
             "above. Use the match ids exactly as given. "
