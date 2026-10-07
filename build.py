@@ -1037,7 +1037,7 @@ def row_html(m, cache):
         f'<div class="row__body">'
         f'<div class="row__teams">{team_html(m.home, cache, score_h)}<span class="vs">v</span>{team_html(m.away, cache, score_a)}</div>'
         f'<div class="row__meta">{"".join(meta)}</div>{goals_html(m)}{note}'
-        f'<div class="pills">{pills_html(m)}<button type="button" class="more" aria-expanded="false">Details</button></div>'
+        f'<div class="pills">{pills_html(m)}<button type="button" class="more" aria-haspopup="dialog" aria-controls="match-dialog">Details</button></div>'
         f'{detail_html(m, cache)}'
         f'</div>'
         f'<div class="row__watch">{chip_html(m)}</div>'

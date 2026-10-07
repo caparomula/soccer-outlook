@@ -1,6 +1,7 @@
 """Offline Chromium checks; run with python3 -m tests.browser --help."""
 import argparse
 from copy import deepcopy
+from datetime import timedelta
 from contextlib import contextmanager
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -64,7 +65,8 @@ class BrowserChecks(unittest.TestCase):
                 route.continue_()
 
         context.route("**/*", route_request)
-        page.clock.install(time=BUILT_AT)
+        # Leave room for real time between the two protocol calls before freezing the clock.
+        page.clock.install(time=BUILT_AT - timedelta(seconds=1))
         page.clock.pause_at(BUILT_AT)
         try:
             page.goto(f"{self.base}/{target}/index.html?scoresbase={self.base}/espn/#at-{at}")
@@ -161,6 +163,114 @@ class BrowserChecks(unittest.TestCase):
                             if changed:
                                 diff.save(self.artifacts / f"diff-{width}-{theme}-{state}.png")
                             self.assertEqual(changed, 0, f"Screenshot mismatch; inspect {self.artifacts}")
+
+    def test_details_hover_preview_is_stable_hoverable_and_dismissible(self):
+        for theme in ('light', 'dark'):
+            with self.subTest(theme=theme), self.page('after', theme=theme) as (page, _):
+                row = page.locator('li.row[data-id="upcoming"]')
+                button = row.locator('button.more')
+                button.evaluate("el => window.scrollTo(0, el.getBoundingClientRect().bottom + scrollY - innerHeight + 35)")
+                before = row.bounding_box()
+                button.hover()
+                page.clock.run_for(200)
+                preview = page.locator('#match-preview')
+                expect(preview).to_be_visible()
+                expect(page.locator('#match-dialog')).to_be_hidden()
+                expect(row.locator('.row__detail')).to_be_hidden()
+                self.assertEqual(preview.locator('.row__detail').text_content(), row.locator('.row__detail').text_content())
+                box = preview.bounding_box()
+                anchor = button.bounding_box()
+                self.assertLessEqual(box['y'] + box['height'], anchor['y'])
+                self.assertGreaterEqual(box['x'], 0)
+                self.assertGreaterEqual(box['y'], 0)
+                self.assertLessEqual(box['x'] + box['width'], page.viewport_size['width'])
+                self.assertEqual(before, row.bounding_box())
+                page.mouse.move(box['x'] + 25, box['y'] + 25)
+                page.clock.run_for(400)
+                expect(preview).to_be_visible()
+                page.screenshot(path=str(self.artifacts / f'details-hover-{theme}.png'))
+                page.keyboard.press('Escape')
+                expect(preview).to_be_hidden()
+                button.hover()
+                page.clock.run_for(200)
+                expect(preview).to_be_visible()
+                page.mouse.move(1, 1)
+                page.clock.run_for(250)
+                expect(preview).to_be_hidden()
+                button.hover()
+                page.clock.run_for(200)
+                preview.get_by_role('link', name='League table').click()
+                expect(preview).to_be_hidden()
+                expect(page.locator('.tables__item[data-lg="eng.1"]')).to_have_attribute('open', '')
+
+    def test_details_dialog_mouse_touch_keyboard_and_focus_without_reflow(self):
+        for width in (1280, 390, 320):
+            with self.subTest(width=width), self.page('after', width=width, touch=width <= 600) as (page, feed):
+                row = page.locator('li.row[data-id="upcoming"]')
+                button = row.locator('button.more')
+                button.scroll_into_view_if_needed()
+                before = row.bounding_box()
+                if width <= 600:
+                    button.tap()
+                else:
+                    button.focus()
+                    page.keyboard.press('Enter')
+                page.clock.run_for(250)
+                dialog = page.locator('#match-dialog')
+                expect(dialog).to_be_visible()
+                expect(page.locator('#match-preview')).to_be_hidden()
+                expect(dialog).to_have_attribute('aria-labelledby', 'match-dialog-title')
+                expect(page.locator('#match-dialog-title')).to_have_text('Arsenal v Chelsea')
+                expect(page.locator('#match-dialog-close')).to_be_focused()
+                expect(dialog.locator('.detail__facts').first).to_contain_text('Top scorer A. Player, 6 goals')
+                expect(dialog.get_by_role('link', name='Add to Google Calendar')).to_have_attribute('href', re.compile('^https://calendar.google.com/'))
+                expect(row.locator('.row__detail')).to_be_hidden()
+                self.assertEqual(before, row.bounding_box())
+                box = dialog.bounding_box()
+                self.assertGreaterEqual(box['x'], 0)
+                self.assertGreaterEqual(box['y'], 0)
+                self.assertLessEqual(box['x'] + box['width'], width)
+                self.assertLessEqual(box['y'] + box['height'], page.viewport_size['height'])
+                for _ in range(6):
+                    page.keyboard.press('Tab')
+                    self.assertTrue(dialog.evaluate('el => el.contains(document.activeElement)'))
+                page.screenshot(path=str(self.artifacts / f'details-dialog-{width}.png'))
+                page.keyboard.press('Escape')
+                page.clock.run_for(50)
+                expect(dialog).to_be_hidden()
+                expect(button).to_be_focused()
+                self.assertEqual(before, row.bounding_box())
+                button.click()
+                page.locator('#match-dialog-close').click()
+                page.clock.run_for(50)
+                expect(button).to_be_focused()
+                button.click()
+                page.mouse.click(2, 2)
+                page.clock.run_for(50)
+                expect(dialog).to_be_hidden()
+                expect(button).to_be_focused()
+                button.click()
+                dialog.get_by_role('link', name='League table').click()
+                page.clock.run_for(50)
+                expect(dialog).to_be_hidden()
+                expect(page.locator('.tables__item[data-lg="eng.1"] > summary')).to_be_focused()
+                expect(page.locator('.tables__item[data-lg="eng.1"]')).to_have_attribute('open', '')
+                self.assertFalse(page.locator('html').evaluate("el => el.classList.contains('has-match-dialog')"))
+
+    def test_elsewhere_details_use_the_hidden_schedule_match(self):
+        html = render_page(build, fixtures=[('off', '2026-10-07T18:00:00+00:00', 'pre', 'Peacock', 'eng.1')])
+        html = re.sub(r'data-score="[0-9]+"', 'data-score="95"', html)
+        with self.page('after', html=html) as (page, _):
+            row = page.locator('li.row[data-id="off"]')
+            button = page.locator('#misses [data-id="off"] button.more')
+            expect(row).to_be_hidden()
+            button.click()
+            expect(page.locator('#match-dialog')).to_have_attribute('data-match-id', 'off')
+            expect(page.locator('#match-dialog .detail__venue')).to_have_text('Fixture Stadium')
+            expect(page.locator('#match-dialog .detail__facts').first).to_contain_text('Top scorer A. Player, 6 goals')
+            page.locator('#match-dialog-close').click()
+            page.clock.run_for(50)
+            expect(button).to_be_focused()
 
     def test_compact_team_format_wraps_long_names_without_overflow(self):
         fixtures = [("a", "2026-10-07T16:30:00+00:00", "in", "ESPN+"),
@@ -752,7 +862,7 @@ class BrowserChecks(unittest.TestCase):
                 for card in page.locator('#nextup, #picks .pick').all():
                     mid = card.get_attribute('data-match-id')
                     row = page.locator(f'li.row[data-id="{mid}"]')
-                    for selector in ('.row__teams', '.row__meta', '.row__story', '.row__detail', '.pills'):
+                    for selector in ('.row__teams', '.row__meta', '.row__story', '.pills'):
                         self.assertEqual(card.locator(selector).text_content(), row.locator(selector).text_content())
                     self.assertEqual(card.locator('.form').evaluate_all('els => els.map(e => [e.title, e.innerHTML])'),
                                      row.locator('.form').evaluate_all('els => els.map(e => [e.title, e.innerHTML])'))
@@ -764,9 +874,11 @@ class BrowserChecks(unittest.TestCase):
                         expect(card.locator('.row__until')).to_have_text(row.locator('.row__until').text_content())
                     self.assertEqual(card.locator('.match__watch').text_content(), row.locator('.row__watch').text_content())
                     card.locator('button.more').click()
-                    expect(card.locator('.row__detail')).to_be_visible()
+                    expect(page.locator('#match-dialog')).to_be_visible()
+                    self.assertEqual(page.locator('#match-dialog .row__detail').text_content(), row.locator('.row__detail').text_content())
                     expect(row.locator('.row__detail')).to_be_hidden()
-                    card.locator('button.more').click()
+                    page.locator('#match-dialog-close').click()
+                    page.clock.run_for(50)
                 expect(page.locator('#nextup .row__story')).to_contain_text('Specific context for upcoming.')
                 bars = []
                 for card in page.locator('#picks .pick').all():
@@ -787,18 +899,26 @@ class BrowserChecks(unittest.TestCase):
                 page.clock.run_for(60000)
                 expect(page.locator('#nextup .team .score')).to_have_text(['2', '1'])
                 expect(page.locator('#nextup .row__goals')).to_contain_text('A. Player')
-                expect(page.locator('#nextup .row__detail')).to_be_visible()
+                expect(page.locator('#match-dialog')).to_be_visible()
                 # A clock/scorer-only update also refreshes featured content and preserves details.
                 feed['data']['events'][0]['competitions'][0]['status']['displayClock'] = "64'"
                 feed['data']['events'][0]['competitions'][0]['details'][0]['athletesInvolved'][0]['shortName'] = 'Corrected Scorer'
                 page.clock.run_for(60000)
                 expect(page.locator('#nextup-status')).to_contain_text("64'")
                 expect(page.locator('#nextup .row__goals')).to_contain_text('Corrected Scorer')
-                expect(page.locator('#nextup .row__detail')).to_be_visible()
+                expect(page.locator('#match-dialog')).to_be_visible()
+                page.locator('#match-dialog-close').click()
+                page.clock.run_for(50)
+                expect(page.locator('#nextup button.more')).to_be_focused()
+                page.keyboard.press('Enter')
                 feed['data'] = scoreboard('post')
                 page.clock.run_for(60000)
                 expect(page.locator('#nextup')).to_have_attribute('data-match-id', 'live-second')
                 self.assertEqual(page.locator('#picks .pick').evaluate_all('els => els.map(e => e.dataset.matchId)'), ['mls', 'future', 'fourth'])
+                expect(page.locator('#match-dialog-title')).to_have_text('Arsenal v Chelsea')
+                expect(page.locator('#match-dialog')).to_have_attribute('data-match-id', 'upcoming')
+                page.locator('#match-dialog-close').click()
+                page.clock.run_for(50)
                 page.locator('#btn-menu').click()
                 page.locator('[data-kind="have"][data-key="espn"]').click()
                 expect(page.locator('#nextup')).to_be_hidden()

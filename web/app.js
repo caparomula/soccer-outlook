@@ -477,6 +477,7 @@
     rows.forEach(function (r) { var l = r.querySelector('.row__live'); if (l) l.hidden = r._b !== 'live'; });
     if (!force && sig === lastSig) { renderSummary(groups, all, now); return; }
     lastSig = sig;
+    hideDetailPreview();
 
     var sparse = upcoming(groups).filter(function (r) { return inFocus(r, now); }).length < 5;
     var context = mode + '|' + Object.keys(HAVE).join(',') + '|' + Object.keys(compOff).join(',') + '|' + sparse;
@@ -586,19 +587,119 @@
   }
   setInterval(tickNextup, 1000);
 
-  // ---- details panels and table links ---------------------------------------------------------
-  document.addEventListener('click', function (ev) {
-    var btn = ev.target.closest('button.more');
-    if (btn) {
-      var host = btn.closest('.row__body, .miss'); if (!host) return;
-      var panel = host.querySelector('.row__detail'); if (!panel) return;
-      panel.hidden = !panel.hidden; btn.setAttribute('aria-expanded', String(!panel.hidden)); btn.textContent = panel.hidden ? 'Details' : 'Hide details';
-      var card = btn.closest('[data-match-role]');
-      if (card && card._matchCard) card._matchCard.details[card.dataset.matchRole] = !panel.hidden;
-      return;
+  // ---- match details: hover preview and native modal, both outside the card layout -------------
+  var detailPreview = document.getElementById('match-preview'), detailDialog = document.getElementById('match-dialog');
+  var previewState = null, dialogState = null, previewTimer = null, previewCloseTimer = null, backdropDown = false;
+  function detailsFor(button) {
+    var host = button.closest('[data-match-role], .miss');
+    var card = host && (host._matchCard || host._row && host._row._card);
+    return card ? { card: card, trigger: button, role: host.dataset.matchRole || 'miss' } : null;
+  }
+  function fillDetails(surface, state) {
+    var prefix = surface === detailDialog ? 'match-dialog' : 'match-preview';
+    surface.dataset.matchId = state.card.row.getAttribute('data-id');
+    document.getElementById(prefix + '-title').textContent = matchName(state.card.row);
+    document.getElementById(prefix + '-content').replaceChildren(state.card.detailsContent());
+  }
+  function hideDetailPreview() {
+    clearTimeout(previewTimer); clearTimeout(previewCloseTimer);
+    var state = previewState, restoreFocus = detailPreview.contains(document.activeElement);
+    detailPreview.hidden = true; previewState = null;
+    if (restoreFocus && state) restoreDetailFocus(state);
+  }
+  function positionDetailPreview() {
+    if (!previewState) return;
+    var rect = previewState.trigger.getBoundingClientRect(), margin = 12, gap = 8;
+    var below = window.innerHeight - rect.bottom - margin - gap, above = rect.top - margin - gap;
+    detailPreview.style.maxHeight = Math.max(80, Math.max(below, above)) + 'px';
+    var box = detailPreview.getBoundingClientRect();
+    var top = below >= box.height || below >= above ? rect.bottom + gap : rect.top - gap - box.height;
+    detailPreview.style.left = Math.max(margin, Math.min(rect.right - box.width, window.innerWidth - box.width - margin)) + 'px';
+    detailPreview.style.top = Math.max(margin, Math.min(top, window.innerHeight - box.height - margin)) + 'px';
+  }
+  function schedulePreviewClose() {
+    clearTimeout(previewTimer); clearTimeout(previewCloseTimer);
+    previewCloseTimer = setTimeout(function () { if (!detailPreview.contains(document.activeElement)) hideDetailPreview(); }, 220);
+  }
+  function restoreDetailFocus(state) {
+    if (!state) return;
+    function visible(el) { return el && el.isConnected && el.getClientRects().length > 0; }
+    var button = state.trigger;
+    if (!visible(button)) {
+      var hosts = Array.from(document.querySelectorAll('[data-match-role], .miss'));
+      var host = hosts.find(function (el) {
+        return (el._matchCard || el._row && el._row._card) === state.card && (el.dataset.matchRole || 'miss') === state.role;
+      });
+      button = host && host.querySelector('button.more');
     }
-    var tl = ev.target.closest('a.detail__table');
-    if (tl) { var d = document.querySelector('.tables__item[data-lg="' + tl.getAttribute('data-lg') + '"]'); if (d) { d.open = true; } }
+    if (!visible(button)) button = state.card.row.querySelector('button.more');
+    (visible(button) ? button : btnMenu).focus({ preventScroll: true });
+  }
+  function openDetailDialog(button) {
+    var state = detailsFor(button); if (!state) return;
+    hideDetailPreview(); dialogState = state; fillDetails(detailDialog, state);
+    document.documentElement.classList.add('has-match-dialog');
+    detailDialog.showModal();
+  }
+  document.addEventListener('pointerover', function (ev) {
+    if (ev.pointerType !== 'mouse' || detailDialog.open) return;
+    var button = ev.target.closest('button.more');
+    if (!button || button.contains(ev.relatedTarget)) return;
+    clearTimeout(previewTimer); clearTimeout(previewCloseTimer);
+    previewTimer = setTimeout(function () {
+      if (!button.isConnected || !button.matches(':hover')) return;
+      var state = detailsFor(button); if (!state) return;
+      previewState = state; fillDetails(detailPreview, state); detailPreview.hidden = false; positionDetailPreview();
+    }, 180);
+  });
+  document.addEventListener('pointerout', function (ev) {
+    var button = ev.target.closest('button.more');
+    if (button && !button.contains(ev.relatedTarget) && !detailPreview.contains(ev.relatedTarget)) schedulePreviewClose();
+  });
+  detailPreview.addEventListener('pointerenter', function () { clearTimeout(previewCloseTimer); });
+  detailPreview.addEventListener('pointerleave', function (ev) {
+    if (!previewState || !previewState.trigger.contains(ev.relatedTarget)) schedulePreviewClose();
+  });
+  detailPreview.addEventListener('focusin', function () { clearTimeout(previewCloseTimer); });
+  detailPreview.addEventListener('focusout', function (ev) { if (!detailPreview.contains(ev.relatedTarget)) schedulePreviewClose(); });
+  document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape') hideDetailPreview(); });
+  document.addEventListener('pointerdown', function (ev) {
+    if (!detailPreview.contains(ev.target) && !ev.target.closest('button.more')) hideDetailPreview();
+  });
+  window.addEventListener('scroll', function (ev) { if (!detailPreview.contains(ev.target)) hideDetailPreview(); }, true);
+  window.addEventListener('resize', hideDetailPreview);
+  document.getElementById('match-dialog-close').addEventListener('click', function () { detailDialog.close(); });
+  detailDialog.addEventListener('keydown', function (ev) {
+    if (ev.key !== 'Tab') return;
+    var stops = Array.from(detailDialog.querySelectorAll('button:not(:disabled), a[href]')).filter(function (el) { return el.getClientRects().length; });
+    var first = stops[0], last = stops[stops.length - 1];
+    if (ev.shiftKey && document.activeElement === first) { ev.preventDefault(); last.focus(); }
+    else if (!ev.shiftKey && document.activeElement === last) { ev.preventDefault(); first.focus(); }
+  });
+  function outsideDialog(ev) {
+    var rect = detailDialog.getBoundingClientRect();
+    return ev.clientX < rect.left || ev.clientX > rect.right || ev.clientY < rect.top || ev.clientY > rect.bottom;
+  }
+  detailDialog.addEventListener('pointerdown', function (ev) { backdropDown = ev.target === detailDialog && outsideDialog(ev); });
+  detailDialog.addEventListener('click', function (ev) { if (backdropDown && ev.target === detailDialog && outsideDialog(ev)) detailDialog.close(); });
+  detailDialog.addEventListener('close', function () {
+    var state = dialogState; dialogState = null; backdropDown = false;
+    document.documentElement.classList.remove('has-match-dialog');
+    if (state && state.focusTarget) state.focusTarget.focus(); else restoreDetailFocus(state);
+  });
+  document.addEventListener('click', function (ev) {
+    var button = ev.target.closest('button.more');
+    if (button) { openDetailDialog(button); return; }
+    var link = ev.target.closest('a.detail__table');
+    if (link) {
+      hideDetailPreview();
+      var table = document.querySelector('.tables__item[data-lg="' + link.getAttribute('data-lg') + '"]');
+      if (table) table.open = true;
+      if (detailDialog.open) {
+        if (table && dialogState) dialogState.focusTarget = table.querySelector('summary');
+        detailDialog.close();
+      } else if (table) table.querySelector('summary').focus();
+    }
   });
 
   function upcoming(groups) { return [].concat(groups.live, groups.morning, groups.afternoon, groups.evening, groups.tonight, groups.tomorrow); }
@@ -639,9 +740,13 @@
   // The static row remains useful before JavaScript runs; live ESPN updates also land there.
   function MatchCard(row) {
     this.row = row;
-    this.details = {};
     this.newsSignature = '';
   }
+  MatchCard.prototype.detailsContent = function () {
+    var panel = this.row.querySelector('.row__detail').cloneNode(true);
+    panel.hidden = false;
+    return panel;
+  };
   MatchCard.prototype.tick = function (host, now) {
     var r = this.row, el = host.querySelector('.row__until'); if (!el) return;
     var d = r._k - now;
@@ -712,11 +817,7 @@
       });
       name.replaceChildren(link);
     });
-    var panel = content.querySelector('.row__detail'), button = content.querySelector('button.more');
-    if (panel && button) {
-      panel.hidden = !this.details[role]; button.setAttribute('aria-expanded', String(!panel.hidden));
-      button.textContent = panel.hidden ? 'Details' : 'Hide details';
-    }
+    content.querySelector('.row__detail').remove();
     var watch = r.querySelector('.row__watch');
     if (watch) {
       var service = watch.cloneNode(true); service.className = 'match__watch';
@@ -746,8 +847,6 @@
 
   function renderMisses(groups, now) {
     var pool = upcoming(groups).filter(function (r) { return inFocus(r, now) && r._svc === 'none' && !r._unk && r._o.length && r._score >= 85 && !compOff[r._lg]; }).sort(function (a, c) { return c._score - a._score || a._k - c._k; }).slice(0, 4);
-    var open = {};
-    missesEl.querySelectorAll('.miss').forEach(function (m) { var p = m.querySelector('.row__detail'); if (p && !p.hidden) open[m.getAttribute('data-id')] = true; });
     missesEl.innerHTML = '';
     pool.forEach(function (r) {
       var id = r.getAttribute('data-id');
@@ -759,17 +858,9 @@
       var tm = document.createElement('span'); tm.className = 'miss__time'; tm.textContent = missTime(r, now); names.appendChild(tm);
       var where = document.createElement('div'); where.className = 'miss__where';
       var pills = r.querySelector('.pills'); if (pills) where.innerHTML = pills.innerHTML;
-      var more = where.querySelector('button.more'); if (more) { more.textContent = 'Details'; more.setAttribute('aria-expanded', 'false'); }
       bodyEl.className = 'miss__body'; bodyEl.appendChild(names);
       bodyEl.appendChild(where);
       d.appendChild(teams); d.appendChild(bodyEl);
-      // The card gets its own copy of the row's details panel: the row itself is hidden whenever
-      // "On my services" is on, which is exactly when these cards matter.
-      var detail = r.querySelector('.row__detail');
-      if (detail) {
-        var copy = detail.cloneNode(true); copy.hidden = !open[id]; d.appendChild(copy);
-        if (open[id] && more) { more.textContent = 'Hide details'; more.setAttribute('aria-expanded', 'true'); }
-      }
       missesEl.appendChild(d);
     });
   }
@@ -1157,6 +1248,7 @@
   }
   function refreshLiveText() {
     var now = nowMs();
+    hideDetailPreview();
     if (nextRow) nextRow._card.render('live', now, nextupEl);
     picksEl.querySelectorAll('.pick').forEach(function (a) { if (a._row) a._row._card.render('pick', now, a); });
     watchIcons();
