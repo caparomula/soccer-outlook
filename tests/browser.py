@@ -274,9 +274,15 @@ class BrowserChecks(unittest.TestCase):
                 self.assertFalse(page.locator('html').evaluate("el => el.classList.contains('has-match-dialog')"))
 
     def test_elsewhere_details_use_the_hidden_schedule_match(self):
-        html = render_page(build, fixtures=[('off', '2026-10-07T18:00:00+00:00', 'pre', 'Peacock', 'eng.1')])
+        # Three better-rated matches fill the picks, so the Peacock match stays for Elsewhere alone.
+        fixtures = [('off', '2026-10-07T18:00:00+00:00', 'pre', 'Peacock', 'eng.1')] + [
+            (mid, f'2026-10-07T{hour}:00:00+00:00', 'pre', 'ESPN+', 'eng.1') for mid, hour in (('p1', 19), ('p2', 20), ('p3', 21), ('p4', 22))]
+        html = render_page(build, fixtures=fixtures)
         html = re.sub(r'data-score="[0-9]+"', 'data-score="95"', html)
-        with self.page('after', html=html) as (page, _):
+        story = self.tagged_story()
+        story['rankings'] = {mid: dict(score=score) for mid, score in (('off', 10), ('p1', 90), ('p2', 90), ('p3', 90), ('p4', 90))}
+        with self.page('after', html=html, story=story) as (page, _):
+            expect(page.locator('#picks [data-match-id="off"]')).to_have_count(0)
             row = page.locator('li.row[data-id="off"]')
             button = page.locator('#misses [data-id="off"] button.more')
             expect(row).to_be_hidden()
@@ -287,6 +293,11 @@ class BrowserChecks(unittest.TestCase):
             page.locator('#match-dialog-close').click()
             page.clock.run_for(50)
             expect(button).to_be_focused()
+        # Rated highest, it becomes a pick and leaves Elsewhere, so no match is shown twice.
+        story['rankings']['off'] = dict(score=99)
+        with self.page('after', html=html, story=story) as (page, _):
+            expect(page.locator('#picks .pick[data-match-id="off"]')).to_have_class(re.compile(r'\bmatch--off\b'))
+            expect(page.locator('#misses [data-id="off"]')).to_have_count(0)
 
     def test_compact_team_format_wraps_long_names_without_overflow(self):
         fixtures = [("a", "2026-10-07T16:30:00+00:00", "in", "ESPN+"),
@@ -814,7 +825,9 @@ class BrowserChecks(unittest.TestCase):
                 page.locator('[data-kind="have"][data-key="espn"]').click()
                 expect(lede).to_have_text("Much later Italian context.")
                 expect(page.locator("#nextup")).to_have_attribute("data-match-id", "far")
-                expect(page.locator("#picks-section")).to_be_hidden()
+                # The top card follows the lineup; the picks come from every service.
+                expect(page.locator("#picks-section")).to_be_visible()
+                expect(page.locator('#picks [data-match-id="far"]')).to_have_count(0)
                 expect(page.locator('li.row[data-id="far"]')).to_have_count(1)
 
     def test_top_three_select_by_rating_but_display_chronologically(self):
@@ -835,22 +848,43 @@ class BrowserChecks(unittest.TestCase):
                 expect(hero).to_have_attribute("data-match-id", "low")
                 expect(page.locator("#picks-section")).to_be_visible()
                 expect(page.locator('#misses [data-id="unknown"]')).to_have_count(0)
-                self.assertEqual(page.locator("#picks .pick").evaluate_all("els => els.map(e => e.dataset.matchId)"), ["routine", "best", "near"])
+                picks = lambda: page.locator("#picks .pick").evaluate_all("els => els.map(e => e.dataset.matchId)")
+                off = lambda: page.locator("#picks .pick.match--off").evaluate_all("els => els.map(e => e.dataset.matchId)")
+                self.assertEqual(picks(), ["routine", "best", "near"])
+                self.assertEqual(off(), [])
                 self.full_page_shot(page, f"ranked-{width}.png")
+                # Without Apple TV the top card moves on, but the picks stay the best matches anywhere: best
+                # keeps its place, dimmed as its schedule row is and saying it's outside the lineup; low,
+                # also on Apple TV, now fills the place the top card's routine left.
                 page.locator("#btn-menu").click()
                 page.locator('[data-kind="have"][data-key="apple"]').click()
                 expect(hero).to_have_attribute("data-match-id", "routine")
-                self.assertEqual(page.locator("#picks .pick").evaluate_all("els => els.map(e => e.dataset.matchId)"), ["near", "far"])
+                self.assertEqual(picks(), ["low", "best", "near"])
+                self.assertEqual(off(), ["low", "best"])
+                best = page.locator('#picks .pick[data-match-id="best"]')
+                expect(best).to_have_class(re.compile(r"\bsvc-off\b"))
+                expect(best.locator(".match__watch")).to_have_text("Not in your lineup")
+                # Muted as .row--off mutes its row (that row is out of the schedule now), where near's names are not.
+                muted = page.evaluate("getComputedStyle(document.getElementById('picks-sub')).color")
+                expect(best.locator(".team__name").first).to_have_css("color", muted)
+                expect(page.locator('#picks .pick[data-match-id="near"] .team__name').first).not_to_have_css("color", muted)
+                expect(page.locator('#picks .pick[data-match-id="near"] .match__watch')).to_contain_text("ESPN+")
+                # A hidden competition hides its matches from the schedule, not from the picks.
                 page.locator('#comp-pills [data-key="esp.1"]').click()
                 expect(hero).to_have_attribute("data-match-id", "routine")
-                expect(page.locator("#picks-section")).to_be_hidden()
+                expect(page.locator('li.row[data-id="near"]')).to_be_hidden()
+                self.assertEqual(picks(), ["low", "best", "near"])
+                # With no services at all there is no top card, and the picks are the three best, all outside the lineup.
                 page.locator("#btn-clear").click()
                 expect(hero).to_be_hidden()
+                self.assertEqual(picks(), ["routine", "best", "near"])
+                self.assertEqual(off(), ["routine", "best", "near"])
                 page.locator("#btn-filters-close").click()
                 page.locator("#btn-all").click()
                 expect(hero).to_be_hidden()
-                expect(page.locator("#picks .pick")).to_have_count(0)
-                expect(page.locator("#picks-section")).to_be_hidden()
+                self.assertEqual(picks(), ["routine", "best", "near"])
+                # A match nobody is known to carry is never a pick, however it is rated.
+                expect(page.locator('#picks [data-match-id="unknown"]')).to_have_count(0)
 
     def test_later_picks_fill_from_nearest_windows_and_finished_match_is_removed(self):
         fixtures = [("early", "2026-10-09T18:00:00+00:00", "pre", "ESPN+"),
@@ -970,11 +1004,17 @@ class BrowserChecks(unittest.TestCase):
                 expect(page.locator('#nextup-h')).to_have_text('Next up')
                 expect(page.locator('#nextup-status')).to_have_text('Kickoff 3:00 pm')
                 expect(page.locator('#nextup-count')).to_have_text('2h 00m')
-                expect(page.locator('#picks .pick')).to_have_count(0)
+                # The picks still come from every service: the ESPN+ matches, now outside the lineup.
+                self.assertEqual(page.locator('#picks .pick').evaluate_all('els => els.map(e => e.dataset.matchId)'), ['live-second', 'future', 'fourth'])
+                expect(page.locator('#picks .pick.match--off')).to_have_count(3)
+                # A blurb its row hides outside the lineup still shows on its pick.
+                expect(page.locator('li.row[data-id="future"] .row__story')).to_be_hidden()
+                expect(page.locator('#picks .pick[data-match-id="future"] .row__story')).to_be_visible()
+                expect(page.locator('#picks .pick[data-match-id="future"] .row__story')).to_contain_text('Specific context for future.')
                 page.locator('#btn-filters-close').click()
                 page.locator('#btn-all').click()
                 expect(page.locator('#nextup')).to_have_attribute('data-match-id', 'mls')
-                expect(page.locator('#picks .pick')).to_have_count(0)
+                expect(page.locator('#picks .pick')).to_have_count(3)
 
     def test_top_card_counts_down_to_the_next_match_to_watch_until_one_is_live(self):
         fixtures = [("tbd", "2026-10-07T17:05:00+00:00", "pre", "ESPN+", "eng.1"),
@@ -1257,8 +1297,10 @@ class BrowserChecks(unittest.TestCase):
                 page.reload()
                 expect(page.locator('#picks .pick:not([data-match-id="unconfirmed-live"])').first).to_have_attribute('data-match-id', 'esp')
                 page.locator('#btn-menu').click()
+                # Hiding La Liga hides its match from the schedule, not from the picks, where its priority still leads.
                 page.locator('#comp-pills [data-key="esp.1"] .lg').click()
-                expect(page.locator('#picks .pick:not([data-match-id="unconfirmed-live"])').first).to_have_attribute('data-match-id', 'eng')
+                expect(page.locator('li.row[data-id="esp"]')).to_be_hidden()
+                expect(page.locator('#picks .pick:not([data-match-id="unconfirmed-live"])').first).to_have_attribute('data-match-id', 'esp')
                 page.locator('#btn-reset').click()
                 expect(page.locator('#picks .pick:not([data-match-id="unconfirmed-live"])').first).to_have_attribute('data-match-id', 'eng')
                 self.assertIsNone(page.evaluate("localStorage.getItem('ssg4-league-order')"))
@@ -1588,19 +1630,19 @@ class BrowserChecks(unittest.TestCase):
     def test_picks_are_scored_before_the_ai_rates_them(self):
         with self.page("after") as (page, _):
             expect(page.locator("#picks-h")).to_have_text("Top three")
-            expect(page.locator("#picks-sub")).to_have_text("Selected by Outlook score + league priority · shown in kickoff order")
+            expect(page.locator("#picks-sub")).to_have_text("Selected by Outlook score + league priority from every service and competition · shown in kickoff order")
         story = self.overview_story()
         story["rankings"] = {mid: {"score": 50, "popularity": 50, "gameplay": 50, "impact": 50} for mid in ("upcoming", "midnight", "late")}
         with self.page("after", story=story) as (page, _):
             expect(page.locator("#picks-h")).to_have_text("Top three")
-            expect(page.locator("#picks-sub")).to_have_text("Selected by AI rating + Outlook score + league priority · shown in kickoff order")
+            expect(page.locator("#picks-sub")).to_have_text("Selected by AI rating + Outlook score + league priority from every service and competition · shown in kickoff order")
             # A story that records no model leaves the tooltip's rating unattributed rather than guessed.
             title = page.locator('#picks .pick[data-match-id="upcoming"] .pick__rating').get_attribute("title")
             self.assertIn("AI rating: Popularity 50", title)
         # A page built without scores (an older build) still lists the next matches, without calling them picks.
         with self.page("after", html=re.sub(r' data-outlook="[^"]*"', "", render_page(build))) as (page, _):
             expect(page.locator("#picks-h")).to_have_text("Upcoming")
-            expect(page.locator("#picks-sub")).to_have_text("In kickoff order · no ratings yet")
+            expect(page.locator("#picks-sub")).to_have_text("In kickoff order · every service and competition · no ratings yet")
 
     # Five matches in the next 24 hours, one league, statures chosen so the Outlook scores differ:
     # 100 x (0.40 x stature / 150 + 0.25 x 0.5 + 0 + 0 + 0.10 x 0.5) gives a 25.5, b 57.5, c 33.5,
@@ -1618,7 +1660,7 @@ class BrowserChecks(unittest.TestCase):
             self.assertNotIn("AI Summary", page.locator("body").inner_text())
             expect(page.locator("#nextup")).to_have_attribute("data-match-id", "a")
             self.assertEqual(page.locator("#picks .pick").evaluate_all("els => els.map(e => e.dataset.matchId)"), ["b", "d", "e"])
-            expect(page.locator("#picks-sub")).to_have_text("Selected by Outlook score + league priority · shown in kickoff order")
+            expect(page.locator("#picks-sub")).to_have_text("Selected by Outlook score + league priority from every service and competition · shown in kickoff order")
             label = page.locator('#picks .pick[data-match-id="b"] .pick__rating')
             expect(label).to_have_text("Pick score · 66/100")      # 80% of 57.5 and 20% of league priority 100
             self.assertEqual(label.get_attribute("title"),
@@ -1637,7 +1679,7 @@ class BrowserChecks(unittest.TestCase):
         with self.page("after", html=html, story=story) as (page, feed):
             self.assertGreater(feed["stories"], 0)
             self.assertEqual(page.locator("#picks .pick").evaluate_all("els => els.map(e => e.dataset.matchId)"), ["b", "c", "d"])
-            expect(page.locator("#picks-sub")).to_have_text("Selected by AI rating + Outlook score + league priority · shown in kickoff order")
+            expect(page.locator("#picks-sub")).to_have_text("Selected by AI rating + Outlook score + league priority from every service and competition · shown in kickoff order")
             label = page.locator('#picks .pick[data-match-id="b"] .pick__rating')
             expect(label).to_have_text("Pick score · 67/100")      # 80% of 58.75 and 20% of 100
             # The model settings.toml asked for, not the dated snapshot that answered.

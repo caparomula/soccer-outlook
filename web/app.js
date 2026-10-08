@@ -732,9 +732,14 @@
     }
     return lines.join(' ');
   }
-  function availableUpcoming(now) {
-    return rows.filter(function (r) { return r._b && editorialPasses(r) && r._state !== 'post' && (r._k > now || r._b === 'live'); });
+  function upcomingIn(now, keep) {
+    return rows.filter(function (r) { return r._b && keep(r) && r._state !== 'post' && (r._k > now || r._b === 'live'); });
   }
+  function availableUpcoming(now) { return upcomingIn(now, editorialPasses); }
+  // Known coverage on some service, whatever this viewer's lineup: a listed broadcaster the page maps
+  // to a service, or the competition's usual home. A match nobody is known to carry can't be watched
+  // by anyone, so it is never a pick.
+  function covered(r) { return r._o.some(function (o) { return o.v.length; }) || !!(r._r && r._r.v.length); }
   // The top card answers "what can I watch now, or next?" among the matches that pass the lineup:
   // the best-rated match ESPN reports in progress, or else the soonest confirmed kickoff however
   // far ahead (a time to be set can't be put in order, as in the summary's "Next kickoff"; such a
@@ -947,8 +952,12 @@
     return sc ? 'live ' + sc + (clk ? ', ' + clk : '') : timeLabel(r) + dayTag(r, now);
   }
   function ratingDetails(rating) { return 'Popularity ' + rating.popularity + ' · Expected gameplay ' + rating.gameplay + ' · Competitive impact ' + rating.impact; }
+  // The top three show the presumed best matches, so they come from every covered match on every
+  // service and in every competition, whatever the lineup and filters; a pick this viewer can't watch
+  // looks as its schedule row does outside the lineup. The top card and the schedule stay filtered.
+  var pickedRows = [];
   function renderPicks(now) {
-    var available = availableUpcoming(now).filter(function (r) { return r !== nextRow; });
+    var available = upcomingIn(now, covered).filter(function (r) { return r !== nextRow; });
     var chosen = available.filter(function (r) { return inFocus(r, now); }).sort(byRating).slice(0, 3);
     var later = available.filter(function (r) { return !inFocus(r, now); }).sort(byTime);
     while (chosen.length < 3 && later.length) {
@@ -957,13 +966,15 @@
       later = later.filter(function (r) { return r._k >= boundary; });
     }
     chosen.sort(function (a, b) { return byTime(a, b) || byRating(a, b); });
+    pickedRows = chosen;
     document.getElementById('picks-section').hidden = !chosen.length;
     picksEl.innerHTML = '';
     // Without ratings the cards are simply the next matches; calling them picks would claim a judgment.
     var rated = chosen.some(function (r) { return pickValue(r) !== null; }), aiRated = chosen.some(function (r) { return ratingOf(r); });
     document.getElementById('picks-h').textContent = !rated ? 'Upcoming' : chosen.length === 3 ? 'Top three' : chosen.length === 2 ? 'Top two' : 'Top pick';
-    document.getElementById('picks-sub').textContent = !rated ? 'In kickoff order · no ratings yet'
-      : (aiRated ? 'Selected by AI rating + Outlook score + league priority' : 'Selected by Outlook score + league priority') + ' · shown in kickoff order';
+    document.getElementById('picks-sub').textContent = !rated ? 'In kickoff order · every service and competition · no ratings yet'
+      : (aiRated ? 'Selected by AI rating + Outlook score + league priority' : 'Selected by Outlook score + league priority') +
+        ' from every service and competition · shown in kickoff order';
     chosen.forEach(function (r) { picksEl.appendChild(r._card.render('pick', now)); });
   }
 
@@ -995,8 +1006,9 @@
       var meta = r.querySelector('.row__meta'); meta.after(existing);
       this.newsSignature = signature;
     }
-    existing.hidden = !editorialPasses(r) || r._state === 'post' || (r._state !== 'in' && r._k < now);
+    existing.hidden = !editorialPasses(r) || staleNews(r, now);
   };
+  function staleNews(r, now) { return r._state === 'post' || (r._state !== 'in' && r._k < now); }
   MatchCard.prototype.render = function (role, now, host) {
     var r = this.row;
     this.renderNews(now);
@@ -1004,9 +1016,11 @@
       r.dataset.matchRole = role; r._matchCard = this; this.tick(r, now);
       return r;
     }
-    var top = role === 'nextup';
+    var top = role === 'nextup', off = !onSvc(r);
     host = host || document.createElement('article');
-    host.className = (top ? 'nextup' + (r._state === 'in' ? ' nextup--live' : '') : 'pick') + ' svc-' + r._svc;
+    // Only a pick can be off the lineup; it takes the off-lineup grey and the dimmed look of its row.
+    host.className = (top ? 'nextup' + (r._state === 'in' ? ' nextup--live' : '') : 'pick') + ' svc-' + (off ? 'off' : r._svc) +
+      (off ? ' match--off' : '');
     host.dataset.matchRole = role; host.dataset.matchId = r.getAttribute('data-id');
     host._row = r; host._matchCard = this; host.replaceChildren();
     var emblem = r.querySelector('.row__league .lg'), badge = null;
@@ -1044,6 +1058,9 @@
     var content = r.querySelector('.row__body').cloneNode(true);
     content.classList.add('match__body');
     if (top) content.id = 'nextup-match';
+    // A row outside the lineup hides its blurb; a pick shows it, since the pick is there to be read.
+    var blurb = content.querySelector('.row__story');
+    if (blurb && role === 'pick') blurb.hidden = staleNews(r, now);
     content.querySelectorAll('.team__name').forEach(function (name) {
       var link = document.createElement('a'); link.href = '#outlook'; link.textContent = name.textContent;
       link.addEventListener('click', function (ev) {
@@ -1091,7 +1108,9 @@
   }
 
   function renderMisses(groups, now) {
-    var pool = upcoming(groups).filter(function (r) { return inFocus(r, now) && r._svc === 'none' && !r._unk && r._o.length && r._score >= 85 && !compHidden(r); }).sort(function (a, c) { return c._score - a._score || a._k - c._k; }).slice(0, 4);
+    var pool = upcoming(groups).filter(function (r) {
+      return inFocus(r, now) && r._svc === 'none' && !r._unk && r._o.length && r._score >= 85 && !compHidden(r) && pickedRows.indexOf(r) < 0;
+    }).sort(function (a, c) { return c._score - a._score || a._k - c._k; }).slice(0, 4);
     missesEl.innerHTML = '';
     pool.forEach(function (r) {
       var id = r.getAttribute('data-id');
