@@ -1718,6 +1718,35 @@ class BrowserChecks(unittest.TestCase):
         with self.page("after", story=self.overview_story([])) as (page, _):
             expect(page.locator("#story-by")).to_have_text("AI Summary")
 
+    def test_the_ratings_designs_overview_reads_the_same_whatever_the_filters(self):
+        text = "Arsenal meet Chelsea with the league lead at stake, and Spain's women visit the United States."
+        story = dict(self.overview_story(), lede_items=[], overview={
+            "text": text, "model": "gemini-3.1-pro-preview", "requested_model": "gemini-3.1-pro-preview", "effort": "medium",
+            "sources": [{"url": "https://news.example/a", "title": "A"}, {"url": "https://news.example/b", "title": "B"},
+                        {"url": "javascript:alert(1)", "title": "not a page"}]})
+        with self.page("after", story=story) as (page, _):
+            lede = page.locator("#story-lede")
+            expect(page.locator("#story")).to_be_visible()
+            expect(page.locator("#story-h")).to_have_text("Overview")
+            expect(lede).to_have_text(text)
+            # One plain paragraph: no phrases to dim or hide, and only real links among its sources.
+            expect(lede.locator(".editorial-part")).to_have_count(0)
+            expect(page.locator("#story-by")).to_have_text("AI Summary · news.example, news.example (2)")
+            # With no services and no competitions, every visitor still reads the same overview.
+            page.locator("#btn-menu").click()
+            page.locator("#btn-clear").click()
+            page.locator("#btn-filters-close").click()
+            expect(page.locator('li.row[data-id="upcoming"]')).to_be_hidden()
+            expect(page.locator("#story")).to_be_visible()
+            expect(lede).to_have_text(text)
+        # A malformed overview is ignored, and the page falls back to a full-design story's overview if it has one.
+        broken = dict(self.overview_story(), overview={"text": ["not", "text"]})
+        with self.page("after", story=broken) as (page, _):
+            expect(page.locator("#story-lede")).to_contain_text("league lead at stake")
+        empty = dict(self.overview_story(), lede_items=[], overview={"text": "  "})
+        with self.page("after", story=empty) as (page, _):
+            expect(page.locator("#story")).to_be_hidden()
+
 
 # Exit status when Chromium can't start: the checks didn't run, which says nothing about the page.
 # 77 is automake's "skipped"; Python and argparse already use 1 and 2 for their own errors.

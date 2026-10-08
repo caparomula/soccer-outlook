@@ -53,7 +53,13 @@ On failure, a refresh keeps today's earlier news, and ratings are still attempte
 
 settings.toml's [ai] table decides: `enabled` is the owner's switch, `design` is "ratings" (the
 ratings mode above, once a day) or "full" (Claude's research, overview and blurbs as well, once a
-day), and `model` and `effort` say who does it. In the ratings design every mode that writes rates,
+day), and `model` and `effort` say who does it. In the ratings design, `overview_model` and
+`overview_effort` add the overview: once the ratings are written, one request with that model's own
+web search (Claude's web search and fetch, OpenAI's web_search, Google's grounding) for a plain
+paragraph about every match with known coverage in the time frame the page's top three come from,
+on any service and in any competition, since every visitor reads it whatever they follow. It is
+published only with a cited page the model's search returned (checked_overview says how), and a
+failure costs the page its overview, never its ratings. In the ratings design every mode that writes rates,
 and daily and auto rate once a day. A story written by another design, model or effort than the
 settings name now doesn't count as today's, and even keep writes when the published one is such a
 story: the push that changes the settings puts the change on the page at once. Off (or unreadable,
@@ -70,16 +76,19 @@ Usage: python story.py --facts work/facts.json --out site/story.json [--previous
                        [--settings settings.toml] [--ignore-switch]
 """
 import argparse
+import http.client
 import json
 import os
 import re
 import sys
 import time
 import tomllib
+import urllib.error
+import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from functools import partial
-from urllib.parse import urlsplit
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from zoneinfo import ZoneInfo
 
 import providers
@@ -312,6 +321,224 @@ def overview_prompt(header, view):
             f"for context.\n\n{compact(view)}\n\n"
             f"Search first: you have up to {OVERVIEW_SEARCHES} web searches. When you are done, reply with only this JSON object and no "
             'other text: {"overview": "<the paragraph>", "sources": ["<url>"]}')
+
+
+# ---- the ratings design's overview: one request with the provider's own web search ---------------
+OVERVIEW_MAX_TOKENS = 32000           # a backstop only: the overview is a paragraph, the rest is the model's thinking
+OVERVIEW_MAX_SOURCES = 5
+CLAUDE_CONTINUATIONS = 4              # Claude's paused turns, continued as the full design's research is
+GROUNDING_HOST = "vertexaisearch.cloud.google.com"
+LINK_CHECK_AGENT = "Mozilla/5.0 (compatible; SoccerOutlookLinkCheck/1.0; +https://github.com/caparomula/soccer-outlook)"
+# providers.cost's usage keys, which every provider's reply is read into.
+REPLY_USAGE_KEYS = ("in", "cached", "cache_write", "out", "reasoning", "searches", "opens", "prompt_max")
+
+
+def link_key(url):
+    """url_key without tracking parameters: OpenAI adds utm_source=openai to the links it cites, and a
+    cited link must still match the page its search returned."""
+    try:
+        p = urlsplit(url.strip())
+        query = urlencode([(k, v) for k, v in parse_qsl(p.query, keep_blank_values=True) if not k.lower().startswith("utm_")])
+    except (AttributeError, ValueError):
+        return ""
+    return url_key(urlunsplit((p.scheme, p.netloc, p.path, query, "")))
+
+
+def sum_usage(totals, usage):
+    """Adds one reply's usage, in providers.cost's keys, to `totals`; prompt_max keeps the largest prompt."""
+    for key in REPLY_USAGE_KEYS:
+        value = usage.get(key, 0) or 0
+        totals[key] = max(totals.get(key, 0), value) if key == "prompt_max" else totals.get(key, 0) + value
+    return totals
+
+
+def reply_usage(u):
+    """usage_of's keys in providers.cost's."""
+    return {"in": u["in"], "cached": u["cache_read"], "cache_write": u["cache_write"], "out": u["out"],
+            "reasoning": u.get("reasoning", 0), "searches": u["searches"], "opens": u["fetches"], "prompt_max": u["prompt_max"]}
+
+
+def find_json(text, key, kind):
+    """The first JSON object in `text` holding `key` with a value of type `kind`, and where it starts and
+    ends; (None, None, None) if there is none. Models put such an answer after prose or inside a code
+    fence, so the whole text is searched."""
+    decoder = json.JSONDecoder()
+    for m in re.finditer(r"\{", text or ""):
+        try:
+            value, end = decoder.raw_decode(text, m.start())
+        except ValueError:
+            continue
+        if isinstance(value, dict) and isinstance(value.get(key), kind):
+            return value, m.start(), end
+    return None, None, None
+
+
+def plain_text(text):
+    """Model-written text as the page shows it: a Markdown link keeps its words, and a bare URL, an
+    inline citation such as '([site](url))' and a footnote marker such as [1] or [2, 3] go, since the
+    page lists its sources separately (Gemini 3.1 Pro numbered its claims on 8 October)."""
+    text = re.sub(r"\s*\(\s*\[[^\]]*\]\(\s*https?://[^)\s]*\s*\)\s*\)", "", text or "")
+    text = re.sub(r"\[([^\]]*)\]\(\s*https?://[^)\s]*\s*\)", r"\1", text)
+    text = re.sub(r"\(?\s*https?://[^\s)]+\s*\)?", " ", text)
+    text = re.sub(r"\s*\[\d+(?:\s*[,–-]\s*\d+)*\]", "", text)
+    return re.sub(r"\s+([.,;:!?])", r"\1", re.sub(r"\s+", " ", text)).strip()
+
+
+def claude_text(content):
+    """The text after the reply's last non-text block (its research and thinking), with each text
+    block's citations as (start, end, url) spans of that text."""
+    last = max((i for i, b in enumerate(content) if getattr(b, "type", "") != "text"), default=-1)
+    pieces, native = [], []
+    for block in content[last + 1:]:
+        text, base = getattr(block, "text", "") or "", sum(map(len, pieces))
+        for c in getattr(block, "citations", None) or []:
+            url = getattr(c, "url", None)
+            if isinstance(url, str) and link_key(url):
+                native.append((base, base + len(text), url))
+        pieces.append(text)
+    return "".join(pieces), native
+
+
+def claude_search(client, model, effort, system, prompt, key, kind, searches, reads, max_tokens):
+    """A Claude request with dynamic web search and fetch, as the full design's research makes it
+    (effort, caching, the server-side fallback), continued while the server pauses the turn, as a
+    providers.Reply. The answer is the final text; if that holds no JSON answer (an object with `key`
+    of type `kind`), every text block of the turn is searched for one."""
+    messages, reply, seen, usage, texts = [{"role": "user", "content": prompt}], providers.Reply(served=model), {}, {}, []
+    tool_list = [{"type": "web_search_20260209", "name": "web_search", "max_uses": searches},
+                 {"type": "web_fetch_20260209", "name": "web_fetch", "max_uses": reads}]
+    for _ in range(CLAUDE_CONTINUATIONS):
+        with client.beta.messages.stream(model=model, max_tokens=max_tokens, system=system, messages=messages,
+                                         tools=tool_list, output_config={"effort": effort}, cache_control={"type": "ephemeral"},
+                                         **request_options(model)) as stream:
+            message = stream.get_final_message()
+        reply.served = message.model
+        sum_usage(usage, reply_usage(usage_of(message)))
+        collect_sources(message.content, seen)
+        for block in message.content:
+            if getattr(block, "type", "") == "text":
+                texts.append(getattr(block, "text", "") or "")
+            query = (getattr(block, "input", None) or {}).get("query") if getattr(block, "type", "") == "server_tool_use" else None
+            if isinstance(query, str) and query.strip() and query.strip() not in reply.queries:
+                reply.queries.append(query.strip())
+        if message.stop_reason != "pause_turn":
+            break
+        messages.append({"role": "assistant", "content": message.content})
+    reply.text, reply.native = claude_text(message.content)
+    if find_json(reply.text, key, kind)[0] is None:
+        reply.text, reply.native = "".join(texts), []
+    reply.stop = {"end_turn": "end", "max_tokens": "max_tokens", "refusal": "refusal"}.get(message.stop_reason, message.stop_reason or "unknown")
+    reply.usage = usage
+    reply.returned = {link_key(url): (url, title) for url, title in seen.values() if link_key(url)}
+    return reply
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *args, **kwargs):
+        return None
+
+
+def location(url, timeout=20):
+    """Where a redirect points, read without following it, or None. Google's grounding links point
+    through a redirect to the page its search found."""
+    req = urllib.request.Request(url, headers={"User-Agent": LINK_CHECK_AGENT})
+    try:
+        with urllib.request.build_opener(_NoRedirect).open(req, timeout=timeout):
+            return None
+    except urllib.error.HTTPError as e:
+        return e.headers.get("Location") if 300 <= e.code < 400 else None
+    except (urllib.error.URLError, OSError, ValueError, http.client.HTTPException):
+        return None
+
+
+def check_link(url, timeout=20):
+    """Whether a page loads now: live, dead (404 or 410, a 'not found' title, or a redirect to the
+    site's front page), blocked (the site refused a script: 401, 403, 429, 451) or unreachable."""
+    req = urllib.request.Request(url, headers={"User-Agent": LINK_CHECK_AGENT, "Accept": "text/html,*/*;q=0.8"})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as response:
+            head = response.read(65536).decode("utf-8", "replace")
+            final, status = response.geturl(), response.status
+    except urllib.error.HTTPError as e:
+        verdict = "dead" if e.code in (404, 410) else "blocked" if e.code in (401, 403, 429, 451, 999) else "unreachable"
+        return {"state": verdict, "status": e.code}
+    except (urllib.error.URLError, OSError, ValueError, http.client.HTTPException) as e:
+        return {"state": "unreachable", "status": None, "why": type(e).__name__}
+    title = re.search(r"<title[^>]*>(.*?)</title>", head, re.I | re.S)
+    if title and re.search(r"\b(404|not found|page not found)\b", title.group(1), re.I):
+        return {"state": "dead", "status": status, "why": "a 'not found' page"}
+    if urlsplit(url).path.strip("/") and not urlsplit(final).path.strip("/"):
+        return {"state": "dead", "status": status, "why": "redirected to the front page"}
+    return {"state": "live", "status": status}
+
+
+def overview_header(facts):
+    return f"It is {clock(facts['built_at'])} on {facts.get('weekday', '')}, {facts.get('date', '')}, US Eastern time."
+
+
+def overview_request(model, effort, key, facts, client=None):
+    """The overview asked of `model` with its provider's own web search: a providers.Reply. Claude goes
+    through the anthropic SDK (`client`), OpenAI and Google through providers.request."""
+    prompt = overview_prompt(overview_header(facts), overview_view(facts))
+    if providers.MODELS[model] == "anthropic":
+        return claude_search(client or claude_client(), model, effort, OVERVIEW_SYSTEM, prompt, "overview", str,
+                             OVERVIEW_SEARCHES, OVERVIEW_READS, OVERVIEW_MAX_TOKENS)
+    return providers.request(model, effort, OVERVIEW_SYSTEM, prompt, key, max_tokens=OVERVIEW_MAX_TOKENS,
+                             tool_calls=OVERVIEW_SEARCHES + OVERVIEW_READS, url_key=link_key)
+
+
+def checked_overview(reply, resolve=None, check=None, workers=8):
+    """The overview the page may show from `reply`, as ({"text", "sources"}, ""), or (None, why).
+
+    The rule the full design's research follows: a cited page counts only if the model's own search
+    returned it in this reply, and the overview is shown only with at least one such page. Google's
+    grounding links point through a redirect only its grounding service issues, so a cited one that
+    resolves counts as the page it leads to, whether or not the reply recorded the search. A model that answers from memory cites pages
+    no search returned, and its claims about squads and managers may be out of date, so its overview
+    is not shown, whatever its quality. A page that no longer loads is dropped as well; one whose site
+    refuses a script is kept, since that says nothing about the page."""
+    resolve, check = resolve or location, check or check_link      # looked up now, so a test's stand-ins apply
+    data, start, end = find_json(reply.text, "overview", str)
+    if data is None:
+        return None, "its reply held no overview" + (f" (it stopped: {reply.stop})" if reply.stop not in ("", "end") else "")
+    text = plain_text(normalize_editorial({"text": data["overview"]})["text"])
+    if not text:
+        return None, "it wrote an empty overview, having found nothing it could support"
+    text = clip(text, LIMITS["lede"])
+    sources = data.get("sources") if isinstance(data.get("sources"), list) else []
+    listed = list(dict.fromkeys(u.strip() for u in sources if isinstance(u, str) and u.strip()))
+    native = list(dict.fromkeys(url for s, e, url in reply.native if s < end and e > start))
+    redirects = sorted(set(reply.redirects) | {u for u in listed + native if urlsplit(u).netloc == GROUNDING_HOST})
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        resolved = dict(zip(redirects, pool.map(resolve, redirects)))
+    returned = dict(reply.returned)
+    for uri, title in reply.redirects.items():
+        target = resolved.get(uri)
+        if target and link_key(target):
+            returned.setdefault(link_key(target), (target, title))
+    # Only Google's grounding service issues these redirect links, so one the model cites that leads to a
+    # page is a page its search found, though Gemini 3.x replies often carry no grounding record of it.
+    for uri in redirects:
+        if resolved.get(uri) and link_key(resolved[uri]):
+            returned.setdefault(link_key(resolved[uri]), (resolved[uri], ""))
+    kept, keys = [], set()
+    for url in listed + native:
+        shown = resolved.get(url) or url
+        key = link_key(shown)
+        if key and key in returned and key not in keys:
+            keys.add(key)
+            kept.append({"url": shown, "title": (returned[key][1] or "")[:200]})
+    if not kept:
+        searched = reply.queries or reply.returned or reply.redirects
+        return None, (("it cited no pages" if not listed + native else
+                       f"none of the {len(listed)} pages it cited came from its own search")
+                      + ("; its reply recorded no search" if not searched else ""))
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        states = list(pool.map(lambda s: check(s["url"]), kept))
+    kept = [s for s, state in zip(kept, states) if state.get("state") != "dead"]
+    if not kept:
+        return None, "every page from its own search that it cited is gone"
+    return {"text": text, "sources": kept[:OVERVIEW_MAX_SOURCES]}, ""
 
 
 def tools(budget):
@@ -1157,6 +1384,43 @@ def report_cost(totals, served, model, effort, mode, seconds):
     return cost
 
 
+def add_overview(story, facts, model, effort, request=overview_request):
+    """Asks `model` for the day's overview and puts it in `story` if checked_overview passes it, logging
+    and summarizing what happened and what it cost either way. Returns the run's account for
+    --usage-out. A failure costs the page its overview, never its ratings."""
+    provider = providers.MODELS[model]
+    key_name = providers.KEY_NAMES[provider]
+    account = {"model": model, "effort": effort, "served": None, "published": False, "why": "", "usage": {}, "cost_usd": None,
+               "seconds": 0.0, "sources": 0}
+    story.update(overview_model=model, overview_effort=effort)
+    if not overview_view(facts)["fixtures"]:
+        account["why"] = "no match with known coverage in the top three's time frame"
+    elif not os.environ.get(key_name):
+        account["why"] = f"no {key_name}"
+    else:
+        started = time.monotonic()
+        try:
+            reply = request(model, effort, os.environ[key_name], facts)
+            account.update(served=reply.served or model, usage=sum_usage({}, reply.usage))
+            overview, account["why"] = checked_overview(reply)
+        except Exception as e:     # the overview is extra: its failure must not cost the page its ratings
+            overview, account["why"] = None, f"the request failed: {type(e).__name__}: {e}"[:400]
+        account["seconds"] = round(time.monotonic() - started, 1)
+        priced_as = account["served"] if account["served"] in providers.MODELS else model
+        account["cost_usd"] = providers.cost(priced_as, {k: account["usage"].get(k, 0) for k in REPLY_USAGE_KEYS})
+        if overview:
+            story["overview"] = dict(overview, model=account["served"], requested_model=model, effort=effort)
+            account.update(published=True, sources=len(overview["sources"]))
+    u = account["usage"]
+    spent = (f"; {u.get('searches', 0) + u.get('opens', 0)} searches recorded, input {u.get('in', 0):,} tokens, output "
+             f"{u.get('out', 0):,}; {account['seconds']:.0f}s; about ${account['cost_usd']:.4f}" if account["cost_usd"] is not None else "")
+    line = (f"Overview: {account['served'] or model} at {effort}{spent}; "
+            + (f"published with {account['sources']} source(s)" if account["published"] else f"not published: {account['why']}"))
+    log(line)
+    summary(line)
+    return account
+
+
 def ai_settings(path):
     """settings.toml's [ai] table as providers.check_ai reads it ({"enabled", "design", "model", "effort",
     "provider"}), or None when the file can't be read or the table is malformed. build.py refuses to
@@ -1171,11 +1435,14 @@ def ai_settings(path):
 
 
 def written_by(story, config):
-    """Whether `story` came from the design, model and effort settings.toml names now. One from another
-    (the published story, on the day the model is switched) is not today's, so the next run writes."""
+    """Whether `story` came from the design, model and effort settings.toml names now, and in the ratings
+    design the same overview model and effort (or none). One from another (the published story, on the
+    day the model is switched) is not today's, so the next run writes."""
     kinds = ("ratings",) if config["design"] == "ratings" else ("full", "refresh")
+    same_overview = config["design"] != "ratings" or (
+        (story.get("overview_model"), story.get("overview_effort")) == (config.get("overview_model"), config.get("overview_effort")))
     return (story.get("kind") in kinds and (story.get("requested_model") or story.get("model")) == config["model"]
-            and story.get("effort") == config["effort"])
+            and story.get("effort") == config["effort"] and same_overview)
 
 
 def load_previous(path):
@@ -1302,6 +1569,9 @@ def main():
     seconds = time.monotonic() - started
     cost = report_cost(totals, served, model, effort, mode, seconds) if any(totals.values()) else None
     published = bool(story)
+    overview = None
+    if published and mode == "ratings" and config and config.get("overview_model"):
+        overview = add_overview(story, facts, config["overview_model"], config["overview_effort"])
     if args.usage_out:
         coverage = (story or {}).get("ranking_coverage", {})
         save(args.usage_out, {"mode": mode, "model": model, "served": served, "provider": provider, "effort": effort,
@@ -1310,7 +1580,7 @@ def main():
                               "published": published, "notes": len(story["notes"]) if story else 0,
                               "forecast": bool(story and story.get("forecast")),
                               "rated": coverage.get("rated", 0), "carried": coverage.get("carried", 0),
-                              "dropped": story["_dropped"] if story else None})
+                              "dropped": story["_dropped"] if story else None, "overview": overview})
     if published:
         story.pop("_dropped", None)
         # model is who answered (a fallback or a dated snapshot shows here); requested_model is what

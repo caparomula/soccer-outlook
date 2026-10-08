@@ -24,15 +24,26 @@
 #   effort   how hard the model thinks: low or medium suit ratings. Claude takes low, medium, high,
 #            xhigh or max; OpenAI none, minimal, low, medium, high, xhigh or max; Google minimal, low,
 #            medium or high.
+#   overview_model, overview_effort
+#            the ratings design only, and optional (leave both out for no overview): once the ratings
+#            are written, this model searches the web and writes the overview at the top of the page,
+#            one plain paragraph about every match with known coverage in the time frame the top
+#            three come from, on every service and in every competition, so it reads the same for
+#            every visitor. It is published only with a page its own search returned. Any model above
+#            that can search: claude-sonnet-5-5 or claude-opus-5-5, any OpenAI model, gemini-3.8-flash
+#            or gemini-3.1-pro-preview. In a blind test on 8 October 2026 gemini-3.1-pro-preview's
+#            overview was graded best, for about $0.05 to $0.08 a day (plus its searches).
 #
-# The commit that changes any of these rebuilds the page and writes that day's ratings or storylines
-# with the new choice at once (one paid run), rather than at the next morning's build.
+# The commit that changes any of these rebuilds the page and writes that day's ratings (and overview)
+# or storylines with the new choice at once (one paid run), rather than at the next morning's build.
 
 [ai]
 enabled = true
 design = "ratings"
 model = "gpt-6.1-sol"
 effort = "low"
+overview_model = "gemini-3.1-pro-preview"
+overview_effort = "medium"
 
 
 # ---- Pick score ----------------------------------------------------------------------------------

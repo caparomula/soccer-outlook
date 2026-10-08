@@ -6,8 +6,9 @@
 #
 # The AI's part (story.py) is chosen in settings.toml's [ai] table: whether there is one, its design
 # and which model does it, at what effort. The ratings design (gpt-6.1-sol since 8 October 2026)
-# rates every match of the next three days once a day, about $0.06 a run; the full design has Claude
-# research and write the overview and blurbs too, about $1.80. Either way the day's run is the first
+# rates every match of the next three days once a day, about $0.06 a run, and gemini-3.1-pro-preview
+# then searches the web and writes the overview, about $0.05 to $0.08 plus its searches; the full
+# design has Claude research and write the overview and blurbs too, about $1.80. Either way the day's run is the first
 # scheduled build of the day (normally the early-morning one; if it fails or GitHub never starts it,
 # the next one), and the midday and evening builds, which still refresh fixtures, channels and scores,
 # keep it. A build after a code push republishes the current story without calling anything, unless

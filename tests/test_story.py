@@ -248,6 +248,7 @@ RUN_FACTS = {
     "league_candidates": [{"league_id": "eng.1", "competition": "Premier League", "matches": [fixture("1", 3)]},
                           {"league_id": "esp.1", "competition": "La Liga", "matches": [fixture("2", 30, "esp.1")]}],
     "ranking_candidates": [fixture("1", 3), fixture("2", 30, "esp.1"), fixture("3", 60), fixture("4", 80), fixture("5", 100)],
+    "overview_fixtures": [fixture("1", 3)],
 }
 
 
@@ -530,10 +531,10 @@ class Modes(unittest.TestCase):
         self.assertEqual(modes, ["full"])
         self.assertEqual((result["date"], result["kind"], result["lede"]), ("2026-10-07", "full", "Today's."))
 
-    def main(self, mode, previous, key="test-key", writer=None, settings=FULL, extra=(), key_name="ANTHROPIC_API_KEY"):
+    def main(self, mode, previous, key="test-key", writer=None, settings=FULL, extra=(), key_name="ANTHROPIC_API_KEY", keys=None):
         """Runs story.main() on RUN_FACTS with its own settings file (`settings` is its text, or None
         for no file at all), so the repository's settings never decide a test. `key` goes in `key_name`,
-        and no other provider key is set."""
+        `keys` adds others ({name: key}), and no other provider key is set."""
         with tempfile.TemporaryDirectory() as tmp:
             facts_path, prev_path, out = Path(tmp) / "facts.json", Path(tmp) / "prev.json", Path(tmp) / "story.json"
             facts_path.write_text(json.dumps(dict(RUN_FACTS, date="2026-10-07")))
@@ -548,6 +549,7 @@ class Modes(unittest.TestCase):
             env = {k: v for k, v in os.environ.items() if k not in providers.KEY_NAMES.values()}
             if key:
                 env[key_name] = key
+            env.update(keys or {})
             writer = writer or (lambda *a: self.fail("no API call expected"))
             with patch.object(sys, "argv", args), patch.dict(os.environ, env, clear=True), \
                     patch.object(story, "write_story", writer), patch.object(story, "log", lambda *_: None):
@@ -727,6 +729,182 @@ class Switch(unittest.TestCase):
         self.assertEqual(body["systemInstruction"]["parts"][0]["text"], story.SCORES_SYSTEM)
         self.assertEqual(body["generationConfig"]["thinkingConfig"], {"thinkingLevel": "low"})
         self.assertEqual((result["requested_model"], result["rankings"]["2"]["score"]), ("gemini-3.1-flash-lite", 40.0))
+
+
+RATINGS_OVERVIEW = RATINGS + 'overview_model = "gemini-3.1-pro-preview"\noverview_effort = "medium"\n'
+REDIRECT = "https://vertexaisearch.cloud.google.com/grounding-api-redirect/"
+
+
+def overview_reply(text, **over):
+    return providers.Reply(**dict({"text": text, "stop": "end", "served": "test"}, **over))
+
+
+def live(url):
+    return {"state": "live", "status": 200}
+
+
+class Overview(unittest.TestCase):
+    """The ratings design's overview: what of a model's answer may reach the page, and how the daily run
+    asks for it. The rule is the full design's: a cited page counts only if the model's own search
+    returned it, and an overview without one such page is not shown."""
+
+    def check(self, reply, resolve=None, check=live):
+        return story.checked_overview(reply, resolve=resolve or (lambda url: None), check=check, workers=2)
+
+    def test_only_pages_its_search_returned_are_kept_and_the_text_is_plain(self):
+        page = "https://news.example/a"
+        text = json.dumps({"overview": "Arsenal host Leeds [1]  on Saturday ([bbc](https://bbc.com/x)), and AZ visit Feyenoord [2, 3].",
+                           "sources": [page + "?utm_source=openai", "https://made.up/b", page, 7]})
+        inside = text.index("Arsenal")
+        before = "https://news.example/prose"      # its search returned it, but it is cited in prose outside the overview
+        reply = overview_reply("Here it is: " + text, returned={story.link_key(page): (page, "A preview"), story.link_key(before): (before, "")},
+                               native=[(len("Here it is: ") + inside, len("Here it is: ") + inside + 7, page), (0, 4, before)])
+        overview, why = self.check(reply)
+        self.assertEqual(why, "")
+        # Footnote markers, inline links and doubled spaces go; the page lists the sources itself.
+        self.assertEqual(overview["text"], "Arsenal host Leeds on Saturday, and AZ visit Feyenoord.")
+        # The tracked link is the page its search returned; the made-up one, and a citation outside the JSON, are not.
+        self.assertEqual(overview["sources"], [{"url": page + "?utm_source=openai", "title": "A preview"}])
+
+    def test_a_long_overview_is_cut_at_a_sentence(self):
+        page = "https://news.example/a"
+        first, second = "A" * 300 + ".", " " + "B" * 200 + "."
+        reply = overview_reply(json.dumps({"overview": first + second, "sources": [page]}), returned={story.link_key(page): (page, "")})
+        self.assertEqual(self.check(reply)[0]["text"], first)
+
+    def test_googles_grounding_links_are_its_search_whether_or_not_the_reply_records_it(self):
+        chunk, cited, expired = REDIRECT + "CHUNK", REDIRECT + "CITED", REDIRECT + "EXPIRED"
+        targets = {chunk: "https://www.marca.com/futbol/x.html", cited: "https://as.com/y"}
+        text = json.dumps({"overview": "Barcelona host Getafe.", "sources": [cited, "https://made.up/z", expired]})
+        start = text.index("Barcelona")
+        # The grounding record names one chunk, cited inside the paragraph; the model also lists a grounding
+        # link of its own (as Gemini 3.x does with no record at all), a page of its own and a dead redirect.
+        reply = overview_reply(text, redirects={chunk: "marca.com"}, native=[(start, start + 9, chunk)], queries=["barcelona getafe"])
+        overview, why = self.check(reply, resolve=targets.get)
+        self.assertEqual(overview["sources"], [{"url": "https://as.com/y", "title": ""},
+                                               {"url": "https://www.marca.com/futbol/x.html", "title": "marca.com"}])
+        # With no grounding record at all, the cited links still lead to the pages its search found.
+        bare = overview_reply(json.dumps({"overview": "Barcelona host Getafe.", "sources": [cited]}))
+        self.assertEqual(self.check(bare, resolve=targets.get)[0]["sources"], [{"url": "https://as.com/y", "title": ""}])
+
+    def test_every_reason_an_overview_is_not_shown(self):
+        page = "https://news.example/a"
+        returned = {story.link_key(page): (page, "A")}
+        cases = [
+            (overview_reply("No JSON here.", stop="max_tokens"), "its reply held no overview (it stopped: max_tokens)"),
+            (overview_reply('{"overview": ["a list"]}'), "its reply held no overview"),
+            (overview_reply('{"overview": "  ", "sources": []}'), "it wrote an empty overview, having found nothing it could support"),
+            (overview_reply('{"overview": "Text.", "sources": []}', returned=returned), "it cited no pages"),
+            (overview_reply('{"overview": "Text.", "sources": ["https://made.up/a", "https://made.up/b"]}'),
+             "none of the 2 pages it cited came from its own search; its reply recorded no search"),
+            (overview_reply('{"overview": "Text.", "sources": ["https://made.up/a"]}', returned=returned, queries=["q"]),
+             "none of the 1 pages it cited came from its own search"),
+        ]
+        for reply, why in cases:
+            with self.subTest(why=why):
+                self.assertEqual(self.check(reply), (None, why))
+        gone = overview_reply(json.dumps({"overview": "Text.", "sources": [page]}), returned=returned)
+        self.assertEqual(self.check(gone, check=lambda url: {"state": "dead", "status": 404}),
+                         (None, "every page from its own search that it cited is gone"))
+        # A site that refuses a script says nothing about the page, so the page stays.
+        self.assertEqual(len(self.check(gone, check=lambda url: {"state": "blocked", "status": 403})[0]["sources"]), 1)
+
+    def test_the_daily_run_writes_it_after_the_ratings_with_its_own_providers_key(self):
+        calls, lines, real = [], [], story.write_story
+        rate = openai_ratings(calls)
+        page = "https://www.bbc.com/sport/football/arsenal-leeds"
+        answer = json.dumps({"overview": "Arsenal host Leeds on Saturday with Saka fit.", "sources": [REDIRECT + "AAA"]})
+
+        def post(url, body, headers, **kw):
+            if "openai" in url:
+                return rate(url, body, headers, **kw)
+            calls.append((url, body, headers))
+            return {"modelVersion": "gemini-3.1-pro-preview", "candidates": [{"finishReason": "STOP", "content": {"parts": [{"text": answer}]}}],
+                    "usageMetadata": {"promptTokenCount": 6000, "candidatesTokenCount": 500, "thoughtsTokenCount": 2500}}
+        with patch.object(providers, "post_json", post), patch.object(story, "summary", lines.append), \
+                patch.object(story, "location", {REDIRECT + "AAA": page}.get), patch.object(story, "check_link", live):
+            result = self.main("daily", None, writer=real, settings=RATINGS_OVERVIEW, key="sk", key_name="OPENAI_API_KEY",
+                               keys={"GEMINI_API_KEY": "g-key"})
+        (o_url, _, _), (g_url, g_body, g_headers) = calls
+        self.assertIn("openai", o_url)                                  # the ratings first
+        self.assertEqual((g_url.rsplit("/", 1)[1], g_headers), ("gemini-3.1-pro-preview:generateContent", {"x-goog-api-key": "g-key"}))
+        facts = dict(RUN_FACTS, date="2026-10-07")
+        self.assertEqual(g_body["systemInstruction"]["parts"][0]["text"], story.OVERVIEW_SYSTEM)
+        self.assertEqual(g_body["contents"][0]["parts"][0]["text"], story.overview_prompt(story.overview_header(facts), story.overview_view(facts)))
+        self.assertEqual((g_body["tools"], g_body["generationConfig"]["thinkingConfig"]), ([{"google_search": {}}], {"thinkingLevel": "medium"}))
+        self.assertEqual(result["overview"], {"text": "Arsenal host Leeds on Saturday with Saka fit.", "sources": [{"url": page, "title": ""}],
+                                              "model": "gemini-3.1-pro-preview", "requested_model": "gemini-3.1-pro-preview", "effort": "medium"})
+        self.assertEqual((result["overview_model"], result["overview_effort"], sorted(result["rankings"])),
+                         ("gemini-3.1-pro-preview", "medium", ["1", "2", "3", "4", "5"]))
+        # 6,000 input at $2/M and 3,000 output (with thinking) at $12/M: $0.012 + $0.036.
+        overview_line = next(line for line in lines if line.startswith("Overview:"))
+        self.assertIn("about $0.0480; published with 1 source(s)", overview_line)
+
+    def test_a_failed_or_impossible_overview_never_costs_the_ratings(self):
+        calls, lines, real = [], [], story.write_story
+        rate = openai_ratings(calls)
+
+        def post(url, body, headers, **kw):
+            if "openai" in url:
+                return rate(url, body, headers, **kw)
+            raise providers.ProviderError("HTTP 503: overloaded")
+        with patch.object(providers, "post_json", post), patch.object(story, "summary", lines.append):
+            failed = self.main("daily", None, writer=real, settings=RATINGS_OVERVIEW, key="sk", key_name="OPENAI_API_KEY",
+                               keys={"GEMINI_API_KEY": "g-key"})
+            without_key = self.main("daily", None, writer=real, settings=RATINGS_OVERVIEW, key="sk", key_name="OPENAI_API_KEY")
+        for result in (failed, without_key):
+            self.assertEqual(sorted(result["rankings"]), ["1", "2", "3", "4", "5"])
+            self.assertNotIn("overview", result)
+            self.assertEqual(result["overview_model"], "gemini-3.1-pro-preview")
+        self.assertIn("not published: the request failed: ProviderError: HTTP 503: overloaded", " ".join(lines))
+        self.assertIn("Overview: gemini-3.1-pro-preview at medium; not published: no GEMINI_API_KEY", lines)
+
+    def test_changing_the_overview_model_writes_at_once_and_an_unchanged_one_is_kept(self):
+        modes = []
+
+        def writer(facts, model, effort, mode, *rest):
+            modes.append(mode)
+            return {"lede_items": [], "notes": {}, "league_blurbs": [], "league_order": [], "_dropped": 0, "rankings": {"1": {"score": 50}},
+                    "ranking_coverage": {"rated": 1, "total": 1, "carried": 0}}, model
+        fresh = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        without = dict(BY_RATINGS, version=1, date="2026-10-07", generated_at=fresh)
+        with_it = dict(without, overview_model="gemini-3.1-pro-preview", overview_effort="medium")
+        run = dict(writer=writer, key="sk", key_name="OPENAI_API_KEY", settings=RATINGS_OVERVIEW)
+        with patch.object(story, "summary", lambda *_: None):
+            self.assertEqual(self.main("keep", with_it, **run), with_it)                # nothing changed: no call
+            self.main("keep", without, **run)                                           # the push that adds the overview
+            self.main("keep", dict(with_it, overview_effort="high"), **run)             # or changes its effort
+            # Taking the overview away is a change too: the next story has none.
+            result = self.main("keep", with_it, writer=writer, key="sk", key_name="OPENAI_API_KEY", settings=RATINGS)
+        self.assertEqual(modes, ["ratings"] * 3)
+        self.assertNotIn("overview", result)
+        self.assertNotIn("overview_model", result)
+
+    def test_claude_writes_it_with_web_search_and_fetch(self):
+        page = "https://news.example/a"
+        message = SimpleNamespace(model="claude-opus-5-5", stop_reason="end_turn", usage=SimpleNamespace(
+            input_tokens=5000, output_tokens=400, cache_creation_input_tokens=0, cache_read_input_tokens=0,
+            server_tool_use=SimpleNamespace(web_search_requests=2, web_fetch_requests=0)), content=[
+            SimpleNamespace(type="server_tool_use", name="web_search", input={"query": "arsenal leeds"}),
+            SimpleNamespace(type="web_search_tool_result", content=[SimpleNamespace(type="web_search_result", url=page, title="A")]),
+            SimpleNamespace(type="text", text=json.dumps({"overview": "Arsenal host Leeds.", "sources": [page]}), citations=None)])
+        sent = []
+
+        def stream(**kwargs):
+            sent.append(kwargs)
+            return contextlib.nullcontext(SimpleNamespace(get_final_message=lambda: message))
+        client = SimpleNamespace(beta=SimpleNamespace(messages=SimpleNamespace(stream=stream)))
+        facts = dict(RUN_FACTS)
+        reply = story.overview_request("claude-opus-5-5", "medium", None, facts, client=client)
+        self.assertEqual(sent[0]["system"], story.OVERVIEW_SYSTEM)
+        self.assertEqual(sent[0]["messages"][0]["content"], story.overview_prompt(story.overview_header(facts), story.overview_view(facts)))
+        self.assertEqual([(t["type"], t["max_uses"]) for t in sent[0]["tools"]],
+                         [("web_search_20260209", story.OVERVIEW_SEARCHES), ("web_fetch_20260209", story.OVERVIEW_READS)])
+        self.assertEqual(self.check(reply), ({"text": "Arsenal host Leeds.", "sources": [{"url": page, "title": "A"}]}, ""))
+        # Opus 5.5: 5,000 input at $4/M, 400 output at $20/M and two searches at a cent.
+        self.assertAlmostEqual(providers.cost("claude-opus-5-5", reply.usage), 0.02 + 0.008 + 0.02)
+
+    main = Modes.main
 
 
 class RollingFacts(unittest.TestCase):

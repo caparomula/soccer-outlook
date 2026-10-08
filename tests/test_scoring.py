@@ -10,6 +10,7 @@ from pathlib import Path
 import re
 import tempfile
 import unittest
+from unittest.mock import patch
 
 import build
 from tests.page_fixture import FIXTURE_SETTINGS, fixture_settings, render_page
@@ -261,6 +262,35 @@ class PageScoring(unittest.TestCase):
         ok = load(base.replace('design = "ratings"\nmodel = "gpt-6.1-sol"\neffort = "low"',
                                'design = "full"\nmodel = "claude-sonnet-5-5"\neffort = "medium"'))
         self.assertEqual((ok.design, ok.model, ok.provider), ("full", "claude-sonnet-5-5", "anthropic"))
+
+    def test_the_overview_needs_a_model_that_can_search_and_the_ratings_design(self):
+        base = FIXTURE_SETTINGS.replace('effort = "low"\n', 'effort = "low"\noverview_model = "gemini-3.1-pro-preview"\noverview_effort = "medium"\n')
+        ok = load(base)
+        self.assertEqual((ok.overview_model, ok.overview_effort), ("gemini-3.1-pro-preview", "medium"))
+        self.assertEqual((load(FIXTURE_SETTINGS).overview_model, load(FIXTURE_SETTINGS).overview_effort), (None, None))
+        for change, expected in (
+                (('overview_model = "gemini-3.1-pro-preview"', 'overview_model = "gemini-3.1-flash-lite"'),
+                 "[ai] overview_model: the overview is written after a web search, so it must be one of claude-opus-5-5"),
+                (('overview_model = "gemini-3.1-pro-preview"', 'overview_model = "claude-haiku-5-5"'), "[ai] overview_model: the overview is written after a web search"),
+                (('overview_effort = "medium"', 'overview_effort = "xhigh"'), "[ai] overview_effort: gemini-3.1-pro-preview takes minimal, low, medium, high"),
+                (('overview_effort = "medium"\n', ''), "[ai]: overview_model and overview_effort go together"),
+                (('design = "ratings"\nmodel = "gpt-6.1-sol"\neffort = "low"', 'design = "full"\nmodel = "claude-opus-5-5"\neffort = "medium"'),
+                 "[ai] overview_model: the full design writes its own overview")):
+            with self.subTest(expected=expected), self.assertRaises(build.SettingsError) as raised:
+                load(base.replace(*change))
+            self.assertIn(expected, str(raised.exception))
+        # Every OpenAI model searches; so do Claude Sonnet and Opus.
+        for model, effort in (("gpt-6-luna", "low"), ("claude-sonnet-5-5", "medium")):
+            self.assertEqual(load(base.replace('"gemini-3.1-pro-preview"', f'"{model}"').replace('overview_effort = "medium"', f'overview_effort = "{effort}"')).overview_model, model)
+
+    def test_the_footer_names_the_overview_model_and_its_rule(self):
+        no_overview = self.footer(render_page(build))
+        self.assertIn("not predicted results, and the page shows no AI-written text.", no_overview)
+        with patch.object(build, "SETTINGS", replace(fixture_settings(build), overview_model="gemini-3.1-pro-preview", overview_effort="medium")):
+            footer = build.about_ai()
+        self.assertIn("Then gemini-3.1-pro-preview, a Google AI model, searches the web and writes the overview at the top (marked AI Summary)", footer)
+        self.assertIn("published only with a page its own search returned", footer)
+        self.assertNotIn("the page shows no AI-written text", footer)
 
 
 if __name__ == "__main__":

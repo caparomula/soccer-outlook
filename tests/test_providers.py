@@ -538,8 +538,10 @@ class Sources(unittest.TestCase):
         targets = {aaa: "https://www.marca.com/futbol/x.html", bbb: "https://as.com/y", ccc: "https://elsewhere.example/z"}
         states = {"https://marca.com/futbol/x.html/": {"state": "live", "status": 200}, "https://as.com/y": {"state": "dead", "status": 404},
                   "https://made.up/z": {"state": "unreachable", "status": None}, "https://elsewhere.example/z": {"state": "live", "status": 200},
-                  "https://news.example/a?utm_source=openai": {"state": "blocked", "status": 403}}
-        google = {"provider": "google", "blurbs": {"2": {"listed": ["https://marca.com/futbol/x.html/", "https://made.up/z", ccc],
+                  "https://news.example/a?utm_source=openai": {"state": "blocked", "status": 403},
+                  REDIRECT + "EXPIRED": {"state": "dead", "status": 404}}
+        expired = REDIRECT + "EXPIRED"            # a redirect that leads nowhere stays as written, and doesn't count
+        google = {"provider": "google", "blurbs": {"2": {"listed": ["https://marca.com/futbol/x.html/", "https://made.up/z", ccc, expired],
                                                          "native": [aaa, bbb, aaa]}}}
         openai = {"provider": "openai", "blurbs": {"1": {"listed": ["https://news.example/a?utm_source=openai"], "native": []}}}
         replies = [compare.Reply(redirects={aaa: "marca.com", bbb: "as.com"}),
@@ -552,15 +554,19 @@ class Sources(unittest.TestCase):
             # The page a grounding chunk led to, cited by the model as it appears on the site: from its search.
             {"url": "https://marca.com/futbol/x.html/", "listed": True, "returned": True, "state": "live", "status": 200},
             {"url": "https://made.up/z", "listed": True, "returned": False, "state": "unreachable", "status": None},
-            # A redirect the model wrote itself is followed, but it is not one of the chunks its search returned.
-            {"url": "https://elsewhere.example/z", "listed": True, "returned": False, "state": "live", "status": 200},
+            # A grounding redirect the model wrote itself, with no grounding record of it: only Google's grounding
+            # service issues these links, so one that leads to a page came from its search (Gemini 3.x replies
+            # cite them so while recording no search).
+            {"url": "https://elsewhere.example/z", "listed": True, "returned": True, "state": "live", "status": 200},
+            {"url": REDIRECT + "EXPIRED", "listed": True, "returned": False, "state": "dead", "status": 404},
             # Google's own citation of the blurb, which the model didn't list.
             {"url": "https://as.com/y", "listed": False, "returned": True, "state": "dead", "status": 404}])
         self.assertEqual(google["blurbs"]["2"]["native"], ["https://www.marca.com/futbol/x.html", "https://as.com/y"])
         self.assertEqual(openai["blurbs"]["1"]["sources"], [{"url": "https://news.example/a?utm_source=openai", "listed": True,
                                                               "returned": True, "state": "blocked", "status": 403}])
         self.assertEqual(len(checked), len(set(checked)))              # each page is fetched once
-        self.assertEqual((google["pages_returned"], openai["pages_returned"]), (2, 1))
+        # Google's two grounding chunks and the redirect the model cited that leads to a page.
+        self.assertEqual((google["pages_returned"], openai["pages_returned"]), (3, 1))
 
 
 def fixture(mid, hours, league, home="Home", away="Away"):

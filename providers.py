@@ -6,7 +6,9 @@ The page's daily AI work can run on any model in MODELS once its provider's key 
 the anthropic SDK (story.py), the others through request() here. Each model belongs to one provider,
 so settings.toml names a model alone. Only Claude runs the full design (research, overview, blurbs):
 story.py's research rests on Claude's tool use and web tools, so RESEARCH_MODELS lists the two Claude
-models that have them; every model here can do the ratings.
+models that have them; every model here can do the ratings. The ratings design's overview needs only a
+web search, so SEARCH_MODELS adds every OpenAI model and the Gemini models with Grounding with Google
+Search.
 
 Prices are list prices in USD per token, for cost lines and budgets only; each table says where and
 when it was checked. A request is tried again after a 429 or 5xx, twice, and never after a timeout or
@@ -60,6 +62,9 @@ GEMINI_SEARCH = 0.014
 MODELS = {**dict.fromkeys(ANTHROPIC_PRICES, "anthropic"), **dict.fromkeys(OPENAI_PRICES, "openai"),
           **dict.fromkeys(GEMINI_PRICES, "google")}
 RESEARCH_MODELS = ("claude-opus-5-5", "claude-sonnet-5-5")
+# Haiku 5.5 has no dynamic web tools, and Google doesn't list Grounding with Google Search for Gemini
+# 3.1 Flash-Lite.
+SEARCH_MODELS = RESEARCH_MODELS + tuple(OPENAI_PRICES) + ("gemini-3.8-flash", "gemini-3.1-pro-preview")
 DESIGNS = ("ratings", "full")
 
 OPENAI_URL = "https://api.openai.com/v1/responses"
@@ -70,15 +75,17 @@ MAX_TOKENS = 32000
 
 
 def check_ai(table):
-    """settings.toml's [ai] table, checked: ({"enabled", "design", "model", "effort", "provider"}, []), or
-    (None, problems) listing every problem found. build.py refuses to publish on a problem; story.py
-    then spends nothing, so the two never act on different readings of the file."""
+    """settings.toml's [ai] table, checked: ({"enabled", "design", "model", "effort", "provider",
+    "overview_model", "overview_effort", "overview_provider"}, []), the overview's three None when the
+    table names no overview model, or (None, problems) listing every problem found. build.py refuses to
+    publish on a problem; story.py then spends nothing, so the two never act on different readings of
+    the file."""
     if not isinstance(table, dict):
         return None, ["[ai]: must be a table"]
-    expected, problems = ("enabled", "design", "model", "effort"), []
-    extra = sorted(set(table) - set(expected))
+    expected, optional, problems = ("enabled", "design", "model", "effort"), ("overview_model", "overview_effort"), []
+    extra = sorted(set(table) - set(expected) - set(optional))
     if extra:
-        problems.append(f"[ai]: unknown key {', '.join(extra)} (expected {', '.join(expected)})")
+        problems.append(f"[ai]: unknown key {', '.join(extra)} (expected {', '.join(expected + optional)})")
     absent = [k for k in expected if k not in table]
     if absent:
         problems.append(f"[ai]: missing {', '.join(absent)}")
@@ -94,9 +101,22 @@ def check_ai(table):
         problems.append(f"[ai] effort: {model} takes {', '.join(EFFORTS[provider])}")
     if design == "full" and provider and model not in RESEARCH_MODELS:
         problems.append(f"[ai] model: the full design is Claude's research, so it needs {' or '.join(RESEARCH_MODELS)}")
+    # The overview: a paragraph written once a day after a web search, so its model must be able to search.
+    o_model, o_effort = table.get("overview_model"), table.get("overview_effort")
+    o_provider = MODELS.get(o_model) if isinstance(o_model, str) else None
+    if ("overview_model" in table) != ("overview_effort" in table):
+        problems.append("[ai]: overview_model and overview_effort go together")
+    elif "overview_model" in table:
+        if o_provider is None or o_model not in SEARCH_MODELS:
+            problems.append(f"[ai] overview_model: the overview is written after a web search, so it must be one of {', '.join(SEARCH_MODELS)}")
+        elif o_effort not in EFFORTS[o_provider]:
+            problems.append(f"[ai] overview_effort: {o_model} takes {', '.join(EFFORTS[o_provider])}")
+        if design == "full":
+            problems.append("[ai] overview_model: the full design writes its own overview; overview_model is for the ratings design")
     if problems:
         return None, problems
-    return {"enabled": enabled, "design": design, "model": model, "effort": effort, "provider": provider}, []
+    return {"enabled": enabled, "design": design, "model": model, "effort": effort, "provider": provider,
+            "overview_model": o_model, "overview_effort": o_effort if o_model else None, "overview_provider": o_provider}, []
 
 
 class ProviderError(Exception):

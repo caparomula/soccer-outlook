@@ -1323,8 +1323,27 @@
     appendEditorialText(text, item.segments); el.appendChild(text);
     return el;
   }
+  // The ratings design's overview: one plain paragraph about the whole slate, the same for every visitor,
+  // so nothing in it is filtered or dimmed. A full-design story's tagged overview follows the filters below.
+  function renderOverview(o) {
+    var storyEl = document.getElementById('story'), sources = Array.isArray(o.sources) ? o.sources : [];
+    var signature = JSON.stringify(['overview', o.text, sources.map(function (src) { return src && src.url; })]);
+    if (storyEl._signature === signature) return;
+    storyEl._signature = signature;
+    keepFocus(function () {
+      storyEl.hidden = false;
+      storyEl.removeAttribute('data-league');
+      setText(document.getElementById('story-h'), 'Overview');
+      document.getElementById('story-lede').textContent = o.text;
+      // The disclosure that the overview is written by AI; the footer says which model and how.
+      var storyBy = document.getElementById('story-by'); storyBy.textContent = 'AI Summary';
+      var links = sourceLinks(sources, 5);
+      if (links.childNodes.length) { storyBy.appendChild(document.createTextNode(' · ')); storyBy.appendChild(links); }
+    });
+  }
   function renderEditorial(now) {
     var s = STORY.s, storyEl = document.getElementById('story');
+    if (s && s.overview) return renderOverview(s.overview);
     var lead = s && Array.isArray(s.lede_items) ? s.lede_items : [];
     function eligible(item) {
       var refs = referencedRows(item);
@@ -1389,6 +1408,8 @@
     s.league_order = s.league_order.filter(function (k) { return typeof k === 'string'; });
     s.lede_items = s.lede_items.filter(function (item) { return item && typeof item === 'object'; });
     s.league_blurbs = s.league_blurbs.filter(function (item) { return item && typeof item === 'object'; });
+    var o = s.overview;
+    s.overview = o && typeof o === 'object' && typeof o.text === 'string' && o.text.trim() ? o : null;
     var written = Date.parse(typeof s.generated_at === 'string' ? s.generated_at : '');
     if (!(written > 0) || !storyIsCurrent(s, written, nowMs())) return;
     if (STORY.s && STORY.written >= written) return;   // the one on show already, or a newer one

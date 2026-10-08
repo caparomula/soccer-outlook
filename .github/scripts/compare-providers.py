@@ -39,25 +39,22 @@ CONFIGS are provider:model:effort, separated by spaces; provider is anthropic, o
 The Markdown report goes to stdout, progress to stderr.
 """
 import argparse
-import http.client
 import importlib.util
 import json
 import os
 import re
 import sys
 import time
-import urllib.error
-import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
-from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 import providers  # noqa: E402
 import story  # noqa: E402
-from providers import Reply  # noqa: E402
+Reply = providers.Reply      # the tests build replies through it
 
 _spec = importlib.util.spec_from_file_location("compare_storylines", Path(__file__).with_name("compare-storylines.py"))
 storylines = importlib.util.module_from_spec(_spec)
@@ -66,18 +63,15 @@ _spec.loader.exec_module(storylines)
 PROVIDERS = tuple(providers.PROVIDER_NAMES)
 KEYS = providers.KEY_NAMES
 EFFORTS = providers.EFFORTS
-# Ratings only: Haiku 5.5 has no dynamic web tools (story.py), and Google doesn't list Grounding with
-# Google Search for Gemini 3.1 Flash-Lite.
-RATINGS_ONLY = {("anthropic", m) for m in story.RATINGS_ONLY_MODELS} | {("google", "gemini-3.1-flash-lite")}
-GROUNDING_HOST = "vertexaisearch.cloud.google.com"
+# Ratings only: the models that can't search the web here (providers.SEARCH_MODELS says why).
+RATINGS_ONLY = {(p, m) for m, p in providers.MODELS.items() if m not in providers.SEARCH_MODELS}
+GROUNDING_HOST = story.GROUNDING_HOST
 RESEARCH_FIXTURES = 6
 RESEARCH_SEARCHES, RESEARCH_FETCHES = 8, 4      # Claude's web search and web fetch; OpenAI's max_tool_calls is their sum
 RESEARCH_MAX_TOKENS = 32000
-MAX_CONTINUATIONS = 4                           # Claude's paused turns, as story.py continues them
 BLURB_LIMIT = story.LIMITS["blurb"]
 OVERVIEW_LIMIT = story.LIMITS["lede"]           # the page's overview paragraph
 OVERVIEW_SYSTEM, overview_view, overview_prompt = story.OVERVIEW_SYSTEM, story.overview_view, story.overview_prompt
-USER_AGENT = "Mozilla/5.0 (compatible; SoccerOutlookLinkCheck/1.0; +https://github.com/caparomula/soccer-outlook)"
 
 RESEARCH_SYSTEM = """You write match blurbs for Soccer Outlook, a soccer schedule for viewers in the United States. The page already lists kickoff times, channels, table positions, recent form and top scorers, so a blurb must add something specific about the upcoming match: its stakes, player availability, likely selection supported by reporting, a relevant matchup, or a scheduling change. General club news, ownership stories and unrelated controversy do not belong.
 
@@ -153,14 +147,10 @@ def cost_of(cfg, usage):
     return providers.cost(cfg.model, usage)
 
 
-USAGE_KEYS = ("in", "cached", "cache_write", "out", "reasoning", "searches", "opens", "prompt_max")
-
-
-def add_usage(totals, usage):
-    for key in USAGE_KEYS:
-        value = usage.get(key, 0) or 0
-        totals[key] = max(totals.get(key, 0), value) if key == "prompt_max" else totals.get(key, 0) + value
-    return totals
+# Reading replies, checking links and asking Claude with web search are story.py's, so the comparison
+# measures what the daily run does.
+USAGE_KEYS, add_usage, story_usage = story.REPLY_USAGE_KEYS, story.sum_usage, story.reply_usage
+match_key, location, check_link, without_links = story.link_key, story.location, story.check_link, story.plain_text
 
 
 def estimate(cfg, task, prompt_chars):
@@ -187,69 +177,10 @@ class Budget:
         self.spent += amount or 0.0
 
 
-def match_key(url):
-    """story.url_key without tracking parameters (OpenAI adds utm_source=openai to the links it cites)."""
-    try:
-        p = urlsplit(url.strip())
-        query = urlencode([(k, v) for k, v in parse_qsl(p.query, keep_blank_values=True) if not k.lower().startswith("utm_")])
-    except (AttributeError, ValueError):
-        return ""
-    return story.url_key(urlunsplit((p.scheme, p.netloc, p.path, query, "")))
-
-
-def story_usage(u):
-    """story.py's usage keys in providers.cost's."""
-    return {"in": u["in"], "cached": u["cache_read"], "cache_write": u["cache_write"], "out": u["out"],
-            "reasoning": u.get("reasoning", 0), "searches": u["searches"], "opens": u["fetches"], "prompt_max": u["prompt_max"]}
-
-
-def anthropic_text(content):
-    """The text after the reply's last non-text block (its research and thinking), with each text
-    block's citations as spans of that text."""
-    last = max((i for i, b in enumerate(content) if getattr(b, "type", "") != "text"), default=-1)
-    pieces, native = [], []
-    for block in content[last + 1:]:
-        text, base = getattr(block, "text", "") or "", sum(map(len, pieces))
-        for c in getattr(block, "citations", None) or []:
-            url = getattr(c, "url", None)
-            if isinstance(url, str) and match_key(url):
-                native.append((base, base + len(text), url))
-        pieces.append(text)
-    return "".join(pieces), native
-
-
 def anthropic_research(client, cfg, system, prompt, key="blurbs"):
-    """Claude's research request as story.py makes it (dynamic web search and fetch, effort, caching,
-    the server-side fallback), continued while the server pauses the turn. The answer is the final
-    text; if that holds no JSON answer (an object with `key`), every text block of the turn is searched
-    for it."""
-    messages, reply, seen, usage, texts = [{"role": "user", "content": prompt}], Reply(served=cfg.model), {}, {}, []
-    tools = [{"type": "web_search_20260209", "name": "web_search", "max_uses": RESEARCH_SEARCHES},
-             {"type": "web_fetch_20260209", "name": "web_fetch", "max_uses": RESEARCH_FETCHES}]
-    for _ in range(MAX_CONTINUATIONS):
-        with client.beta.messages.stream(model=cfg.model, max_tokens=RESEARCH_MAX_TOKENS, system=system, messages=messages,
-                                         tools=tools, output_config={"effort": cfg.effort}, cache_control={"type": "ephemeral"},
-                                         **story.request_options(cfg.model)) as stream:
-            message = stream.get_final_message()
-        reply.served = message.model
-        add_usage(usage, story_usage(story.usage_of(message)))
-        story.collect_sources(message.content, seen)
-        for block in message.content:
-            if getattr(block, "type", "") == "text":
-                texts.append(getattr(block, "text", "") or "")
-            query = (getattr(block, "input", None) or {}).get("query") if getattr(block, "type", "") == "server_tool_use" else None
-            if isinstance(query, str) and query.strip() and query.strip() not in reply.queries:
-                reply.queries.append(query.strip())
-        if message.stop_reason != "pause_turn":
-            break
-        messages.append({"role": "assistant", "content": message.content})
-    reply.text, reply.native = anthropic_text(message.content)
-    if extract_json(reply.text, key)[0] is None:
-        reply.text, reply.native = "".join(texts), []
-    reply.stop = {"end_turn": "end", "max_tokens": "max_tokens", "refusal": "refusal"}.get(message.stop_reason, message.stop_reason or "unknown")
-    reply.usage = usage
-    reply.returned = {match_key(url): (url, title) for url, title in seen.values() if match_key(url)}
-    return reply
+    """Claude's research request, as story.claude_search makes it for the overview."""
+    return story.claude_search(client, cfg.model, cfg.effort, system, prompt, key, ANSWERS[key], RESEARCH_SEARCHES,
+                               RESEARCH_FETCHES, RESEARCH_MAX_TOKENS)
 
 
 def rate_once(cfg, header, fixtures, keys, clients):
@@ -306,15 +237,7 @@ ANSWERS = {"blurbs": list, "overview": str}     # each research task's JSON answ
 def extract_json(text, key="blurbs"):
     """The first JSON object in `text` holding the answer `key` with a value of its type, and where it
     starts and ends; (None, None, None) if none."""
-    decoder = json.JSONDecoder()
-    for m in re.finditer(r"\{", text or ""):
-        try:
-            value, end = decoder.raw_decode(text, m.start())
-        except ValueError:
-            continue
-        if isinstance(value, dict) and isinstance(value.get(key), ANSWERS[key]):
-            return value, m.start(), end
-    return None, None, None
+    return story.find_json(text, key, ANSWERS[key])
 
 
 def blurb_spans(text, start):
@@ -380,16 +303,6 @@ def cited(result):
     return [*result.get("blurbs", {}).values(), *([result["overview"]] if result.get("overview") else [])]
 
 
-def without_links(text):
-    """The blurb as the page would show it: a link the model wrote into the text despite being asked
-    not to (OpenAI's inline citations look like '([site](url))') is taken out, a Markdown link keeps
-    its words, and bare URLs go. The report notes that it happened."""
-    text = re.sub(r"\s*\(\s*\[[^\]]*\]\(\s*https?://[^)\s]*\s*\)\s*\)", "", text)
-    text = re.sub(r"\[([^\]]*)\]\(\s*https?://[^)\s]*\s*\)", r"\1", text)
-    text = re.sub(r"\(?\s*https?://[^\s)]+\s*\)?", " ", text)
-    return re.sub(r"\s+([.,;:!?])", r"\1", re.sub(r"\s+", " ", text)).strip()
-
-
 def searched(cfg, system, prompt, key, keys, clients, read):
     """One request with the provider's own web search, answered in JSON under `key`, as a result:
     `read` takes the reply and gives (status, fields for the result). A failure is the result's error,
@@ -437,44 +350,6 @@ def run_overview(cfg, header, view, keys, clients):
     return result, reply
 
 
-class _NoRedirect(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, *args, **kwargs):
-        return None
-
-
-def location(url, timeout=20):
-    """Where a redirect points, read without following it, or None."""
-    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-    try:
-        with urllib.request.build_opener(_NoRedirect).open(request, timeout=timeout):
-            return None
-    except urllib.error.HTTPError as e:
-        return e.headers.get("Location") if 300 <= e.code < 400 else None
-    except (urllib.error.URLError, OSError, ValueError, http.client.HTTPException):
-        return None
-
-
-def check_link(url, timeout=20):
-    """Whether a page loads now: live, dead (404 or 410, a 'not found' title, or a redirect to the
-    site's front page), blocked (the site refused a script: 401, 403, 429, 451) or unreachable."""
-    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "text/html,*/*;q=0.8"})
-    try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
-            head = response.read(65536).decode("utf-8", "replace")
-            final, status = response.geturl(), response.status
-    except urllib.error.HTTPError as e:
-        verdict = "dead" if e.code in (404, 410) else "blocked" if e.code in (401, 403, 429, 451, 999) else "unreachable"
-        return {"state": verdict, "status": e.code}
-    except (urllib.error.URLError, OSError, ValueError, http.client.HTTPException) as e:
-        return {"state": "unreachable", "status": None, "why": type(e).__name__}
-    title = re.search(r"<title[^>]*>(.*?)</title>", head, re.I | re.S)
-    if title and re.search(r"\b(404|not found|page not found)\b", title.group(1), re.I):
-        return {"state": "dead", "status": status, "why": "a 'not found' page"}
-    if urlsplit(url).path.strip("/") and not urlsplit(final).path.strip("/"):
-        return {"state": "dead", "status": status, "why": "redirected to the front page"}
-    return {"state": "live", "status": status}
-
-
 def settle_sources(runs, replies, workers=8):
     """Resolves Google's grounding redirects into the pages they stand for, then marks every URL a
     blurb or overview cites:
@@ -494,6 +369,10 @@ def settle_sources(runs, replies, workers=8):
             target = resolved.get(uri)
             if target and match_key(target):
                 returned.setdefault(match_key(target), (target, title))
+        # A grounding redirect the model cites itself came from its search (story.checked_overview says why).
+        for uri in {u for b in cited(result) for u in b["listed"] + b["native"] if urlsplit(u).netloc == GROUNDING_HOST}:
+            if resolved.get(uri) and match_key(resolved[uri]):
+                returned.setdefault(match_key(resolved[uri]), (resolved[uri], ""))
         for blurb in cited(result):
             blurb["native"] = list(dict.fromkeys(resolved.get(u) or u for u in blurb["native"]))
             blurb["sources"] = []

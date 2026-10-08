@@ -347,6 +347,8 @@ class Settings:
     design: str          # "ratings" (scores only) or "full" (Claude's research, overview and blurbs too)
     model: str           # the model that does it, from providers.MODELS
     effort: str
+    overview_model: str | None     # the ratings design's overview, written after a web search; None for none
+    overview_effort: str | None
     blend: dict          # ai, outlook, interest, league_priority: weights, at least one of each pair above 0
     outlook: dict        # the [outlook] table as checked; knockout words in lower case, channel lists as sets
 
@@ -446,7 +448,8 @@ def load_settings(path, channels):
         problems.append(f"[outlook] network and cable both list {', '.join(both)}")
     if problems:
         raise SettingsError(f"{os.path.basename(path)}:\n  " + "\n  ".join(problems))
-    return Settings(ai=ai["enabled"], design=ai["design"], model=ai["model"], effort=ai["effort"], blend=blend, outlook=outlook)
+    return Settings(ai=ai["enabled"], design=ai["design"], model=ai["model"], effort=ai["effort"],
+                    overview_model=ai["overview_model"], overview_effort=ai["overview_effort"], blend=blend, outlook=outlook)
 
 
 SETTINGS = load_settings(SETTINGS_PATH, {o["label"] for o in OUTLETS.values()})
@@ -1127,12 +1130,19 @@ def about_ai():
     if not SETTINGS.ai:
         return "No AI is used on this page: there is no overview, no match blurbs and no AI rating."
     if SETTINGS.design == "ratings":
-        maker = providers.PROVIDER_NAMES[SETTINGS.provider]
-        article = "an" if maker[0] in "AEIOU" else "a"
-        return (f"Once a day, early in the morning, {SETTINGS.model}, {article} {maker} AI model, rates every match kicking off "
-                "in the next three days (further ahead when they are few) for popularity (25%), expected gameplay (35%) and "
-                "competitive impact (40%), from ESPN's table, form and stage and without seeing the Outlook score. Its ratings "
-                "are editorial judgments, not predicted results, and the page shows no AI-written text.")
+        def who(model):
+            maker = providers.PROVIDER_NAMES[providers.MODELS[model]]
+            return f"{model}, {'an' if maker[0] in 'AEIOU' else 'a'} {maker} AI model"
+        ratings = (f"Once a day, early in the morning, {who(SETTINGS.model)}, rates every match kicking off in the next three "
+                   "days (further ahead when they are few) for popularity (25%), expected gameplay (35%) and competitive "
+                   "impact (40%), from ESPN's table, form and stage and without seeing the Outlook score. Its ratings are "
+                   "editorial judgments, not predicted results")
+        if not SETTINGS.overview_model:
+            return ratings + ", and the page shows no AI-written text."
+        return ratings + (f". Then {who(SETTINGS.overview_model)}, searches the web and writes the overview at the top (marked "
+                          "AI Summary) about the matches the top three come from, on every service and in every competition, "
+                          "so it reads the same whatever you choose to see. It is published only with a page its own search "
+                          "returned, linked beside it; a day without one has no overview. The page shows no other AI-written text.")
     return ("The overview (marked AI Summary) and the match blurbs are written by Claude, Anthropic's AI model "
             f"({SETTINGS.model}), once a day, early in the morning; the midday and evening rebuilds update fixtures, "
             "broadcasters and scores but keep the morning's text. Blurbs link to their sources; one that rests only on "
