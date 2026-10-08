@@ -1112,7 +1112,7 @@ def shares(weights):
     return out
 
 
-OUTLOOK_WORDS = {"stature": "the occasion (the competition, and marquee clubs or nations)",
+OUTLOOK_WORDS = {"stature": "the occasion's stature from the competition and any marquee clubs or nations",
                  "close": "how evenly matched the betting market sees the teams",
                  "stakes": "what the table or the knockout round puts at stake",
                  "tv": "whether a broadcast network or a cable channel carries it",
