@@ -63,44 +63,46 @@ LIVE_MINUTES = 125
 
 # ----------------------------------------------------------------------------------------------
 # Leagues to track, by ESPN's league id. tier: 1 marquee, 2 solid, 3 background. default_off:
-# hidden until the viewer turns the competition pill on. Where each one is shown in the US (its
-# usual home, or a hint) is in rights.toml.
+# hidden until the viewer turns the competition pill on. short: at most four letters, standing in
+# for the league's emblem in the bar's league strip when ESPN has no emblem for it (or the page is
+# built without images). Where each one is shown in the US (its usual home, or a hint) is in
+# rights.toml.
 # ----------------------------------------------------------------------------------------------
 LEAGUES = {
-    "eng.1": dict(name="Premier League", tier=1),
-    "esp.1": dict(name="La Liga", tier=1),
-    "ger.1": dict(name="Bundesliga", tier=1),   # Versant from 2026-27: 30+ on USA Network, the rest free on Fandango
-    "ita.1": dict(name="Serie A", tier=1),
-    "fra.1": dict(name="Ligue 1", tier=2, default_off=True),
-    "usa.1": dict(name="MLS", tier=2),
-    "mex.1": dict(name="Liga MX", tier=2),
-    "usa.nwsl": dict(name="NWSL", tier=2, default_off=True),
-    "eng.w.1": dict(name="Women's Super League", tier=2),
-    "uefa.champions": dict(name="Champions League", tier=1),
-    "uefa.europa": dict(name="Europa League", tier=2, default_off=True),
-    "uefa.europa.conf": dict(name="Conference League", tier=3, default_off=True),
-    "uefa.wchampions": dict(name="Women's Champions League", tier=2),
-    "uefa.nations": dict(name="Nations League", tier=2),
-    "fifa.friendly": dict(name="Men's friendly", tier=2),
-    "fifa.friendly.w": dict(name="Women's friendly", tier=2, default_off=True),
-    "concacaf.nations.league": dict(name="Concacaf Nations League", tier=3),
-    "eng.2": dict(name="Championship", tier=3),
-    "eng.fa": dict(name="FA Cup", tier=2),
-    "eng.league_cup": dict(name="Carabao Cup", tier=2),
-    "esp.copa_del_rey": dict(name="Copa del Rey", tier=2),
-    "ger.dfb_pokal": dict(name="DFB-Pokal", tier=2),
-    "ita.coppa_italia": dict(name="Coppa Italia", tier=2),
-    "ned.1": dict(name="Eredivisie", tier=2, default_off=True),
-    "por.1": dict(name="Primeira Liga", tier=3),
-    "sco.1": dict(name="Scottish Premiership", tier=3),
-    "usa.usl.1": dict(name="USL Championship", tier=3, default_off=True),
-    "usa.usl.l1": dict(name="USL League One", tier=3, default_off=True),
-    "bra.1": dict(name="Brasileirão", tier=3),
-    "arg.1": dict(name="Liga Profesional (Argentina)", tier=3),
-    "ksa.1": dict(name="Saudi Pro League", tier=3),
-    "concacaf.champions": dict(name="Concacaf Champions Cup", tier=2),
-    "usa.open": dict(name="U.S. Open Cup", tier=3),
-    "caf.nations": dict(name="Africa Cup of Nations", tier=2),
+    "eng.1": dict(name="Premier League", short="EPL", tier=1),
+    "esp.1": dict(name="La Liga", short="LIGA", tier=1),
+    "ger.1": dict(name="Bundesliga", short="BUND", tier=1),   # Versant from 2026-27: 30+ on USA Network, the rest free on Fandango
+    "ita.1": dict(name="Serie A", short="SERA", tier=1),
+    "fra.1": dict(name="Ligue 1", short="L1", tier=2, default_off=True),
+    "usa.1": dict(name="MLS", short="MLS", tier=2),
+    "mex.1": dict(name="Liga MX", short="LMX", tier=2),
+    "usa.nwsl": dict(name="NWSL", short="NWSL", tier=2, default_off=True),
+    "eng.w.1": dict(name="Women's Super League", short="WSL", tier=2),
+    "uefa.champions": dict(name="Champions League", short="UCL", tier=1),
+    "uefa.europa": dict(name="Europa League", short="UEL", tier=2, default_off=True),
+    "uefa.europa.conf": dict(name="Conference League", short="UECL", tier=3, default_off=True),
+    "uefa.wchampions": dict(name="Women's Champions League", short="UWCL", tier=2),
+    "uefa.nations": dict(name="Nations League", short="UNL", tier=2),
+    "fifa.friendly": dict(name="Men's friendly", short="FRI", tier=2),
+    "fifa.friendly.w": dict(name="Women's friendly", short="WFRI", tier=2, default_off=True),
+    "concacaf.nations.league": dict(name="Concacaf Nations League", short="CNL", tier=3),
+    "eng.2": dict(name="Championship", short="EFL", tier=3),
+    "eng.fa": dict(name="FA Cup", short="FAC", tier=2),
+    "eng.league_cup": dict(name="Carabao Cup", short="EFLC", tier=2),
+    "esp.copa_del_rey": dict(name="Copa del Rey", short="CDR", tier=2),
+    "ger.dfb_pokal": dict(name="DFB-Pokal", short="DFB", tier=2),
+    "ita.coppa_italia": dict(name="Coppa Italia", short="COPI", tier=2),
+    "ned.1": dict(name="Eredivisie", short="ERE", tier=2, default_off=True),
+    "por.1": dict(name="Primeira Liga", short="POR", tier=3),
+    "sco.1": dict(name="Scottish Premiership", short="SPFL", tier=3),
+    "usa.usl.1": dict(name="USL Championship", short="USLC", tier=3, default_off=True),
+    "usa.usl.l1": dict(name="USL League One", short="USL1", tier=3, default_off=True),
+    "bra.1": dict(name="Brasileirão", short="BRA", tier=3),
+    "arg.1": dict(name="Liga Profesional (Argentina)", short="ARG", tier=3),
+    "ksa.1": dict(name="Saudi Pro League", short="SPL", tier=3),
+    "concacaf.champions": dict(name="Concacaf Champions Cup", short="CCC", tier=2),
+    "usa.open": dict(name="U.S. Open Cup", short="USOC", tier=3),
+    "caf.nations": dict(name="Africa Cup of Nations", short="AFCN", tier=2),
 }
 
 # ----------------------------------------------------------------------------------------------
@@ -1574,7 +1576,7 @@ def build_page(matches, cache, built_at, failed, today):
             comps.append((info["name"], lg, n, bool(info.get("default_off"))))
     comps.sort(key=lambda c: (-c[2], c[0]))
     comp_buttons = {lg: (
-        f'<button type="button" class="fpill" data-kind="comp" data-key="{esc(lg)}" data-default-off="{"1" if off else "0"}" aria-pressed="{"false" if off else "true"}"><span class="fpill__grip" aria-hidden="true">⠿</span>{league_logo_html(lg, cache)}{esc(name)}'
+        f'<button type="button" class="fpill" data-kind="comp" data-key="{esc(lg)}" data-short="{esc(LEAGUES[lg]["short"])}" data-default-off="{"1" if off else "0"}" aria-pressed="{"false" if off else "true"}"><span class="fpill__grip" aria-hidden="true">⠿</span>{league_logo_html(lg, cache)}{esc(name)}'
         f'<span class="fpill__n">{n}</span></button>') for name, lg, n, off in comps}
     comp_pills = "".join(comp_buttons[lg] for _, lg, _, off in comps if not off)
     comp_off_pills = "".join(comp_buttons[lg] for _, lg, _, off in sorted(comps, key=lambda c: c[0].casefold()) if off)

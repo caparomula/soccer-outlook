@@ -34,6 +34,7 @@
       </div>
     </div>
     <p class="drawer__hint">Drag pills between areas, or tap to enable or disable. Drag enabled pills to set their order; with a keyboard, use Alt + ↑ or ↓. On touchscreens, drag the dotted handle. Your choices are saved in this browser.</p>
+    <p class="drawer__hint">Enabled leagues also sit in the bar at the top of the page, in this order: tap one there to hide its matches for now, and again to show them, without disabling it. A league hidden there is marked here.</p>
     <details class="league-priority"><summary>League priority</summary><p class="drawer__hint" id="priority-hint">Move your preferred leagues higher. @@PRIORITY_HINT@@ Filtering a league out preserves its priority.</p><ol id="league-order" aria-label="League priority order"></ol></details>
     <div class="drawer__foot"><button type="button" class="link" id="btn-reset">Reset to defaults</button><button type="button" class="fbtn" id="btn-filters-close">Done</button></div>
   </div>
@@ -53,11 +54,17 @@
         <span class="menu-btn__txt">Lineup</span><span class="menu-btn__caret" aria-hidden="true">&#9662;</span>
       </button>
     </div>
+    <div class="strip" id="league-strip" hidden>
+      <div class="strip__list" id="league-strip-list" role="toolbar" aria-label="Your leagues: show or hide their matches"></div>
+      <button type="button" class="strip__edit" id="league-strip-edit" aria-controls="drawer" aria-haspopup="dialog" aria-expanded="false" title="Add or remove leagues"><span aria-hidden="true">+</span><span class="strip__edit-txt">Add or remove leagues</span></button>
+    </div>
     <a class="coffee" href="https://buymeacoffee.com/caparomula" target="_blank" rel="noopener">
       <svg class="coffee__cup" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path class="coffee__fill" d="M4.5 10h11v4.5a4.5 4.5 0 0 1-4.5 4.5H9a4.5 4.5 0 0 1-4.5-4.5z"/><path d="M15.5 11.5h1.25a2.25 2.25 0 0 1 0 4.5H15.3"/><path d="M8 3.5c-.9 1 .9 2 0 3M12 3.5c-.9 1 .9 2 0 3"/><path d="M3 21.5h14"/></svg>
       <span class="coffee__txt">Buy me a coffee</span>
     </a>
   </div>
+  <p class="vh" id="strip-status" role="status"></p>
+  <div class="strip-note" id="strip-note" hidden><span id="strip-note-txt"></span><button type="button" id="strip-undo">Undo</button></div>
   <section class="story" id="story" aria-labelledby="story-h" hidden>
     <h2 class="story__eyebrow" id="story-h">Storyline</h2>
     <p class="story__lede" id="story-lede"></p>

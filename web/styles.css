@@ -218,6 +218,9 @@ a { color: inherit; }
 .fpill[aria-pressed="false"] { background: transparent; color: var(--muted); border-style: dashed; }
 .fpill[aria-pressed="false"] .dot { opacity: 0.35; }
 .fpill[aria-pressed="false"] .fpill__n { text-decoration: line-through; }
+/* An enabled league hidden for now from the bar's strip: still enabled, its emblem faded and marked. */
+.fpill__tag { font-weight: 400; font-style: italic; color: var(--muted); }
+.fpill--paused .lg { opacity: 0.45; }
 .fpill__grip { color: var(--muted); cursor: grab; touch-action: none; user-select: none; padding: 2px 3px; margin: -2px -2px -2px -5px; }
 .fpill.is-dragging { opacity: 0.4; }
 .fpill.is-drop-target { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -428,6 +431,42 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
 .bar--tight .menu-btn { padding-inline: 9px; }
 .bar--tight .seg button { padding-inline: 6px; }
 .bar--tight .menu-btn__txt { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+/* The league strip: the leagues the viewer follows, as emblems in the bar, each a toggle that hides or
+   shows its matches. It shares the controls' line where it has room for a run of emblems and takes a
+   line of its own below them where it hasn't (the script measures, as for the tight bar); either way
+   it is one row that scrolls sideways, faded at an edge with more beyond it. The button that opens
+   the panel stays outside the scrolling row, always in reach. Off is not colour alone: faded, grey,
+   dashed and struck through. */
+.strip { flex: 1 1 0; min-width: 0; display: flex; align-items: center; gap: 6px; }
+.strip[hidden] { display: none; }
+.bar--strip-below .strip { order: 1; flex-basis: 100%; }
+.strip__list { display: flex; gap: 4px; min-width: 0; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; padding: 3px; }
+.strip__list::-webkit-scrollbar { display: none; }
+.strip__list.fade-r { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); }
+.strip__list.fade-l { -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(to left, #000 calc(100% - 28px), transparent); }
+.strip__list.fade-l.fade-r { -webkit-mask-image: linear-gradient(to right, transparent, #000 28px, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(to right, transparent, #000 28px, #000 calc(100% - 28px), transparent); }
+.strip__lg, .strip__edit { appearance: none; flex: none; position: relative; display: inline-grid; place-items: center; width: 34px; height: 34px; padding: 0; border-radius: 50%; cursor: pointer; }
+.strip__lg { border: 1px solid var(--line-strong); background: var(--card); color: var(--fg); }
+.strip__mark { display: grid; place-items: center; }
+.strip__lg .lg { display: block; width: 22px; height: 22px; margin: 0; }
+.strip__code { font: 700 10px/1 var(--body); letter-spacing: 0.02em; }
+.strip__lg[aria-pressed="false"] { background: transparent; border-style: dashed; }
+.strip__lg[aria-pressed="false"] .strip__mark { opacity: 0.35; filter: grayscale(1); }
+.strip__lg[aria-pressed="false"]::after { content: ""; position: absolute; left: 7px; right: 7px; top: calc(50% - 1px); height: 2px; border-radius: 1px; background: var(--muted); transform: rotate(-45deg); }
+.strip__edit { border: 1px dashed var(--line-strong); background: transparent; color: var(--muted); font: 400 22px/1 var(--body); }
+.strip__edit-txt { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.strip--empty .strip__edit { display: inline-flex; gap: 6px; width: auto; padding: 0 12px; border-radius: 999px; font-size: 14px; font-weight: 600; }
+.strip--empty .strip__edit-txt { position: static; width: auto; height: auto; overflow: visible; clip-path: none; }
+.strip__lg:hover, .strip__edit:hover { border-color: var(--fg); }
+.strip__lg:focus-visible, .strip__edit:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* After a tap in the strip, a note says what changed and offers the way back, at the foot of the
+   window: above the page, below the panel. */
+.strip-note { position: fixed; z-index: 25; left: 50%; bottom: 16px; transform: translateX(-50%); max-width: calc(100% - 32px);
+  display: flex; align-items: center; gap: 14px; padding: 10px 14px 10px 16px; border-radius: 10px;
+  background: var(--fg); color: var(--bg); font: 600 14px var(--body); box-shadow: 0 6px 24px rgb(0 0 0 / 0.25); }
+.strip-note[hidden] { display: none; }
+.strip-note button { appearance: none; border: 0; background: none; color: inherit; font: inherit; text-decoration: underline; cursor: pointer; padding: 4px 2px; }
+.strip-note button:focus-visible { outline: 2px solid var(--bg); outline-offset: 2px; }
 @media (max-width: 600px) {
   .controls__lbl { min-width: 0; width: 100%; }
 }

@@ -1498,6 +1498,172 @@ class BrowserChecks(unittest.TestCase):
                 expect(page.locator('#outlook-body > .bucket[data-b="today"] .when')).to_have_text("Wednesday, October 7")
                 self.assertEqual(self.bucket(page, "late"), "Today")
 
+    @staticmethod
+    def strip_ids(page):
+        return page.locator("#league-strip-list .strip__lg").evaluate_all("els => els.map(e => e.dataset.league)")
+
+    def test_league_strip_hides_and_shows_followed_leagues_and_remembers(self):
+        fixtures = [("pl", "2026-10-07T18:00:00+00:00", "pre", "ESPN+", "eng.1"),
+                    ("liga", "2026-10-07T19:00:00+00:00", "pre", "ESPN+", "esp.1"),
+                    ("serie", "2026-10-07T20:00:00+00:00", "pre", "ESPN+", "ita.1"),
+                    ("ligue", "2026-10-07T21:00:00+00:00", "pre", "ESPN+", "fra.1"),
+                    ("usa", "2026-10-07T23:00:00+00:00", "pre", "ESPN+", "fifa.friendly")]
+        html = render_page(build, fixtures=fixtures, team_names={"usa": ("United States", "Mexico")})
+        mid = lambda box: box["y"] + box["height"] / 2
+        for width in (1280, 390):
+            with self.subTest(width=width), self.page("after", width=width, html=html, touch=width <= 600) as (page, _):
+                strip, note, tally = page.locator("#league-strip"), page.locator("#strip-note"), page.locator("#tally-n")
+                lg = lambda key: page.locator(f'#league-strip-list [data-league="{key}"]')
+                row = lambda key: page.locator(f'li.row[data-id="{key}"]')
+                # The followed leagues (Ligue 1 is off by default), in priority order; without emblems on the page,
+                # by their short codes, each named for screen readers and in its tooltip.
+                self.assertEqual(self.strip_ids(page), ["eng.1", "esp.1", "ita.1", "fifa.friendly"])
+                expect(page.locator("#league-strip-list .strip__lg")).to_have_text(["EPL", "LIGA", "SERA", "FRI"])
+                expect(lg("esp.1")).to_have_attribute("aria-label", "La Liga")
+                expect(lg("esp.1")).to_have_attribute("title", "La Liga")
+                expect(page.locator('#league-strip-list [aria-pressed="true"]')).to_have_count(4)
+                # On a wide screen the strip shares the controls' line; on a phone it has the line below, all of it.
+                seg, bar, box = page.locator("#controls .seg").bounding_box(), page.locator("#bar").bounding_box(), strip.bounding_box()
+                if width > 600:
+                    self.assertAlmostEqual(mid(box), mid(seg), delta=3)
+                else:
+                    self.assertGreaterEqual(box["y"], seg["y"] + seg["height"])
+                    self.assertAlmostEqual(box["width"], bar["width"], delta=1)
+                    self.assertAlmostEqual(mid(page.locator(".coffee").bounding_box()), mid(seg), delta=3)
+                self.assertLessEqual(page.evaluate("document.documentElement.scrollWidth"), width)
+                # A tap hides the league's matches for now, says so, and leaves it enabled in the panel, marked.
+                expect(tally).to_have_text("4")
+                lg("esp.1").click()
+                expect(lg("esp.1")).to_have_attribute("aria-pressed", "false")
+                expect(row("liga")).to_be_hidden()
+                expect(tally).to_have_text("3")
+                # Off is more than a colour: a dashed edge and a slash, and the mark faded.
+                look = "el => [getComputedStyle(el).borderTopStyle, getComputedStyle(el, '::after').content, getComputedStyle(el.firstChild).opacity]"
+                self.assertEqual(lg("esp.1").evaluate(look), ["dashed", '""', "0.35"])
+                self.assertEqual(lg("eng.1").evaluate(look), ["solid", "none", "1"])
+                expect(note).to_be_visible()
+                expect(note).to_contain_text("La Liga hidden")
+                expect(page.locator("#strip-status")).to_have_text("La Liga hidden")
+                pill = page.locator('#comp-enabled [data-key="esp.1"]')
+                expect(pill).to_have_count(1)
+                expect(pill).to_have_attribute("aria-pressed", "true")
+                # Undo brings it back; hidden again, the note leaves on its own.
+                page.locator("#strip-undo").click()
+                expect(lg("esp.1")).to_have_attribute("aria-pressed", "true")
+                expect(row("liga")).to_be_visible()
+                expect(note).to_be_hidden()
+                expect(page.locator("#strip-status")).to_have_text("La Liga shown")
+                lg("esp.1").click()
+                expect(note).to_be_visible()
+                page.clock.run_for(5000)
+                expect(note).to_be_hidden()
+                # The US match, shown though friendlies' featured teams outlast a default filter, goes with its league.
+                expect(row("usa")).to_be_visible()
+                lg("fifa.friendly").click()
+                expect(row("usa")).to_be_hidden()
+                # Still hidden on the next visit.
+                page.reload()
+                for key in ("esp.1", "fifa.friendly"):
+                    expect(lg(key)).to_have_attribute("aria-pressed", "false")
+                for key in ("liga", "usa"):
+                    expect(row(key)).to_be_hidden()
+                self.assertEqual(sorted(page.evaluate("JSON.parse(localStorage.getItem('ssg1-league-paused'))")), ["esp.1", "fifa.friendly"])
+                lg("fifa.friendly").click()
+                expect(row("usa")).to_be_visible()
+                # The button at the strip's end opens the panel at its leagues, where a hidden one says so.
+                edit, drawer = page.locator("#league-strip-edit"), page.locator("#drawer")
+                edit.click()
+                expect(drawer).to_be_visible()
+                expect(edit).to_have_attribute("aria-expanded", "true")
+                # In view in the panel, at its top unless the panel can't scroll that far.
+                head, panel = page.locator("#comp-h").bounding_box(), drawer.bounding_box()
+                self.assertGreaterEqual(head["y"], panel["y"])
+                self.assertLessEqual(head["y"] + head["height"], panel["y"] + panel["height"])
+                at_end = drawer.evaluate("el => el.scrollTop >= el.scrollHeight - el.clientHeight - 1")
+                self.assertTrue(head["y"] < panel["y"] + 60 or at_end)
+                expect(pill.locator(".fpill__tag")).to_be_visible()
+                expect(pill.locator(".fpill__tag")).to_have_text("hidden for now")
+                expect(page.locator('#comp-enabled [data-key="ita.1"] .fpill__tag')).to_be_hidden()
+                # Disabling a league takes it out of the strip and forgets its pause: enabled again, it comes back
+                # shown, and a league enabled for the first time joins in its priority place.
+                pill.click()
+                self.assertEqual(self.strip_ids(page), ["eng.1", "ita.1", "fifa.friendly"])
+                expect(page.locator('#comp-disabled [data-key="esp.1"]')).to_have_count(1)
+                page.locator('#comp-pills [data-key="esp.1"]').click()
+                page.locator('#comp-pills [data-key="fra.1"]').click()
+                self.assertEqual(self.strip_ids(page), ["eng.1", "esp.1", "ita.1", "fra.1", "fifa.friendly"])
+                expect(lg("esp.1")).to_have_attribute("aria-pressed", "true")
+                expect(row("liga")).to_be_visible()
+                expect(row("ligue")).to_be_visible()
+                # Escape closes the panel and returns to the button that opened it.
+                page.keyboard.press("Escape")
+                expect(drawer).to_be_hidden()
+                expect(edit).to_be_focused()
+                expect(edit).to_have_attribute("aria-expanded", "false")
+                # One tab stop, on the league last used; the arrow keys, Home and End move along the strip.
+                expect(page.locator('#league-strip-list [tabindex="0"]')).to_have_count(1)
+                page.keyboard.press("Shift+Tab")
+                expect(lg("fifa.friendly")).to_be_focused()
+                page.keyboard.press("Home")
+                expect(lg("eng.1")).to_be_focused()
+                page.keyboard.press("ArrowRight")
+                expect(lg("esp.1")).to_be_focused()
+                page.keyboard.press("ArrowLeft")
+                page.keyboard.press("ArrowLeft")
+                expect(lg("eng.1")).to_be_focused()
+                page.keyboard.press("End")
+                expect(lg("fifa.friendly")).to_be_focused()
+                page.keyboard.press("Space")
+                expect(lg("fifa.friendly")).to_have_attribute("aria-pressed", "false")
+                page.keyboard.press("Tab")
+                expect(edit).to_be_focused()
+                # With no league enabled the strip is its button, which says what it is for.
+                page.locator("#btn-menu").click()
+                page.locator("#btn-clear-leagues").click()
+                self.assertEqual(self.strip_ids(page), [])
+                expect(page.locator(".strip__edit-txt")).to_be_visible()
+                expect(page.locator(".strip__edit-txt")).to_have_text("Add or remove leagues")
+                # Select all enables every league, shown; Reset forgets what the strip hid since.
+                page.locator("#btn-select-leagues").click()
+                self.assertEqual(self.strip_ids(page), ["eng.1", "esp.1", "ita.1", "fra.1", "fifa.friendly"])
+                expect(page.locator('#league-strip-list [aria-pressed="false"]')).to_have_count(0)
+                page.locator("#btn-filters-close").click()
+                lg("esp.1").click()
+                expect(lg("esp.1")).to_have_attribute("aria-pressed", "false")
+                page.locator("#btn-menu").click()
+                page.locator("#btn-reset").click()
+                self.assertEqual(self.strip_ids(page), ["eng.1", "esp.1", "ita.1", "fifa.friendly"])
+                expect(page.locator('#league-strip-list [aria-pressed="false"]')).to_have_count(0)
+                self.assertIsNone(page.evaluate("localStorage.getItem('ssg1-league-paused')"))
+
+    def test_league_strip_shows_emblems_and_keeps_the_readers_place(self):
+        # 36 Premier League matches, then one Liga match; the page has its emblems.
+        fixtures = []
+        for i in range(36):
+            hour, minute = divmod(17 * 60 + 10 + i * 25, 60)
+            fixtures.append((f"m{i:02d}", f"2026-10-{7 + hour // 24:02d}T{hour % 24:02d}:{minute:02d}:00+00:00", "pre", "ESPN+", "eng.1"))
+        fixtures.append(("liga", "2026-10-09T20:00:00+00:00", "pre", "ESPN+", "esp.1"))
+        html = render_page(build, fixtures=fixtures, league_logos=True)
+        top_row = """() => { const below = document.getElementById('bar').getBoundingClientRect().bottom;
+            const r = [...document.querySelectorAll('#outlook li.row')].find(el => el.getClientRects().length && el.getBoundingClientRect().bottom > below + 1);
+            return { id: r.dataset.id, top: r.getBoundingClientRect().top }; }"""
+        for width in (1280, 390):
+            with self.subTest(width=width), self.page("after", width=width, html=html, touch=width <= 600) as (page, _):
+                # Each league's emblem, as its panel pill shows it, and no code.
+                for key in ("eng.1", "esp.1"):
+                    emblem = page.locator(f'#comp-pills [data-key="{key}"] .lg').get_attribute("class")
+                    expect(page.locator(f'#league-strip-list [data-league="{key}"] .lg')).to_have_attribute("class", emblem)
+                expect(page.locator("#league-strip-list .strip__code")).to_have_count(0)
+                # Enabling or disabling a league deep in the page reflows the bar without moving the page.
+                page.evaluate("window.scrollTo(0, 2200)")
+                before = page.evaluate(top_row)
+                page.locator("#btn-menu").click()
+                for _ in range(2):
+                    page.locator('#comp-pills [data-key="esp.1"]').click()
+                    row = page.locator(f'li.row[data-id="{before["id"]}"]')
+                    self.assertAlmostEqual(row.evaluate("el => el.getBoundingClientRect().top"), before["top"], delta=2)
+                self.assertEqual(self.strip_ids(page), ["eng.1", "esp.1"])
+
     def test_later_news_stays_in_match_cards_with_one_overview(self):
         fixtures = [("main", "2026-10-09T18:00:00+00:00", "pre", "ESPN+", "esp.1"),
                     ("second", "2026-10-09T20:00:00+00:00", "pre", "Apple TV", "usa.1")]

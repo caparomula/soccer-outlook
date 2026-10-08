@@ -78,6 +78,18 @@ class StaticDays(unittest.TestCase):
                                  ("Saturday", "October 10")])
 
 
+class LeagueCodes(unittest.TestCase):
+    def test_every_league_has_a_short_code_that_fits_the_strip(self):
+        """The bar's league strip shows a league's short code where it has no emblem: one to four capital
+        letters or digits, fitting its round button, and no two leagues alike."""
+        codes = {lg: info.get("short") for lg, info in build.LEAGUES.items()}
+        for lg, code in codes.items():
+            self.assertRegex(code or "", r"^[A-Z0-9]{1,4}$", lg)
+        self.assertEqual(len(set(codes.values())), len(codes))
+        page = render_page(build, fixtures=[("pl", "2026-10-07T18:00:00+00:00", "pre", "ESPN+", "eng.1")])
+        self.assertIn('data-key="eng.1" data-short="EPL"', page)
+
+
 class MalformedFeed(unittest.TestCase):
     """ESPN's lists can hold nulls: on 7 October 2026 the Saudi Pro League table gave a team
     `logos: [null]` and every build crashed. A bad entry must cost at most that entry."""

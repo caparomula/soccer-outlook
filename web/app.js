@@ -4,7 +4,7 @@
   var WINDOW_DAYS = 3;               // the page shows today and the three days after it (story.py's WINDOW_DAYS)
   var FOCUS_MS = 24 * 60 * 60000;
   var LIVE_MS = 125 * 60000;
-  var LS = { mode: 'ssg2-mode', have: 'ssg3-have', leagues: 'ssg5-leagues', compOff: 'ssg2-comp-off', priority: 'ssg4-league-order', services: 'ssg4-service-order' };
+  var LS = { mode: 'ssg2-mode', have: 'ssg3-have', leagues: 'ssg5-leagues', compOff: 'ssg2-comp-off', paused: 'ssg1-league-paused', priority: 'ssg4-league-order', services: 'ssg4-service-order' };
   var app = document.getElementById('app');
   var body = document.getElementById('outlook-body');
   var rows = Array.prototype.slice.call(document.querySelectorAll('li.row'));
@@ -139,23 +139,35 @@
     }
   })();
   function hasChoice(id) { return Object.prototype.hasOwnProperty.call(compChoice, id); }
+  // A league is followed (enabled in the panel, and in the bar's strip) by the viewer's choice, else
+  // by its default. A followed league can also be paused from the strip: hidden for now, still
+  // followed, and still paused on the next visit until the viewer taps it again. Its matches are
+  // hidden when it isn't followed or is paused. Following or unfollowing a league clears its pause, so
+  // a league added back in the panel comes back shown.
+  var paused = {};
+  (function () {
+    var saved = read(LS.paused);
+    (Array.isArray(saved) ? saved : []).forEach(function (k) { if (typeof k === 'string') paused[k] = true; });
+  })();
+  function followed(id) { return hasChoice(id) ? compChoice[id] : !DEFAULT_OFF[id]; }
   function applyCompChoices() {
     compOff = {};
     drawer.querySelectorAll('[data-kind="comp"]').forEach(function (b) {
       var k = b.getAttribute('data-key');
-      if (hasChoice(k) ? !compChoice[k] : DEFAULT_OFF[k]) compOff[k] = true;
+      if (!followed(k) || paused[k]) compOff[k] = true;
     });
   }
   function saveCompChoices() {
     var on = [], off = [];
     Object.keys(compChoice).forEach(function (k) { (compChoice[k] ? on : off).push(k); });
     write(LS.leagues, { on: on, off: off });
+    write(LS.paused, Object.keys(paused));
     try { localStorage.removeItem(LS.compOff); } catch (e) {}
   }
   applyCompChoices();
   // A match of a team build.py features (the US national teams) shows while its competition is off
-  // by default; a viewer who switches the competition off hides it too.
-  function compHidden(r) { return !!compOff[r._lg] && !(r._featured && !hasChoice(r._lg)); }
+  // by default; a viewer who switches the competition off, or pauses it, hides it too.
+  function compHidden(r) { return !!compOff[r._lg] && (!r._featured || hasChoice(r._lg) || !!paused[r._lg]); }
   var storedPriority = read(LS.priority);
   var storedServiceOrder = read(LS.services);
   var leagueNames = SERVICES.leagues || {};
@@ -193,10 +205,10 @@
       list.appendChild(li);
     });
   }
-  function filterEnabled(kind, id) { return kind === 'have' ? !!HAVE[id] : !compOff[id]; }
+  function filterEnabled(kind, id) { return kind === 'have' ? !!HAVE[id] : followed(id); }
   function setFilterEnabled(kind, id, enabled) {
     if (kind === 'have') { if (enabled) HAVE[id] = true; else delete HAVE[id]; }
-    else { compChoice[id] = !!enabled; if (enabled) delete compOff[id]; else compOff[id] = true; }
+    else { compChoice[id] = !!enabled; delete paused[id]; if (enabled) delete compOff[id]; else compOff[id] = true; }
   }
   function persistFilters(kind) {
     if (kind === 'have') { storedHave = Object.keys(HAVE); write(LS.have, storedHave); evaluateAll(); }
@@ -371,10 +383,16 @@
     document.getElementById('btn-mine').setAttribute('aria-pressed', String(mode === 'mine'));
     document.getElementById('btn-all').setAttribute('aria-pressed', String(mode === 'all'));
     drawer.querySelectorAll('.fpill').forEach(function (b) {
-      var k = b.getAttribute('data-key');
-      var on = b.getAttribute('data-kind') === 'have' ? !!HAVE[k] : !compOff[k];
+      var k = b.getAttribute('data-key'), comp = b.getAttribute('data-kind') === 'comp';
+      var on = comp ? followed(k) : !!HAVE[k];
       b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      if (!comp) return;
+      // An enabled league paused from the strip says so, in words for every reader.
+      var tag = b.querySelector('.fpill__tag');
+      if (!tag) { tag = document.createElement('span'); tag.className = 'fpill__tag'; tag.textContent = 'hidden for now'; b.appendChild(tag); }
+      tag.hidden = !(on && paused[k]); b.classList.toggle('fpill--paused', !tag.hidden);
     });
+    renderStrip();
   }
   function passes(r) {
     // This view promises availability; unconfirmed coverage belongs in Everything.
@@ -391,11 +409,15 @@
     var right = Math.min(Math.max(16, window.innerWidth - rect.right), window.innerWidth - width - 16);
     drawer.style.setProperty('--drawer-top', top + 'px'); drawer.style.setProperty('--drawer-right', right + 'px');
   }
-  function setDrawer(open, refocus) {
+  // Closing from the keyboard returns focus to whichever button opened the panel: Lineup, or the
+  // league strip's button.
+  var drawerOpener = null;
+  function setDrawer(open, refocus, opener) {
     if (!open && filterDrag) finishFilterDrag({ pointerId: filterDrag.id, type: 'pointercancel' });
+    if (open) drawerOpener = opener || btnMenu;
     drawerOpen = open; applyFilterUI();
     if (open) { positionDrawer(); drawer.scrollTop = 0; drawer.focus({ preventScroll: true }); }
-    else if (refocus) btnMenu.focus({ preventScroll: true });
+    else if (refocus) (drawerOpener || btnMenu).focus({ preventScroll: true });
   }
   window.addEventListener('resize', positionDrawer);
   window.addEventListener('scroll', positionDrawer, { passive: true });
@@ -405,15 +427,127 @@
   // toggle far down the page threw the reader hundreds of pixels back up. Only a Tab moves the page:
   // focus put back after a redraw uses preventScroll and stays where the reader left it.
   var bar = document.getElementById('bar'), tabbing = false;
-  // The bar keeps to one line where it can: when its controls would wrap, it goes tight (the styles
-  // say what that drops). Measured rather than set by width, since fonts and text size decide it.
+  // The bar keeps its controls to one line where it can: when they would wrap, it goes tight (the
+  // styles say what that drops). The league strip shares that line where it has room for a run of
+  // emblems, else it takes the line below. Measured rather than set by width, since fonts, text size
+  // and the number of leagues followed decide it.
+  var STRIP_INLINE_PX = 240;
   function fitBar() {
     if (!bar) return;
-    var items = [bar.querySelector('.seg'), btnMenu, bar.querySelector('.coffee')];
+    // Measured on an invisible copy of the bar, out of the page's flow, and the outcome applied to the
+    // bar once: trying the strip on one line and then the other on the bar itself changed its height
+    // in between, and with the page scrolled the browser's scroll anchoring followed those changes
+    // and left the page shifted (switching the anchoring off while measuring didn't stop it).
+    var probe = bar.cloneNode(true), width = bar.getBoundingClientRect().width;
+    probe.removeAttribute('id'); probe.querySelectorAll('[id]').forEach(function (el) { el.removeAttribute('id'); });
+    probe.setAttribute('aria-hidden', 'true'); probe.setAttribute('inert', '');
+    probe.style.cssText = 'position:absolute;visibility:hidden;pointer-events:none;left:0;top:0;width:' + width + 'px';
+    bar.parentNode.appendChild(probe);
+    var items = [probe.querySelector('.seg'), probe.querySelector('.menu-btn'), probe.querySelector('.coffee')];
     var mid = function (el) { var r = el.getBoundingClientRect(); return r.top + r.height / 2; };
     var oneLine = function () { return items.every(function (el) { return Math.abs(mid(el) - mid(items[0])) < 4; }); };
-    bar.classList.remove('bar--tight');
-    if (!oneLine()) bar.classList.add('bar--tight');
+    // The controls' line first, with the strip out of it: the strip never makes the bar tight.
+    probe.classList.remove('bar--tight'); probe.classList.add('bar--strip-below');
+    if (!oneLine()) probe.classList.add('bar--tight');
+    probe.classList.remove('bar--strip-below');
+    // Then the strip joins that line if it leaves the line whole and has room there for a run of
+    // emblems (or all of them, when they are fewer).
+    var copy = probe.querySelector('.strip');
+    if (copy && !copy.hidden) {
+      var natural = copy.querySelector('.strip__list').scrollWidth + copy.querySelector('.strip__edit').getBoundingClientRect().width + 6;
+      if (!oneLine() || copy.getBoundingClientRect().width + 1 < Math.min(natural, STRIP_INLINE_PX)) probe.classList.add('bar--strip-below');
+    }
+    var tight = probe.classList.contains('bar--tight'), below = probe.classList.contains('bar--strip-below');
+    probe.remove();
+    bar.classList.toggle('bar--tight', tight); bar.classList.toggle('bar--strip-below', below);
+    fadeStrip();
+  }
+
+  // ---- the league strip ----------------------------------------------------------------------------
+  // The leagues the viewer follows, in priority order, as emblems in the bar (a league ESPN has no
+  // emblem for shows its short code): a tap pauses one, hiding its matches for now without unfollowing
+  // it, and another shows them again, with a note that offers the way back. It is one tab stop, a
+  // toolbar the arrow keys move along. The button at its end opens the panel at the leagues, where
+  // they are followed, unfollowed and ordered.
+  var strip = document.getElementById('league-strip'), stripList = document.getElementById('league-strip-list');
+  var stripEdit = document.getElementById('league-strip-edit'), stripFocus = '', stripShape = '';
+  function renderStrip() {
+    if (!strip) return;
+    var pills = {};
+    filterPills.comp.forEach(function (pill) { pills[pill.dataset.key] = pill; });
+    var ids = leagueOrder().filter(function (id) { return pills[id] && followed(id); });
+    if (stripList.getAttribute('data-order') !== ids.join(',')) {
+      stripList.setAttribute('data-order', ids.join(',')); stripList.innerHTML = '';
+      ids.forEach(function (id) {
+        var b = document.createElement('button'); b.type = 'button'; b.className = 'strip__lg';
+        b.setAttribute('data-league', id); b.setAttribute('aria-label', leagueNames[id]); b.title = leagueNames[id];
+        var mark = document.createElement('span'); mark.className = 'strip__mark'; mark.setAttribute('aria-hidden', 'true');
+        var emblem = pills[id].querySelector('.lg');
+        if (emblem) mark.appendChild(emblem.cloneNode(true));
+        else { mark.classList.add('strip__code'); mark.textContent = pills[id].getAttribute('data-short') || leagueNames[id].slice(0, 3).toUpperCase(); }
+        b.appendChild(mark); stripList.appendChild(b);
+      });
+      watchIcons();
+    }
+    if (ids.indexOf(stripFocus) < 0) stripFocus = ids[0] || '';
+    Array.from(stripList.children).forEach(function (b) {
+      var id = b.getAttribute('data-league');
+      b.setAttribute('aria-pressed', paused[id] ? 'false' : 'true');
+      b.tabIndex = id === stripFocus ? 0 : -1;
+    });
+    strip.hidden = !filterPills.comp.length;
+    strip.classList.toggle('strip--empty', !ids.length);
+    stripEdit.setAttribute('aria-expanded', String(drawerOpen));
+    // The bar is refitted when the strip's contents change, not on every redraw.
+    var shape = strip.hidden + '|' + ids.join(',');
+    if (shape !== stripShape) { stripShape = shape; fitBar(); }
+  }
+  // A fade at an edge of the row says more emblems lie beyond it.
+  function fadeStrip() {
+    if (!strip || strip.hidden) return;
+    var left = stripList.scrollLeft, room = stripList.scrollWidth - stripList.clientWidth;
+    stripList.classList.toggle('fade-l', left > 1);
+    stripList.classList.toggle('fade-r', left < room - 1);
+  }
+  var stripStatus = document.getElementById('strip-status'), note = document.getElementById('strip-note');
+  var noteText = document.getElementById('strip-note-txt'), noteTimer = 0, noteUndo = null;
+  function hideNote() { clearTimeout(noteTimer); note.hidden = true; noteUndo = null; }
+  function setPaused(id, hide) {
+    if (hide) paused[id] = true; else delete paused[id];
+    applyCompChoices(); saveCompChoices(); applyFilterUI(); render(true);
+  }
+  if (strip) {
+    stripList.addEventListener('scroll', fadeStrip, { passive: true });
+    stripList.addEventListener('click', function (ev) {
+      var b = ev.target.closest('.strip__lg'); if (!b) return;
+      var id = b.getAttribute('data-league'), hide = !paused[id];
+      stripFocus = id; setPaused(id, hide);
+      var text = leagueNames[id] + (hide ? ' hidden' : ' shown');
+      stripStatus.textContent = text; noteText.textContent = text; note.hidden = false;
+      noteUndo = { id: id, hide: !hide };
+      clearTimeout(noteTimer); noteTimer = setTimeout(hideNote, 5000);
+    });
+    document.getElementById('strip-undo').addEventListener('click', function () {
+      var undo = noteUndo; hideNote();
+      if (!undo || !followed(undo.id)) return;
+      setPaused(undo.id, undo.hide);
+      stripStatus.textContent = leagueNames[undo.id] + (undo.hide ? ' hidden' : ' shown');
+      var b = stripList.querySelector('[data-league="' + undo.id + '"]'); if (b) b.focus({ preventScroll: true });
+    });
+    stripList.addEventListener('keydown', function (ev) {
+      var buttons = Array.from(stripList.children), i = buttons.indexOf(document.activeElement);
+      var j = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: buttons.length - 1 }[ev.key];
+      if (i < 0 || j === undefined) return;
+      ev.preventDefault();
+      j = Math.max(0, Math.min(buttons.length - 1, j));
+      buttons[i].tabIndex = -1; buttons[j].tabIndex = 0; stripFocus = buttons[j].getAttribute('data-league'); buttons[j].focus();
+    });
+    // The panel opens at its leagues.
+    stripEdit.addEventListener('click', function () {
+      if (!drawerOpen) setDrawer(true, false, stripEdit);
+      var head = document.getElementById('comp-h').closest('.drawer__group-head');
+      drawer.scrollTop += head.getBoundingClientRect().top - drawer.getBoundingClientRect().top - 12;
+    });
   }
   fitBar();
   window.addEventListener('resize', fitBar);
@@ -435,7 +569,7 @@
     // The priority list can replace the clicked button before this event reaches document.
     // Its original event path still identifies it as a click inside the panel.
     var path = ev.composedPath();
-    if (drawerOpen && path.indexOf(drawer) < 0 && path.indexOf(btnMenu) < 0) setDrawer(false, false);
+    if (drawerOpen && path.indexOf(drawer) < 0 && path.indexOf(btnMenu) < 0 && path.indexOf(stripEdit) < 0) setDrawer(false, false);
   });
   document.addEventListener('keydown', function (ev) {
     if (drawerOpen && (ev.key === 'Escape' || ev.key === 'Esc')) { ev.preventDefault(); setDrawer(false, true); }
@@ -447,10 +581,10 @@
     if (b.id === 'btn-mine' || b.id === 'btn-all') { mode = b.id === 'btn-all' ? 'all' : 'mine'; write(LS.mode, mode); }
     else if (b.id === 'btn-reset') {
       mode = 'mine'; HAVE = {}; SERVICES.owner.forEach(function (k) { HAVE[k] = true; }); storedHave = null;
-      compChoice = {}; applyCompChoices();
+      compChoice = {}; paused = {}; applyCompChoices();
       storedPriority = null; storedServiceOrder = null;
       write(LS.mode, mode);
-      try { [LS.leagues, LS.compOff, LS.have, LS.priority, LS.services].forEach(function (k) { localStorage.removeItem(k); }); } catch (e) {}
+      try { [LS.leagues, LS.compOff, LS.paused, LS.have, LS.priority, LS.services].forEach(function (k) { localStorage.removeItem(k); }); } catch (e) {}
       evaluateAll();
     }
     else if (b.hasAttribute('data-move-league')) {
@@ -474,7 +608,7 @@
     }
     else if (b.id === 'btn-clear-leagues' || b.id === 'btn-select-leagues') {
       drawer.querySelectorAll('[data-kind="comp"]').forEach(function (x) { compChoice[x.getAttribute('data-key')] = b.id === 'btn-select-leagues'; });
-      applyCompChoices(); saveCompChoices();
+      paused = {}; applyCompChoices(); saveCompChoices();
     }
     else if (b.hasAttribute('data-kind')) { setFilterEnabled(b.dataset.kind, b.dataset.key, !filterEnabled(b.dataset.kind, b.dataset.key)); persistFilters(b.dataset.kind); }
     else return;
