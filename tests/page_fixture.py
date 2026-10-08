@@ -39,6 +39,9 @@ goals_to = 4.0
 knockout = { "final" = 1.0, "semifinal" = 0.9, "quarterfinal" = 0.8, "round of 16" = 0.7, "playoff" = 0.7 }
 network = ["ABC", "CBS", "FOX", "NBC", "Telemundo", "Univision", "UniMás"]
 cable = ["ESPN", "ESPN2", "FS1", "FS2", "USA Network"]
+
+[dots]
+thresholds = [35, 45, 55, 68]
 """
 
 
@@ -47,6 +50,8 @@ def fixture_settings(builder, **changes):
     baseline build from before the model choice reads them in its own shape: [ai] enabled alone, and
     Claude's weight in [blend]."""
     text = FIXTURE_SETTINGS
+    if "dots" not in getattr(builder.Settings, "__dataclass_fields__", {}):      # a build from before the dots
+        text = text.replace("\n[dots]\nthresholds = [35, 45, 55, 68]\n", "")
     if not hasattr(builder, "providers"):
         text = (text.replace('design = "ratings"\nmodel = "gpt-6.1-sol"\neffort = "low"\n', "")
                 .replace("[blend]\nai = 50", "[blend]\nclaude = 50"))

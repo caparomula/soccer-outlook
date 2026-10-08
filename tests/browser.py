@@ -1353,17 +1353,23 @@ class BrowserChecks(unittest.TestCase):
                 page.locator('#comp-pills [data-key="esp.1"]').click()
                 expect(page.locator('#comp-pills [data-key="esp.1"]')).to_have_attribute('aria-pressed', 'false')
 
-    def test_every_row_shows_the_pick_score_its_card_would(self):
+    def test_every_row_shows_its_pick_score_as_golden_dots(self):
         fixtures = [("eng", "2026-10-07T18:00:00+00:00", "pre", "ESPN+", "eng.1"),
                     ("esp", "2026-10-07T18:00:00+00:00", "pre", "ESPN+", "esp.1"),
                     ("off", "2026-10-07T19:00:00+00:00", "pre", "Peacock", "usa.1"),
-                    ("done", "2026-10-07T15:00:00+00:00", "post", "ESPN+", "eng.1")]
+                    ("done", "2026-10-07T15:00:00+00:00", "post", "ESPN+", "eng.1"),
+                    # Rated 1, in the last league shown by default: league priority 0, so the score stays below 35.
+                    ("low", "2026-10-07T20:00:00+00:00", "pre", "ESPN+",
+                     next(lg for lg in reversed(list(build.LEAGUES)) if not build.LEAGUES[lg].get("default_off"))),
+                    # Rated 30 in the first league: 80% of (30 + Outlook 57.5) / 2 plus 20% of 100 is 55.0, the fourth dot's threshold.
+                    ("edge", "2026-10-07T21:00:00+00:00", "pre", "ESPN+", "eng.1")]
         story = self.tagged_story()
         story['league_order'] = ['eng.1', 'esp.1']
         story['rankings'] = {mid: dict(score=score, popularity=score, gameplay=score, impact=score)
-                             for mid, score in (('eng', 80), ('esp', 80.5), ('off', 30), ('done', 60))}
+                             for mid, score in (('eng', 80), ('esp', 80.5), ('off', 30), ('done', 60), ('low', 1), ('edge', 30))}
+        dots_for = lambda score: 1 + sum(score >= t for t in (35, 45, 55, 68))       # the fixture settings' thresholds
 
-        def row_score(mid):
+        def row(mid):
             return page.locator(f'li.row[data-id="{mid}"] .row__pick')
 
         def card_label(mid):        # the pick card's, or the top card's when the match is there
@@ -1375,27 +1381,40 @@ class BrowserChecks(unittest.TestCase):
             with self.subTest(width=width), self.page('after', width=width, html=render_page(build, fixtures=fixtures), story=story) as (page, _):
                 page.locator('#btn-all').click()        # every row, the one off the lineup and the finished one too
                 page.locator('li.row[data-id="done"]').evaluate("el => { el.closest('details').open = true; }")   # Earlier today is folded
-                for mid in ('eng', 'esp', 'off', 'done'):
-                    expect(row_score(mid)).to_be_visible()
-                    expect(row_score(mid)).to_have_text(re.compile(r'^Pick \d+(\.\d)?$'))
-                # The same number and breakdown as the match's pick card.
+                for mid in ('eng', 'esp', 'off', 'done', 'low', 'edge'):
+                    expect(row(mid)).to_be_visible()
+                    score = float(row(mid).get_attribute('aria-label').split(' ')[2])
+                    n = dots_for(score)
+                    expect(row(mid).locator('i')).to_have_count(n)
+                    self.assertEqual(row(mid).get_attribute('aria-label'), f"Pick score {score:g} out of 100, {n} {'dot' if n == 1 else 'dots'} of 5")
+                    self.assertEqual(row(mid).text_content(), '')                # dots, not words
+                    dot = row(mid).locator('i').first.bounding_box()
+                    self.assertTrue(4 <= dot['width'] <= 6 and 4 <= dot['height'] <= 6)
+                expect(row('low').locator('i')).to_have_count(1)                   # even the dullest match has one
+                self.assertEqual(row('edge').get_attribute('aria-label'), 'Pick score 55 out of 100, 4 dots of 5')   # a threshold counts
+                # The same score, breakdown and dots as the match's card, which also writes the score out.
                 for mid in ('eng', 'esp'):
-                    expect(row_score(mid)).to_have_text('Pick ' + card_number(mid))
-                    self.assertEqual(row_score(mid).get_attribute('title'), card_label(mid).get_attribute('title'))
-                self.assertEqual(row_score('eng').get_attribute('aria-label'), 'Pick score ' + card_number('eng') + ' out of 100')
+                    number = card_number(mid)
+                    self.assertEqual(row(mid).get_attribute('aria-label').split(' ')[2], number)
+                    n = dots_for(float(number))
+                    self.assertEqual(row(mid).get_attribute('title'), f"Pick score {number}/100, {n} of 5 dots. " + card_label(mid).get_attribute('title'))
+                    expect(card_label(mid).locator('.dots i')).to_have_count(n)
+                    expect(card_label(mid).locator('.dots')).to_have_attribute('aria-hidden', 'true')
+                    self.assertGreater(card_label(mid).locator('.dots i').first.bounding_box()['width'], 3)    # drawn, even in the narrow top card
                 # It follows the visitor's league priority.
-                before = float(row_score('esp').text_content().split(' ')[1])
+                before = float(row('esp').get_attribute('aria-label').split(' ')[2])
                 page.locator('#btn-menu').click()
                 page.locator('.league-priority > summary').click()
                 page.get_by_role('button', name='Move La Liga up', exact=True).click()
                 page.locator('#btn-filters-close').click()
-                self.assertGreater(float(row_score('esp').text_content().split(' ')[1]), before)
-                expect(row_score('esp')).to_have_text('Pick ' + card_number('esp'))
+                self.assertGreater(float(row('esp').get_attribute('aria-label').split(' ')[2]), before)
+                self.assertEqual(row('esp').get_attribute('aria-label').split(' ')[2], card_number('esp'))
                 # Inside its column at a phone's width, and the page doesn't scroll sideways.
-                cell, label = page.locator('li.row[data-id="esp"] .row__time').bounding_box(), row_score('esp').bounding_box()
-                self.assertLessEqual(label['x'] + label['width'], cell['x'] + cell['width'] + 14)       # into the column gap at most
+                cell, label = page.locator('li.row[data-id="esp"] .row__time').bounding_box(), row('esp').bounding_box()
+                self.assertLessEqual(label['x'] + label['width'], cell['x'] + cell['width'])
                 self.assertLessEqual(page.evaluate('document.documentElement.scrollWidth'), width)
-                page.locator('li.row[data-id="esp"]').screenshot(path=str(self.artifacts / f'row-pick-{width}.png'))
+                page.locator('li.row[data-id="esp"]').screenshot(path=str(self.artifacts / f'row-dots-{width}.png'))
+                page.locator('#nextup').screenshot(path=str(self.artifacts / f'nextup-dots-{width}.png'))
         # A page built without scores shows none.
         with self.page('after', html=re.sub(r' data-outlook="[^"]*"', '', render_page(build))) as (page, _):
             expect(page.locator('li.row .row__pick:visible')).to_have_count(0)

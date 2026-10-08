@@ -225,7 +225,8 @@ class PageScoring(unittest.TestCase):
         self.assertIn('data-ai="on"', on)
         self.assertIn('data-ai="off"', off)
         blend = json.loads(re.search(r'<script type="application/json" id="scoring">([^<]*)</script>', on).group(1))
-        self.assertEqual(blend, {"blend": {"ai": 50, "outlook": 50, "interest": 80, "league_priority": 20}})
+        self.assertEqual(blend, {"blend": {"ai": 50, "outlook": 50, "interest": 80, "league_priority": 20}, "dots": [35, 45, 55, 68]})
+        self.assertIn("one to five golden dots: two from 35, three from 45, four from 55 and five from 68 out of 100", self.footer(on))
         self.assertIn("gpt-6.1-sol, an OpenAI AI model, rates every match kicking off in the next three days", self.footer(on))
         self.assertIn("the page shows no AI-written text", self.footer(on))
         self.assertNotIn("Claude", self.footer(on))
@@ -282,6 +283,16 @@ class PageScoring(unittest.TestCase):
         # Every OpenAI model searches; so do Claude Sonnet and Opus.
         for model, effort in (("gpt-6-luna", "low"), ("claude-sonnet-5-5", "medium")):
             self.assertEqual(load(base.replace('"gemini-3.1-pro-preview"', f'"{model}"').replace('overview_effort = "medium"', f'overview_effort = "{effort}"')).overview_model, model)
+
+    def test_the_dots_need_four_rising_scores(self):
+        for value in ("[35, 45, 55]", "[35, 45, 45, 68]", "[35, 45, 55, 101]", "[0, 45, 55, 68]", '["a", 45, 55, 68]', "[true, 45, 55, 68]", "50"):
+            with self.subTest(value=value), self.assertRaises(build.SettingsError) as raised:
+                load(FIXTURE_SETTINGS.replace("thresholds = [35, 45, 55, 68]", f"thresholds = {value}"))
+            self.assertIn("[dots] thresholds: must be four rising scores from above 0 to 100", str(raised.exception))
+        with self.assertRaises(build.SettingsError) as raised:
+            load(FIXTURE_SETTINGS.replace("\n[dots]\nthresholds = [35, 45, 55, 68]\n", ""))
+        self.assertIn("missing dots", str(raised.exception))
+        self.assertEqual(load(FIXTURE_SETTINGS.replace("[35, 45, 55, 68]", "[30, 40.5, 60, 100]")).dots, (30, 40.5, 60, 100))
 
     def test_the_blurbs_take_the_overviews_rules(self):
         base = FIXTURE_SETTINGS.replace('effort = "low"\n', 'effort = "low"\nblurbs_model = "gpt-6.1-sol"\nblurbs_effort = "medium"\n')

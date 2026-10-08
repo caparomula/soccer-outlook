@@ -23,8 +23,9 @@
   var SERVICE_NAMES = SERVICES.name;
   // How a pick score is made (settings.toml, embedded by build.py), and whether an AI model takes part
   // at all: with AI off the page never asks for story.json, so no AI-written text or rating can appear.
-  var SCORING = { blend: { ai: 70, outlook: 30, interest: 95, league_priority: 5 } };
+  var SCORING = { blend: { ai: 70, outlook: 30, interest: 95, league_priority: 5 }, dots: [35, 45, 55, 68] };
   try { SCORING = JSON.parse(document.getElementById('scoring').textContent) || SCORING; } catch (e) {}
+  if (!Array.isArray(SCORING.dots) || SCORING.dots.length !== 4) SCORING.dots = [35, 45, 55, 68];   // a page from before the dots
   var AI_ON = app.getAttribute('data-ai') !== 'off';
   function rankOf(id) { var i = serviceOrder().indexOf(id); return i < 0 ? 99 : i; }
   var SHORT = { cable: 'cable', ota: 'antenna', free: 'free app' };   // buckets where the channel leads
@@ -713,6 +714,18 @@
     return position < 0 ? 0 : order.length < 2 ? 100 : 100 * (order.length - 1 - position) / (order.length - 1);
   }
   function blendedScore(r) { var v = pickValue(r); return v === null ? null : Math.round(v * 10) / 10; }
+  // A pick score as one to five golden dots: one, and one more from each of settings.toml's [dots]
+  // thresholds, which are fixed scores, so a dot means the same every day.
+  function dotCount(score) { return 1 + SCORING.dots.filter(function (t) { return score >= t; }).length; }
+  function fillDots(el, n) {
+    if (el.childElementCount === n) return;
+    el.replaceChildren(); for (var i = 0; i < n; i++) el.appendChild(document.createElement('i'));
+  }
+  // On a card, after its written score, which already says it: the dots are only a picture of it.
+  function cardDots(score) {
+    var el = document.createElement('div'); el.className = 'dots'; el.setAttribute('aria-hidden', 'true');   // not a span: the top card's narrow layout blocks those
+    fillDots(el, dotCount(score)); return el;
+  }
   function share(a, b) { return Math.round(100 * a / (a + b)); }
   function oneDecimal(x) { return Math.round(x * 10) / 10; }
   var OUTLOOK_NAMES = [['stature', 'occasion'], ['close', 'evenly matched'], ['stakes', 'stakes'], ['tv', 'TV'], ['goals', 'goals expected']];
@@ -1023,14 +1036,15 @@
   MatchCard.prototype.renderPickScore = function () {
     var r = this.row, score = blendedScore(r), el = r.querySelector('.row__pick');
     if (!el) {
-      el = document.createElement('span'); el.className = 'row__pick';
+      el = document.createElement('span'); el.className = 'row__pick dots'; el.setAttribute('role', 'img');
       r.querySelector('.row__kickoff').appendChild(el);
     }
     el.hidden = score === null;
     if (score === null) return;
-    setText(el, 'Pick ' + score);
-    el.setAttribute('aria-label', 'Pick score ' + score + ' out of 100');
-    el.title = scoreDetails(r);
+    var n = dotCount(score);
+    fillDots(el, n);
+    el.setAttribute('aria-label', 'Pick score ' + score + ' out of 100, ' + n + (n === 1 ? ' dot' : ' dots') + ' of 5');
+    el.title = 'Pick score ' + score + '/100, ' + n + ' of 5 dots. ' + scoreDetails(r);
   };
   MatchCard.prototype.render = function (role, now, host) {
     var r = this.row;
@@ -1057,11 +1071,13 @@
     var score = blendedScore(r), label = document.createElement('div');
     label.className = top ? 'nextup__rating' : 'pick__rating';
     label.textContent = score !== null ? 'Pick score · ' + score + '/100' : 'Upcoming';
-    if (score !== null) label.title = scoreDetails(r);
+    if (score !== null) { label.title = scoreDetails(r); label.appendChild(cardDots(score)); }
     head.appendChild(label);
     if (top) {
       label.id = 'nextup-rating'; label.hidden = score === null;
-      if (score !== null) { label.classList.add('pair'); label.innerHTML = pairHtml(); setPair(label, 'Pick score', score + '/100'); }
+      if (score !== null) {
+        label.classList.add('pair'); label.innerHTML = pairHtml(); setPair(label, 'Pick score', score + '/100'); label.appendChild(cardDots(score));
+      }
       var status = document.createElement('div'); status.className = 'nextup__status pair'; status.id = 'nextup-status';
       var count = document.createElement('div'); count.className = 'nextup__count'; count.id = 'nextup-count';
       status.innerHTML = pairHtml(); showNextupText(status, count, nextupText(r, now));

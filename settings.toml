@@ -84,6 +84,18 @@ interest = 95
 league_priority = 5
 
 
+# ---- Dots ----------------------------------------------------------------------------------------
+# Every match shows its pick score as one to five tiny golden dots: one below the first threshold, and
+# one more from each. The bands are narrow in the middle, where most scores sit, and wide at the ends:
+# on 8 October 2026 these gave 13% of the rated matches one dot, 34% two, 33% three, 20% four and 1%
+# five (Liverpool v Manchester City and Real Madrid v Villarreal). They are fixed scores, not shares of
+# the day's matches, so a dot means the same every week and a big weekend shows more five-dot matches
+# than a quiet one. Four rising scores, from above 0 to 100.
+
+[dots]
+thresholds = [35, 45, 55, 68]
+
+
 # ---- Outlook score -------------------------------------------------------------------------------
 # The page's own interest score, from ESPN's data alone: the same facts and the same arithmetic for
 # every match, and nothing an AI wrote (the AI doesn't see it either, so each can check the other).

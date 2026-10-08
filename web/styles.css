@@ -2,7 +2,7 @@
    the primary service chip right, and a row of broadcaster pills under every match. */
 :root {
   --bg: #f2f4ef; --card: #ffffff; --fg: #15201a; --muted: #5b6a61; --line: #d6dcd4; --line-strong: #b9c3ba;
-  --accent: #15744a; --amber: #b86b12; --amber-soft: #fbead3; --warn-bg: #fff3e0; --win: #2e9e5b; --loss: #c84b3c; --draw: #a8b1a9;
+  --accent: #15744a; --gold: #a87a00; --amber: #b86b12; --amber-soft: #fbead3; --warn-bg: #fff3e0; --win: #2e9e5b; --loss: #c84b3c; --draw: #a8b1a9;
   --off-bg: #e9ece7; --off-fg: #6b776f; --pill-bg: #eceee9; --pill-fg: #55625a;
   --dark-icon-filter: brightness(1);
   --svc-hbo: #5e46c9; --svc-fox: #1f5fbf; --svc-para: #0b6f8f; --svc-espn: #c2322a; --svc-apple: #3a3a3a;
@@ -15,7 +15,7 @@
 }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
   --bg: #0f1512; --card: #182019; --fg: #e7ece6; --muted: #9ba89f; --line: #26312a; --line-strong: #3a4840;
-  --accent: #3fb87a; --amber: #e5a24b; --amber-soft: #3a2a12; --warn-bg: #2e2412; --win: #4cc47f; --loss: #ff7b6f; --draw: #5a675e;
+  --accent: #3fb87a; --gold: #e8b931; --amber: #e5a24b; --amber-soft: #3a2a12; --warn-bg: #2e2412; --win: #4cc47f; --loss: #ff7b6f; --draw: #5a675e;
   --off-bg: #1f2823; --off-fg: #93a097; --pill-bg: #222c26; --pill-fg: #aab6ae;
   --dark-icon-filter: contrast(0.5) brightness(1.8) saturate(0.85);
   --svc-hbo: #a391ff; --svc-fox: #6fa3ff; --svc-para: #49bbdb; --svc-espn: #ff7b6f; --svc-apple: #d0d0d0;
@@ -26,7 +26,7 @@
 } }
 :root[data-theme="dark"] {
   --bg: #0f1512; --card: #182019; --fg: #e7ece6; --muted: #9ba89f; --line: #26312a; --line-strong: #3a4840;
-  --accent: #3fb87a; --amber: #e5a24b; --amber-soft: #3a2a12; --warn-bg: #2e2412; --win: #4cc47f; --loss: #ff7b6f; --draw: #5a675e;
+  --accent: #3fb87a; --gold: #e8b931; --amber: #e5a24b; --amber-soft: #3a2a12; --warn-bg: #2e2412; --win: #4cc47f; --loss: #ff7b6f; --draw: #5a675e;
   --off-bg: #1f2823; --off-fg: #93a097; --pill-bg: #222c26; --pill-fg: #aab6ae;
   --dark-icon-filter: contrast(0.5) brightness(1.8) saturate(0.85);
   --svc-hbo: #a391ff; --svc-fox: #6fa3ff; --svc-para: #49bbdb; --svc-espn: #ff7b6f; --svc-apple: #d0d0d0;
@@ -274,7 +274,13 @@ a { color: inherit; }
 .row__goals { margin-top: 4px; font-size: 13px; color: var(--muted); }
 .row__goals b { color: var(--fg); font-weight: 600; }
 .row__until { font-size: 11.5px; color: var(--accent); margin-top: 4px; font-variant-numeric: tabular-nums; }
-.row__pick { font-size: 11.5px; color: var(--muted); margin-top: 6px; font-variant-numeric: tabular-nums; white-space: nowrap; cursor: help; }
+/* A pick score as one to five tiny golden dots (settings.toml's [dots]): under a row's kickoff, and
+   after a card's score. Gold clears 3:1 against every background it sits on, in both themes. */
+.dots { display: inline-flex; align-items: center; gap: 3px; vertical-align: middle; }
+.dots[hidden] { display: none; }        /* a class's display would otherwise override the attribute */
+.dots i { flex: none; width: 5px; height: 5px; border-radius: 50%; background: var(--gold); }
+.row__pick { margin-top: 7px; cursor: help; }
+.nextup__rating .dots, .pick__rating .dots { margin-left: 7px; }
 .more { appearance: none; border: 0; background: transparent; color: var(--muted); font: 600 12px var(--body); cursor: pointer; padding: 2px 4px; margin-left: auto; text-decoration: underline dotted; border-radius: 4px; }
 .more:hover { color: var(--fg); }
 .more:focus-visible { color: var(--fg); outline: 2px solid var(--accent); outline-offset: 2px; }
