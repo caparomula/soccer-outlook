@@ -12,7 +12,7 @@ import tempfile
 import unittest
 
 import build
-from tests.page_fixture import fixture_settings, render_page
+from tests.page_fixture import FIXTURE_SETTINGS, fixture_settings, render_page
 
 SETTINGS = fixture_settings(build)
 CHANNELS = {o["label"] for o in build.OUTLETS.values()}
@@ -44,15 +44,19 @@ class SettingsFile(unittest.TestCase):
         s = build.load_settings(build.SETTINGS_PATH, CHANNELS)
         self.assertIsInstance(s.ai, bool)
         self.assertEqual(set(s.outlook["weights"]), set(build.OUTLOOK_PARTS))
-        self.assertGreater(s.blend["claude"] + s.blend["outlook"], 0)
+        self.assertGreater(s.blend["ai"] + s.blend["outlook"], 0)
+        self.assertIn(s.model, build.providers.MODELS)        # the choice story.py will act on
         self.assertGreater(s.blend["interest"] + s.blend["league_priority"], 0)
 
     def test_every_problem_is_listed_at_once(self):
         bad = """
 [ai]
 enabled = "yes"
+design = "everything"
+model = "gpt-6.1-sol"
+effort = "extreme"
 [blend]
-claude = 0
+ai = 0
 outlook = 0
 interest = -5
 leage_priority = 20
@@ -73,9 +77,11 @@ cable = ["NBC"]
             load(bad)
         message = str(raised.exception)
         for expected in ("[ai] enabled: must be true or false",
+                         "[ai] design: must be ratings or full",
+                         "[ai] effort: gpt-6.1-sol takes none, minimal, low, medium, high, xhigh, max",
                          "[blend]: unknown key leage_priority",
                          "[blend]: missing league_priority",
-                         "[blend] claude and outlook: at least one must be above 0",
+                         "[blend] ai and outlook: at least one must be above 0",
                          "[blend] interest: must be at least 0",
                          "[outlook] weights: missing goals",
                          "[outlook] missing: must be from 0 to 1",
@@ -89,8 +95,17 @@ cable = ["NBC"]
         with self.assertRaisesRegex(build.SettingsError, r"settings\.toml"):
             load("[ai]\nenabled = \n")
 
+    def test_a_commit_to_the_settings_rebuilds_the_page(self):
+        # settings.toml promises that a commit changing it is live within minutes: the push that runs
+        # the build must include it, and every module the build and story.py import.
+        workflow = (Path(build.__file__).parent / ".github" / "workflows" / "refresh.yml").read_text()
+        paths = re.search(r"push:\s*\n\s*branches: \[main\]\s*\n\s*paths: \[([^\]]*)\]", workflow).group(1)
+        for name in ("settings.toml", "build.py", "story.py", "providers.py", "rights.toml"):
+            self.assertIn(f'"{name}"', paths)
+
     def test_fixture_settings_match_the_documented_first_values(self):
-        self.assertEqual(SETTINGS.blend, {"claude": 50, "outlook": 50, "interest": 80, "league_priority": 20})
+        self.assertEqual(SETTINGS.blend, {"ai": 50, "outlook": 50, "interest": 80, "league_priority": 20})
+        self.assertEqual((SETTINGS.design, SETTINGS.model, SETTINGS.effort, SETTINGS.provider), ("ratings", "gpt-6.1-sol", "low", "openai"))
         self.assertEqual(SETTINGS.outlook["weights"], {"stature": 40, "close": 25, "stakes": 15, "tv": 10, "goals": 10})
 
 
@@ -209,16 +224,43 @@ class PageScoring(unittest.TestCase):
         self.assertIn('data-ai="on"', on)
         self.assertIn('data-ai="off"', off)
         blend = json.loads(re.search(r'<script type="application/json" id="scoring">([^<]*)</script>', on).group(1))
-        self.assertEqual(blend, {"blend": {"claude": 50, "outlook": 50, "interest": 80, "league_priority": 20}})
-        self.assertIn("written by Claude", self.footer(on))
-        self.assertIn("50% Claude&#x27;s rating and 50% the Outlook score", self.footer(on))
+        self.assertEqual(blend, {"blend": {"ai": 50, "outlook": 50, "interest": 80, "league_priority": 20}})
+        self.assertIn("gpt-6.1-sol, an OpenAI AI model, rates every match kicking off in the next three days", self.footer(on))
+        self.assertIn("the page shows no AI-written text", self.footer(on))
+        self.assertNotIn("Claude", self.footer(on))
+        self.assertIn("50% the AI rating and 50% the Outlook score", self.footer(on))
         self.assertIn("80% interest and 20% league priority", self.footer(on))
         self.assertIn("No AI is used on this page", self.footer(off))
         self.assertNotIn("Claude", self.footer(off))
         self.assertIn("80% the Outlook score and 20% league priority", self.footer(off))
         hint = lambda page: re.search(r'id="priority-hint">([^<]*)<', page).group(1)
-        self.assertIn("80% match interest (Claude&#x27;s rating and the Outlook score) and 20% this order", hint(on))
+        self.assertIn("80% match interest (the AI rating and the Outlook score) and 20% this order", hint(on))
         self.assertIn("80% the Outlook score and 20% this order", hint(off))
+
+
+    def test_the_footer_names_the_model_and_what_it_does(self):
+        full = self.footer(render_page(build, design="full", model="claude-opus-5-5"))
+        self.assertIn("written by Claude, Anthropic&#x27;s AI model (claude-opus-5-5)", full)
+        self.assertIn("a sourced blurb for every rated match", full)
+        haiku = self.footer(render_page(build, model="claude-haiku-5-5"))
+        self.assertIn("claude-haiku-5-5, an Anthropic AI model, rates every match", haiku)
+        gemini = self.footer(render_page(build, model="gemini-3.1-flash-lite"))
+        self.assertIn("gemini-3.1-flash-lite, a Google AI model, rates every match", gemini)
+
+    def test_the_ai_table_names_a_model_that_can_do_its_design(self):
+        base = FIXTURE_SETTINGS
+        for change, expected in (
+                (('model = "gpt-6.1-sol"', 'model = "gpt-9"'), "[ai] model: must be one of claude-opus-5-5"),
+                (('design = "ratings"', 'design = "full"'), "[ai] model: the full design is Claude's research"),
+                (('model = "gpt-6.1-sol"\neffort = "low"', 'model = "claude-haiku-5-5"\neffort = "none"'), "[ai] effort: claude-haiku-5-5 takes low"),
+                (('effort = "low"\n', ''), "[ai]: missing effort"),
+                (('effort = "low"\n', 'effort = "low"\nbudget = 3\n'), "[ai]: unknown key budget")):
+            with self.subTest(expected=expected), self.assertRaises(build.SettingsError) as raised:
+                load(base.replace(*change))
+            self.assertIn(expected, str(raised.exception))
+        ok = load(base.replace('design = "ratings"\nmodel = "gpt-6.1-sol"\neffort = "low"',
+                               'design = "full"\nmodel = "claude-sonnet-5-5"\neffort = "medium"'))
+        self.assertEqual((ok.design, ok.model, ok.provider), ("full", "claude-sonnet-5-5", "anthropic"))
 
 
 if __name__ == "__main__":

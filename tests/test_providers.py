@@ -23,6 +23,7 @@ from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+import providers  # noqa: E402
 import story  # noqa: E402
 
 _spec = importlib.util.spec_from_file_location("compare_providers", ROOT / ".github" / "scripts" / "compare-providers.py")
@@ -103,7 +104,7 @@ class SameQuestion(unittest.TestCase):
         client = FakeClaude(reply)
         story.rate_chunk(client, "claude-haiku-5-5", "low", FIXTURES, [], HEADER, scores_only=True)
         sent = client.calls[0]
-        self.assertEqual(sent["messages"][0]["content"], compare.ratings_prompt(HEADER, FIXTURES))
+        self.assertEqual(sent["messages"][0]["content"], story.rating_prompt(HEADER, FIXTURES, scores_only=True))
         self.assertEqual(sent["system"], story.SCORES_SYSTEM)
 
     def test_openai_and_google_ratings_carry_the_same_text_and_schema(self):
@@ -111,16 +112,16 @@ class SameQuestion(unittest.TestCase):
                         {"candidates": [{"content": {"parts": [{"text": "{}"}]}, "finishReason": "STOP"}]})
         schema = copy.deepcopy(story.SCORES_SCHEMA)
         keys = {"openai": "sk-test", "google": "g-test"}
-        with patch.object(compare, "post_json", post):
+        with patch.object(providers, "post_json", post):
             compare.rate_once(LUNA, HEADER, FIXTURES, keys, {})
             compare.rate_once(FLASH, HEADER, FIXTURES, keys, {})
         (o_url, o_body, o_headers), (g_url, g_body, g_headers) = post.calls
-        prompt = compare.ratings_prompt(HEADER, FIXTURES)
+        prompt = story.rating_prompt(HEADER, FIXTURES, scores_only=True)
         self.assertEqual(o_url, "https://api.openai.com/v1/responses")
         self.assertEqual(o_headers, {"Authorization": "Bearer sk-test"})
         self.assertEqual(o_body, {"model": "gpt-6-luna", "instructions": story.SCORES_SYSTEM, "input": prompt,
                                   "reasoning": {"effort": "low"}, "max_output_tokens": story.RATING_MAX_TOKENS, "store": False,
-                                  "text": {"format": {"type": "json_schema", "name": "ratings", "schema": story.SCORES_SCHEMA,
+                                  "text": {"format": {"type": "json_schema", "name": "answer", "schema": story.SCORES_SCHEMA,
                                                       "strict": True}}})
         # The key travels in a header, never in the URL.
         self.assertEqual(g_url, "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent")
@@ -142,7 +143,7 @@ class SameQuestion(unittest.TestCase):
         claude = FakeClaude(SimpleNamespace(model="claude-opus-5-5", usage=claude_usage(), stop_reason="end_turn",
                                             content=[SimpleNamespace(type="text", text='{"blurbs": []}')]))
         keys = {"openai": "sk", "google": "g"}
-        with patch.object(compare, "post_json", post):
+        with patch.object(providers, "post_json", post):
             for cfg in (compare.Config("openai", "gpt-5.5", "medium"), compare.Config("google", "gemini-3.1-pro-preview", "medium"),
                         compare.Config("anthropic", "claude-opus-5-5", "medium")):
                 compare.run_research(cfg, HEADER, FIXTURES, keys, {"anthropic": claude})
@@ -180,7 +181,7 @@ class OpenAIReplies(unittest.TestCase):
             "usage": {"input_tokens": 12000, "input_tokens_details": {"cached_tokens": 2000}, "output_tokens": 900,
                       "output_tokens_details": {"reasoning_tokens": 600}, "total_tokens": 12900}}
         resp.update(over)
-        return compare.openai_reply(resp)
+        return providers.openai_reply(resp, compare.match_key)
 
     def test_text_citations_searches_and_usage(self):
         reply = self.reply()
@@ -199,12 +200,12 @@ class OpenAIReplies(unittest.TestCase):
     def test_cut_short_or_refused_replies_are_not_read_as_ratings(self):
         cut = self.reply(status="incomplete", incomplete_details={"reason": "max_output_tokens"})
         self.assertEqual(cut.stop, "max_tokens")
-        self.assertEqual(compare.parse_ratings('{"ratings": [{"match_id": "1"}]}', cut.stop), [])
+        self.assertEqual(story.parse_ratings('{"ratings": [{"match_id": "1"}]}', cut.stop), [])
         refused = self.reply(output=[{"type": "message", "content": [{"type": "refusal", "refusal": "No."}]}])
         self.assertEqual((refused.stop, refused.text), ("refusal", ""))
         self.assertEqual(self.reply(status="incomplete", incomplete_details={"reason": "content_filter"}).stop, "refusal")
-        self.assertEqual(compare.parse_ratings("not json", "end"), [])
-        self.assertEqual(compare.parse_ratings('{"ratings": [{"match_id": "1"}]}', "end"), [{"match_id": "1"}])
+        self.assertEqual(story.parse_ratings("not json", "end"), [])
+        self.assertEqual(story.parse_ratings('{"ratings": [{"match_id": "1"}]}', "end"), [{"match_id": "1"}])
 
 
 class GeminiReplies(unittest.TestCase):
@@ -224,7 +225,7 @@ class GeminiReplies(unittest.TestCase):
                                           "text": self.SEGMENT}, "groundingChunkIndices": [0, 1], "confidenceScores": [0.9, 0.8]},
                              {"segment": {"endIndex": len("Atlético".encode("utf-8")), "text": "Atlético"}, "groundingChunkIndices": [1, 7]}]}}
         candidate.update(over)
-        return compare.gemini_reply({"modelVersion": "gemini-3.8-flash", "candidates": [candidate], "usageMetadata": {
+        return providers.gemini_reply({"modelVersion": "gemini-3.8-flash", "candidates": [candidate], "usageMetadata": {
             "promptTokenCount": 5000, "cachedContentTokenCount": 1000, "candidatesTokenCount": 700, "thoughtsTokenCount": 300,
             "toolUsePromptTokenCount": 2000, "totalTokenCount": 8000}})
 
@@ -252,13 +253,13 @@ class GeminiReplies(unittest.TestCase):
     def test_stops_and_thought_summaries(self):
         self.assertEqual(self.reply(finishReason="MAX_TOKENS").stop, "max_tokens")
         self.assertEqual(self.reply(finishReason="SAFETY").stop, "refusal")
-        blocked = compare.gemini_reply({"promptFeedback": {"blockReason": "PROHIBITED_CONTENT"}})
+        blocked = providers.gemini_reply({"promptFeedback": {"blockReason": "PROHIBITED_CONTENT"}})
         self.assertEqual((blocked.stop, blocked.text), ("refusal", ""))
         thought = self.reply(content={"parts": [{"text": "Thinking about it.", "thought": True}, {"text": "{}"}]})
         self.assertEqual(thought.text, "{}")
 
     def test_schema_for_google_keeps_everything_but_additional_properties(self):
-        stripped = compare.gemini_schema({"type": "object", "additionalProperties": False, "required": ["a"],
+        stripped = providers.gemini_schema({"type": "object", "additionalProperties": False, "required": ["a"],
                                           "properties": {"a": {"type": "array", "items": [{"additionalProperties": False, "type": "object"}]}}})
         self.assertEqual(stripped, {"type": "object", "required": ["a"], "properties": {"a": {"type": "array", "items": [{"type": "object"}]}}})
 
@@ -406,24 +407,24 @@ class Network(unittest.TestCase):
 
     def test_rate_limits_and_server_errors_are_retried_but_not_bad_requests(self):
         Server.script[:] = [429, 503]
-        with patch.object(compare.time, "sleep") as slept:
-            self.assertEqual(compare.post_json(self.base + "/v1", {"a": 1}, {}), {"ok": True})
+        with patch.object(providers.time, "sleep") as slept:
+            self.assertEqual(providers.post_json(self.base + "/v1", {"a": 1}, {}), {"ok": True})
         self.assertEqual((len(Server.hits), [c.args[0] for c in slept.call_args_list]), (3, [2, 4]))
         Server.hits.clear()
         Server.script[:] = [400]
-        with self.assertRaises(compare.ProviderError) as caught:
-            compare.post_json(self.base + "/v1", {}, {})
+        with self.assertRaises(providers.ProviderError) as caught:
+            providers.post_json(self.base + "/v1", {}, {})
         self.assertEqual((str(caught.exception), len(Server.hits)), ("HTTP 400: status 400", 1))
         Server.hits.clear()
         Server.script[:] = [429, 429, 429]
-        with patch.object(compare.time, "sleep"), self.assertRaises(compare.ProviderError):
-            compare.post_json(self.base + "/v1", {}, {})
+        with patch.object(providers.time, "sleep"), self.assertRaises(providers.ProviderError):
+            providers.post_json(self.base + "/v1", {}, {})
         self.assertEqual(len(Server.hits), 3)
 
     def test_a_timeout_is_not_retried(self):
         Server.script[:] = ["slow"]
         with self.assertRaises(OSError):            # socket.timeout and URLError are both OSErrors
-            compare.post_json(self.base + "/v1", {}, {}, timeout=0.3)
+            providers.post_json(self.base + "/v1", {}, {}, timeout=0.3)
         self.assertEqual(len(Server.hits), 1)
 
 
@@ -555,8 +556,9 @@ class Run(unittest.TestCase):
 
     def test_cheapest_first_and_nothing_starts_that_could_pass_the_budget(self):
         configs = "openai:gpt-5.5:low openai:gpt-6-luna:low anthropic:claude-haiku-5-5:low openai:gpt-6.1-sol:low google:gemini-3.8-flash:low"
-        chars = len(story.SCORES_SYSTEM) + len(compare.ratings_prompt(
-            "It is 2:00 am on Thursday, 2026-10-08, US Eastern time.", [story.rating_fixture(m) for m in FACTS["ranking_candidates"]]))
+        chars = len(story.SCORES_SYSTEM) + len(story.rating_prompt(
+            "It is 2:00 am on Thursday, 2026-10-08, US Eastern time.", [story.rating_fixture(m) for m in FACTS["ranking_candidates"]],
+            scores_only=True))
         cfg = lambda text: compare.parse_configs(text, "ratings")[0]
         estimates = {m: compare.estimate(cfg(f"{p}:{m}:low"), "ratings", chars)
                      for p, m in (("anthropic", "claude-haiku-5-5"), ("openai", "gpt-6-luna"), ("openai", "gpt-6.1-sol"), ("openai", "gpt-5.5"))}
@@ -621,7 +623,7 @@ class RatingsRequests(unittest.TestCase):
 
     def test_a_failed_second_request_keeps_the_first_requests_ratings(self):
         result, calls = self.run_with([{"match_id": "1", "popularity": 50, "gameplay": 60, "impact": 70}],
-                                      compare.ProviderError("HTTP 500: overloaded"))
+                                      providers.ProviderError("HTTP 500: overloaded"))
         self.assertEqual((result["status"], result["rated"], result["requests"], result["error"]),
                          ("ok", 1, 1, "ProviderError: HTTP 500: overloaded"))
         self.assertAlmostEqual(result["cost_usd"], 1000 * 0.10e-6 + 100 * 0.50e-6)
@@ -629,7 +631,7 @@ class RatingsRequests(unittest.TestCase):
     def test_nothing_rated_twice_is_given_up(self):
         result, calls = self.run_with([], [])
         self.assertEqual((result["status"], result["rated"], len(calls)), ("empty", 0, 2))
-        failed, _ = self.run_with(compare.ProviderError("HTTP 400: bad schema"))
+        failed, _ = self.run_with(providers.ProviderError("HTTP 400: bad schema"))
         self.assertEqual((failed["status"], failed["requests"], failed["cost_usd"]), ("error", 0, 0))
 
 
@@ -702,7 +704,7 @@ class EveryProvider(unittest.TestCase):
             out = io.StringIO()
             env = {"ANTHROPIC_API_KEY": "a", "OPENAI_API_KEY": "o", "GEMINI_API_KEY": "g"}
             with patch.dict(os.environ, env), patch.dict(sys.modules, {"anthropic": FakeAnthropic()}), \
-                    patch.object(compare, "post_json", fake_api), patch.object(compare, "log", lambda *_: None), \
+                    patch.object(providers, "post_json", fake_api), patch.object(compare, "log", lambda *_: None), \
                     patch.object(compare, "location", lambda uri: "https://g.example/" + uri.rsplit("/", 1)[1]), \
                     patch.object(compare, "check_link", lambda url: {"state": "live" if url in live or "g.example" in url else "dead", "status": 200}), \
                     redirect_stdout(out):

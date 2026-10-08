@@ -48,6 +48,8 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+import providers
+
 ET = ZoneInfo("America/New_York")
 ESPN = "https://site.api.espn.com/apis/site/v2/sports/soccer/{league}/scoreboard?dates={day}&limit=200"
 LOGO_PX = 48            # team and league logos are shown at 32 CSS px; 48 covers high-density screens
@@ -327,9 +329,10 @@ if set(OWNER) - set(SERVICES):
 
 
 # ----------------------------------------------------------------------------------------------
-# settings.toml holds what the owner tunes: whether Claude takes part, how a pick score blends its
-# parts, and the recipe for the page's own Outlook score. load_settings() checks it as load_rights()
-# checks rights.toml, so a typo stops the build instead of quietly changing every pick.
+# settings.toml holds what the owner tunes: whether AI takes part and which model does what, how a pick
+# score blends its parts, and the recipe for the page's own Outlook score. load_settings() checks it as
+# load_rights() checks rights.toml, so a typo stops the build instead of quietly changing every pick.
+# The [ai] table is checked by providers.check_ai, the same check story.py makes before it spends.
 SETTINGS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "settings.toml")
 OUTLOOK_PARTS = ("stature", "close", "stakes", "tv", "goals")
 
@@ -340,9 +343,16 @@ class SettingsError(ValueError):
 
 @dataclass(frozen=True)
 class Settings:
-    ai: bool             # whether Claude writes storylines and rates matches
-    blend: dict          # claude, outlook, interest, league_priority: weights, at least one of each pair above 0
+    ai: bool             # whether an AI model takes part at all
+    design: str          # "ratings" (scores only) or "full" (Claude's research, overview and blurbs too)
+    model: str           # the model that does it, from providers.MODELS
+    effort: str
+    blend: dict          # ai, outlook, interest, league_priority: weights, at least one of each pair above 0
     outlook: dict        # the [outlook] table as checked; knockout words in lower case, channel lists as sets
+
+    @property
+    def provider(self):
+        return providers.MODELS[self.model]
 
 
 def load_settings(path, channels):
@@ -393,13 +403,12 @@ def load_settings(path, channels):
         return frozenset(value)
 
     top = table(os.path.basename(path), data, ("ai", "blend", "outlook"))
-    ai = table("[ai]", top.get("ai", {}), ("enabled",))
-    if "enabled" in ai and not isinstance(ai["enabled"], bool):
-        problems.append("[ai] enabled: must be true or false")
+    ai, ai_problems = providers.check_ai(top.get("ai", {}))
+    problems += ai_problems
 
-    b = table("[blend]", top.get("blend", {}), ("claude", "outlook", "interest", "league_priority"))
-    blend = {k: number(f"[blend] {k}", b.get(k), 0) for k in ("claude", "outlook", "interest", "league_priority")}
-    for pair in (("claude", "outlook"), ("interest", "league_priority")):
+    b = table("[blend]", top.get("blend", {}), ("ai", "outlook", "interest", "league_priority"))
+    blend = {k: number(f"[blend] {k}", b.get(k), 0) for k in ("ai", "outlook", "interest", "league_priority")}
+    for pair in (("ai", "outlook"), ("interest", "league_priority")):
         if all(blend[k] is not None for k in pair) and sum(blend[k] for k in pair) <= 0:
             problems.append(f"[blend] {' and '.join(pair)}: at least one must be above 0")
 
@@ -437,7 +446,7 @@ def load_settings(path, channels):
         problems.append(f"[outlook] network and cable both list {', '.join(both)}")
     if problems:
         raise SettingsError(f"{os.path.basename(path)}:\n  " + "\n  ".join(problems))
-    return Settings(ai=ai["enabled"], blend=blend, outlook=outlook)
+    return Settings(ai=ai["enabled"], design=ai["design"], model=ai["model"], effort=ai["effort"], blend=blend, outlook=outlook)
 
 
 SETTINGS = load_settings(SETTINGS_PATH, {o["label"] for o in OUTLETS.values()})
@@ -1109,23 +1118,31 @@ def priority_hint():
     """The Lineup panel's account of what league priority does, with the settings' proportions."""
     b = SETTINGS.blend
     pick = shares({"interest": b["interest"], "league_priority": b["league_priority"]})
-    interest = "match interest (Claude's rating and the Outlook score)" if SETTINGS.ai else "the Outlook score"
+    interest = "match interest (the AI rating and the Outlook score)" if SETTINGS.ai else "the Outlook score"
     return f"A pick's score is {pick['interest']}% {interest} and {pick['league_priority']}% this order."
 
 
 def about_ai():
-    """The footer's account of Claude's part, or of its absence."""
+    """The footer's account of the AI's part, or of its absence: which model, doing what."""
     if not SETTINGS.ai:
         return "No AI is used on this page: there is no overview, no match blurbs and no AI rating."
-    return ("The overview (marked AI Summary) and the match blurbs are written by Claude, Anthropic's AI model, once a day, "
-            "early in the morning; the midday and evening rebuilds update fixtures, broadcasters and scores but keep the "
-            "morning's text. Blurbs link to their sources; one that rests only on ESPN's table, form and stage is labelled "
-            "\"ESPN table and form\". Claude supplies a general overview, league context and a sourced blurb for every rated "
-            "match. The overview focuses on the current day when possible and looks further ahead when needed. Blurbs with no "
-            "available matches are hidden; excluded phrases within a relevant blurb are dimmed. One overview appears at the "
-            "top; match-specific news stays with its match card or schedule row. Claude also rates each upcoming match for "
-            "popularity (25%), expected gameplay (35%) and competitive impact (40%), without seeing the Outlook score; its "
-            "ratings are editorial judgments, not predicted results.")
+    if SETTINGS.design == "ratings":
+        maker = providers.PROVIDER_NAMES[SETTINGS.provider]
+        article = "an" if maker[0] in "AEIOU" else "a"
+        return (f"Once a day, early in the morning, {SETTINGS.model}, {article} {maker} AI model, rates every match kicking off "
+                "in the next three days (further ahead when they are few) for popularity (25%), expected gameplay (35%) and "
+                "competitive impact (40%), from ESPN's table, form and stage and without seeing the Outlook score. Its ratings "
+                "are editorial judgments, not predicted results, and the page shows no AI-written text.")
+    return ("The overview (marked AI Summary) and the match blurbs are written by Claude, Anthropic's AI model "
+            f"({SETTINGS.model}), once a day, early in the morning; the midday and evening rebuilds update fixtures, "
+            "broadcasters and scores but keep the morning's text. Blurbs link to their sources; one that rests only on "
+            "ESPN's table, form and stage is labelled \"ESPN table and form\". Claude supplies a general overview, league "
+            "context and a sourced blurb for every rated match. The overview focuses on the current day when possible and "
+            "looks further ahead when needed. Blurbs with no available matches are hidden; excluded phrases within a "
+            "relevant blurb are dimmed. One overview appears at the top; match-specific news stays with its match card or "
+            "schedule row. Claude also rates each upcoming match for popularity (25%), expected gameplay (35%) and "
+            "competitive impact (40%), without seeing the Outlook score; its ratings are editorial judgments, not "
+            "predicted results.")
 
 
 def about_scores():
@@ -1138,9 +1155,9 @@ def about_scores():
     text = ("The page's own Outlook score rates every match from ESPN's data alone, by the same arithmetic for each: "
             f"{listed}. The betting market's view comes from DraftKings' prices in ESPN's feed; the page shows no prices. ")
     if SETTINGS.ai:
-        mix = shares({"claude": b["claude"], "outlook": b["outlook"]})
-        return text + (f"A match's interest is {mix['claude']}% Claude's rating and {mix['outlook']}% the Outlook score (the "
-                       "Outlook score alone for a match Claude hasn't rated), and its pick score is "
+        mix = shares({"ai": b["ai"], "outlook": b["outlook"]})
+        return text + (f"A match's interest is {mix['ai']}% the AI rating and {mix['outlook']}% the Outlook score (the "
+                       "Outlook score alone for a match without an AI rating), and its pick score is "
                        f"{pick['interest']}% interest and {pick['league_priority']}% league priority, adjustable in Lineup.")
     return text + (f"A match's pick score is {pick['interest']}% the Outlook score and {pick['league_priority']}% league "
                    "priority, adjustable in Lineup.")

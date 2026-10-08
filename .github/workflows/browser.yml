@@ -2,10 +2,10 @@ name: Browser checks
 
 on:
   pull_request:
-    paths: ["build.py", "rights.toml", "web/**", "tests/**", ".github/workflows/browser.yml"]
+    paths: ["build.py", "providers.py", "settings.toml", "rights.toml", "web/**", "tests/**", ".github/workflows/browser.yml"]
   push:
     branches: [main]
-    paths: ["build.py", "rights.toml", "web/**", "tests/**", ".github/workflows/browser.yml"]
+    paths: ["build.py", "providers.py", "settings.toml", "rights.toml", "web/**", "tests/**", ".github/workflows/browser.yml"]
 
 permissions:
   contents: read

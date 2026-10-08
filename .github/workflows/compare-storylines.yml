@@ -13,8 +13,8 @@
 # the configurations agree with each other, with the ratings published now and with the page's own
 # Outlook score. That costs cents: on 8 October about 130 fixtures, estimated at under a cent on
 # Haiku 5.5 at low effort, about $0.08 on Sonnet 5.5 and $0.16 on Opus 5.5.
-# To adopt a configuration, set the repository variables STORY_MODEL, STORY_EFFORT and
-# STORY_REFRESH_EFFORT (Settings, Secrets and variables, Actions, Variables).
+# To adopt a configuration, set [ai] design, model and effort in settings.toml; the commit puts it on the
+# page at once. The Compare AI providers workflow measures OpenAI's and Google's models as well.
 name: Compare storyline models
 
 on:

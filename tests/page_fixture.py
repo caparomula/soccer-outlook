@@ -17,9 +17,12 @@ TODAY = date(2026, 10, 7)
 FIXTURE_SETTINGS = """
 [ai]
 enabled = true
+design = "ratings"
+model = "gpt-6.1-sol"
+effort = "low"
 
 [blend]
-claude = 50
+ai = 50
 outlook = 50
 interest = 80
 league_priority = 20
@@ -40,11 +43,18 @@ cable = ["ESPN", "ESPN2", "FS1", "FS2", "USA Network"]
 
 
 def fixture_settings(builder, **changes):
-    """FIXTURE_SETTINGS read through the real loader, with `changes` (such as ai=False) applied."""
+    """FIXTURE_SETTINGS read through the real loader, with `changes` (such as ai=False) applied. A
+    baseline build from before the model choice reads them in its own shape: [ai] enabled alone, and
+    Claude's weight in [blend]."""
+    text = FIXTURE_SETTINGS
+    if not hasattr(builder, "providers"):
+        text = (text.replace('design = "ratings"\nmodel = "gpt-6.1-sol"\neffort = "low"\n', "")
+                .replace("[blend]\nai = 50", "[blend]\nclaude = 50"))
+        changes = {k: v for k, v in changes.items() if k == "ai"}
     with tempfile.TemporaryDirectory() as tmp:
         path = os.path.join(tmp, "settings.toml")
         with open(path, "w", encoding="utf-8") as f:
-            f.write(FIXTURE_SETTINGS)
+            f.write(text)
         settings = builder.load_settings(path, {o["label"] for o in builder.OUTLETS.values()})
     return replace(settings, **changes)
 
@@ -56,16 +66,18 @@ class FixedDatetime(datetime):
 
 
 def render_page(builder, *, fragment=False, fixtures=None, failed=(), facts_path=None, team_names=None, league_logos=False,
-                tbd=(), ai=True, stature=None, odds=None):
+                tbd=(), ai=True, stature=None, odds=None, design=None, model=None):
     """Exercise the real renderer with fixed time, rights, teams, scores, a table and settings.
 
     Fixtures named in `tbd` have a kickoff time to be set (ESPN's timeValid false); their kickoff
-    is then only a placeholder on the right day. `ai` is the settings' switch; `stature` maps a
+    is then only a placeholder on the right day. `ai` is the settings' switch, `design` and `model`
+    replace the fixture settings' ratings by gpt-6.1-sol; `stature` maps a
     fixture to its stature score (150 otherwise), `odds` to its (draw chance, goal line). A baseline
     build from before the settings existed renders without them.
     """
     scored = hasattr(builder, "load_settings")
-    with (patch.object(builder, "SETTINGS", fixture_settings(builder, ai=ai)) if scored else nullcontext(),
+    choice = {k: v for k, v in (("design", design), ("model", model)) if v is not None}
+    with (patch.object(builder, "SETTINGS", fixture_settings(builder, ai=ai, **choice)) if scored else nullcontext(),
           patch.object(builder, "TODAY", TODAY),
           patch.object(builder, "datetime", FixedDatetime),
           patch.dict(builder.UNKNOWN_OUTLETS, {}, clear=True),

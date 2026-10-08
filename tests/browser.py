@@ -1585,7 +1585,7 @@ class BrowserChecks(unittest.TestCase):
             expect(card.locator("button.more")).to_have_count(1)
             expect(card.locator(".match__links")).to_have_count(0)
 
-    def test_picks_are_scored_before_claude_rates_them(self):
+    def test_picks_are_scored_before_the_ai_rates_them(self):
         with self.page("after") as (page, _):
             expect(page.locator("#picks-h")).to_have_text("Top three")
             expect(page.locator("#picks-sub")).to_have_text("Selected by Outlook score + league priority · shown in kickoff order")
@@ -1593,7 +1593,10 @@ class BrowserChecks(unittest.TestCase):
         story["rankings"] = {mid: {"score": 50, "popularity": 50, "gameplay": 50, "impact": 50} for mid in ("upcoming", "midnight", "late")}
         with self.page("after", story=story) as (page, _):
             expect(page.locator("#picks-h")).to_have_text("Top three")
-            expect(page.locator("#picks-sub")).to_have_text("Selected by Claude + Outlook score + league priority · shown in kickoff order")
+            expect(page.locator("#picks-sub")).to_have_text("Selected by AI rating + Outlook score + league priority · shown in kickoff order")
+            # A story that records no model leaves the tooltip's rating unattributed rather than guessed.
+            title = page.locator('#picks .pick[data-match-id="upcoming"] .pick__rating').get_attribute("title")
+            self.assertIn("AI rating: Popularity 50", title)
         # A page built without scores (an older build) still lists the next matches, without calling them picks.
         with self.page("after", html=re.sub(r' data-outlook="[^"]*"', "", render_page(build))) as (page, _):
             expect(page.locator("#picks-h")).to_have_text("Upcoming")
@@ -1624,24 +1627,26 @@ class BrowserChecks(unittest.TestCase):
             expect(page.locator("footer")).to_contain_text("No AI is used on this page")
             expect(page.locator("#priority-hint")).to_contain_text("80% the Outlook score and 20% this order")
 
-    def test_claude_and_the_outlook_score_share_the_interest(self):
-        # Claude alone would drop d (its lowest), the Outlook score alone c (its lowest). Their mean,
-        # b 58.75, c 51.75, d 49.75, e 46.75, drops e.
-        story = self.overview_story()
+    def test_the_ai_rating_and_the_outlook_score_share_the_interest(self):
+        # The AI rating alone would drop d (its lowest), the Outlook score alone c (its lowest). Their
+        # mean, b 58.75, c 51.75, d 49.75, e 46.75, drops e.
+        story = dict(self.overview_story(), model="gpt-6.1-sol-2026-09-01", requested_model="gpt-6.1-sol")
         story["rankings"] = {mid: {"score": score, "popularity": score, "gameplay": score, "impact": score}
                              for mid, score in (("a", 50), ("b", 60), ("c", 70), ("d", 50), ("e", 52))}
         html = render_page(build, fixtures=self.SCORED, stature=self.STATURE)
         with self.page("after", html=html, story=story) as (page, feed):
             self.assertGreater(feed["stories"], 0)
             self.assertEqual(page.locator("#picks .pick").evaluate_all("els => els.map(e => e.dataset.matchId)"), ["b", "c", "d"])
-            expect(page.locator("#picks-sub")).to_have_text("Selected by Claude + Outlook score + league priority · shown in kickoff order")
+            expect(page.locator("#picks-sub")).to_have_text("Selected by AI rating + Outlook score + league priority · shown in kickoff order")
             label = page.locator('#picks .pick[data-match-id="b"] .pick__rating')
             expect(label).to_have_text("Pick score · 67/100")      # 80% of 58.75 and 20% of 100
+            # The model settings.toml asked for, not the dated snapshot that answered.
             self.assertEqual(label.get_attribute("title"),
-                             "80% interest (58.8) + 20% league priority (100). Interest: 50% Claude (60) + 50% Outlook score "
-                             "(57.5). Claude: Popularity 60 · Expected gameplay 60 · Competitive impact 60. Outlook score 57.5: "
-                             "occasion 100 · evenly matched no data · stakes 0 · TV 0 · goals expected no data.")
-            expect(page.locator("footer")).to_contain_text("50% Claude's rating and 50% the Outlook score")
+                             "80% interest (58.8) + 20% league priority (100). Interest: 50% AI rating (60) + 50% Outlook score "
+                             "(57.5). AI rating by gpt-6.1-sol: Popularity 60 · Expected gameplay 60 · Competitive impact 60. "
+                             "Outlook score 57.5: occasion 100 · evenly matched no data · stakes 0 · TV 0 · goals expected no data.")
+            expect(page.locator("footer")).to_contain_text("50% the AI rating and 50% the Outlook score")
+            expect(page.locator("footer")).to_contain_text("gpt-6.1-sol, an OpenAI AI model, rates every match")
 
     def test_malformed_story_does_not_stop_filters_or_scores(self):
         story = self.overview_story(sources="not a list")

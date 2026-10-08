@@ -4,21 +4,20 @@
 # new page, so the branch never accumulates history, and the daily push keeps the repository active
 # (GitHub disables scheduled workflows in public repositories after 60 days without activity).
 #
-# Storylines (story.py) are written by Claude with web search once a day, in story.py's daily mode:
-# the first scheduled build of the day (normally the early-morning one) researches from scratch and
-# rates every fixture, and the midday and evening builds, which still refresh fixtures, channels
-# and scores, keep that story. If the morning build fails or GitHub never starts it, the next one
-# writes the day's story instead. A day costs one full run (about $1.80 at list prices on 7 October
-# 2026); story.py's auto mode would also update the story at midday and in the evening, at the cost
-# of those two smaller runs as well. A build after a code push republishes the current story
-# without calling Claude; a manual run chooses.
-# The model and effort can be changed without editing code, through the repository variables
-# STORY_MODEL, STORY_EFFORT and STORY_REFRESH_EFFORT (Settings, Secrets and variables, Actions,
-# Variables); story.py has the defaults. Storylines need the ANTHROPIC_API_KEY repository secret.
-# Without it, or if the call fails, the page is published with the day's earlier story, or none.
-# settings.toml's [ai] enabled switches Claude off and on: off, story.py calls nothing and writes
-# nothing, so the page is published without storylines; the push that switches it back on finds the
-# live page built with AI off and writes the day's story at once, instead of at the next morning build.
+# The AI's part (story.py) is chosen in settings.toml's [ai] table: whether there is one, its design
+# and which model does it, at what effort. The ratings design (gpt-6.1-sol since 8 October 2026)
+# rates every match of the next three days once a day, about $0.06 a run; the full design has Claude
+# research and write the overview and blurbs too, about $1.80. Either way the day's run is the first
+# scheduled build of the day (normally the early-morning one; if it fails or GitHub never starts it,
+# the next one), and the midday and evening builds, which still refresh fixtures, channels and scores,
+# keep it. A build after a code push republishes the current story without calling anything, unless
+# the push changed the [ai] choice: then the published story was written by another model or design,
+# and the push writes the day's with the new one at once. A manual run chooses. Each provider needs its
+# key as a repository secret (ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY); without the one the
+# model needs, or if the call fails, the page is published with the day's earlier story, or none.
+# settings.toml's [ai] enabled switches the AI off and on: off, story.py calls nothing and writes
+# nothing, so the page is published without AI text or ratings; the push that switches it back on
+# finds the live page built with AI off and writes the day's at once, instead of at the next morning build.
 #
 # Which services carry which channels, and where each competition usually lives, is in rights.toml.
 # The unit tests (rights data, storyline checks, rendering) and the browser checks run before the
@@ -38,13 +37,13 @@ on:
   workflow_dispatch:
     inputs:
       storylines:
-        description: "Storylines: update today's, write new ones from scratch, or keep today's"
+        description: "AI: update today's, write new ones from scratch, or keep today's (the ratings design rates for either of the first two)"
         type: choice
         options: [refresh, full, keep]
         default: refresh
   push:
     branches: [main]
-    paths: ["build.py", "story.py", "rights.toml", "web/**", "tests/**", ".github/workflows/refresh.yml", ".github/scripts/**"]
+    paths: ["build.py", "story.py", "providers.py", "settings.toml", "rights.toml", "web/**", "tests/**", ".github/workflows/refresh.yml", ".github/scripts/**"]
 
 permissions:
   contents: write
@@ -107,16 +106,15 @@ jobs:
             exit 1
           fi
 
-      - name: Write storylines
+      - name: Write the AI ratings and storylines
         continue-on-error: true
         timeout-minutes: 25
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           EVENT: ${{ github.event_name }}
           WANT: ${{ inputs.storylines }}
-          STORY_MODEL: ${{ vars.STORY_MODEL }}
-          STORY_EFFORT: ${{ vars.STORY_EFFORT }}
-          STORY_REFRESH_EFFORT: ${{ vars.STORY_REFRESH_EFFORT }}
         run: |
           python3 -m venv .venv
           .venv/bin/pip install --quiet "anthropic>=1.11,<2"
@@ -128,7 +126,7 @@ jobs:
           case "$EVENT" in
             schedule) mode=daily ;;     # the day's story once, by its first scheduled build; later builds keep it
             workflow_dispatch) mode="${WANT:-refresh}" ;;
-            *) mode=keep         # a code push: the news hasn't changed...
+            *) mode=keep         # a code push: the news hasn't changed (story.py writes anyway if the [ai] choice did)...
                # ...unless the live page was built with AI off: then this push is the switch coming back
                # on (or another change while it is off, when story.py calls nothing anyway).
                if curl -fsS --max-time 30 "${site_url}/" -o work/live.html && grep -q 'data-ai="off"' work/live.html; then

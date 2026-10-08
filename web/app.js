@@ -21,9 +21,9 @@
   var SERVICES = { order: [], name: {}, owner: [] };
   try { SERVICES = JSON.parse(document.getElementById('service-meta').textContent) || SERVICES; } catch (e) {}
   var SERVICE_NAMES = SERVICES.name;
-  // How a pick score is made (settings.toml, embedded by build.py), and whether Claude takes part at
-  // all: with AI off the page never asks for story.json, so no AI-written text or rating can appear.
-  var SCORING = { blend: { claude: 50, outlook: 50, interest: 80, league_priority: 20 } };
+  // How a pick score is made (settings.toml, embedded by build.py), and whether an AI model takes part
+  // at all: with AI off the page never asks for story.json, so no AI-written text or rating can appear.
+  var SCORING = { blend: { ai: 50, outlook: 50, interest: 80, league_priority: 20 } };
   try { SCORING = JSON.parse(document.getElementById('scoring').textContent) || SCORING; } catch (e) {}
   var AI_ON = app.getAttribute('data-ai') !== 'off';
   function rankOf(id) { var i = serviceOrder().indexOf(id); return i < 0 ? 99 : i; }
@@ -682,16 +682,22 @@
     if (h >= 1) return h + 'h ' + (m < 10 ? '0' : '') + m + 'm';
     return m + ':' + (sec < 10 ? '0' : '') + sec;
   }
+  // The model that wrote the ratings on show, as the tooltip names it: what settings.toml asked for,
+  // else who answered; '' for a story that records neither.
+  function raterName() {
+    var s = STORY.s || {}, name = typeof s.requested_model === 'string' && s.requested_model ? s.requested_model : s.model;
+    return typeof name === 'string' ? name : '';
+  }
   function ratingOf(r) {
     var rating = STORY.rankings && STORY.rankings[r.getAttribute('data-id')];
     return rating && typeof rating.score === 'number' && rating.score >= 0 && rating.score <= 100 ? rating : null;
   }
-  // A match's interest is Claude's rating and the Outlook score in settings.toml's proportions, or the
-  // Outlook score alone with AI off or for a match Claude hasn't rated; its pick score adds the
+  // A match's interest is the AI rating and the Outlook score in settings.toml's proportions, or the
+  // Outlook score alone with AI off or for a match without an AI rating; its pick score adds the
   // visitor's league priority. All run from 0 to 100; null only on a page built without scores.
   function interestOf(r) {
     var rating = ratingOf(r), own = r._outlook, b = SCORING.blend;
-    if (rating && own !== null && b.claude + b.outlook > 0) return (rating.score * b.claude + own * b.outlook) / (b.claude + b.outlook);
+    if (rating && own !== null && b.ai + b.outlook > 0) return (rating.score * b.ai + own * b.outlook) / (b.ai + b.outlook);
     return own !== null ? own : rating ? rating.score : null;
   }
   function pickValue(r) {
@@ -713,10 +719,10 @@
   // The tooltip on a pick score: every part with its weight and value, so a surprising pick explains itself.
   function scoreDetails(r) {
     var rating = ratingOf(r), own = r._outlook, b = SCORING.blend, both = rating && own !== null;
-    var lines = [share(b.interest, b.league_priority) + '% ' + (both ? 'interest' : own !== null ? 'Outlook score' : 'Claude interest') +
+    var lines = [share(b.interest, b.league_priority) + '% ' + (both ? 'interest' : own !== null ? 'Outlook score' : 'AI rating') +
       ' (' + oneDecimal(interestOf(r)) + ') + ' + share(b.league_priority, b.interest) + '% league priority (' + Math.round(leaguePriority(r)) + ').'];
-    if (both) lines.push('Interest: ' + share(b.claude, b.outlook) + '% Claude (' + rating.score + ') + ' + share(b.outlook, b.claude) + '% Outlook score (' + own + ').');
-    if (rating) lines.push('Claude: ' + ratingDetails(rating) + '.');
+    if (both) lines.push('Interest: ' + share(b.ai, b.outlook) + '% AI rating (' + rating.score + ') + ' + share(b.outlook, b.ai) + '% Outlook score (' + own + ').');
+    if (rating) lines.push('AI rating' + (raterName() ? ' by ' + raterName() : '') + ': ' + ratingDetails(rating) + '.');
     if (own !== null) {
       var parts = {};
       try { parts = JSON.parse(r.getAttribute('data-outlook-parts') || '{}') || {}; } catch (e) {}
@@ -954,10 +960,10 @@
     document.getElementById('picks-section').hidden = !chosen.length;
     picksEl.innerHTML = '';
     // Without ratings the cards are simply the next matches; calling them picks would claim a judgment.
-    var rated = chosen.some(function (r) { return pickValue(r) !== null; }), claude = chosen.some(function (r) { return ratingOf(r); });
+    var rated = chosen.some(function (r) { return pickValue(r) !== null; }), aiRated = chosen.some(function (r) { return ratingOf(r); });
     document.getElementById('picks-h').textContent = !rated ? 'Upcoming' : chosen.length === 3 ? 'Top three' : chosen.length === 2 ? 'Top two' : 'Top pick';
     document.getElementById('picks-sub').textContent = !rated ? 'In kickoff order · no ratings yet'
-      : (claude ? 'Selected by Claude + Outlook score + league priority' : 'Selected by Outlook score + league priority') + ' · shown in kickoff order';
+      : (aiRated ? 'Selected by AI rating + Outlook score + league priority' : 'Selected by Outlook score + league priority') + ' · shown in kickoff order';
     chosen.forEach(function (r) { picksEl.appendChild(r._card.render('pick', now)); });
   }
 
@@ -1194,7 +1200,7 @@
     return lines;
   }
 
-  // The overview is authored by Claude. The browser only counts and formats schedule facts.
+  // The overview is written by Claude (the full design). The browser only counts and formats schedule facts.
   function renderSummary(groups, all, now) {
     renderEditorial(now);
     function para(host, text, label) {
@@ -1381,7 +1387,7 @@
     render(true);
   }
   // Takes the story down: the section, the notes under the rows, and (at the next render) the notes
-  // on the cards and Claude's overview.
+  // on the cards and the overview.
   function clearStory(quiet) {
     if (!STORY.s) return;
     STORY = { notes: {} };

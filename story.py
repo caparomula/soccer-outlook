@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Writes the day's storylines and match ratings for Soccer Outlook with Claude and web search.
+"""Writes the day's match ratings for Soccer Outlook, and in the full design Claude's storylines too.
 
 build.py --facts supplies the fixtures with known service coverage in the next 24 hours, later
 fallback candidates, each league's nearest window, and every upcoming fixture for the ratings. This
@@ -44,24 +44,26 @@ Modes, one per kind of build:
   auto     full when there is no story for today, keep when today's is less than MIN_GAP_HOURS old
            (GitHub can start a schedule hours late, right before the next one), otherwise refresh:
            storylines updated through the day, at the cost of those updates as well
-  ratings  Claude's three scores and nothing else: no research, overview or blurbs, and no web search;
-           one structured request for the fixtures kicking off within RATING_WINDOW_HOURS, widened a
-           day at a time when that holds fewer than MIN_RATED. The cheap design, and the only mode
-           Haiku 5.5 can run; the comparison workflow measures it against the full design
+  ratings  three scores per fixture and nothing else: no research, overview or blurbs, and no web
+           search; one structured request for the fixtures kicking off within RATING_WINDOW_HOURS,
+           widened a day at a time when that holds fewer than MIN_RATED. Any model in providers.MODELS
+           can run it: Claude through the anthropic SDK, OpenAI's and Google's models through their
+           own structured output, with the same system prompt, fixtures and schema
 On failure, a refresh keeps today's earlier news, and ratings are still attempted.
 
-Model and effort come from --model and --effort, else STORY_MODEL and STORY_EFFORT (STORY_REFRESH_EFFORT
-for refresh runs), else the defaults below, for both kinds of request. --usage-out writes the run's
-tokens, searches, cost and time as JSON, for comparing configurations
-(.github/workflows/compare-storylines.yml).
-
-settings.toml's [ai] enabled is the owner's switch. Off (or unreadable, to be safe), the script makes no
-API call and writes nothing, not even the story already published, so the next publish takes Claude's
-text and ratings off the page; --ignore-switch is for measuring configurations
-(compare-storylines.yml), which publishes nothing. Without ANTHROPIC_API_KEY the script reuses today's
-previous story if there is one and otherwise writes nothing, so the page simply shows no storylines.
-It exits 0 unless its arguments are wrong: a failed story must never block the schedule from being
-published.
+settings.toml's [ai] table decides: `enabled` is the owner's switch, `design` is "ratings" (the
+ratings mode above, once a day) or "full" (Claude's research, overview and blurbs as well, once a
+day), and `model` and `effort` say who does it. In the ratings design every mode that writes rates,
+and daily and auto rate once a day. A story written by another design, model or effort than the
+settings name now doesn't count as today's, and even keep writes when the published one is such a
+story: the push that changes the settings puts the change on the page at once. Off (or unreadable,
+to be safe), the script makes no API call and writes nothing, not even the story already published,
+so the next publish takes the AI's text and ratings off the page. --ignore-switch ignores the table,
+for measuring configurations (compare-storylines.yml): --mode, --model and --effort then decide.
+--usage-out writes the run's tokens, searches, cost and time as JSON. Without the model's provider's
+key (ANTHROPIC_API_KEY, OPENAI_API_KEY or GEMINI_API_KEY) the script reuses today's previous story if
+there is one and otherwise writes nothing, so the page simply shows no AI ratings. It exits 0 unless
+its arguments are wrong: a failed story must never block the schedule from being published.
 
 Usage: python story.py --facts work/facts.json --out site/story.json [--previous old-story.json]
                        [--mode daily|auto|full|refresh|keep|ratings] [--model ID] [--effort LEVEL] [--usage-out FILE]
@@ -76,18 +78,23 @@ import time
 import tomllib
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
+from functools import partial
 from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
+
+import providers
 
 ET = ZoneInfo("America/New_York")
 SETTINGS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "settings.toml")
 DEFAULT_MODEL = "claude-opus-5-5"
-# Effort per mode: both at Opus 5.5's own default. On research work Anthropic's published curves are
-# nearly flat, medium matching high's accuracy at 70-87% of the cost (Optimizing for cost and
-# intelligence, checked 2026-10-07). .github/workflows/compare-storylines.yml checks that on this
-# workload; the repository variables STORY_EFFORT and STORY_REFRESH_EFFORT override these.
+# Effort per mode when nothing says otherwise (settings.toml's [ai] effort does, and --effort): Opus
+# 5.5's own default for the research. On research work Anthropic's published curves are nearly flat,
+# medium matching high's accuracy at 70-87% of the cost (Optimizing for cost and intelligence, checked
+# 2026-10-07); .github/workflows/compare-storylines.yml checks that on this workload. Every provider
+# takes low and medium.
 DEFAULT_EFFORT = {"full": "medium", "refresh": "medium", "ratings": "low"}
-EFFORTS = ("low", "medium", "high", "xhigh", "max")
+EFFORTS = providers.EFFORTS["anthropic"]
+ALL_EFFORTS = tuple(dict.fromkeys(e for efforts in providers.EFFORTS.values() for e in efforts))
 BUDGETS = {"full": (12, 6), "refresh": (5, 2), "ratings": (0, 0)}   # (web searches, full-page reads) per run
 MAX_TOKENS = 64000                    # research request: a backstop only, streamed and billed only when used
 MAX_REQUESTS = 6                      # pause_turn continuations, one nudge to publish and one repair
@@ -106,21 +113,13 @@ MIN_GAP_HOURS = 3                     # auto mode keeps a story this fresh rathe
 LIMITS = {"blurb": 260, "league": 450, "item": 520, "lede": 450, "note": 320}
 FACTS_TITLE = "ESPN table and form"
 WEIGHTS = (("popularity", .25), ("gameplay", .35), ("impact", .40))
-# List prices in USD per token, for the cost line only (checked 2026-10-08 against
-# https://platform.claude.com/docs/en/about-claude/pricing): input, 5-minute cache write, cache read,
-# output. Opus and Sonnet 5.5 take the dynamic-filtering web tools, effort, structured outputs and
-# server-side fallbacks, which the research relies on. Haiku 5.5 takes effort and structured outputs
-# but not those web tools, and has no server-side fallback (sending one is an error), so it is offered
-# for ratings mode only, which uses no tools. Haiku 5.5 is priced by prompt length: a request whose
-# prompt (fresh, cache-written and cache-read input together) is over the limit pays the second card.
-PRICES = {
-    "claude-opus-5-5": (4.00e-6, 5.00e-6, 0.20e-6, 20.00e-6),
-    "claude-sonnet-5-5": (2.00e-6, 2.50e-6, 0.10e-6, 10.00e-6),
-    "claude-haiku-5-5": (0.10e-6, 0.125e-6, 0.01e-6, 0.50e-6),
-}
-LONG_PROMPTS = {"claude-haiku-5-5": (100_000, (0.50e-6, 0.625e-6, 0.05e-6, 2.50e-6))}
-RATINGS_ONLY_MODELS = {"claude-haiku-5-5"}
-PRICE_SEARCH = 0.01                   # per web search on any model; web fetch costs only its tokens
+# List prices, the models each provider offers here and what each can run are in providers.py. Opus and
+# Sonnet 5.5 take the dynamic-filtering web tools, effort, structured outputs and server-side fallbacks,
+# which the research relies on. Haiku 5.5 takes effort and structured outputs but not those web tools,
+# and has no server-side fallback (sending one is an error), so like every OpenAI and Google model it
+# runs the ratings design only.
+PRICES = providers.ANTHROPIC_PRICES
+RATINGS_ONLY_MODELS = {m for m, p in providers.MODELS.items() if p == "anthropic"} - set(providers.RESEARCH_MODELS)
 REQUEST_OPTIONS = dict(betas=["server-side-fallback-2026-07-01"], fallbacks="default")
 
 
@@ -732,56 +731,83 @@ def add_usage(totals, usage):
         totals[key] = max(totals.get(key, 0), value) if key == "prompt_max" else totals.get(key, 0) + value
 
 
-def rate_chunk(client, model, effort, fixtures, context, header, scores_only=False):
-    """One rating request: structured output, no tools. Returns (ratings as sent, usage, stop reason).
-    With scores_only, the three scores alone, from the fixtures' facts (ratings mode); otherwise a
-    blurb too, which may use this run's research. Runs on a worker thread, so it touches nothing
-    shared; the caller merges the results."""
+def rating_prompt(header, fixtures, context=(), scores_only=False):
+    """A rating request's text: the clock, this run's research when a blurb may use it, and the fixtures."""
     reporting = "" if scores_only else f"Reporting from this run's research, which a blurb may use and cite:\n{compact(context)}\n\n"
-    prompt = f"{header}\n\n{reporting}Rate each of these {len(fixtures)} fixtures exactly once:\n{compact(fixtures)}"
+    return f"{header}\n\n{reporting}Rate each of these {len(fixtures)} fixtures exactly once:\n{compact(fixtures)}"
+
+
+def parse_ratings(text, stop):
+    """The ratings list in a structured reply, or [] when it was cut short or refused (output that may
+    not match the schema) or isn't JSON."""
+    if stop in ("refusal", "max_tokens"):
+        return []
+    try:
+        data = json.loads(text)
+    except ValueError:
+        return []
+    ratings = data.get("ratings") if isinstance(data, dict) else None
+    return ratings if isinstance(ratings, list) else []
+
+
+def rate_chunk(client, model, effort, fixtures, context, header, scores_only=False):
+    """One rating request to Claude: structured output, no tools. Returns (ratings as sent, usage, stop
+    reason, served model). With scores_only, the three scores alone, from the fixtures' facts (ratings
+    mode); otherwise a blurb too, which may use this run's research. Runs on a worker thread, so it
+    touches nothing shared; the caller merges the results."""
     with client.beta.messages.stream(
         model=model,
         max_tokens=RATING_MAX_TOKENS,
         system=SCORES_SYSTEM if scores_only else RATING_SYSTEM,
-        messages=[{"role": "user", "content": prompt}],
+        messages=[{"role": "user", "content": rating_prompt(header, fixtures, context, scores_only)}],
         output_config={"effort": effort, "format": {"type": "json_schema", "schema": SCORES_SCHEMA if scores_only else RATING_SCHEMA}},
         **request_options(model),
     ) as stream:
         message = stream.get_final_message()
-    usage = usage_of(message)
-    if message.stop_reason in ("refusal", "max_tokens"):   # output that may not match the schema
-        return [], usage, message.stop_reason
     text = next((b.text for b in message.content if getattr(b, "type", "") == "text"), "")
-    try:
-        data = json.loads(text)
-    except ValueError:
-        data = None
-    ratings = data.get("ratings") if isinstance(data, dict) else None
-    return (ratings if isinstance(ratings, list) else []), usage, message.stop_reason
+    return parse_ratings(text, message.stop_reason), usage_of(message), message.stop_reason, message.model
 
 
-def write_ratings(client, model, effort, facts, wanted, context, seen, links, totals, scores_only=False):
+def api_rate_chunk(model, effort, key, fixtures, context, header, scores_only=True):
+    """One rating request to an OpenAI or Google model, with the same system prompt, text and schema as
+    Claude's ratings mode, through the provider's own structured output. Scores only: the blurbs rest
+    on Claude's research, which only the full design runs. Returns what rate_chunk returns, with usage
+    in this script's keys (plus the reasoning tokens, which are billed as output)."""
+    if not scores_only:
+        raise ValueError(f"{model} rates in the ratings design only")
+    reply = providers.request(model, effort, SCORES_SYSTEM, rating_prompt(header, fixtures, scores_only=True), key,
+                              schema=SCORES_SCHEMA, max_tokens=RATING_MAX_TOKENS)
+    u = reply.usage
+    usage = {"in": u["in"], "cache_write": u["cache_write"], "cache_read": u["cached"], "out": u["out"],
+             "searches": u["searches"], "fetches": u["opens"], "prompt_max": u["prompt_max"], "reasoning": u["reasoning"]}
+    return parse_ratings(reply.text, reply.stop), usage, reply.stop, reply.served
+
+
+def write_ratings(rate, facts, wanted, context, seen, links, totals, scores_only=False):
     """Rates the fixtures in `wanted`, RATING_CHUNK at a time (SCORES_CHUNK with scores_only) on
     RATING_WORKERS threads, then asks once more for any that came back without a rating or, unless
-    scores_only, without a blurb. Returns {fixture ID: rating}."""
+    scores_only, without a blurb. `rate(fixtures, context, header, scores_only)` makes one request
+    (rate_chunk or api_rate_chunk with the model filled in). Returns ({fixture ID: rating}, the model
+    that served the last request answered, or None)."""
     candidates, wanted = {m["id"]: m for m in facts.get("ranking_candidates", [])}, set(wanted)
     order = [mid for mid in candidates if mid in wanted]
     header = (f"It is {clock(facts['built_at'])} on {facts.get('weekday', '')}, {facts.get('date', '')}, US Eastern time."
               if facts.get("built_at") else "")
-    ratings, pending = {}, order
+    ratings, pending, served = {}, order, None
     for attempt in (1, 2):
         size = SCORES_CHUNK if scores_only else RATING_CHUNK
         chunks = [pending[i:i + size] for i in range(0, len(pending), size)]
         with ThreadPoolExecutor(max_workers=RATING_WORKERS) as pool:
-            futures = [pool.submit(rate_chunk, client, model, effort, [rating_fixture(candidates[mid]) for mid in chunk],
-                                   context, header, scores_only) for chunk in chunks]
+            futures = [pool.submit(rate, [rating_fixture(candidates[mid]) for mid in chunk], context, header, scores_only)
+                       for chunk in chunks]
             for chunk, future in zip(chunks, futures):
                 try:
-                    raw, usage, stop = future.result()
+                    raw, usage, stop, by = future.result()
                 except Exception as e:     # a failed chunk is asked again; its fixtures are not lost
                     log(f"rating request failed: {type(e).__name__}: {e}")
                     continue
                 add_usage(totals, usage)
+                served = by or served
                 if stop in ("refusal", "max_tokens"):
                     log(f"rating request stopped: {stop}")
                 for mid, rating in clean_rankings(raw, set(chunk), seen, links).items():
@@ -794,7 +820,7 @@ def write_ratings(client, model, effort, facts, wanted, context, seen, links, to
         log(f"asking again for {len(pending)} fixture(s) without {missing}")
     if pending:
         log(f"ratings incomplete: {len(pending)} fixture(s) without {missing}")
-    return ratings
+    return ratings, served
 
 
 def clock(iso):
@@ -1000,22 +1026,29 @@ def rating_window(facts):
         hours += 24
 
 
+def claude_client():
+    import anthropic   # imported here so reuse, no-key and other-provider paths work without the package
+    return anthropic.Anthropic(max_retries=3)
+
+
 def write_story(facts, model, effort, mode, previous, totals):
     """Runs the research, then the ratings, and returns (story dict or None, served model), adding the
     usage of every request to `totals` as it goes, so a run that fails partway still reports what it
-    spent. In a refresh the ratings of fixtures more than RERATE_HOURS away are kept from earlier today."""
-    import anthropic   # imported here so reuse and no-key paths work without the package
-
-    client = anthropic.Anthropic(max_retries=3)
+    spent. In a refresh the ratings of fixtures more than RERATE_HOURS away are kept from earlier today.
+    Ratings mode runs on any model in providers.MODELS; the research is Claude's."""
     links = fixture_links(facts)
     if mode == "ratings":
-        # Claude's three scores and nothing else: no research, no overview or blurbs, no web search.
+        # Three scores per fixture and nothing else: no research, no overview or blurbs, no web search.
+        provider = providers.MODELS.get(model, "anthropic")
+        rate = (partial(rate_chunk, claude_client(), model, effort) if provider == "anthropic"
+                else partial(api_rate_chunk, model, effort, os.environ.get(providers.KEY_NAMES[provider], "")))
         window, hours = rating_window(facts)
-        log(f"rating {len(window)} fixtures kicking off within {hours} hours")
-        rankings = write_ratings(client, model, effort, facts, [m["id"] for m in window], [], {}, links, totals, scores_only=True)
+        log(f"rating {len(window)} fixtures kicking off within {hours} hours with {model}")
+        rankings, served = write_ratings(rate, facts, [m["id"] for m in window], [], {}, links, totals, scores_only=True)
         story = {"lede_items": [], "notes": {}, "league_blurbs": [], "league_order": [], "_dropped": 0, "rankings": rankings,
                  "ranking_coverage": {"rated": len(rankings), "total": len(window), "carried": 0}, "window_hours": hours}
-        return (story if rankings else None), model
+        return (story if rankings else None), served or model
+    client = claude_client()
     seen = earlier_sources(previous) if mode == "refresh" and previous else {}
     try:
         news, served = write_news(client, facts, model, effort, mode, previous, totals, links, seen)
@@ -1049,7 +1082,8 @@ def write_story(facts, model, effort, mode, previous, totals):
             return True
     wanted = [m["id"] for m in candidates if due(m)]
     log(f"rating {len(wanted)} of {len(candidates)} fixtures" + (f"; keeping {len(candidates) - len(wanted)} rated earlier today" if earlier else ""))
-    fresh = write_ratings(client, model, effort, facts, wanted, rating_context(story), seen, links, totals) if wanted else {}
+    rate = partial(rate_chunk, client, model, effort)
+    fresh = write_ratings(rate, facts, wanted, rating_context(story), seen, links, totals)[0] if wanted else {}
     rankings, carried = {}, 0
     for m in candidates:
         new, old = fresh.get(m["id"]), earlier.get(m["id"])
@@ -1065,39 +1099,48 @@ def write_story(facts, model, effort, mode, previous, totals):
 
 
 def cost_of(totals, model):
-    """Estimated cost in USD at list prices, or None for a model this script has no prices for."""
-    prices = PRICES.get(model)
-    if not prices:
-        return None
-    limit, long_prices = LONG_PROMPTS.get(model, (None, None))
-    if limit is not None and totals.get("prompt_max", 0) > limit:
-        prices = long_prices    # as if every request were long: exact for ratings mode's one request, an upper bound otherwise
-    p_in, p_write, p_read, p_out = prices
-    return (totals["in"] * p_in + totals["cache_write"] * p_write + totals["cache_read"] * p_read + totals["out"] * p_out
-            + totals["searches"] * PRICE_SEARCH)
+    """Estimated cost in USD at list prices (providers.py), or None for a model without a recorded price."""
+    return providers.cost(model, {"in": totals.get("in", 0), "cached": totals.get("cache_read", 0),
+                                  "cache_write": totals.get("cache_write", 0), "out": totals.get("out", 0),
+                                  "searches": totals.get("searches", 0), "opens": totals.get("fetches", 0),
+                                  "prompt_max": totals.get("prompt_max", 0)})
 
 
-def report_cost(totals, served, effort, mode, seconds):
-    cost = cost_of(totals, served)
-    priced = f"about ${cost:.2f} at {served} list prices" if cost is not None else "no price table for this model"
+def report_cost(totals, served, model, effort, mode, seconds):
+    """Logs the run's usage and cost and adds them to the run summary. A served model with prices of its
+    own (a server-side fallback) is priced as served; a dated snapshot of the requested model, which has
+    none, at the requested model's prices."""
+    priced_as = served if served in providers.MODELS else model
+    cost = cost_of(totals, priced_as)
+    priced = f"about ${cost:.4f} at {priced_as} list prices" if cost is not None else "no price table for this model"
+    reasoning = f", {totals['reasoning']:,} of them reasoning" if totals.get("reasoning") else ""
     line = (f"Storylines ({mode}): {served} at {effort} effort; input {totals['in']:,} tokens fresh, "
             f"{totals['cache_write']:,} cache-written, {totals['cache_read']:,} cache-read; output {totals['out']:,} "
-            f"tokens; {totals['searches']} searches, {totals['fetches']} page reads; {seconds:.0f}s; {priced}")
+            f"tokens{reasoning}; {totals['searches']} searches, {totals['fetches']} page reads; {seconds:.0f}s; {priced}")
     log(line)
     summary(line)
     return cost
 
 
-def ai_switch(path):
-    """settings.toml's [ai] enabled: True or False, or None when the file can't be read or the value
-    isn't true or false. build.py refuses to publish on a malformed file, so None means something
-    changed between the two; the caller then spends nothing."""
+def ai_settings(path):
+    """settings.toml's [ai] table as providers.check_ai reads it ({"enabled", "design", "model", "effort",
+    "provider"}), or None when the file can't be read or the table is malformed. build.py refuses to
+    publish on a malformed file, so None means something changed between the two; the caller then
+    spends nothing."""
     try:
         with open(path, "rb") as f:
-            enabled = (tomllib.load(f).get("ai") or {}).get("enabled")
+            table = tomllib.load(f).get("ai")
     except (OSError, tomllib.TOMLDecodeError, AttributeError):
         return None
-    return enabled if isinstance(enabled, bool) else None
+    return providers.check_ai(table)[0]
+
+
+def written_by(story, config):
+    """Whether `story` came from the design, model and effort settings.toml names now. One from another
+    (the published story, on the day the model is switched) is not today's, so the next run writes."""
+    kinds = ("ratings",) if config["design"] == "ratings" else ("full", "refresh")
+    return (story.get("kind") in kinds and (story.get("requested_model") or story.get("model")) == config["model"]
+            and story.get("effort") == config["effort"])
 
 
 def load_previous(path):
@@ -1123,10 +1166,22 @@ def story_age_hours(story, now):
     return (now - written).total_seconds() / 3600
 
 
-def choose_mode(requested, todays, now):
-    """daily: full without a story for today, else keep. auto: full without a story for today, keep
-    when today's is under MIN_GAP_HOURS old, else refresh. A refresh without a story for today runs
-    as full."""
+def choose_mode(requested, todays, now, design="full", switched=False):
+    """The mode to run. keep republishes the published story, unless `switched`: settings.toml names a
+    different design, model or effort than wrote it, so this run (the push that switched) writes.
+    The full design: daily writes the day's story once (full without a story for today, else keep);
+    auto also refreshes it (keep while under MIN_GAP_HOURS old, else refresh); a refresh without a
+    story for today runs as full. The ratings design: every mode that writes rates, and daily and auto
+    rate once a day."""
+    if requested == "keep":
+        if switched:
+            return ("ratings" if design == "ratings" else "full"), "settings.toml names another design or model than the published story's"
+        return "keep", ""
+    if design == "ratings":
+        if requested in ("daily", "auto"):
+            return ("keep", "today's ratings are written; they are written once a day") if todays \
+                else ("ratings", "no ratings for today yet")
+        return "ratings", ("" if requested == "ratings" else f"the ratings design rates when asked for {requested}")
     if requested == "daily":
         return ("keep", "today's storylines are written; they are written once a day") if todays \
             else ("full", "no storylines for today yet")
@@ -1148,17 +1203,18 @@ def main():
     ap.add_argument("--out", required=True)
     ap.add_argument("--previous", help="the story.json currently published, to reuse or fall back on")
     ap.add_argument("--mode", choices=("daily", "auto", "full", "refresh", "keep", "ratings"), default="keep")
-    ap.add_argument("--model", help=f"default: STORY_MODEL, else {DEFAULT_MODEL}")
-    ap.add_argument("--effort", choices=EFFORTS, help="default: STORY_EFFORT or STORY_REFRESH_EFFORT, else by mode")
+    ap.add_argument("--model", help=f"default: settings.toml's [ai] model, else {DEFAULT_MODEL}")
+    ap.add_argument("--effort", choices=ALL_EFFORTS, help="default: settings.toml's [ai] effort, else by mode")
     ap.add_argument("--usage-out", help="write the run's tokens, searches, cost and time here as JSON")
-    ap.add_argument("--settings", default=SETTINGS_PATH, help="the settings file with the AI switch (default: settings.toml)")
-    ap.add_argument("--ignore-switch", action="store_true", help="run even with AI switched off, for measuring configurations")
+    ap.add_argument("--settings", default=SETTINGS_PATH, help="the settings file with the [ai] table (default: settings.toml)")
+    ap.add_argument("--ignore-switch", action="store_true",
+                    help="ignore settings.toml's [ai] table, for measuring configurations: --mode, --model and --effort decide")
     args = ap.parse_args()
 
     # Before anything that writes: with AI off even the published story must not be carried forward.
-    switch = True if args.ignore_switch else ai_switch(args.settings)
-    if switch is not True:
-        why = "AI is switched off in settings.toml" if switch is False else "settings.toml's AI switch can't be read"
+    config = None if args.ignore_switch else ai_settings(args.settings)
+    if not args.ignore_switch and not (config and config["enabled"]):
+        why = "AI is switched off in settings.toml" if config else "settings.toml's [ai] table can't be read"
         log(f"{why}: no storylines and no API calls")
         summary(f"Storylines: none; {why}.")
         return 0
@@ -1166,9 +1222,12 @@ def main():
     with open(args.facts, encoding="utf-8") as f:
         facts = json.load(f)
     previous = load_previous(args.previous) if args.previous else None
-    todays = previous if previous and previous.get("date") == facts["date"] and previous.get("generated_at") else None
+    current = (lambda st: written_by(st, config)) if config else (lambda st: True)
+    todays = (previous if previous and previous.get("date") == facts["date"] and previous.get("generated_at") and current(previous)
+              else None)
+    switched = bool(config and previous and not current(previous))
 
-    mode, why = choose_mode(args.mode, todays, datetime.now(timezone.utc))
+    mode, why = choose_mode(args.mode, todays, datetime.now(timezone.utc), config["design"] if config else "full", switched)
     if why:
         log(f"mode {mode}: {why}")
     if mode == "keep":
@@ -1178,23 +1237,24 @@ def main():
         log("kept the current storylines" if kept else "no storylines to keep")
         summary("Storylines: kept the current ones." if kept else "Storylines: none to keep.")
         return 0
-    model = args.model or os.environ.get("STORY_MODEL") or DEFAULT_MODEL
-    if model not in PRICES:
-        log(f"{model} isn't one this script supports ({', '.join(PRICES)}); using {DEFAULT_MODEL}")
+    model = args.model or (config["model"] if config else DEFAULT_MODEL)
+    if model not in providers.MODELS:
+        log(f"{model} isn't one this script supports ({', '.join(providers.MODELS)}); using {DEFAULT_MODEL}")
         model = DEFAULT_MODEL
-    elif model in RATINGS_ONLY_MODELS and mode != "ratings":
+    elif mode != "ratings" and model not in providers.RESEARCH_MODELS:
         log(f"{model} takes part in ratings mode only (it can't run the research); using {DEFAULT_MODEL}")
         model = DEFAULT_MODEL
-    effort_var = "STORY_REFRESH_EFFORT" if mode == "refresh" else "STORY_EFFORT"
-    effort = args.effort or os.environ.get(effort_var) or DEFAULT_EFFORT[mode]
-    if effort not in EFFORTS:
-        log(f"effort {effort!r} isn't one of {', '.join(EFFORTS)}; using {DEFAULT_EFFORT[mode]}")
+    provider = providers.MODELS[model]
+    effort = args.effort or (config["effort"] if config and model == config["model"] else DEFAULT_EFFORT[mode])
+    if effort not in providers.EFFORTS[provider]:
+        log(f"effort {effort!r} isn't one {model} takes ({', '.join(providers.EFFORTS[provider])}); using {DEFAULT_EFFORT[mode]}")
         effort = DEFAULT_EFFORT[mode]
-    if not os.environ.get("ANTHROPIC_API_KEY"):
+    key_name = providers.KEY_NAMES[provider]
+    if not os.environ.get(key_name):
         if todays:
             save(args.out, todays)
-        log("no ANTHROPIC_API_KEY; " + ("reused today's storylines" if todays else "no storylines this run"))
-        summary("Storylines: skipped, no ANTHROPIC_API_KEY secret.")
+        log(f"no {key_name}; " + ("reused today's storylines" if todays else "no storylines this run"))
+        summary(f"Storylines: skipped, no {key_name} secret.")
         return 0
 
     started = time.monotonic()
@@ -1205,11 +1265,11 @@ def main():
         log(f"storyline request failed: {type(e).__name__}: {e}")
         story, served = None, model
     seconds = time.monotonic() - started
-    cost = report_cost(totals, served, effort, mode, seconds) if any(totals.values()) else None
+    cost = report_cost(totals, served, model, effort, mode, seconds) if any(totals.values()) else None
     published = bool(story)
     if args.usage_out:
         coverage = (story or {}).get("ranking_coverage", {})
-        save(args.usage_out, {"mode": mode, "model": model, "served": served, "effort": effort,
+        save(args.usage_out, {"mode": mode, "model": model, "served": served, "provider": provider, "effort": effort,
                               "budget": {"searches": BUDGETS[mode][0], "page_reads": BUDGETS[mode][1]}, "usage": totals,
                               "cost_usd": round(cost, 4) if cost is not None else None, "seconds": round(seconds, 1),
                               "published": published, "notes": len(story["notes"]) if story else 0,
@@ -1218,7 +1278,9 @@ def main():
                               "dropped": story["_dropped"] if story else None})
     if published:
         story.pop("_dropped", None)
-        story.update(version=1, date=facts["date"], model=served, effort=effort, kind=mode,
+        # model is who answered (a fallback or a dated snapshot shows here); requested_model is what
+        # settings.toml asked for, which the page names and the next run compares with its settings.
+        story.update(version=1, date=facts["date"], model=served, requested_model=model, effort=effort, kind=mode,
                      services=facts.get("owner_service_ids") or [], focus_until=facts.get("focus_until"),
                      generated_at=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
         save(args.out, story)

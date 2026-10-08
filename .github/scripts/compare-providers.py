@@ -3,8 +3,8 @@
 
   ratings   the three scores story.py's ratings mode asks Claude for (popularity, gameplay and impact,
             0 to 100) for every fixture in its window, asked of each model with the same system
-            prompt, fixtures and JSON schema. Claude's requests are story.py's own (rate_chunk);
-            OpenAI's and Google's carry the same text through their own structured-output options.
+            prompt, fixtures and JSON schema, through story.py's own requests (rate_chunk for Claude,
+            api_rate_chunk for OpenAI and Google), so it measures exactly what the daily run sends.
             As in story.py, fixtures left without a valid rating are asked for once more.
   research  one blurb of at most 260 characters for each of a few featured fixtures, researched with
             the provider's own web search (Claude: web search and web fetch; OpenAI: web_search;
@@ -12,7 +12,7 @@
             come back as JSON in the reply's text, asked of every model the same way, because not
             every model accepts a response schema together with its search tool.
 
-What it measures, all mechanically: cost from each API's own usage report at the list prices below,
+What it measures, all mechanically: cost from each API's own usage report at providers.py's list prices,
 time, searches, and for ratings how far each model's order agrees with the others', with the ratings
 the page publishes now and with the page's own Outlook score. For research, every URL a blurb cites
 is checked twice: whether the provider's own search returned it in that response (one it did not
@@ -34,7 +34,6 @@ CONFIGS are provider:model:effort, separated by spaces; provider is anthropic, o
 The Markdown report goes to stdout, progress to stderr.
 """
 import argparse
-import copy
 import http.client
 import importlib.util
 import json
@@ -45,56 +44,31 @@ import time
 import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
+import providers  # noqa: E402
 import story  # noqa: E402
+from providers import Reply  # noqa: E402
 
 _spec = importlib.util.spec_from_file_location("compare_storylines", Path(__file__).with_name("compare-storylines.py"))
 storylines = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(storylines)
 
-PROVIDERS = ("anthropic", "openai", "google")
-KEYS = {"anthropic": "ANTHROPIC_API_KEY", "openai": "OPENAI_API_KEY", "google": "GEMINI_API_KEY"}
-EFFORTS = {"anthropic": story.EFFORTS,
-           "openai": ("none", "minimal", "low", "medium", "high", "xhigh", "max"),   # reasoning.effort
-           "google": ("minimal", "low", "medium", "high")}                            # thinkingConfig.thinkingLevel
-# List prices in USD per token (input, cached input, output), checked 2026-10-08 at
-# https://developers.openai.com/api/docs/pricing (standard tier, prompts up to 272K tokens) and
-# https://ai.google.dev/gemini-api/docs/pricing (paid tier); Claude's are story.py's PRICES. Reasoning
-# and thinking tokens are billed as output. OpenAI bills $10 per 1,000 web search calls, with the
-# pages it reads billed as input tokens. Google bills Gemini 3 models per search query the model runs,
-# 5,000 a month free across Gemini 3 and then $14 per 1,000; the cost here is the list price, as if the
-# allowance were used up, and its tool-use prompt tokens are counted as input, which may overstate it.
-OPENAI_PRICES = {
-    "gpt-6-luna": (0.10e-6, 0.01e-6, 0.50e-6),
-    "gpt-6.1-sol": (2.00e-6, 0.10e-6, 10.00e-6),
-    "gpt-5.5": (5.00e-6, 0.50e-6, 30.00e-6),
-}
-OPENAI_SEARCH = 0.01
-GEMINI_PRICES = {
-    "gemini-3.1-flash-lite": (0.25e-6, 0.025e-6, 1.50e-6),
-    "gemini-3.8-flash": (0.75e-6, 0.075e-6, 3.75e-6),          # through 2026; twice that from 1 January 2027
-    "gemini-3.1-pro-preview": (2.00e-6, 0.20e-6, 12.00e-6),
-}
-GEMINI_LONG = {"gemini-3.1-pro-preview": (200_000, (4.00e-6, 0.40e-6, 18.00e-6))}
-GEMINI_SEARCH = 0.014
+PROVIDERS = tuple(providers.PROVIDER_NAMES)
+KEYS = providers.KEY_NAMES
+EFFORTS = providers.EFFORTS
 # Ratings only: Haiku 5.5 has no dynamic web tools (story.py), and Google doesn't list Grounding with
 # Google Search for Gemini 3.1 Flash-Lite.
 RATINGS_ONLY = {("anthropic", m) for m in story.RATINGS_ONLY_MODELS} | {("google", "gemini-3.1-flash-lite")}
-
-OPENAI_URL = "https://api.openai.com/v1/responses"
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 GROUNDING_HOST = "vertexaisearch.cloud.google.com"
 RESEARCH_FIXTURES = 6
 RESEARCH_SEARCHES, RESEARCH_FETCHES = 8, 4      # Claude's web search and web fetch; OpenAI's max_tool_calls is their sum
 RESEARCH_MAX_TOKENS = 32000
 MAX_CONTINUATIONS = 4                           # Claude's paused turns, as story.py continues them
-REQUEST_TIMEOUT = 600
-RETRY_STATUSES = (429, 500, 502, 503, 504)
 BLURB_LIMIT = story.LIMITS["blurb"]
 USER_AGENT = "Mozilla/5.0 (compatible; SoccerOutlookLinkCheck/1.0; +https://github.com/caparomula/soccer-outlook)"
 
@@ -111,11 +85,6 @@ def research_prompt(header, fixtures):
             f"Fixtures:\n{story.compact(fixtures)}\n\n"
             f"You have up to {RESEARCH_SEARCHES} web searches. When you are done, reply with only this JSON object and no "
             'other text: {"blurbs": [{"match_id": "<fixture id>", "blurb": "<the blurb>", "sources": ["<url>"]}]}')
-
-
-def ratings_prompt(header, fixtures):
-    """The text story.rate_chunk sends Claude in ratings mode, for the other providers (a test holds them equal)."""
-    return f"{header}\n\nRate each of these {len(fixtures)} fixtures exactly once:\n{story.compact(fixtures)}"
 
 
 def log(msg):
@@ -146,8 +115,8 @@ def parse_configs(text, task):
             problems.append(f"{entry}: provider must be one of {', '.join(PROVIDERS)}")
         elif cfg.effort not in EFFORTS[cfg.provider]:
             problems.append(f"{entry}: {cfg.provider} effort must be one of {', '.join(EFFORTS[cfg.provider])}")
-        elif price_card(cfg) is None:
-            problems.append(f"{entry}: no list price recorded for {cfg.model}, so its spending can't be capped")
+        elif providers.MODELS.get(cfg.model) != cfg.provider:
+            problems.append(f"{entry}: no list price recorded for {cfg.model} at {cfg.provider}, so its spending can't be capped")
         elif task == "research" and (cfg.provider, cfg.model) in RATINGS_ONLY:
             problems.append(f"{entry}: {cfg.model} can't search the web here, so it takes part in ratings only")
         elif cfg in configs:
@@ -160,32 +129,19 @@ def parse_configs(text, task):
 
 
 def price_card(cfg):
-    """(input, output, per search) in USD, or None for a model without a recorded price."""
+    """(input, output, per search) in USD, from providers.py's tables."""
     if cfg.provider == "anthropic":
-        p = story.PRICES.get(cfg.model)
-        return (p[0], p[3], story.PRICE_SEARCH) if p else None
-    table, search = (OPENAI_PRICES, OPENAI_SEARCH) if cfg.provider == "openai" else (GEMINI_PRICES, GEMINI_SEARCH)
-    p = table.get(cfg.model)
-    return (p[0], p[2], search) if p else None
+        p = providers.ANTHROPIC_PRICES[cfg.model]
+        return p[0], p[3], providers.ANTHROPIC_SEARCH
+    table, search = ((providers.OPENAI_PRICES, providers.OPENAI_SEARCH) if cfg.provider == "openai"
+                     else (providers.GEMINI_PRICES, providers.GEMINI_SEARCH))
+    p = table[cfg.model]
+    return p[0], p[2], search
 
 
 def cost_of(cfg, usage):
-    """USD at list prices for normalized usage: `in` is input billed at the full rate, `cached` input
-    read from a cache, `cache_write` input written to Claude's cache, `out` output with reasoning,
-    `searches` and `opens` the search tool's calls, `prompt_max` the largest single prompt."""
-    if cfg.provider == "anthropic":
-        return story.cost_of({"in": usage["in"], "cache_write": usage["cache_write"], "cache_read": usage["cached"],
-                              "out": usage["out"], "searches": usage["searches"], "fetches": usage["opens"],
-                              "prompt_max": usage["prompt_max"]}, cfg.model)
-    if cfg.provider == "openai":
-        p_in, p_cached, p_out = OPENAI_PRICES[cfg.model]
-        # Every web_search_call item is a call, page opens included: an upper bound if only searches are billed.
-        return usage["in"] * p_in + usage["cached"] * p_cached + usage["out"] * p_out + (usage["searches"] + usage["opens"]) * OPENAI_SEARCH
-    p_in, p_cached, p_out = GEMINI_PRICES[cfg.model]
-    limit, long_prices = GEMINI_LONG.get(cfg.model, (None, None))
-    if limit is not None and usage["prompt_max"] > limit:
-        p_in, p_cached, p_out = long_prices
-    return usage["in"] * p_in + usage["cached"] * p_cached + usage["out"] * p_out + usage["searches"] * GEMINI_SEARCH
+    """USD at list prices for usage in providers.cost's keys."""
+    return providers.cost(cfg.model, usage)
 
 
 USAGE_KEYS = ("in", "cached", "cache_write", "out", "reasoning", "searches", "opens", "prompt_max")
@@ -222,40 +178,6 @@ class Budget:
         self.spent += amount or 0.0
 
 
-class ProviderError(Exception):
-    """A request the provider refused or failed, with its status and message; never the request's headers."""
-
-
-def error_detail(body):
-    try:
-        data = json.loads(body.decode("utf-8", "replace"))
-        err = data.get("error") if isinstance(data, dict) else None
-        message = err.get("message") if isinstance(err, dict) else err
-        return str(message or data)[:500]
-    except ValueError:
-        return body.decode("utf-8", "replace")[:500]
-
-
-def post_json(url, body, headers, timeout=REQUEST_TIMEOUT, attempts=3):
-    """POSTs JSON and returns the parsed reply. A 429 or 5xx is tried again after 2 and then 4 seconds;
-    any other HTTP error raises ProviderError at once, and a timeout or network failure propagates
-    without a retry, since the provider may have done (and billed) the work."""
-    data = json.dumps(body).encode("utf-8")
-    for attempt in range(1, attempts + 1):
-        request = urllib.request.Request(url, data=data, method="POST",
-                                         headers={"Content-Type": "application/json", **headers})
-        try:
-            with urllib.request.urlopen(request, timeout=timeout) as response:
-                return json.loads(response.read().decode("utf-8"))
-        except urllib.error.HTTPError as e:
-            detail = error_detail(e.read())
-            if e.code in RETRY_STATUSES and attempt < attempts:
-                log(f"HTTP {e.code} ({detail[:120]}); trying again")
-                time.sleep(2 ** attempt)
-                continue
-            raise ProviderError(f"HTTP {e.code}: {detail}") from None
-
-
 def match_key(url):
     """story.url_key without tracking parameters (OpenAI adds utm_source=openai to the links it cites)."""
     try:
@@ -266,170 +188,10 @@ def match_key(url):
     return story.url_key(urlunsplit((p.scheme, p.netloc, p.path, query, "")))
 
 
-@dataclass
-class Reply:
-    """One provider's answer, normalized. `returned` holds {match key: (url, title)} for every page its
-    tools returned; `native` holds the provider's own citations as (start, end, url) spans of `text`;
-    `redirects` holds Google's grounding links, which point through a redirect, until resolved."""
-    text: str = ""
-    stop: str = ""
-    served: str = ""
-    usage: dict = field(default_factory=dict)
-    returned: dict = field(default_factory=dict)
-    native: list = field(default_factory=list)
-    queries: list = field(default_factory=list)
-    redirects: dict = field(default_factory=dict)
-
-
-def openai_reply(resp):
-    """A Responses API reply: its message text with url_citation spans, the web_search_call items'
-    queries, sources and page opens, and its usage (output_tokens includes reasoning_tokens)."""
-    reply, pieces, refused, searches, opens = Reply(served=resp.get("model") or ""), [], False, 0, 0
-    for item in resp.get("output") or []:
-        kind = item.get("type") if isinstance(item, dict) else None
-        if kind == "web_search_call":
-            action = item.get("action") or {}
-            if action.get("type") == "search":
-                searches += 1
-            else:
-                opens += 1
-            for q in [action.get("query"), *(action.get("queries") or [])]:
-                if isinstance(q, str) and q.strip() and q.strip() not in reply.queries:
-                    reply.queries.append(q.strip())
-            for source in action.get("sources") or []:
-                if isinstance(source, dict) and isinstance(source.get("url"), str) and match_key(source["url"]):
-                    reply.returned.setdefault(match_key(source["url"]), (source["url"], source.get("title") or ""))
-            if isinstance(action.get("url"), str) and match_key(action["url"]):
-                reply.returned.setdefault(match_key(action["url"]), (action["url"], ""))
-        elif kind == "message":
-            for part in item.get("content") or []:
-                if part.get("type") == "refusal":
-                    refused = True
-                if part.get("type") != "output_text":
-                    continue
-                if pieces:
-                    pieces.append("\n")
-                base, text = sum(map(len, pieces)), part.get("text") or ""
-                pieces.append(text)
-                for a in part.get("annotations") or []:
-                    if a.get("type") == "url_citation" and isinstance(a.get("url"), str) and match_key(a["url"]):
-                        reply.native.append((base + (a.get("start_index") or 0), base + (a.get("end_index") or 0), a["url"]))
-                        reply.returned.setdefault(match_key(a["url"]), (a["url"], a.get("title") or ""))
-    reply.text = "".join(pieces)
-    reason = (resp.get("incomplete_details") or {}).get("reason")
-    reply.stop = ("refusal" if refused or reason == "content_filter" else "max_tokens" if reason == "max_output_tokens"
-                  else "end" if resp.get("status") == "completed" else reason or resp.get("status") or "unknown")
-    u = resp.get("usage") or {}
-    total, cached = u.get("input_tokens") or 0, (u.get("input_tokens_details") or {}).get("cached_tokens") or 0
-    reply.usage = {"in": total - cached, "cached": cached, "cache_write": 0, "out": u.get("output_tokens") or 0,
-                   "reasoning": (u.get("output_tokens_details") or {}).get("reasoning_tokens") or 0,
-                   "searches": searches, "opens": opens, "prompt_max": total}
-    return reply
-
-
-def char_span(text, segment):
-    """A grounding segment's span in characters. Google gives byte offsets into the part; the segment's
-    own text, when present, settles any doubt."""
-    data = text.encode("utf-8")
-    start = len(data[:segment.get("startIndex") or 0].decode("utf-8", "ignore"))
-    end = len(data[:segment.get("endIndex") or 0].decode("utf-8", "ignore"))
-    quoted = segment.get("text")
-    if isinstance(quoted, str) and quoted and text[start:end] != quoted and quoted in text:
-        start = text.find(quoted)
-        end = start + len(quoted)
-    return start, end
-
-
-GEMINI_STOPS = {"STOP": "end", "MAX_TOKENS": "max_tokens", "SAFETY": "refusal", "PROHIBITED_CONTENT": "refusal",
-                "BLOCKLIST": "refusal", "SPII": "refusal", "RECITATION": "recitation"}
-
-
-def gemini_reply(resp):
-    """A generateContent reply: the first candidate's text (thought summaries left out), its grounding
-    chunks and supports as spans, its search queries and usage (thinking billed as output)."""
-    reply = Reply(served=resp.get("modelVersion") or "")
-    candidates = resp.get("candidates") or []
-    candidate = candidates[0] if candidates else {}
-    offsets, pieces = {}, []
-    for i, part in enumerate((candidate.get("content") or {}).get("parts") or []):
-        if isinstance(part.get("text"), str) and not part.get("thought"):
-            offsets[i] = (sum(map(len, pieces)), part["text"])
-            pieces.append(part["text"])
-    reply.text = "".join(pieces)
-    finish = candidate.get("finishReason") or ""
-    blocked = (resp.get("promptFeedback") or {}).get("blockReason")
-    reply.stop = "refusal" if blocked else GEMINI_STOPS.get(finish, finish.lower() or "unknown")
-    grounding = candidate.get("groundingMetadata") or {}
-    reply.queries = list(dict.fromkeys(q.strip() for q in grounding.get("webSearchQueries") or [] if isinstance(q, str) and q.strip()))
-    chunks = []
-    for chunk in grounding.get("groundingChunks") or []:
-        web = chunk.get("web") or {}
-        uri = web.get("uri") if isinstance(web.get("uri"), str) else None
-        chunks.append(uri)
-        if uri:
-            reply.redirects.setdefault(uri, web.get("title") or "")
-    for support in grounding.get("groundingSupports") or []:
-        segment = support.get("segment") or {}
-        index = segment.get("partIndex") or 0        # proto3 JSON leaves out zeros
-        if index not in offsets:
-            continue
-        base, text = offsets[index]
-        start, end = char_span(text, segment)
-        for k in support.get("groundingChunkIndices") or []:
-            if isinstance(k, int) and 0 <= k < len(chunks) and chunks[k]:
-                reply.native.append((base + start, base + end, chunks[k]))
-    u = resp.get("usageMetadata") or {}
-    prompt, cached, tool = u.get("promptTokenCount") or 0, u.get("cachedContentTokenCount") or 0, u.get("toolUsePromptTokenCount") or 0
-    thoughts = u.get("thoughtsTokenCount") or 0
-    reply.usage = {"in": prompt - cached + tool, "cached": cached, "cache_write": 0,
-                   "out": (u.get("candidatesTokenCount") or 0) + thoughts, "reasoning": thoughts,
-                   "searches": len(reply.queries), "opens": 0, "prompt_max": prompt + tool}
-    return reply
-
-
-def gemini_schema(schema):
-    """The schema without additionalProperties, which Gemini's responseJsonSchema may not take; the
-    ratings are validated here either way."""
-    schema = copy.deepcopy(schema)
-
-    def strip(node):
-        if isinstance(node, dict):
-            node.pop("additionalProperties", None)
-            for value in node.values():
-                strip(value)
-        elif isinstance(node, list):
-            for value in node:
-                strip(value)
-    strip(schema)
-    return schema
-
-
-def openai_request(cfg, system, prompt, key, schema=None, max_tokens=RESEARCH_MAX_TOKENS):
-    body = {"model": cfg.model, "instructions": system, "input": prompt, "reasoning": {"effort": cfg.effort},
-            "max_output_tokens": max_tokens, "store": False}
-    if schema is not None:
-        body["text"] = {"format": {"type": "json_schema", "name": "ratings", "schema": schema, "strict": True}}
-    else:
-        body.update(tools=[{"type": "web_search"}], include=["web_search_call.action.sources"],
-                    max_tool_calls=RESEARCH_SEARCHES + RESEARCH_FETCHES)
-    return openai_reply(post_json(OPENAI_URL, body, {"Authorization": f"Bearer {key}"}))
-
-
-def gemini_request(cfg, system, prompt, key, schema=None, max_tokens=RESEARCH_MAX_TOKENS):
-    config = {"thinkingConfig": {"thinkingLevel": cfg.effort}, "maxOutputTokens": max_tokens}
-    body = {"systemInstruction": {"parts": [{"text": system}]}, "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-            "generationConfig": config}
-    if schema is not None:
-        config.update(responseMimeType="application/json", responseJsonSchema=gemini_schema(schema))
-    else:
-        body["tools"] = [{"google_search": {}}]
-    # The key goes in a header, never the URL, which error messages and logs can show.
-    return gemini_reply(post_json(GEMINI_URL.format(model=cfg.model), body, {"x-goog-api-key": key}))
-
-
-def anthropic_usage(u):
-    return {"in": u["in"], "cached": u["cache_read"], "cache_write": u["cache_write"], "out": u["out"], "reasoning": 0,
-            "searches": u["searches"], "opens": u["fetches"], "prompt_max": u["prompt_max"]}
+def story_usage(u):
+    """story.py's usage keys in providers.cost's."""
+    return {"in": u["in"], "cached": u["cache_read"], "cache_write": u["cache_write"], "out": u["out"],
+            "reasoning": u.get("reasoning", 0), "searches": u["searches"], "opens": u["fetches"], "prompt_max": u["prompt_max"]}
 
 
 def anthropic_text(content):
@@ -460,7 +222,7 @@ def anthropic_research(client, cfg, system, prompt):
                                          **story.request_options(cfg.model)) as stream:
             message = stream.get_final_message()
         reply.served = message.model
-        add_usage(usage, anthropic_usage(story.usage_of(message)))
+        add_usage(usage, story_usage(story.usage_of(message)))
         story.collect_sources(message.content, seen)
         for block in message.content:
             if getattr(block, "type", "") == "text":
@@ -480,28 +242,14 @@ def anthropic_research(client, cfg, system, prompt):
     return reply
 
 
-def parse_ratings(text, stop):
-    """The ratings list in a structured reply, or [] when it was cut short, refused or isn't JSON."""
-    if stop in ("refusal", "max_tokens"):
-        return []
-    try:
-        data = json.loads(text)
-    except ValueError:
-        return []
-    ratings = data.get("ratings") if isinstance(data, dict) else None
-    return ratings if isinstance(ratings, list) else []
-
-
 def rate_once(cfg, header, fixtures, keys, clients):
-    """One ratings request for `fixtures`: (raw ratings, usage, stop, served)."""
+    """One ratings request for `fixtures` through story.py's own path for the model's provider, so the
+    comparison measures exactly what the daily run sends: (raw ratings, usage, stop, served)."""
     if cfg.provider == "anthropic":
-        raw, usage, stop = story.rate_chunk(anthropic_client(clients), cfg.model, cfg.effort, fixtures, [], header, scores_only=True)
-        stop = {"end_turn": "end"}.get(stop, stop)
-        return raw, anthropic_usage(usage), stop, cfg.model
-    send = openai_request if cfg.provider == "openai" else gemini_request
-    reply = send(cfg, story.SCORES_SYSTEM, ratings_prompt(header, fixtures), keys[cfg.provider],
-                 schema=story.SCORES_SCHEMA, max_tokens=story.RATING_MAX_TOKENS)
-    return parse_ratings(reply.text, reply.stop), reply.usage, reply.stop, reply.served
+        raw, usage, stop, served = story.rate_chunk(anthropic_client(clients), cfg.model, cfg.effort, fixtures, [], header, scores_only=True)
+    else:
+        raw, usage, stop, served = story.api_rate_chunk(cfg.model, cfg.effort, keys[cfg.provider], fixtures, [], header)
+    return raw, story_usage(usage), {"end_turn": "end"}.get(stop, stop), served
 
 
 def anthropic_client(clients):
@@ -615,8 +363,9 @@ def run_research(cfg, header, fixtures, keys, clients):
         if cfg.provider == "anthropic":
             reply = anthropic_research(anthropic_client(clients), cfg, RESEARCH_SYSTEM, research_prompt(header, fixtures))
         else:
-            send = openai_request if cfg.provider == "openai" else gemini_request
-            reply = send(cfg, RESEARCH_SYSTEM, research_prompt(header, fixtures), keys[cfg.provider])
+            reply = providers.request(cfg.model, cfg.effort, RESEARCH_SYSTEM, research_prompt(header, fixtures), keys[cfg.provider],
+                                      max_tokens=RESEARCH_MAX_TOKENS, tool_calls=RESEARCH_SEARCHES + RESEARCH_FETCHES,
+                                      url_key=match_key)
         result.update(served=reply.served, stop=reply.stop, usage=add_usage({}, reply.usage), queries=reply.queries,
                       text=reply.text[:20000])
         blurbs = research_blurbs(reply, {f["id"] for f in fixtures})
@@ -927,7 +676,7 @@ def main(argv=None):
             log(f"skipping {task} on {cfg.name}: {why}")
         return why is None
 
-    ratings_chars = len(story.SCORES_SYSTEM) + len(ratings_prompt(header, rating_fixtures))
+    ratings_chars = len(story.SCORES_SYSTEM) + len(story.rating_prompt(header, rating_fixtures, scores_only=True))
     for cfg in sorted(ratings, key=lambda c: estimate(c, "ratings", ratings_chars)):
         if admit(cfg, "ratings", ratings_chars):
             log(f"ratings: {cfg.name} on {len(rating_fixtures)} fixtures")

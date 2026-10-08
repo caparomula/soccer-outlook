@@ -16,6 +16,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import build  # noqa: E402
+import providers  # noqa: E402
 import story  # noqa: E402   (imports without the anthropic package, which only write_story needs)
 
 SOURCE = "https://example.com/a"
@@ -486,6 +487,14 @@ class Requests(unittest.TestCase):
         self.assertEqual(len(result["rankings"]), 5)
 
 
+# The settings the tests run under unless they say otherwise: the full design, as before the switch,
+# and what a story written under them records.
+FULL = '[ai]\nenabled = true\ndesign = "full"\nmodel = "claude-opus-5-5"\neffort = "medium"\n'
+RATINGS = '[ai]\nenabled = true\ndesign = "ratings"\nmodel = "gpt-6.1-sol"\neffort = "low"\n'
+BY_FULL = {"kind": "full", "model": "claude-opus-5-5", "effort": "medium"}
+BY_RATINGS = {"kind": "ratings", "model": "gpt-6.1-sol", "requested_model": "gpt-6.1-sol", "effort": "low"}
+
+
 class Modes(unittest.TestCase):
     NOW = datetime(2026, 10, 7, 17, tzinfo=timezone.utc)
 
@@ -506,8 +515,8 @@ class Modes(unittest.TestCase):
             self.assertEqual(choose("daily", {"generated_at": written}, self.NOW)[0], "keep")
 
     def test_daily_runs_write_only_when_today_has_no_story(self):
-        today = {"version": 1, "date": "2026-10-07", "generated_at": "2026-10-07T08:55:00Z", "lede": "This morning's."}
-        yesterday = {"version": 1, "date": "2026-10-06", "generated_at": "2026-10-06T08:55:00Z", "lede": "Yesterday's."}
+        today = dict(BY_FULL, version=1, date="2026-10-07", generated_at="2026-10-07T08:55:00Z", lede="This morning's.")
+        yesterday = dict(BY_FULL, version=1, date="2026-10-06", generated_at="2026-10-06T08:55:00Z", lede="Yesterday's.")
         self.assertEqual(self.main("daily", today), today)          # the midday and evening builds: no API call
         modes = []
         written = {"headline": "", "headline_segments": [], "lede": "Today's.", "lede_items": [], "sources": [],
@@ -521,9 +530,10 @@ class Modes(unittest.TestCase):
         self.assertEqual(modes, ["full"])
         self.assertEqual((result["date"], result["kind"], result["lede"]), ("2026-10-07", "full", "Today's."))
 
-    def main(self, mode, previous, key="test-key", writer=None, settings="[ai]\nenabled = true\n", extra=()):
+    def main(self, mode, previous, key="test-key", writer=None, settings=FULL, extra=(), key_name="ANTHROPIC_API_KEY"):
         """Runs story.main() on RUN_FACTS with its own settings file (`settings` is its text, or None
-        for no file at all), so the repository's switch never decides a test."""
+        for no file at all), so the repository's settings never decide a test. `key` goes in `key_name`,
+        and no other provider key is set."""
         with tempfile.TemporaryDirectory() as tmp:
             facts_path, prev_path, out = Path(tmp) / "facts.json", Path(tmp) / "prev.json", Path(tmp) / "story.json"
             facts_path.write_text(json.dumps(dict(RUN_FACTS, date="2026-10-07")))
@@ -535,9 +545,9 @@ class Modes(unittest.TestCase):
             if previous is not None:
                 prev_path.write_text(json.dumps(previous))
                 args += ["--previous", str(prev_path)]
-            env = {k: v for k, v in os.environ.items() if k != "ANTHROPIC_API_KEY"}
+            env = {k: v for k, v in os.environ.items() if k not in providers.KEY_NAMES.values()}
             if key:
-                env["ANTHROPIC_API_KEY"] = key
+                env[key_name] = key
             writer = writer or (lambda *a: self.fail("no API call expected"))
             with patch.object(sys, "argv", args), patch.dict(os.environ, env, clear=True), \
                     patch.object(story, "write_story", writer), patch.object(story, "log", lambda *_: None):
@@ -546,14 +556,15 @@ class Modes(unittest.TestCase):
 
     def test_ai_switched_off_calls_nothing_and_drops_the_published_story(self):
         fresh = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        today = {"version": 1, "date": "2026-10-07", "generated_at": fresh, "lede": "Today's."}
-        off = "[ai]\nenabled = false\n"
+        today = dict(BY_FULL, version=1, date="2026-10-07", generated_at=fresh, lede="Today's.")
+        off = FULL.replace("enabled = true", "enabled = false")
         # Not even kept: the publish that follows must take Claude's text off the page.
         for mode in ("keep", "daily", "full", "refresh", "auto"):
             self.assertIsNone(self.main(mode, today, settings=off), mode)
         self.assertIsNone(self.main("daily", None, settings=off))
         # A switch that can't be read spends nothing either.
-        for unreadable in (None, "[ai]\nenabled = \"yes\"\n", "[ai\n", "ai = 3\n"):
+        for unreadable in (None, FULL.replace("true", '"yes"'), "[ai]\nenabled = true\n", "[ai\n", "ai = 3\n",
+                           FULL.replace("claude-opus-5-5", "gpt-6.1-sol"), FULL.replace('effort = "medium"', 'effort = "none"')):
             self.assertIsNone(self.main("full", today, settings=unreadable), unreadable)
 
     def test_measuring_ignores_the_switch(self):
@@ -562,13 +573,13 @@ class Modes(unittest.TestCase):
         def writer(*args, **kwargs):
             calls.append(next(a for a in args if a in ("full", "refresh")))
             return None, "test-model"
-        self.main("full", None, writer=writer, settings="[ai]\nenabled = false\n", extra=["--ignore-switch"])
+        self.main("full", None, writer=writer, settings=FULL.replace("enabled = true", "enabled = false"), extra=["--ignore-switch"])
         self.assertEqual(calls, ["full"])
 
     def test_keep_and_fallbacks_never_lose_the_published_story(self):
         fresh = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        today = {"version": 1, "date": "2026-10-07", "generated_at": fresh, "lede": "Today's."}
-        yesterday = {"version": 1, "date": "2026-10-06", "generated_at": "2026-10-06T22:00:00Z", "lede": "Yesterday's."}
+        today = dict(BY_FULL, version=1, date="2026-10-07", generated_at=fresh, lede="Today's.")
+        yesterday = dict(BY_FULL, version=1, date="2026-10-06", generated_at="2026-10-06T22:00:00Z", lede="Yesterday's.")
         self.assertEqual(self.main("keep", yesterday), yesterday)          # a code push republishes as is
         self.assertEqual(self.main("auto", today), today)                  # too fresh to pay for again
         self.assertEqual(self.main("refresh", today, key=None), today)     # no key: today's is reused
@@ -584,10 +595,138 @@ class Modes(unittest.TestCase):
                    "later_reason": "", "league_blurbs": [], "league_order": [], "_dropped": 0,
                    "rankings": {"1": {"score": 50}}, "ranking_coverage": {"rated": 1, "total": 5, "carried": 0}}
         result = self.main("full", None, writer=lambda *a: (dict(written), "test-model"))
-        self.assertEqual({k: result[k] for k in ("version", "date", "kind", "model", "effort", "services", "focus_until")},
-                         {"version": 1, "date": "2026-10-07", "kind": "full", "model": "test-model", "effort": "medium",
+        self.assertEqual({k: result[k] for k in ("version", "date", "kind", "model", "requested_model", "effort", "services", "focus_until")},
+                         {"version": 1, "date": "2026-10-07", "kind": "full", "model": "test-model", "requested_model": "claude-opus-5-5",
+                          "effort": "medium",
                           "services": ["espn"], "focus_until": "2026-10-08T17:00:00+00:00"})
         self.assertNotIn("_dropped", result)
+
+
+def openai_ratings(calls, served="gpt-6.1-sol", drop=()):
+    """Stands in for providers.post_json as OpenAI's Responses API: rates every fixture a request lists
+    (except those in `drop`) with popularity 50, gameplay 60 and impact 70, and records each request."""
+    def post(url, body, headers, **_):
+        calls.append((url, body, headers))
+        fixtures = json.loads(body["input"].split("exactly once:\n", 1)[1])
+        ratings = [{"match_id": f["id"], "popularity": 50, "gameplay": 60, "impact": 70} for f in fixtures if f["id"] not in drop]
+        return {"model": served, "status": "completed", "output": [{"type": "message", "content": [
+                    {"type": "output_text", "text": json.dumps({"ratings": ratings}), "annotations": []}]}],
+                "usage": {"input_tokens": 17000, "input_tokens_details": {"cached_tokens": 1000}, "output_tokens": 2800,
+                          "output_tokens_details": {"reasoning_tokens": 20}}}
+    return post
+
+
+class Switch(unittest.TestCase):
+    """settings.toml's [ai] table chooses the design, the model and its effort; a story another choice
+    wrote is not today's, and the push that changes the choice writes at once."""
+    NOW = datetime(2026, 10, 7, 17, tzinfo=timezone.utc)
+    main = Modes.main
+
+    def test_gpt_rates_through_openai_with_claudes_prompt_and_schema(self):
+        calls, real = [], story.write_story
+        broken = SimpleNamespace(Anthropic=lambda **_: self.fail("the ratings design on gpt-6.1-sol never calls Claude"))
+        with patch.object(providers, "post_json", openai_ratings(calls)), patch.dict(sys.modules, {"anthropic": broken}), \
+                patch.object(story, "summary", lambda *_: None):
+            result = self.main("daily", None, writer=real, settings=RATINGS, key="sk-test", key_name="OPENAI_API_KEY")
+        (url, body, headers), = calls
+        self.assertEqual((url, headers), ("https://api.openai.com/v1/responses", {"Authorization": "Bearer sk-test"}))
+        self.assertEqual((body["model"], body["instructions"], body["reasoning"]), ("gpt-6.1-sol", story.SCORES_SYSTEM, {"effort": "low"}))
+        self.assertEqual(body["text"]["format"]["schema"], story.SCORES_SCHEMA)
+        self.assertEqual([f["id"] for f in json.loads(body["input"].split("exactly once:\n", 1)[1])], ["1", "2", "3", "4", "5"])
+        self.assertNotIn("tools", body)
+        self.assertEqual({k: result[k] for k in ("kind", "model", "requested_model", "effort")},
+                         {"kind": "ratings", "model": "gpt-6.1-sol", "requested_model": "gpt-6.1-sol", "effort": "low"})
+        # 25% of 50, 35% of 60 and 40% of 70: 12.5 + 21 + 28.
+        self.assertEqual(result["rankings"]["1"], {"popularity": 50, "gameplay": 60, "impact": 70, "score": 61.5})
+        self.assertEqual((result["lede_items"], result["notes"], result["league_blurbs"]), ([], {}, []))
+
+    def test_a_fixture_left_out_is_asked_for_once_more_and_the_cost_is_openais(self):
+        calls, real, lines = [], story.write_story, []
+        first = openai_ratings(calls, drop=("3",))
+        answers = [first, openai_ratings(calls)]
+        with patch.object(providers, "post_json", lambda *a, **k: answers.pop(0)(*a, **k)), \
+                patch.object(story, "summary", lines.append):
+            result = self.main("ratings", None, writer=real, settings=RATINGS, key="sk", key_name="OPENAI_API_KEY")
+        self.assertEqual([json.loads(b["input"].split("exactly once:\n", 1)[1])[0]["id"] for _, b, _ in calls], ["1", "3"])
+        self.assertEqual(sorted(result["rankings"]), ["1", "2", "3", "4", "5"])
+        # Two requests of 16,000 fresh and 1,000 cached input and 2,800 output tokens at gpt-6.1-sol's
+        # $2, $0.10 and $10 per million: 2 x (0.032 + 0.0001 + 0.028) = $0.1202.
+        self.assertIn("about $0.1202 at gpt-6.1-sol list prices", lines[0])
+        self.assertIn("output 5,600 tokens, 40 of them reasoning", lines[0])
+
+    def test_the_ratings_design_rates_once_a_day_and_whenever_asked(self):
+        choose = lambda mode, todays=None, switched=False: story.choose_mode(mode, todays, self.NOW, "ratings", switched)[0]
+        today = dict(BY_RATINGS, generated_at="2026-10-07T08:55:00Z")
+        self.assertEqual([choose(m) for m in ("daily", "auto", "full", "refresh", "ratings")], ["ratings"] * 5)
+        self.assertEqual([choose(m, today) for m in ("daily", "auto")], ["keep", "keep"])
+        self.assertEqual([choose(m, today) for m in ("full", "refresh", "ratings")], ["ratings"] * 3)
+        self.assertEqual((choose("keep"), choose("keep", switched=True)), ("keep", "ratings"))
+        self.assertEqual(story.choose_mode("keep", None, self.NOW, "full", True)[0], "full")
+
+    def test_a_story_another_choice_wrote_is_rewritten_even_by_a_push(self):
+        models = []
+
+        def writer(facts, model, effort, mode, *rest):
+            models.append((model, effort, mode))
+            return {"lede_items": [], "notes": {}, "league_blurbs": [], "league_order": [], "_dropped": 0, "rankings": {"1": {"score": 50}},
+                    "ranking_coverage": {"rated": 1, "total": 1, "carried": 0}}, model
+        fresh = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        opus = dict(BY_FULL, version=1, date="2026-10-07", generated_at=fresh, lede="Opus wrote this.")
+        mine = dict(BY_RATINGS, version=1, date="2026-10-07", generated_at=fresh)
+        sol = dict(key="sk", key_name="OPENAI_API_KEY", settings=RATINGS)
+        self.assertEqual(self.main("keep", mine, **sol), mine)                    # a push with nothing changed: no call
+        self.assertEqual(self.main("daily", mine, **sol), mine)                   # the midday build
+        result = self.main("keep", opus, writer=writer, **sol)                    # the push that switches to gpt-6.1-sol
+        self.assertEqual((models, result["kind"], result["requested_model"]), ([("gpt-6.1-sol", "low", "ratings")], "ratings", "gpt-6.1-sol"))
+        self.main("daily", opus, writer=writer, **sol)                            # or the morning build, if no push came first
+        self.main("keep", dict(mine, effort="medium"), writer=writer, **sol)      # an effort changed is a choice changed
+        haiku = dict(mine, model="claude-haiku-5-5", requested_model="claude-haiku-5-5")
+        self.main("daily", haiku, writer=writer, **sol)                           # so is a model, design and effort alike
+        self.assertEqual([m[2] for m in models], ["ratings"] * 4)
+        # Back to the full design: the push writes Claude's storylines (the full run), and a story it wrote counts.
+        back = []
+        self.main("keep", mine, writer=lambda f, m, e, mode, *r: back.append(mode) or (None, m))
+        self.assertEqual(back, ["full"])
+        self.assertEqual(self.main("daily", opus), opus)
+
+    def test_without_the_providers_key_nothing_is_called(self):
+        fresh = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        mine = dict(BY_RATINGS, version=1, date="2026-10-07", generated_at=fresh)
+        # An Anthropic key is no use to gpt-6.1-sol: today's story stays up, and with none there is nothing to publish.
+        self.assertEqual(self.main("refresh", mine, settings=RATINGS, key="sk-ant", key_name="ANTHROPIC_API_KEY"), mine)
+        self.assertIsNone(self.main("refresh", None, settings=RATINGS, key="sk-ant", key_name="ANTHROPIC_API_KEY"))
+
+    def test_other_providers_rate_scores_only_and_are_priced_as_requested(self):
+        with self.assertRaises(ValueError):
+            story.api_rate_chunk("gpt-6.1-sol", "low", "sk", [], [], "", scores_only=False)
+        million = {"in": 1_000_000, "cache_write": 0, "cache_read": 1_000_000, "out": 1_000_000, "searches": 0, "fetches": 0, "prompt_max": 0}
+        self.assertAlmostEqual(story.cost_of(million, "gpt-6.1-sol"), 2 + 0.10 + 10)
+        self.assertAlmostEqual(story.cost_of(million, "gemini-3.1-flash-lite"), 0.25 + 0.025 + 1.50)
+        self.assertIsNone(story.cost_of(million, "gpt-6.1-sol-2026-09-01"))
+        with patch.object(story, "summary", lambda *_: None), patch.object(story, "log", lambda *_: None):
+            # A dated snapshot of the requested model has no price of its own: it is priced as requested.
+            self.assertAlmostEqual(story.report_cost(dict(million), "gpt-6.1-sol-2026-09-01", "gpt-6.1-sol", "low", "ratings", 1), 12.10)
+            # A server-side fallback to another model with prices is priced as served.
+            self.assertAlmostEqual(story.report_cost(dict(million), "claude-sonnet-5-5", "claude-opus-5-5", "low", "ratings", 1), 12.10)
+
+    def test_google_rates_through_its_own_structured_output(self):
+        calls, real = [], story.write_story
+
+        def post(url, body, headers, **_):
+            calls.append((url, body, headers))
+            fixtures = json.loads(body["contents"][0]["parts"][0]["text"].split("exactly once:\n", 1)[1])
+            text = json.dumps({"ratings": [{"match_id": f["id"], "popularity": 40, "gameplay": 40, "impact": 40} for f in fixtures]})
+            return {"modelVersion": "gemini-3.1-flash-lite", "candidates": [{"finishReason": "STOP", "content": {"parts": [{"text": text}]}}],
+                    "usageMetadata": {"promptTokenCount": 19000, "candidatesTokenCount": 4000, "thoughtsTokenCount": 100}}
+        settings = RATINGS.replace("gpt-6.1-sol", "gemini-3.1-flash-lite")
+        with patch.object(providers, "post_json", post), patch.object(story, "summary", lambda *_: None):
+            result = self.main("daily", None, writer=real, settings=settings, key="g-key", key_name="GEMINI_API_KEY")
+        (url, body, headers), = calls
+        self.assertTrue(url.endswith("/models/gemini-3.1-flash-lite:generateContent"))
+        self.assertEqual(headers, {"x-goog-api-key": "g-key"})
+        self.assertEqual(body["systemInstruction"]["parts"][0]["text"], story.SCORES_SYSTEM)
+        self.assertEqual(body["generationConfig"]["thinkingConfig"], {"thinkingLevel": "low"})
+        self.assertEqual((result["requested_model"], result["rankings"]["2"]["score"]), ("gemini-3.1-flash-lite", 40.0))
 
 
 class RollingFacts(unittest.TestCase):
