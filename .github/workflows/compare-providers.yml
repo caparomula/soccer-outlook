@@ -1,0 +1,86 @@
+# Asks Claude and OpenAI's and Google's models to do the page's two AI jobs on today's fixtures and lays
+# the answers side by side, publishing nothing (.github/scripts/compare-providers.py says how):
+#
+#   ratings   the three scores per fixture for the next three days, the design story.py's ratings mode
+#             uses: cents or less per model
+#   research  a researched blurb for each of six featured fixtures, one per competition, with each
+#             provider's own web search: tens of cents per model
+#
+# Each provider bills its own key, the ANTHROPIC_API_KEY, OPENAI_API_KEY and GEMINI_API_KEY secrets; a
+# provider whose secret is missing is skipped. No task starts that could take the run past the budget.
+# The run summary shows the report: cost, time, agreement between the ratings, and every blurb with
+# whether each cited page came from that provider's own search and loads now. The job log ends with the
+# results as JSON, which are also the run's artifact.
+name: Compare AI providers
+
+on:
+  workflow_dispatch:
+    inputs:
+      ratings:
+        description: "provider:model:effort for the ratings task, separated by spaces"
+        type: string
+        default: "anthropic:claude-haiku-5-5:low anthropic:claude-sonnet-5-5:low anthropic:claude-opus-5-5:low openai:gpt-6-luna:low openai:gpt-6.1-sol:low openai:gpt-5.5:low google:gemini-3.1-flash-lite:low google:gemini-3.8-flash:low google:gemini-3.1-pro-preview:low"
+      research:
+        description: "provider:model:effort for the research task, separated by spaces"
+        type: string
+        default: "anthropic:claude-sonnet-5-5:medium anthropic:claude-opus-5-5:medium openai:gpt-6-luna:medium openai:gpt-6.1-sol:medium openai:gpt-5.5:medium google:gemini-3.8-flash:medium google:gemini-3.1-pro-preview:medium"
+      fixtures:
+        description: "fixture IDs for the research task (empty: six featured fixtures)"
+        type: string
+        default: ""
+      budget:
+        description: "USD: no task starts that could take the run past this"
+        type: string
+        default: "5"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: compare-providers
+  cancel-in-progress: false
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Build today's facts
+        run: python3 build.py --out work/page.html --facts work/facts.json
+
+      - name: Ask each provider
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          RATINGS: ${{ inputs.ratings }}
+          RESEARCH: ${{ inputs.research }}
+          FIXTURES: ${{ inputs.fixtures }}
+          BUDGET: ${{ inputs.budget }}
+        run: |
+          set -o pipefail
+          python3 -m venv .venv
+          .venv/bin/pip install --quiet "anthropic>=1.11,<2"
+          # The ratings the page publishes now: the reference for agreement, and for choosing featured fixtures.
+          published=()
+          if curl -fsS --max-time 30 "https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}/story.json" \
+               -o work/published-story.json; then
+            published=(--published work/published-story.json)
+          fi
+          # To the run's page, and to its log, which the API can read where it can't read the page.
+          .venv/bin/python .github/scripts/compare-providers.py --facts work/facts.json --page work/page.html "${published[@]}" \
+            --ratings "$RATINGS" --research "$RESEARCH" --fixtures "$FIXTURES" --budget "$BUDGET" \
+            --out work/providers/results.json | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Results as JSON
+        if: always()
+        run: cat work/providers/results.json 2>/dev/null || echo "no results"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: provider-comparison
+          path: work/providers/results.json
+          if-no-files-found: ignore
