@@ -1,6 +1,7 @@
 (function () {
   'use strict';
   var DAY_START = 4;                 // a sports day runs 4 am to 4 am local time
+  var WINDOW_DAYS = 3;               // the page shows today and the three days after it (story.py's WINDOW_DAYS)
   var FOCUS_MS = 24 * 60 * 60000;
   var LIVE_MS = 125 * 60000;
   var LS = { mode: 'ssg2-mode', have: 'ssg3-have', leagues: 'ssg5-leagues', compOff: 'ssg2-comp-off', priority: 'ssg4-league-order', services: 'ssg4-service-order' };
@@ -497,11 +498,14 @@
       (r._k >= now || (r._k >= now - LIVE_MS && (r._state === 'in' || r._tv)) ||
        (r._state === 'in' && Date.now() - (r._seen || 0) < 10 * 60000));
   }
+  // A row's section, or null when it is outside the page's window: today and the three days after it
+  // (Thursday shows Thursday to Sunday), and yesterday's results.
   function bucketOf(r, now) {
+    var idx = dayIndex(r._k, now);
+    if (idx > WINDOW_DAYS) return null;
     if (r._state !== 'post' && r._k >= now + FOCUS_MS) return 'later';
     // A live match can cross midnight or the 4 am sports-day boundary.
     if (inFocus(r, now) && r._tv && r._k <= now) return 'live';
-    var idx = dayIndex(r._k, now);
     if (idx < 0) return idx === -1 ? 'yesterday' : null;
     if (idx === 0) {
       if (r._state === 'post') return 'earlier';
@@ -512,9 +516,7 @@
       var h = new Date(r._k).getHours(); if (h < DAY_START) h += 24;
       return h < 12 ? 'morning' : h < 17 ? 'afternoon' : h < 20 ? 'evening' : 'tonight';
     }
-    if (idx === 1) return 'tomorrow';
-    if (idx <= 8) return 'later';
-    return null;
+    return idx === 1 ? 'tomorrow' : 'later';
   }
   function nowBucketName(now) {
     var h = new Date(now).getHours(); if (h < DAY_START) h += 24;
@@ -972,24 +974,17 @@
   // The top three show the presumed best matches, so they come from every covered match on every
   // service and in every competition, whatever the lineup and filters; a pick this viewer can't watch
   // looks as its schedule row does outside the lineup. The top card and the schedule stay filtered.
-  // They are the best-scored of the next three days, the window the AI rates each morning, not of the
-  // next 24 hours: on a quiet day (an international break) the few matches in the next 24 hours took
-  // every place whatever their scores, over far better ones the day after. With AI ratings on the page,
-  // only rated matches compete: one past the ratings window would be scored by the Outlook score alone,
-  // which runs several points higher, and could win on that. With fewer than three in the window, the
-  // following days fill in, a day at a time.
-  var pickedRows = [], PICKS_MS = 72 * 3600000;
+  // They are the best-scored of the page's window, today and the three days after it, which the AI
+  // rates each morning; not of the next 24 hours, where on a quiet day (an international break) the few
+  // matches took every place whatever their scores, over far better ones the day after. With AI ratings
+  // on the page, only rated matches compete: one the ratings missed would be scored by the Outlook score
+  // alone, which runs several points higher, and could win on that. Fewer than three in the window
+  // make fewer cards.
+  var pickedRows = [];
   function renderPicks(now) {
     var available = upcomingIn(now, covered).filter(function (r) { return r !== nextRow; });
     if (available.some(function (r) { return ratingOf(r); })) available = available.filter(function (r) { return ratingOf(r); });
-    function inWindow(r) { return r._k < now + PICKS_MS; }
-    var chosen = available.filter(inWindow).sort(byRating).slice(0, 3);
-    var later = available.filter(function (r) { return !inWindow(r); }).sort(byTime);
-    while (chosen.length < 3 && later.length) {
-      var boundary = later[0]._k + FOCUS_MS, span = later.filter(function (r) { return r._k < boundary; });
-      chosen = chosen.concat(span.sort(byRating).slice(0, 3 - chosen.length));
-      later = later.filter(function (r) { return r._k >= boundary; });
-    }
+    var chosen = available.sort(byRating).slice(0, 3);
     chosen.sort(function (a, b) { return byTime(a, b) || byRating(a, b); });
     pickedRows = chosen;
     document.getElementById('picks-section').hidden = !chosen.length;
@@ -1168,21 +1163,21 @@
   }
 
   function renderLineup(groups, now) {
+    // The window's matches (today and the three days after it), by service.
     var week = upcoming(groups).concat(groups.later).filter(function (r) { return !compHidden(r) && r._state !== 'post'; });
-    var today = week.filter(function (r) { return inFocus(r, now); });
     var host = document.getElementById('lineup'); host.innerHTML = '';
     var ids = serviceOrder().filter(function (id) { return HAVE[id]; });
     if (!ids.length) { var e = document.createElement('p'); e.className = 'empty'; e.textContent = 'No services selected. Open "Lineup & filters" and tap the ones you have.'; host.appendChild(e); return; }
     ids.forEach(function (k) {
-      var t = today.filter(function (r) { return r._svc === k; }), w = week.filter(function (r) { return r._svc === k; });
-      var card = document.createElement('div'); card.className = 'svc svc-' + k + (t.length ? '' : ' svc--quiet'); card.setAttribute('data-svc', k);
+      var w = week.filter(function (r) { return r._svc === k; });
+      var card = document.createElement('div'); card.className = 'svc svc-' + k + (w.length ? '' : ' svc--quiet'); card.setAttribute('data-svc', k);
       var head = document.createElement('div'); head.className = 'svc__head';
       head.innerHTML = '<i class="dot"></i><span class="svc__name"></span><span class="svc__count"></span>';
       head.children[1].textContent = SERVICE_NAMES[k] || k;
-      head.children[2].textContent = t.length + ' in the next 24 hours';
+      head.children[2].textContent = w.length + ' in the next three days';
       var desc = document.createElement('p'); desc.className = 'svc__desc';
       var next = w.filter(function (r) { return inFocus(r, now) || r._k > now; }).sort(byTime)[0];
-      desc.textContent = next ? 'Next: ' + matchName(next) + ', ' + timeLabel(next) + dayTag(next, now) + (next._outlet && next._outlet !== (SERVICE_NAMES[k] || '') ? ' on ' + next._outlet : '') + (next._basis === 'rule' ? ' (usual home; channel not posted yet)' : '') + '.' : 'Nothing listed in the next week.';
+      desc.textContent = next ? 'Next: ' + matchName(next) + ', ' + timeLabel(next) + dayTag(next, now) + (next._outlet && next._outlet !== (SERVICE_NAMES[k] || '') ? ' on ' + next._outlet : '') + (next._basis === 'rule' ? ' (usual home; channel not posted yet)' : '') + '.' : 'Nothing listed in the next three days.';
       card.appendChild(head); card.appendChild(desc); host.appendChild(card);
     });
   }
@@ -1272,9 +1267,10 @@
     }
     // Only the date: the schedule runs past the next 24 hours, so the line above the title can't claim that window.
     document.getElementById('eyebrow').textContent = fmtDay.format(new Date(now));
-    var up = upcoming(groups).filter(function (r) { return inFocus(r, now); }), on = up.filter(onSvc);
+    // The window's matches still to come or in progress: today and the three days after it.
+    var up = upcoming(groups).concat(groups.later).filter(function (r) { return r._state !== 'post'; }), on = up.filter(onSvc);
     document.getElementById('tally-n').textContent = on.length;
-    document.getElementById('tally-txt').textContent = mode === 'mine' ? 'matches on your services in the next 24 hours' : 'of ' + up.length + ' matches in the next 24 hours are on your services';
+    document.getElementById('tally-txt').textContent = mode === 'mine' ? 'matches on your services in the next three days' : 'of ' + up.length + ' matches in the next three days are on your services';
   }
 
   // ---- freshness -----------------------------------------------------------------------------

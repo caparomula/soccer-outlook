@@ -45,8 +45,8 @@ Modes, one per kind of build:
            (GitHub can start a schedule hours late, right before the next one), otherwise refresh:
            storylines updated through the day, at the cost of those updates as well
   ratings  three scores per fixture and nothing else: no research, overview or blurbs, and no web
-           search; one structured request for the fixtures kicking off within RATING_WINDOW_HOURS,
-           widened a day at a time when that holds fewer than MIN_RATED. Any model in providers.MODELS
+           search; one structured request for the fixtures in the page's window (window_end: today and
+           the three days after it, as the page shows them). Any model in providers.MODELS
            can run it: Claude through the anthropic SDK, OpenAI's and Google's models through their
            own structured output, with the same system prompt, fixtures and schema
 On failure, a refresh keeps today's earlier news, and ratings are still attempted.
@@ -56,8 +56,8 @@ ratings mode above, once a day) or "full" (Claude's research, overview and blurb
 day), and `model` and `effort` say who does it. In the ratings design, `overview_model` and
 `overview_effort` add the overview: once the ratings are written, one request with that model's own
 web search (Claude's web search and fetch, OpenAI's web_search, Google's grounding) for a plain
-paragraph about every match with known coverage in the time frame the page's top three come from,
-on any service and in any competition, since every visitor reads it whatever they follow. It is
+paragraph about every match with known coverage in the days the page shows (window_end), which its
+top three come from, on any service and in any competition, since every visitor reads it whatever they follow. It is
 published only with a cited page the model's search returned (checked_overview says how), and a
 failure costs the page its overview, never its ratings. `blurbs_model` and `blurbs_effort` add card
 blurbs for the top picks the same way: the BLURB_CANDIDATES best matches in that frame by the page's
@@ -89,7 +89,7 @@ import tomllib
 import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, time as clock_time, timedelta, timezone
 from functools import partial
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from zoneinfo import ZoneInfo
@@ -115,11 +115,13 @@ RATING_CHUNK = 60
 RATING_WORKERS = 3
 RATING_MAX_TOKENS = 32000
 RERATE_HOURS = 24                     # a refresh re-rates fixtures kicking off this soon
-# Ratings mode rates what kicks off within RATING_WINDOW_HOURS, widened a day at a time until the window
-# holds MIN_RATED fixtures (an international break leaves the next three days nearly empty). The script
-# decides this, not the model: it knows the fixtures, and asking would cost tokens and add a judgment.
-RATING_WINDOW_HOURS = 72
-MIN_RATED = 20
+# The page's window: today and the three days after it, a day running from 4 am to 4 am as on the page
+# (web/app.js's WINDOW_DAYS and DAY_START), so Thursday's page shows Thursday to Sunday. Ratings mode rates
+# what kicks off in it and nothing past it, which the page doesn't show; build.py lists the schedule,
+# the top three's matches and its counts by the same window. The script decides this, not the model:
+# it knows the fixtures, and asking would cost tokens and add a judgment.
+WINDOW_DAYS = 3
+DAY_START_HOUR = 4
 SCORES_CHUNK = 200                    # ratings mode: about 25 output tokens a fixture, so one request covers a window
 MIN_GAP_HOURS = 3                     # auto mode keeps a story this fresh rather than paying again
 LIMITS = {"blurb": 260, "league": 450, "item": 520, "lede": 450, "note": 320}
@@ -300,7 +302,7 @@ OVERVIEW_HOUSEHOLD = ("watch_on", "available_service_ids", "hidden_by_default", 
 
 def overview_view(facts):
     """The overview's view of the facts: build.py's overview_fixtures (every match with known coverage
-    in the time frame the page's top three come from, on any service and in any competition), each
+    in the days the page shows, which its top three come from, on any service and in any competition), each
     compactly, in kickoff order. What the page shows the default household (watch_on, its services,
     competitions hidden by default) is left out, and so is build.py's own stature score: the overview
     is for every visitor, whatever they follow, and an unexplained number only invites guessing."""
@@ -317,8 +319,8 @@ def overview_prompt(header, view):
             "times rather than 'today' or 'tomorrow', since the page is read through the day and into the next. Cite one to five "
             "URLs of pages your searches returned in this session that support it. Put URLs only in sources, never in the text. "
             "If no reporting you find supports an overview, give an empty overview and no sources rather than guess.\n\n"
-            "'fixtures' lists, in kickoff order, every match with known US coverage kicking off in the next three days, on any "
-            "service and in any competition; when fewer than three do, it runs on a day at a time. "
+            "'fixtures' lists, in kickoff order, every match with known US coverage on any service and in any competition "
+            "from now through the third day after today, the days the page shows. "
             "'broadcasters' are the US channels and services that carry a match; a match without them is on its competition's "
             "usual US home, its channel not posted yet. 'played_today', when present, gives the day's notable results so far, "
             f"for context.\n\n{compact(view)}\n\n"
@@ -1410,24 +1412,27 @@ def write_news(client, facts, model, effort, mode, previous, totals, links, seen
     return story, served
 
 
-def rating_window(facts):
-    """Ratings mode's fixtures: those kicking off within RATING_WINDOW_HOURS of the build, widened a day
-    at a time until there are MIN_RATED or no more. Returns (fixtures, hours). A kickoff that can't be
-    read is kept, as a refresh keeps it due: better rated than lost."""
-    candidates = facts.get("ranking_candidates", [])
-    built = datetime.fromisoformat(facts["built_at"].replace("Z", "+00:00"))
+def window_end(built):
+    """The end of the page's window for a build at `built` (an aware datetime): 4 am Eastern after the
+    third day following the build's day, where a day starts at 4 am. A build at 5 am on Thursday, or at
+    2 am on Friday (still Thursday's late night), ends at 4 am on Monday."""
+    day = (built.astimezone(ET) - timedelta(hours=DAY_START_HOUR)).date()
+    return datetime.combine(day + timedelta(days=WINDOW_DAYS + 1), clock_time(DAY_START_HOUR), tzinfo=ET)
 
-    def before(m, limit):
+
+def rating_window(facts):
+    """Ratings mode's fixtures: those kicking off before window_end of the build. Returns (fixtures,
+    hours from the build to that end). A kickoff that can't be read is kept, as a refresh keeps it due:
+    better rated than lost."""
+    built = datetime.fromisoformat(facts["built_at"].replace("Z", "+00:00"))
+    end = window_end(built)
+
+    def before(m):
         try:
-            return datetime.fromisoformat(m["kickoff_utc"].replace("Z", "+00:00")) < limit
+            return datetime.fromisoformat(m["kickoff_utc"].replace("Z", "+00:00")) < end
         except (KeyError, AttributeError, ValueError):
             return True
-    hours = RATING_WINDOW_HOURS
-    while True:
-        window = [m for m in candidates if before(m, built + timedelta(hours=hours))]
-        if len(window) >= MIN_RATED or len(window) == len(candidates):
-            return window, hours
-        hours += 24
+    return [m for m in facts.get("ranking_candidates", []) if before(m)], round((end - built).total_seconds() / 3600, 1)
 
 
 def claude_client():
@@ -1536,7 +1541,7 @@ def add_overview(story, facts, model, effort, request=overview_request):
                "seconds": 0.0, "sources": 0}
     story.update(overview_model=model, overview_effort=effort)
     if not overview_view(facts)["fixtures"]:
-        account["why"] = "no match with known coverage in the top three's time frame"
+        account["why"] = "no match with known coverage in the days the page shows"
     elif not os.environ.get(key_name):
         account["why"] = f"no {key_name}"
     else:
@@ -1574,7 +1579,7 @@ def add_blurbs(story, facts, model, effort, request=blurb_request):
                "why": "", "usage": {}, "cost_usd": None, "seconds": 0.0}
     story.update(blurbs_model=model, blurbs_effort=effort)
     if not candidates:
-        account["why"] = "no rated match with known coverage in the top three's time frame"
+        account["why"] = "no rated match with known coverage in the days the page shows"
     elif not os.environ.get(key_name):
         account["why"] = f"no {key_name}"
     else:

@@ -12,8 +12,8 @@
             come back as JSON in the reply's text, asked of every model the same way, because not
             every model accepts a response schema together with its search tool.
   overview  one plain paragraph of at most 450 characters for the top of the page, about the whole slate
-            in the time frame the top three come from (the next three days, longer when that holds
-            fewer than three matches) across every competition and service, since every visitor reads it
+            in the days the top three come from (the days the page shows: today and the three after it)
+            across every competition and service, since every visitor reads it
             whatever they follow, researched and returned the same way as the blurbs, with its sources.
 
 What it measures, all mechanically: cost from each API's own usage report at providers.py's list prices,

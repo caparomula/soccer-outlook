@@ -50,6 +50,23 @@ class Rendering(unittest.TestCase):
         self.assertIn("--fragment", result.stdout)
 
 
+class Window(unittest.TestCase):
+    """The page shows today and the three days after it, each from 4 am Eastern (story.window_end), and
+    what it counts and shades before its script runs follows the same days. Built at 1 pm on Wednesday
+    7 October, it ends at 4 am on Sunday the 11th, 08:00 UTC: 11 pm and 3:59 am, Saturday's evening and
+    late night, are more than 72 hours on and inside; 4:00 is Sunday's and outside."""
+
+    def test_header_lineup_counts_and_table_shading_follow_the_window(self):
+        for kickoff, inside in (("2026-10-11T03:00:00+00:00", True), ("2026-10-11T07:59:00+00:00", True),
+                                ("2026-10-11T08:00:00+00:00", False)):
+            with self.subTest(kickoff=kickoff):
+                page = render_page(build, fixtures=[("only", kickoff, "pre", "ESPN+")])
+                expected = "1" if inside else "0"
+                self.assertEqual(re.search(r'id="tally-n">(\d+)<', page).group(1), expected)
+                self.assertEqual(re.search(r'data-svc="espn">.*?data-count>(\d+) in the next three days<', page).group(1), expected)
+                self.assertEqual('<tr class="tbl__playing">' in page, inside)
+
+
 class MalformedFeed(unittest.TestCase):
     """ESPN's lists can hold nulls: on 7 October 2026 the Saudi Pro League table gave a team
     `logos: [null]` and every build crashed. A bad entry must cost at most that entry."""

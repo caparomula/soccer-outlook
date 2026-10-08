@@ -10,9 +10,9 @@
 #
 #   enabled  false: nothing calls an AI model; the page shows no AI-written text and no AI rating,
 #            and picks matches by the Outlook score and league priority.
-#   design   "ratings": the model rates every match kicking off in the next three days (further
-#            ahead when they are few) for popularity, expected gameplay and competitive impact, and
-#            writes nothing. Cents a day.
+#   design   "ratings": the model rates every match the page shows, today and the three days after
+#            it, for popularity, expected gameplay and competitive impact, and writes nothing. Cents
+#            a day.
 #            "full": Claude researches the day with web search and writes the overview (AI Summary),
 #            league context and a sourced blurb for every match, and rates them. About $1.80 a day.
 #   model    who does it: claude-haiku-5-5, claude-sonnet-5-5 or claude-opus-5-5 (Anthropic),

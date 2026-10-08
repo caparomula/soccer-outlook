@@ -634,7 +634,9 @@ class Switch(unittest.TestCase):
         self.assertEqual((url, headers), ("https://api.openai.com/v1/responses", {"Authorization": "Bearer sk-test"}))
         self.assertEqual((body["model"], body["instructions"], body["reasoning"]), ("gpt-6.1-sol", story.SCORES_SYSTEM, {"effort": "low"}))
         self.assertEqual(body["text"]["format"]["schema"], story.SCORES_SCHEMA)
-        self.assertEqual([f["id"] for f in json.loads(body["input"].split("exactly once:\n", 1)[1])], ["1", "2", "3", "4", "5"])
+        # The page's window, built at 1 pm Eastern on Wednesday the 7th: to 4 am Sunday the 11th, 87 hours; the fifth,
+        # 100 hours out, is past it.
+        self.assertEqual([f["id"] for f in json.loads(body["input"].split("exactly once:\n", 1)[1])], ["1", "2", "3", "4"])
         self.assertNotIn("tools", body)
         self.assertEqual({k: result[k] for k in ("kind", "model", "requested_model", "effort")},
                          {"kind": "ratings", "model": "gpt-6.1-sol", "requested_model": "gpt-6.1-sol", "effort": "low"})
@@ -650,7 +652,7 @@ class Switch(unittest.TestCase):
                 patch.object(story, "summary", lines.append):
             result = self.main("ratings", None, writer=real, settings=RATINGS, key="sk", key_name="OPENAI_API_KEY")
         self.assertEqual([json.loads(b["input"].split("exactly once:\n", 1)[1])[0]["id"] for _, b, _ in calls], ["1", "3"])
-        self.assertEqual(sorted(result["rankings"]), ["1", "2", "3", "4", "5"])
+        self.assertEqual(sorted(result["rankings"]), ["1", "2", "3", "4"])
         # Two requests of 16,000 fresh and 1,000 cached input and 2,800 output tokens at gpt-6.1-sol's
         # $2, $0.10 and $10 per million: 2 x (0.032 + 0.0001 + 0.028) = $0.1202.
         self.assertIn("about $0.1202 at gpt-6.1-sol list prices", lines[0])
@@ -835,7 +837,7 @@ class Overview(unittest.TestCase):
         self.assertEqual(result["overview"], {"text": "Arsenal host Leeds on Saturday with Saka fit.", "sources": [{"url": page, "title": ""}],
                                               "model": "gemini-3.1-pro-preview", "requested_model": "gemini-3.1-pro-preview", "effort": "medium"})
         self.assertEqual((result["overview_model"], result["overview_effort"], sorted(result["rankings"])),
-                         ("gemini-3.1-pro-preview", "medium", ["1", "2", "3", "4", "5"]))
+                         ("gemini-3.1-pro-preview", "medium", ["1", "2", "3", "4"]))
         # 6,000 input at $2/M and 3,000 output (with thinking) at $12/M: $0.012 + $0.036.
         overview_line = next(line for line in lines if line.startswith("Overview:"))
         self.assertIn("about $0.0480; published with 1 source(s)", overview_line)
@@ -853,7 +855,7 @@ class Overview(unittest.TestCase):
                                keys={"GEMINI_API_KEY": "g-key"})
             without_key = self.main("daily", None, writer=real, settings=RATINGS_OVERVIEW, key="sk", key_name="OPENAI_API_KEY")
         for result in (failed, without_key):
-            self.assertEqual(sorted(result["rankings"]), ["1", "2", "3", "4", "5"])
+            self.assertEqual(sorted(result["rankings"]), ["1", "2", "3", "4"])
             self.assertNotIn("overview", result)
             self.assertEqual(result["overview_model"], "gemini-3.1-pro-preview")
         self.assertIn("not published: the request failed: ProviderError: HTTP 503: overloaded", " ".join(lines))
@@ -999,7 +1001,7 @@ class TopPickBlurbs(unittest.TestCase):
                              (f"News for {mid}.", [{"url": page + "?utm_source=openai", "title": ""}]))
         self.assertNotIn("blurb", result["rankings"]["3"])
         self.assertEqual((result["blurbs_model"], result["blurbs_effort"], result["match_blurb_coverage"]),
-                         ("gpt-6.1-sol", "medium", {"written": 2, "total": 5}))
+                         ("gpt-6.1-sol", "medium", {"written": 2, "total": 4}))
         # 30,000 input at $2/M, 1,000 output at $10/M and one search call at a cent.
         self.assertIn("about $0.0800; 2 of 2 top picks", next(line for line in lines if line.startswith("Blurbs:")))
 
@@ -1013,7 +1015,7 @@ class TopPickBlurbs(unittest.TestCase):
             return rate(url, body, headers, **kw)
         with patch.object(providers, "post_json", post), patch.object(story, "summary", lines.append):
             result = self.main("daily", None, writer=real, settings=RATINGS_BLURBS, key="sk", key_name="OPENAI_API_KEY")
-        self.assertEqual(sorted(result["rankings"]), ["1", "2", "3", "4", "5"])
+        self.assertEqual(sorted(result["rankings"]), ["1", "2", "3", "4"])
         self.assertFalse(any("blurb" in r for r in result["rankings"].values()))
         self.assertIn("(the request failed: ProviderError: HTTP 500: overloaded)", next(line for line in lines if line.startswith("Blurbs:")))
         fresh = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -1060,7 +1062,7 @@ class RollingFacts(unittest.TestCase):
         self.assertNotIn("fifa.friendly.w", candidates)
         self.assertNotIn("schedule_by_day", facts)
 
-    def test_the_overview_gets_the_top_threes_three_days_on_every_service(self):
+    def test_the_overview_gets_the_pages_window_on_every_service(self):
         from tests.page_fixture import render_page
 
         def overview(fixtures):
@@ -1075,27 +1077,22 @@ class RollingFacts(unittest.TestCase):
             self.assertTrue(all(isinstance(v, float) for v in facts["pick_inputs"]["outlook"].values()))
             return ids
         hidden = next(lg for lg, info in build.LEAGUES.items() if info.get("default_off"))
-        # Built at 17:00 UTC on 7 October: three days run to 17:00 on the 10th. Coverage known on any service
-        # counts, in any competition; a match with none listed, or finished, doesn't.
+        # Built at 1 pm Eastern (17:00 UTC) on Wednesday the 7th: the window, today and the three days after it,
+        # runs to 4 am Eastern on Sunday the 11th (08:00 UTC). Coverage known on any service counts, in any
+        # competition; a match with none listed, or finished, doesn't.
         near = [("live", "2026-10-07T16:30:00+00:00", "in", "ESPN+", "eng.1"),
                 ("hidden", "2026-10-07T19:00:00+00:00", "pre", "ESPN+", hidden),
                 ("unlisted", "2026-10-07T18:00:00+00:00", "pre", None, "fifa.friendly.w"),
                 ("finished", "2026-10-07T16:00:00+00:00", "post", "ESPN+", "eng.1"),
                 ("inside", "2026-10-08T16:59:00+00:00", "pre", "Peacock", "usa.1"),
                 ("day2", "2026-10-08T17:00:00+00:00", "pre", "ESPN+", "esp.1"),
-                ("last", "2026-10-10T16:59:00+00:00", "pre", "ESPN+", "ita.1"),
-                ("out", "2026-10-10T17:00:00+00:00", "pre", "ESPN+", "ita.1")]
+                ("last", "2026-10-11T07:59:00+00:00", "pre", "ESPN+", "ita.1"),
+                ("out", "2026-10-11T08:00:00+00:00", "pre", "ESPN+", "ita.1")]
         self.assertEqual(overview(near), ["live", "hidden", "inside", "day2", "last"])
-        # Fewer than three in three days: the 24 hours from the next kickoff join, and no more once there are three.
+        # Nothing past the window joins, however few are in it: the page doesn't show them.
         sparse = [("one", "2026-10-07T20:00:00+00:00", "pre", "ESPN+", "eng.1"),
-                  ("a", "2026-10-11T12:00:00+00:00", "pre", "ESPN+", "esp.1"),
-                  ("b", "2026-10-12T11:59:00+00:00", "pre", "Peacock", "eng.1"),
-                  ("c", "2026-10-12T12:00:00+00:00", "pre", "ESPN+", "ita.1")]
-        self.assertEqual(overview(sparse), ["one", "a", "b"])
-        # A long break: nothing in three days, two in the next span, so the one after joins too.
-        empty = [("a", "2026-10-11T12:00:00+00:00", "pre", "ESPN+", "esp.1"), ("b", "2026-10-11T13:00:00+00:00", "pre", "ESPN+", "esp.1"),
-                 ("c", "2026-10-13T12:00:00+00:00", "pre", "ESPN+", "ita.1"), ("d", "2026-10-13T13:00:00+00:00", "pre", "ESPN+", "ita.1")]
-        self.assertEqual(overview(empty), ["a", "b", "c", "d"])
+                  ("a", "2026-10-11T12:00:00+00:00", "pre", "ESPN+", "esp.1")]
+        self.assertEqual(overview(sparse), ["one"])
         # Thirty in one day: every one, where later_if_needed stops at twenty.
         busy = [(str(i), f"2026-10-09T{12 + i // 6:02d}:{i % 6 * 10:02d}:00+00:00", "pre", "ESPN+", "esp.1") for i in range(30)]
         self.assertEqual(overview(busy), [str(i) for i in range(30)])
@@ -1200,34 +1197,35 @@ class RatingsMode(unittest.TestCase):
                                 "competition": "Premier League", "home": {"name": f"Home {i}"}, "away": {"name": f"Away {i}"}}
         return dict(RUN_FACTS, built_at="2026-10-08T12:00:00Z", ranking_candidates=[fixture(i, h) for i, h in enumerate(hours)])
 
-    def test_the_window_is_three_days_widened_a_day_at_a_time(self):
-        facts = self.facts([10, 30, 80, 100, 150])
-        for least, ids, hours in ((2, ["m0", "m1"], 72),                      # enough within three days
-                                  (3, ["m0", "m1", "m2"], 96),                # one more day reaches 80 hours out
-                                  (4, ["m0", "m1", "m2", "m3"], 120),
-                                  (10, ["m0", "m1", "m2", "m3", "m4"], 168)):  # widened until nothing is left out
-            with patch.object(story, "MIN_RATED", least):
-                window, got = story.rating_window(facts)
-            self.assertEqual(([m["id"] for m in window], got), (ids, hours), least)
+    def test_the_window_is_today_and_the_three_days_after_it(self):
+        # Built at 8 am Eastern on Thursday the 8th: the window ends at 4 am on Monday the 12th, 92 hours on.
+        facts = self.facts([10, 30, 80, 91.9, 92, 150])
+        window, hours = story.rating_window(facts)
+        self.assertEqual(([m["id"] for m in window], hours), (["m0", "m1", "m2", "m3"], 92.0))
         facts["ranking_candidates"].append({"id": "odd", "kickoff_utc": "soon"})
-        with patch.object(story, "MIN_RATED", 2):
-            self.assertIn("odd", [m["id"] for m in story.rating_window(facts)[0]])   # kept, not lost
+        self.assertIn("odd", [m["id"] for m in story.rating_window(facts)[0]])   # kept, not lost
+        # A day runs from 4 am, so 2 am on Friday is still Thursday's late night; 4 am is Friday.
+        et = lambda *a: datetime(*a, tzinfo=story.ET)
+        for built, end in ((et(2026, 10, 8, 5), et(2026, 10, 12, 4)), (et(2026, 10, 9, 2), et(2026, 10, 12, 4)),
+                           (et(2026, 10, 9, 4), et(2026, 10, 13, 4)), (et(2026, 10, 8, 23, 59), et(2026, 10, 12, 4))):
+            self.assertEqual(story.window_end(built.astimezone(timezone.utc)), end, built)
+        # Across the end of daylight saving time (1 November 2026), 4 am stays 4 am on the clock: 09:00 UTC, not 08:00.
+        self.assertEqual(story.window_end(datetime(2026, 10, 29, 12, tzinfo=timezone.utc)), datetime(2026, 11, 2, 9, tzinfo=timezone.utc))
 
     def test_scores_only_no_research_and_no_text(self):
         sdk = FakeSDK([], rate=scores)
-        with patch.object(story, "MIN_RATED", 1):
-            result, served = run(sdk, mode="ratings", facts=self.facts([10, 30, 80]))
+        result, served = run(sdk, mode="ratings", facts=self.facts([10, 30, 100]))
         self.assertEqual((sdk.research_calls(), len(sdk.rating_calls()), served), ([], 1, "test-model"))
         call = sdk.rating_calls()[0]
         self.assertEqual(call["system"], story.SCORES_SYSTEM)
         self.assertEqual(call["output_config"]["format"]["schema"], story.SCORES_SCHEMA)
         self.assertNotIn("tools", call)
         self.assertNotIn("Reporting from this run's research", call["messages"][0]["content"])
-        self.assertEqual([f["id"] for f in FakeSDK.fixtures(call)], ["m0", "m1"])     # 80 hours out is beyond the window
+        self.assertEqual([f["id"] for f in FakeSDK.fixtures(call)], ["m0", "m1"])     # 100 hours out is beyond the window
         # 25% of 50, 35% of 60 and 40% of 70: 12.5 + 21 + 28.
         self.assertEqual(result["rankings"]["m0"], {"popularity": 50, "gameplay": 60, "impact": 70, "score": 61.5})
         self.assertEqual((result["lede_items"], result["league_blurbs"], result["notes"]), ([], [], {}))
-        self.assertEqual((result["ranking_coverage"], result["window_hours"]), ({"rated": 2, "total": 2, "carried": 0}, 72))
+        self.assertEqual((result["ranking_coverage"], result["window_hours"]), ({"rated": 2, "total": 2, "carried": 0}, 92.0))
 
     def test_a_missing_score_is_asked_for_once_more(self):
         asked = []
@@ -1235,16 +1233,14 @@ class RatingsMode(unittest.TestCase):
         def rate(fixtures):
             asked.append([f["id"] for f in fixtures])
             return scores(fixtures[1:] if len(asked) == 1 else fixtures)       # the first answer leaves one out
-        with patch.object(story, "MIN_RATED", 1):
-            result, _ = run(FakeSDK([], rate=rate), mode="ratings", facts=self.facts([10, 20, 30]))
+        result, _ = run(FakeSDK([], rate=rate), mode="ratings", facts=self.facts([10, 20, 30]))
         self.assertEqual(asked, [["m0", "m1", "m2"], ["m0"]])
         self.assertEqual(sorted(result["rankings"]), ["m0", "m1", "m2"])
 
     def test_haiku_requests_carry_no_fallback(self):
         for model, fallback in (("claude-haiku-5-5", False), ("claude-opus-5-5", True)):
             sdk = FakeSDK([], rate=scores)
-            with patch.dict(sys.modules, {"anthropic": sdk.module}), patch.object(story, "log", lambda *_: None), \
-                    patch.object(story, "MIN_RATED", 1):
+            with patch.dict(sys.modules, {"anthropic": sdk.module}), patch.object(story, "log", lambda *_: None):
                 story.write_story(self.facts([10]), model, "low", "ratings", None, totals())
             call = sdk.rating_calls()[0]
             self.assertEqual((call["model"], "fallbacks" in call, "betas" in call), (model, fallback, fallback))

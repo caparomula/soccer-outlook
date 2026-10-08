@@ -612,7 +612,8 @@ class BrowserChecks(unittest.TestCase):
             self.assertTrue(page.locator("#outlook-body").evaluate("el => el.firstElementChild.classList.contains('empty')"))
             expect(page.locator("#forecast, #forecast-later")).to_have_count(0)
             expect(page.locator("#story")).to_be_hidden()
-            expect(page.locator("#tally-n")).to_have_text("0")
+            # The header counts the window, today and the three days after it: only later is on the lineup.
+            expect(page.locator("#tally-n")).to_have_text("1")
             page.locator("#btn-all").click()
             for mid in ("unlisted", "unknown", "off-lineup", "usual-off-lineup"):
                 expect(page.locator(f'li.row[data-id="{mid}"]')).to_be_visible()
@@ -780,7 +781,7 @@ class BrowserChecks(unittest.TestCase):
                     ("off", "2026-10-07T20:00:00+00:00", "pre", "Peacock", "usa.nwsl"),
                     ("pl", "2026-10-09T18:00:00+00:00", "pre", "ESPN+", "eng.1"),
                     ("france", "2026-10-09T20:00:00+00:00", "pre", "FS1", "fra.1"),
-                    ("far", "2026-10-16T18:00:00+00:00", "pre", "ESPN+", "ita.1")]
+                    ("far", "2026-10-10T20:00:00+00:00", "pre", "ESPN+", "ita.1")]
         story = self.tagged_story()
         story["lede_items"], story["forecast"] = [], {"items": []}
         story["league_blurbs"] = [dict(league_id=league, interest=interest,
@@ -791,7 +792,7 @@ class BrowserChecks(unittest.TestCase):
                                        ("off", "usa.nwsl", 99, "Unavailable match context."),
                                        ("pl", "eng.1", 95, "Friday Premier League context."),
                                        ("france", "fra.1", 90, "Friday French match context."),
-                                       ("far", "ita.1", 100, "Much later Italian context."))]
+                                       ("far", "ita.1", 100, "Saturday Italian context."))]
         for width in (1280, 390):
             with self.subTest(width=width), self.page("after", width=width, html=render_page(build, fixtures=fixtures), story=story) as (page, feed):
                 # Exercise news ranking independently of the owner's league defaults.
@@ -823,7 +824,7 @@ class BrowserChecks(unittest.TestCase):
                 expect(lede).to_have_text("Friday French match context.")
                 page.locator('[data-kind="have"][data-key="fox"]').click()
                 page.locator('[data-kind="have"][data-key="espn"]').click()
-                expect(lede).to_have_text("Much later Italian context.")
+                expect(lede).to_have_text("Saturday Italian context.")
                 expect(page.locator("#nextup")).to_have_attribute("data-match-id", "far")
                 # The top card follows the lineup; the picks come from every service.
                 expect(page.locator("#picks-section")).to_be_visible()
@@ -835,7 +836,7 @@ class BrowserChecks(unittest.TestCase):
                     ("routine", "2026-10-07T18:00:00+00:00", "pre", "ESPN+", "eng.1"),
                     ("best", "2026-10-07T19:00:00+00:00", "pre", "Apple TV", "usa.1"),
                     ("near", "2026-10-08T16:59:00+00:00", "pre", "ESPN+", "esp.1"),
-                    ("far", "2026-10-10T17:00:00+00:00", "pre", "ESPN+", "esp.1"),
+                    ("far", "2026-10-11T08:00:00+00:00", "pre", "ESPN+", "esp.1"),
                     ("unknown", "2026-10-07T20:00:00+00:00", "pre", None, "fifa.friendly.w"),
                     ("finished", "2026-10-07T16:00:00+00:00", "post", "ESPN+", "eng.1")]
         story = self.tagged_story()
@@ -846,6 +847,8 @@ class BrowserChecks(unittest.TestCase):
                 hero = page.locator("#nextup")
                 # Nothing is live: the top card is the soonest match to watch, whatever its rating.
                 expect(hero).to_have_attribute("data-match-id", "low")
+                # far, rated above every other, kicks off at 4 am on the 11th, as the window closes: it isn't shown.
+                expect(page.locator('li.row[data-id="far"]')).to_be_hidden()
                 expect(page.locator("#picks-section")).to_be_visible()
                 expect(page.locator('#misses [data-id="unknown"]')).to_have_count(0)
                 picks = lambda: page.locator("#picks .pick").evaluate_all("els => els.map(e => e.dataset.matchId)")
@@ -889,10 +892,11 @@ class BrowserChecks(unittest.TestCase):
     def test_the_top_three_are_the_best_of_three_days_not_the_first_three(self):
         # 8 October: three modest matches in the next 24 hours took every place over far better ones the day
         # after. Now it is 1 pm on the 7th: a, b and c kick off within 24 hours, d, e and f the day after,
-        # g just past three days (exactly 72 hours on), and u, unrated, in between.
+        # u, unrated, in between, and g at 4 am on the 11th, the end of the window (today and the three days
+        # after it, each from 4 am).
         at = lambda hours: f"2026-10-{7 + (13 + 4 + hours) // 24:02d}T{(13 + 4 + hours) % 24:02d}:00:00+00:00"
         fixtures = [(mid, at(hours), "pre", "ESPN+", "eng.1") for mid, hours in
-                    (("a", 2), ("b", 5), ("c", 8), ("d", 30), ("e", 33), ("f", 36), ("u", 40), ("g", 72))]
+                    (("a", 2), ("b", 5), ("c", 8), ("d", 30), ("e", 33), ("f", 36), ("u", 40), ("g", 87))]
         story = self.tagged_story()
         story["rankings"] = {mid: dict(score=score, popularity=score, gameplay=score, impact=score) for mid, score in
                              (("a", 20), ("b", 25), ("c", 30), ("d", 50), ("e", 52), ("f", 54), ("g", 99))}
@@ -900,13 +904,13 @@ class BrowserChecks(unittest.TestCase):
         with self.page("after", html=render_page(build, fixtures=fixtures), story=story) as (page, _):
             expect(page.locator("#nextup")).to_have_attribute("data-match-id", "a")     # the soonest still leads the top card
             # d, e and f, though u's Outlook score alone (57.5) beats their blended interest (53.75 to 55.75):
-            # an unrated match can't be compared fairly. g, three days on to the minute, is out of the window.
+            # an unrated match can't be compared fairly. g, rated 99, is out of the window to the minute.
             self.assertEqual(picks(page), ["d", "e", "f"])
         # With no AI ratings at all, every match competes on the Outlook score: here they tie, so the soonest win.
         with self.page("after", html=render_page(build, fixtures=fixtures, ai=False)) as (page, _):
             self.assertEqual(picks(page), ["b", "c", "d"])
 
-    def test_later_picks_fill_from_nearest_windows_and_finished_match_is_removed(self):
+    def test_picks_stay_in_the_window_and_finished_match_is_removed(self):
         fixtures = [("early", "2026-10-09T18:00:00+00:00", "pre", "ESPN+"),
                     ("best", "2026-10-09T20:00:00+00:00", "pre", "ESPN+"),
                     ("low", "2026-10-09T21:00:00+00:00", "pre", "ESPN+"),
@@ -921,9 +925,11 @@ class BrowserChecks(unittest.TestCase):
             expect(page.locator("#nextup-h")).to_have_text("Next up")
             expect(page.locator("#nextup-status")).to_have_text("Kickoff 2:00 pm Fri")
             expect(page.locator("#nextup-count")).to_have_text("2d 01h")
-            # ... and the picks fill from the nearest later window, then the next, never jumping ahead to
-            # the best-rated match further out.
-            self.assertEqual(page.locator("#picks .pick").evaluate_all("els => els.map(e => e.dataset.matchId)"), ["best", "low", "too-far"])
+            # ... and the picks are the window's two others: too-far and farther, past Saturday (the window is
+            # today to Saturday), are better rated but neither picked nor listed. Two places, two cards.
+            self.assertEqual(page.locator("#picks .pick").evaluate_all("els => els.map(e => e.dataset.matchId)"), ["best", "low"])
+            for mid in ("too-far", "farther"):
+                expect(page.locator(f'li.row[data-id="{mid}"]')).to_be_hidden()
         with self.page("after", story=story) as (page, feed):
             expect(page.locator("#nextup")).to_have_attribute("data-match-id", "live")
             expect(page.locator('#picks [data-match-id="upcoming"]')).to_have_count(1)
@@ -1417,14 +1423,25 @@ class BrowserChecks(unittest.TestCase):
             expect(page.locator('li.row .row__pick:visible')).to_have_count(0)
 
     def test_rolling_window_and_unrated_recommendation_fallback(self):
+        # 1 pm on Wednesday the 7th: the page shows Wednesday to Saturday, each day from 4 am, so it ends at
+        # 4 am on Sunday the 11th (08:00 UTC). last kicks off at 3:59 that morning, still Saturday's late
+        # night; beyond at 4:00, Sunday.
         fixtures = [("inside", "2026-10-08T16:59:00+00:00", "pre", "ESPN+"),
                     ("edge", "2026-10-08T17:00:00+00:00", "pre", "ESPN+"),
-                    ("later", "2026-10-10T17:00:00+00:00", "pre", "ESPN+")]
+                    ("later", "2026-10-10T17:00:00+00:00", "pre", "ESPN+"),
+                    ("last", "2026-10-11T07:59:00+00:00", "pre", "ESPN+"),
+                    ("beyond", "2026-10-11T08:00:00+00:00", "pre", "ESPN+")]
         with self.page("after", html=render_page(build, fixtures=fixtures)) as (page, _):
-            expect(page.locator("#tally-n")).to_have_text("1")
+            expect(page.locator("#tally-n")).to_have_text("4")
+            expect(page.locator("#tally-txt")).to_have_text("matches on your services in the next three days")
+            expect(page.locator('li.row[data-id="last"]')).to_be_attached()
+            self.assertEqual(self.bucket(page, "last"), "Beyond 24 hours")
+            # Listed under Saturday, whose late night it is, not under Sunday's date.
+            self.assertIn("Saturday", page.locator('li.row[data-id="last"]').evaluate("row => row.closest('ol').previousElementSibling.textContent"))
+            expect(page.locator('li.row[data-id="beyond"]')).to_be_hidden()
             expect(page.locator("#schedule-summary")).to_contain_text("1 upcoming")
             expect(page.locator("#nextup")).to_have_attribute("data-match-id", "inside")
-            self.assertEqual(page.locator("#picks .pick").evaluate_all("els => els.map(e => e.dataset.matchId)"), ["edge", "later"])
+            self.assertEqual(page.locator("#picks .pick").evaluate_all("els => els.map(e => e.dataset.matchId)"), ["edge", "later", "last"])
             expect(page.locator("#picks-section")).to_be_visible()
             expect(page.locator('li.row[data-id="inside"]')).to_be_visible()
             expect(page.locator('li.row[data-id="edge"]')).to_be_visible()
@@ -1432,10 +1449,16 @@ class BrowserChecks(unittest.TestCase):
             page.locator('details[data-b="later"] > summary').click()
             expect(page.locator('li.row[data-id="edge"]')).to_be_hidden()
             page.evaluate("location.hash = '#at-20261007-1301'")
-            expect(page.locator("#tally-n")).to_have_text("2")
+            expect(page.locator("#tally-n")).to_have_text("4")
             self.assertEqual(self.bucket(page, "edge"), "Tomorrow")
             expect(page.locator('li.row[data-id="edge"]')).to_be_visible()
             expect(page.locator('details[data-b="later"]')).not_to_have_attribute("open", "")
+            # At 3:59 am on Thursday it is still Wednesday's sports day; at 4:00 the window takes in Sunday.
+            page.evaluate("location.hash = '#at-20261008-0359'")
+            expect(page.locator('li.row[data-id="beyond"]')).to_be_hidden()
+            page.evaluate("location.hash = '#at-20261008-0400'")
+            expect(page.locator("#tally-n")).to_have_text("5")
+            self.assertEqual(self.bucket(page, "beyond"), "Beyond 24 hours")
 
     def test_later_section_defaults_follow_visible_match_count(self):
         for count in (0, 4, 5):

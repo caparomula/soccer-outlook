@@ -22,7 +22,7 @@ By default the page links team and league images from ESPN's image server, which
 --embed-images embeds them as data URIs instead (a page that must work with no network access),
 cached in --logos between runs and trimmed to PAGE_BUDGET when the page runs large.
 
-Usage: python3 build.py --out site/index.html [--days-ahead 9] [--days-back 1] [--warnings FILE]
+Usage: python3 build.py --out site/index.html [--days-ahead 4] [--days-back 1] [--warnings FILE]
                         [--date YYYY-MM-DD] [--embed-images --logos logos.json] [--fragment] [--workers 6]
 
 Exit status is non-zero when no fixtures could be fetched at all, or when more than half of the
@@ -49,6 +49,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import providers
+import story      # the page's window (story.window_end), which the daily AI run rates
 
 ET = ZoneInfo("America/New_York")
 ESPN = "https://site.api.espn.com/apis/site/v2/sports/soccer/{league}/scoreboard?dates={day}&limit=200"
@@ -1145,8 +1146,8 @@ def about_ai():
         def who(model):
             maker = providers.PROVIDER_NAMES[providers.MODELS[model]]
             return f"{model}, {'an' if maker[0] in 'AEIOU' else 'a'} {maker} AI model"
-        ratings = (f"Once a day, early in the morning, {who(SETTINGS.model)}, rates every match kicking off in the next three "
-                   "days (further ahead when they are few) for popularity (25%), expected gameplay (35%) and competitive "
+        ratings = (f"Once a day, early in the morning, {who(SETTINGS.model)}, rates every match the page shows, from "
+                   "today through the third day after it, for popularity (25%), expected gameplay (35%) and competitive "
                    "impact (40%), from ESPN's table, form and stage and without seeing the Outlook score. Its ratings are "
                    "editorial judgments, not predicted results")
         if not SETTINGS.overview_model and not SETTINGS.blurbs_model:
@@ -1158,7 +1159,7 @@ def about_ai():
                      "so it reads the same whatever you choose to see.")
         if SETTINGS.blurbs_model:
             text += (f" For the cards, {who(SETTINGS.blurbs_model)}, searches the web for a blurb on each of the "
-                     f"{story_candidates()} best-scored matches in the time frame the top three come from.")
+                     f"{story_candidates()} best-scored matches in the days the page shows.")
         each = "Each is" if SETTINGS.overview_model and SETTINGS.blurbs_model else "It is"
         return text + (f" {each} published only with a page its own search returned, linked beside it; a day without one "
                        "has none. The page shows no other AI-written text.")
@@ -1176,7 +1177,6 @@ def about_ai():
 
 def story_candidates():
     """How many top matches get a researched blurb (story.py's BLURB_CANDIDATES), for the footer."""
-    import story
     return story.BLURB_CANDIDATES
 
 
@@ -1417,15 +1417,16 @@ def colors_html(home, away):
     return f'<div class="pick__colors" aria-hidden="true"><i style="background:{h}"></i><i style="background:{a}"></i></div>'
 
 
-def tables_html(matches, cache):
-    """Collapsed league tables for the leagues that play this week and publish standings."""
+def tables_html(matches, cache, built_at):
+    """Collapsed league tables for the leagues that play this week and publish standings, with the teams
+    that play in the page's window (story.window_end: today and the three days after it) shaded."""
     out = []
+    soon = story.window_end(built_at)
     for lg, info in LEAGUES.items():
         st = STANDINGS.get(lg)
         if not st or not any(m.league == lg for m in matches):
             continue
-        soon = datetime.now(timezone.utc) + timedelta(days=3)
-        playing = {t.id for m in matches if m.league == lg and m.state != "post" and m.utc <= soon for t in (m.home, m.away)}
+        playing = {t.id for m in matches if m.league == lg and m.state != "post" and m.utc < soon for t in (m.home, m.away)}
         lglogo = league_logo_html(lg, cache)
         groups = []
         for gname, rows in st["tables"]:
@@ -1501,18 +1502,11 @@ def write_facts(path, matches, built_at, today):
         first_window = [m for m in candidates if m.utc < boundary]
         league_candidates.append(dict(league_id=league, competition=LEAGUES[league]["name"],
                                       matches=[entry(m) for m in first_window]))
-    # The overview's fixtures, from the time frame the page's top three are chosen in (web/app.js's
+    # The overview's fixtures, the matches the page's top three are chosen from (web/app.js's
     # renderPicks), whatever the visitor's services and competitions: every match with known coverage
-    # in the next three days, the window the AI rates, and while that holds fewer than three, the 24
-    # hours from the next kickoff after them, a day at a time. later_if_needed doesn't serve: it stops
-    # at 20 fixtures, partway through a busy Saturday morning.
-    horizon = built_at + timedelta(hours=72)
-    frame = near + [m for m in later if m.utc < horizon]
-    rest = sorted((m for m in later if m.utc >= horizon), key=lambda m: m.utc)
-    while len(frame) < 3 and rest:
-        boundary = rest[0].utc + timedelta(hours=24)
-        frame += [m for m in rest if m.utc < boundary]
-        rest = [m for m in rest if m.utc >= boundary]
+    # in the page's window, today and the three days after it, which the AI rates. later_if_needed
+    # doesn't serve: it stops at 20 fixtures, partway through a busy Saturday morning.
+    frame = near + [m for m in later if m.utc < story.window_end(built_at)]
     by_stature = lambda ms: sorted(ms, key=lambda m: (-m.score, m.utc))
     facts = {
         "date": today.isoformat(),
@@ -1562,8 +1556,10 @@ def build_page(matches, cache, built_at, failed, today):
             f'<section class="bucket" data-static="1"><h3 class="bucket__h">{esc(label)}<span class="bucket__count"></span></h3>'
             f'<ol class="rows">{"".join(row_html(m, cache) for m in ms)}</ol></section>')
 
+    # What the page counts before its script runs (the script recounts by the viewer's clock): the
+    # window's matches, today and the three days after it.
     focus = [m for m in matches if m.state != "post" and shown_by_default(m)
-             and built_at - timedelta(minutes=125) <= m.utc < built_at + timedelta(hours=24)]
+             and built_at - timedelta(minutes=125) <= m.utc < story.window_end(built_at)]
 
     have_buttons = {k: (
         f'<button type="button" class="fpill svc-{k}" data-kind="have" data-key="{k}" aria-pressed="{"true" if k in OWNER else "false"}">'
@@ -1584,7 +1580,7 @@ def build_page(matches, cache, built_at, failed, today):
 
     lineup = "".join(
         f'<div class="svc svc-{k}" data-svc="{k}"><div class="svc__head"><i class="dot"></i><span class="svc__name">{esc(SERVICES[k])}</span>'
-        f'<span class="svc__count" data-count>{sum(1 for m in focus if m.service == k)} in the next 24 hours</span></div>'
+        f'<span class="svc__count" data-count>{sum(1 for m in focus if m.service == k)} in the next three days</span></div>'
         f'<p class="svc__desc" data-desc></p></div>' for k in OWNER)
 
     svc_meta = {"order": SERVICE_RANK, "name": SERVICES, "owner": OWNER,
@@ -1623,7 +1619,7 @@ def build_page(matches, cache, built_at, failed, today):
             .replace("@@HAVE_PILLS@@", have_pills).replace("@@COMP_PILLS@@", comp_pills)
             .replace("@@HAVE_OFF_PILLS@@", have_off_pills).replace("@@COMP_OFF_PILLS@@", comp_off_pills)
             .replace("@@OUTLOOK@@", "".join(static_sections))
-            .replace("@@TABLES@@", tables_html(matches, cache))
+            .replace("@@TABLES@@", tables_html(matches, cache, built_at))
             .replace("@@LINEUP@@", lineup)
             .replace("@@FAILED@@", failed_note)
             .replace("@@OWNER_PROSE@@", esc(owner_prose())))
@@ -1713,7 +1709,8 @@ def main():
     ap.add_argument("--embed-images", action="store_true", help="embed images as data URIs instead of linking ESPN's server")
     ap.add_argument("--logos", default="logos.json", help="image cache for --embed-images, read and updated")
     ap.add_argument("--fragment", action="store_true", help="write the page body only, for hosts that add the document wrapper")
-    ap.add_argument("--days-ahead", type=int, default=9)
+    ap.add_argument("--days-ahead", type=int, default=4, help="days of fixtures to fetch: the page shows today and the "
+                    "three days after it (story.WINDOW_DAYS), and one more covers a page read after midnight before the next build")
     ap.add_argument("--days-back", type=int, default=1)
     ap.add_argument("--date", help="treat this Eastern date as today (testing)")
     ap.add_argument("--no-logos", action="store_true", help="no team or league images at all")

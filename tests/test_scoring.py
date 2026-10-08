@@ -227,7 +227,7 @@ class PageScoring(unittest.TestCase):
         blend = json.loads(re.search(r'<script type="application/json" id="scoring">([^<]*)</script>', on).group(1))
         self.assertEqual(blend, {"blend": {"ai": 50, "outlook": 50, "interest": 80, "league_priority": 20}, "dots": [35, 45, 55, 68]})
         self.assertIn("one to five golden dots: two from 35, three from 45, four from 55 and five from 68 out of 100", self.footer(on))
-        self.assertIn("gpt-6.1-sol, an OpenAI AI model, rates every match kicking off in the next three days", self.footer(on))
+        self.assertIn("gpt-6.1-sol, an OpenAI AI model, rates every match the page shows, from today through the third day after it", self.footer(on))
         self.assertIn("the page shows no AI-written text", self.footer(on))
         self.assertNotIn("Claude", self.footer(on))
         self.assertIn("50% the AI rating and 50% the Outlook score", self.footer(on))
