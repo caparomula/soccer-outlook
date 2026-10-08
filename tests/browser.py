@@ -886,6 +886,26 @@ class BrowserChecks(unittest.TestCase):
                 # A match nobody is known to carry is never a pick, however it is rated.
                 expect(page.locator('#picks [data-match-id="unknown"]')).to_have_count(0)
 
+    def test_the_top_three_are_the_best_of_three_days_not_the_first_three(self):
+        # 8 October: three modest matches in the next 24 hours took every place over far better ones the day
+        # after. Now it is 1 pm on the 7th: a, b and c kick off within 24 hours, d, e and f the day after,
+        # g just past three days (exactly 72 hours on), and u, unrated, in between.
+        at = lambda hours: f"2026-10-{7 + (13 + 4 + hours) // 24:02d}T{(13 + 4 + hours) % 24:02d}:00:00+00:00"
+        fixtures = [(mid, at(hours), "pre", "ESPN+", "eng.1") for mid, hours in
+                    (("a", 2), ("b", 5), ("c", 8), ("d", 30), ("e", 33), ("f", 36), ("u", 40), ("g", 72))]
+        story = self.tagged_story()
+        story["rankings"] = {mid: dict(score=score, popularity=score, gameplay=score, impact=score) for mid, score in
+                             (("a", 20), ("b", 25), ("c", 30), ("d", 50), ("e", 52), ("f", 54), ("g", 99))}
+        picks = lambda page: page.locator("#picks .pick").evaluate_all("els => els.map(e => e.dataset.matchId)")
+        with self.page("after", html=render_page(build, fixtures=fixtures), story=story) as (page, _):
+            expect(page.locator("#nextup")).to_have_attribute("data-match-id", "a")     # the soonest still leads the top card
+            # d, e and f, though u's Outlook score alone (57.5) beats their blended interest (53.75 to 55.75):
+            # an unrated match can't be compared fairly. g, three days on to the minute, is out of the window.
+            self.assertEqual(picks(page), ["d", "e", "f"])
+        # With no AI ratings at all, every match competes on the Outlook score: here they tie, so the soonest win.
+        with self.page("after", html=render_page(build, fixtures=fixtures, ai=False)) as (page, _):
+            self.assertEqual(picks(page), ["b", "c", "d"])
+
     def test_later_picks_fill_from_nearest_windows_and_finished_match_is_removed(self):
         fixtures = [("early", "2026-10-09T18:00:00+00:00", "pre", "ESPN+"),
                     ("best", "2026-10-09T20:00:00+00:00", "pre", "ESPN+"),
@@ -1677,12 +1697,12 @@ class BrowserChecks(unittest.TestCase):
     def test_picks_are_scored_before_the_ai_rates_them(self):
         with self.page("after") as (page, _):
             expect(page.locator("#picks-h")).to_have_text("Top three")
-            expect(page.locator("#picks-sub")).to_have_text("Selected by Outlook score + league priority from every service and competition · shown in kickoff order")
+            expect(page.locator("#picks-sub")).to_have_text("The best of the next three days by Outlook score + league priority · every service and competition · in kickoff order")
         story = self.overview_story()
         story["rankings"] = {mid: {"score": 50, "popularity": 50, "gameplay": 50, "impact": 50} for mid in ("upcoming", "midnight", "late")}
         with self.page("after", story=story) as (page, _):
             expect(page.locator("#picks-h")).to_have_text("Top three")
-            expect(page.locator("#picks-sub")).to_have_text("Selected by AI rating + Outlook score + league priority from every service and competition · shown in kickoff order")
+            expect(page.locator("#picks-sub")).to_have_text("The best of the next three days by AI rating + Outlook score + league priority · every service and competition · in kickoff order")
             # A story that records no model leaves the tooltip's rating unattributed rather than guessed.
             title = page.locator('#picks .pick[data-match-id="upcoming"] .pick__rating').get_attribute("title")
             self.assertIn("AI rating: Popularity 50", title)
@@ -1707,7 +1727,7 @@ class BrowserChecks(unittest.TestCase):
             self.assertNotIn("AI Summary", page.locator("body").inner_text())
             expect(page.locator("#nextup")).to_have_attribute("data-match-id", "a")
             self.assertEqual(page.locator("#picks .pick").evaluate_all("els => els.map(e => e.dataset.matchId)"), ["b", "d", "e"])
-            expect(page.locator("#picks-sub")).to_have_text("Selected by Outlook score + league priority from every service and competition · shown in kickoff order")
+            expect(page.locator("#picks-sub")).to_have_text("The best of the next three days by Outlook score + league priority · every service and competition · in kickoff order")
             label = page.locator('#picks .pick[data-match-id="b"] .pick__rating')
             expect(label).to_have_text("Pick score · 66/100")      # 80% of 57.5 and 20% of league priority 100
             self.assertEqual(label.get_attribute("title"),
@@ -1726,7 +1746,7 @@ class BrowserChecks(unittest.TestCase):
         with self.page("after", html=html, story=story) as (page, feed):
             self.assertGreater(feed["stories"], 0)
             self.assertEqual(page.locator("#picks .pick").evaluate_all("els => els.map(e => e.dataset.matchId)"), ["b", "c", "d"])
-            expect(page.locator("#picks-sub")).to_have_text("Selected by AI rating + Outlook score + league priority from every service and competition · shown in kickoff order")
+            expect(page.locator("#picks-sub")).to_have_text("The best of the next three days by AI rating + Outlook score + league priority · every service and competition · in kickoff order")
             label = page.locator('#picks .pick[data-match-id="b"] .pick__rating')
             expect(label).to_have_text("Pick score · 67/100")      # 80% of 58.75 and 20% of 100
             # The model settings.toml asked for, not the dated snapshot that answered.

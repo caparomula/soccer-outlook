@@ -955,11 +955,19 @@
   // The top three show the presumed best matches, so they come from every covered match on every
   // service and in every competition, whatever the lineup and filters; a pick this viewer can't watch
   // looks as its schedule row does outside the lineup. The top card and the schedule stay filtered.
-  var pickedRows = [];
+  // They are the best-scored of the next three days, the window the AI rates each morning, not of the
+  // next 24 hours: on a quiet day (an international break) the few matches in the next 24 hours took
+  // every place whatever their scores, over far better ones the day after. With AI ratings on the page,
+  // only rated matches compete: one past the ratings window would be scored by the Outlook score alone,
+  // which runs several points higher, and could win on that. With fewer than three in the window, the
+  // following days fill in, a day at a time.
+  var pickedRows = [], PICKS_MS = 72 * 3600000;
   function renderPicks(now) {
     var available = upcomingIn(now, covered).filter(function (r) { return r !== nextRow; });
-    var chosen = available.filter(function (r) { return inFocus(r, now); }).sort(byRating).slice(0, 3);
-    var later = available.filter(function (r) { return !inFocus(r, now); }).sort(byTime);
+    if (available.some(function (r) { return ratingOf(r); })) available = available.filter(function (r) { return ratingOf(r); });
+    function inWindow(r) { return r._k < now + PICKS_MS; }
+    var chosen = available.filter(inWindow).sort(byRating).slice(0, 3);
+    var later = available.filter(function (r) { return !inWindow(r); }).sort(byTime);
     while (chosen.length < 3 && later.length) {
       var boundary = later[0]._k + FOCUS_MS, span = later.filter(function (r) { return r._k < boundary; });
       chosen = chosen.concat(span.sort(byRating).slice(0, 3 - chosen.length));
@@ -973,8 +981,8 @@
     var rated = chosen.some(function (r) { return pickValue(r) !== null; }), aiRated = chosen.some(function (r) { return ratingOf(r); });
     document.getElementById('picks-h').textContent = !rated ? 'Upcoming' : chosen.length === 3 ? 'Top three' : chosen.length === 2 ? 'Top two' : 'Top pick';
     document.getElementById('picks-sub').textContent = !rated ? 'In kickoff order · every service and competition · no ratings yet'
-      : (aiRated ? 'Selected by AI rating + Outlook score + league priority' : 'Selected by Outlook score + league priority') +
-        ' from every service and competition · shown in kickoff order';
+      : 'The best of the next three days by ' + (aiRated ? 'AI rating + Outlook score + league priority' : 'Outlook score + league priority') +
+        ' · every service and competition · in kickoff order';
     chosen.forEach(function (r) { picksEl.appendChild(r._card.render('pick', now)); });
   }
 

@@ -12,8 +12,8 @@
             come back as JSON in the reply's text, asked of every model the same way, because not
             every model accepts a response schema together with its search tool.
   overview  one plain paragraph of at most 450 characters for the top of the page, about the whole slate
-            in the time frame the top three come from (the next 24 hours, longer when that holds fewer
-            than three matches) across every competition and service, since every visitor reads it
+            in the time frame the top three come from (the next three days, longer when that holds
+            fewer than three matches) across every competition and service, since every visitor reads it
             whatever they follow, researched and returned the same way as the blurbs, with its sources.
 
 What it measures, all mechanically: cost from each API's own usage report at providers.py's list prices,
@@ -522,7 +522,7 @@ def overview_section(overview):
     limit = overview.get("limit", OVERVIEW_LIMIT)
     lines = [f"### Overview: one paragraph about the whole slate, at most {limit} characters", "",
              "Each model is given every match with known coverage, on any service and in any competition, in the time "
-             "frame the top three come from: the next 24 hours, longer when that holds fewer than three. Sources are "
+             "frame the top three come from: the next three days, longer when that holds fewer than three. Sources are "
              "checked as for the blurbs.", "",
              f"| Model | Cost | Time | Searches | Characters | Over {limit} | Cited | From its search | Loads | Dead | Blocked or unreachable | Notes |",
              "|---|---|---|---|---|---|---|---|---|---|---|---|"]

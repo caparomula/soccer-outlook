@@ -1491,10 +1491,12 @@ def write_facts(path, matches, built_at, today):
                                       matches=[entry(m) for m in first_window]))
     # The overview's fixtures, from the time frame the page's top three are chosen in (web/app.js's
     # renderPicks), whatever the visitor's services and competitions: every match with known coverage
-    # in the next 24 hours, and while that holds fewer than three, the 24 hours from the next kickoff
-    # after them. An international break can leave a day with none, and later_if_needed stops at 20
-    # fixtures, partway through a busy Saturday morning.
-    frame, rest = list(near), sorted(later, key=lambda m: m.utc)
+    # in the next three days, the window the AI rates, and while that holds fewer than three, the 24
+    # hours from the next kickoff after them, a day at a time. later_if_needed doesn't serve: it stops
+    # at 20 fixtures, partway through a busy Saturday morning.
+    horizon = built_at + timedelta(hours=72)
+    frame = near + [m for m in later if m.utc < horizon]
+    rest = sorted((m for m in later if m.utc >= horizon), key=lambda m: m.utc)
     while len(frame) < 3 and rest:
         boundary = rest[0].utc + timedelta(hours=24)
         frame += [m for m in rest if m.utc < boundary]
