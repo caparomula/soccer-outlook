@@ -1166,7 +1166,8 @@
     if (app.getAttribute('data-incomplete') === '1') {
       para(summary, 'Some fixtures may be missing because ESPN did not answer every request.').className = 'schedule-summary__note';
     }
-    document.getElementById('eyebrow').textContent = fmtDay.format(new Date(now)) + ' · Next 24 hours';
+    // Only the date: the schedule runs past the next 24 hours, so the line above the title can't claim that window.
+    document.getElementById('eyebrow').textContent = fmtDay.format(new Date(now));
     var up = upcoming(groups).filter(function (r) { return inFocus(r, now); }), on = up.filter(onSvc);
     document.getElementById('tally-n').textContent = on.length;
     document.getElementById('tally-txt').textContent = mode === 'mine' ? 'matches on your services in the next 24 hours' : 'of ' + up.length + ' matches in the next 24 hours are on your services';

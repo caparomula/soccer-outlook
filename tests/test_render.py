@@ -3,6 +3,7 @@ from html.parser import HTMLParser
 import io
 import json
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
@@ -32,6 +33,8 @@ class Rendering(unittest.TestCase):
                 self.assertIn((root / "web/styles.css").read_text(encoding="utf-8"), page)
                 self.assertIn((root / "web/app.js").read_text(encoding="utf-8"), page)
                 self.assertNotRegex(page, r"@@[A-Z_]+@@")
+                eyebrow = re.search(r'id="eyebrow">([^<]*)<', page)
+                self.assertNotIn("24 hours", eyebrow.group(1))   # the schedule runs past the next 24 hours
                 tags = Tags(page).tags
                 rows = [attrs for tag, attrs in tags if tag == "li" and "row" in attrs.get("class", "").split()]
                 self.assertEqual(len(rows), 9)

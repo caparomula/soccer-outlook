@@ -566,7 +566,7 @@ class BrowserChecks(unittest.TestCase):
             expect(summary).to_contain_text("5 listed on your services; 1 with unconfirmed coverage")
             expect(summary).to_contain_text("Next kickoff · 1:05 pm")
             expect(page.locator("#forecast, #forecast-later")).to_have_count(0)
-            expect(page.locator("#eyebrow")).to_have_text("Wednesday, October 7 · Next 24 hours")
+            expect(page.locator("#eyebrow")).to_have_text("Wednesday, October 7")   # the schedule runs past 24 hours
             page.locator("#btn-menu").click()
             page.locator('[data-kind="comp"][data-key="eng.1"]').click()
             expect(summary).to_contain_text("Next 24 hours: 6 matches hidden by competition filters.")
