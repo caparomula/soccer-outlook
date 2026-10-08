@@ -1435,7 +1435,7 @@ class BrowserChecks(unittest.TestCase):
             expect(page.locator("#tally-n")).to_have_text("4")
             expect(page.locator("#tally-txt")).to_have_text("matches on your services in the next three days")
             # last is Saturday's late night, so it is listed under Saturday, not under Sunday's date.
-            self.assertEqual(self.bucket(page, "last"), "Saturday, October 10")
+            self.assertEqual(self.bucket(page, "last"), "Saturday")
             expect(page.locator('li.row[data-id="beyond"]')).to_be_hidden()
             # The schedule summary still reports the next 24 hours: inside, not edge, a day on to the minute.
             expect(page.locator("#schedule-summary")).to_contain_text("1 upcoming")
@@ -1454,7 +1454,7 @@ class BrowserChecks(unittest.TestCase):
             page.evaluate("location.hash = '#at-20261008-0400'")
             expect(page.locator("#tally-n")).to_have_text("5")
             self.assertEqual([self.bucket(page, mid) for mid in ("inside", "later", "beyond")],
-                             ["Today", "Saturday, October 10", "Sunday, October 11"])
+                             ["Today", "Saturday", "Sunday"])
 
     def test_schedule_is_grouped_by_day(self):
         # 1 pm on Wednesday the 7th. Today runs to 4 am Thursday, so late (1:30 am) is tonight's; thu-late, at 3
@@ -1467,14 +1467,14 @@ class BrowserChecks(unittest.TestCase):
                     ("sun", "2026-10-11T18:00:00+00:00", "pre", "ESPN+")]
         heads = lambda page: page.locator("#outlook-body > .bucket > .bucket__h").evaluate_all(
             "hs => hs.map(h => [h.children[0].textContent, h.children[1].textContent])")
-        for width in (1280, 390):
+        for width in (1280, 390, 320):
             with self.subTest(width=width), self.page("after", width=width, html=render_page(build, fixtures=fixtures)) as (page, _):
-                # Today and Tomorrow give their dates in grey, the later days only their dates, and the date of
-                # Tomorrow is Thursday's, though its one match kicks off on Friday's calendar date.
+                # Today and Tomorrow give their dates in grey; the later days are their weekdays, with the rest of
+                # the date in grey. Tomorrow's date is Thursday's, though its one match kicks off on Friday's.
                 self.assertEqual(heads(page), [["Today", "Wednesday, October 7"], ["Tomorrow", "Thursday, October 8"],
-                                               ["Friday, October 9", ""], ["Saturday, October 10", ""]])
+                                               ["Friday", "October 9"], ["Saturday", "October 10"]])
                 self.assertEqual([self.bucket(page, mid) for mid in ("soon", "late", "thu-late", "fri", "sat")],
-                                 ["Today", "Today", "Tomorrow", "Friday, October 9", "Saturday, October 10"])
+                                 ["Today", "Today", "Tomorrow", "Friday", "Saturday"])
                 expect(page.locator('li.row[data-id="sun"]')).to_be_hidden()
                 # Every day is open: nothing folds but today's and yesterday's results.
                 expect(page.locator("#outlook-body details")).to_have_count(0)
@@ -1489,6 +1489,9 @@ class BrowserChecks(unittest.TestCase):
                 self.assertLessEqual((box["width"], box["height"]), (1, 1))
                 self.assertLess(page.locator("#outlook-body").bounding_box()["y"] - page.locator("#outlook").bounding_box()["y"], 1)
                 expect(page.locator("#outlook")).not_to_contain_text("24 hours")
+                # Each heading's weekday or name stays on one line, on a phone too.
+                for h in page.locator("#outlook-body > .bucket > .bucket__h > span:first-child").all():
+                    self.assertLess(h.bounding_box()["height"], 1.6 * float(h.evaluate("el => parseFloat(getComputedStyle(el).fontSize)")))
                 self.full_page_shot(page, f"days-{width}.png")
                 # At 1 am on Thursday it is still Wednesday's sports day, and Today still says so.
                 page.evaluate("location.hash = '#at-20261008-0100'")

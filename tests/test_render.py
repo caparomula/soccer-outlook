@@ -70,12 +70,12 @@ class Window(unittest.TestCase):
 class StaticDays(unittest.TestCase):
     def test_the_static_schedule_heads_its_days_as_the_script_does(self):
         """Before the script runs (or without it), the days are headed as the script heads them: Today and
-        Tomorrow with the date beside them, a later day by its date."""
+        Tomorrow with the date beside them, a later day by its weekday with the rest of its date beside it."""
         page = render_page(build)
         heads = re.findall(r'<section class="bucket" data-static="1"><h3 class="bucket__h"><span>([^<]*)</span>'
                            r'<span class="when">([^<]*)</span>', page)
         self.assertEqual(heads, [("Today", "Wednesday, October 7"), ("Tomorrow", "Thursday, October 8"),
-                                 ("Saturday, October 10", "")])
+                                 ("Saturday", "October 10")])
 
 
 class MalformedFeed(unittest.TestCase):

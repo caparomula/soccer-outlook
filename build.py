@@ -1544,16 +1544,15 @@ def write_facts(path, matches, built_at, today):
 def build_page(matches, cache, built_at, failed, today):
     matches.sort(key=lambda m: (m.utc, -m.score, m.comp, m.home.name))
     # Static fallback: rows grouped by Eastern day, headed as the page script heads its days (Today and
-    # Tomorrow with the date in grey, a later day by its date). The script regroups them by the viewer's
-    # clock and sports day.
+    # Tomorrow with the full date in grey, a later day by its weekday with the rest of its date in grey).
+    # The script regroups them by the viewer's clock and sports day.
     days = {}
     for m in matches:
         days.setdefault(m.utc.astimezone(ET).date(), []).append(m)
     static_sections = []
     for d, ms in sorted(days.items()):
-        date_text = d.strftime("%A, %B ") + str(d.day)
         name = {today - timedelta(days=1): "Yesterday", today: "Today", today + timedelta(days=1): "Tomorrow"}.get(d)
-        title, when = (name, date_text) if name else (date_text, "")
+        title, when = (name, d.strftime("%A, %B ") + str(d.day)) if name else (d.strftime("%A"), d.strftime("%B ") + str(d.day))
         static_sections.append(
             f'<section class="bucket" data-static="1"><h3 class="bucket__h"><span>{esc(title)}</span><span class="when">{esc(when)}</span>'
             f'<span class="bucket__count"></span></h3><ol class="rows">{"".join(row_html(m, cache) for m in ms)}</ol></section>')

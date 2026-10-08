@@ -490,6 +490,7 @@
   var fmtDay = new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
   var fmtShortDay = new Intl.DateTimeFormat(undefined, { weekday: 'short' });
   var fmtLongDay = new Intl.DateTimeFormat(undefined, { weekday: 'long' });
+  var fmtMonthDay = new Intl.DateTimeFormat(undefined, { month: 'long', day: 'numeric' });
   function splitTime(d) {
     var parts = fmtTime.formatToParts(d), h = '', m = '', ap = '';
     parts.forEach(function (p) { if (p.type === 'hour') h = p.value; else if (p.type === 'minute') m = p.value; else if (p.type === 'dayPeriod') ap = p.value.toLowerCase(); });
@@ -628,9 +629,11 @@
       list.sort(function (a, c) { return a._k - c._k || c._score - a._score; });
       var sec, host;
       var h = document.createElement('h3'); h.className = 'bucket__h';
-      // Today and Tomorrow name the day and give its date in grey; a later day is headed by its date.
-      var day = DAYS.indexOf(b), title = TITLES[b] || fmtDay.format(dayDate(day, now));
-      var when = TITLES[b] && day >= 0 ? fmtDay.format(dayDate(day, now)) : '';
+      // Today and Tomorrow give the day's full date in grey; a later day is its weekday, with the rest of
+      // its date in grey ("Saturday" and "October 10"), which keeps the heading to one line on a phone.
+      var day = DAYS.indexOf(b), date = day >= 0 ? dayDate(day, now) : null;
+      var title = TITLES[b] || fmtLongDay.format(date);
+      var when = !date ? '' : TITLES[b] ? fmtDay.format(date) : fmtMonthDay.format(date);
       h.innerHTML = '<span></span><span class="when"></span><span class="bucket__count"></span>';
       h.firstChild.textContent = title;
       h.children[1].textContent = when;
