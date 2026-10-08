@@ -259,9 +259,9 @@ checked = 2026-10-06
 usual = "Fandango"
 season = "2026-27"
 until = 2027-06-30
-note = "Versant's five-year deal from 2026-27: 30-odd matches a season on USA Network (ESPN lists those), the rest free on Fandango."
-source = "https://www.usanetwork.com/usa-insider/how-to-watch-bundesliga-on-usa-network-streaming-on-fandango"
-checked = 2026-10-06
+note = "Versant's five-year deal from 2026-27: 30-odd matches a season on USA Network, the rest free on Fandango. ESPN lists both, by name."
+source = "https://www.usanetwork.com/usa-insider/how-to-watch-bundesliga-on-usa-network-streaming-on-fandango and ESPN listings, Oct 9 to 11 2026: 8 of 9 listed matches on Fandango, 1 on USA Network"
+checked = 2026-10-08
 
 [leagues."ita.1"]
 usual = "Paramount+"
