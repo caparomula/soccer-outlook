@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compares AI providers on Soccer Outlook's two jobs, on the day's real fixtures, publishing nothing.
+"""Compares AI providers on Soccer Outlook's AI jobs, on the day's real fixtures, publishing nothing.
 
   ratings   the three scores story.py's ratings mode asks Claude for (popularity, gameplay and impact,
             0 to 100) for every fixture in its window, asked of each model with the same system
@@ -11,11 +11,15 @@
             Google: Grounding with Google Search), from the same instructions and facts. The blurbs
             come back as JSON in the reply's text, asked of every model the same way, because not
             every model accepts a response schema together with its search tool.
+  overview  one plain paragraph of at most 450 characters for the top of the page, about the whole slate
+            in the time frame the top three come from (the next 24 hours, longer when that holds fewer
+            than three matches) across every competition and service, since every visitor reads it
+            whatever they follow, researched and returned the same way as the blurbs, with its sources.
 
 What it measures, all mechanically: cost from each API's own usage report at providers.py's list prices,
 time, searches, and for ratings how far each model's order agrees with the others', with the ratings
-the page publishes now and with the page's own Outlook score. For research, every URL a blurb cites
-is checked twice: whether the provider's own search returned it in that response (one it did not
+the page publishes now and with the page's own Outlook score. For research and the overview, every
+URL cited is checked twice: whether the provider's own search returned it in that response (one it did not
 return was recalled or made up, and story.py would never show it) and whether it loads now.
 
 A conflict of interest: Claude wrote this comparison of Claude with its competitors. So nothing here
@@ -29,7 +33,8 @@ is skipped. OpenAI and Google requests are tried again after a 429 or 5xx, twice
 timeout, which may have been billed; Claude's follow the Anthropic SDK's retries, as story.py's do.
 
 Usage: compare-providers.py --facts FACTS --page PAGE [--published STORY] --ratings CONFIGS
-                            --research CONFIGS [--fixtures IDS] [--budget USD] --out RESULTS
+                            --research CONFIGS [--overview CONFIGS] [--fixtures IDS] [--budget USD]
+                            --out RESULTS
 CONFIGS are provider:model:effort, separated by spaces; provider is anthropic, openai or google.
 The Markdown report goes to stdout, progress to stderr.
 """
@@ -70,11 +75,48 @@ RESEARCH_SEARCHES, RESEARCH_FETCHES = 8, 4      # Claude's web search and web fe
 RESEARCH_MAX_TOKENS = 32000
 MAX_CONTINUATIONS = 4                           # Claude's paused turns, as story.py continues them
 BLURB_LIMIT = story.LIMITS["blurb"]
+OVERVIEW_LIMIT = story.LIMITS["lede"]           # the page's overview paragraph
 USER_AGENT = "Mozilla/5.0 (compatible; SoccerOutlookLinkCheck/1.0; +https://github.com/caparomula/soccer-outlook)"
 
 RESEARCH_SYSTEM = """You write match blurbs for Soccer Outlook, a soccer schedule for viewers in the United States. The page already lists kickoff times, channels, table positions, recent form and top scorers, so a blurb must add something specific about the upcoming match: its stakes, player availability, likely selection supported by reporting, a relevant matchup, or a scheduling change. General club news, ownership stories and unrelated controversy do not belong.
 
 Research with web search before writing, and read a full article when a search snippet is not enough. Prefer recent reporting from established outlets: clubs and federations, major newspapers, broadcasters, wire services. State only what the pages you read in this session say or what the supplied facts establish. If you cannot confirm something, leave it out rather than guess, and never predict results or invent lineups, injuries or quotes. Write plainly, in present tense."""
+
+
+OVERVIEW_SYSTEM = """You write the daily overview for Soccer Outlook, a soccer schedule for viewers in the United States that covers many competitions and streaming services. The overview is one short paragraph at the top of the page, and every visitor reads it whatever leagues and services they follow, so it should tell a fan what is worth knowing across the whole slate, including competitions they may not usually watch. The page already lists kickoff times, channels, table positions, recent form and top scorers, so the overview must add something specific: the stakes of particular matches, player availability, likely selection supported by reporting, a notable matchup, or a scheduling change. General club news, ownership stories and unrelated controversy do not belong.
+
+Research with web search before writing, and read a full article when a search snippet is not enough. Prefer recent reporting from established outlets: clubs and federations, major newspapers, broadcasters, wire services. State only what the pages you read in this session say or what the supplied facts establish. If you cannot confirm something, leave it out rather than guess, and never predict results or invent lineups, injuries or quotes. Write plainly, in present tense."""
+
+
+HOUSEHOLD = ("watch_on", "available_service_ids", "hidden_by_default", "stature")
+
+
+def overview_view(facts):
+    """The overview's view of the facts: build.py's overview_fixtures (every match with known coverage
+    in the time frame the page's top three come from, on any service and in any competition), each
+    compactly, in kickoff order. What the page shows the default household (watch_on, its services,
+    competitions hidden by default) is left out, and so is build.py's own stature score: the overview
+    is for every visitor, whatever they follow, and an unexplained number only invites guessing."""
+    view = {"fixtures": [{k: v for k, v in story.compact_fixture(m).items() if k not in HOUSEHOLD}
+                         for m in facts.get("overview_fixtures", [])]}
+    if facts.get("played_today"):
+        view["played_today"] = facts["played_today"]
+    return view
+
+
+def overview_prompt(header, view):
+    return (f"{header}\n\nWrite the overview: one paragraph of two to four sentences, at most {OVERVIEW_LIMIT} characters, about "
+            "these fixtures as a whole, across competitions, rather than one league's preview. Give weekdays or dates and Eastern "
+            "times rather than 'today' or 'tomorrow', since the page is read through the day and into the next. Cite one to five "
+            "URLs of pages your searches returned in this session that support it. Put URLs only in sources, never in the text. "
+            "If no reporting you find supports an overview, give an empty overview and no sources rather than guess.\n\n"
+            "'fixtures' lists, in kickoff order, every match with known US coverage kicking off in the next 24 hours, on any "
+            "service and in any competition; when fewer than three do, it runs on through the 24 hours from the next kickoff. "
+            "'broadcasters' are the US channels and services that carry a match; a match without them is on its competition's "
+            "usual US home, its channel not posted yet. 'played_today', when present, gives the day's notable results so far, "
+            f"for context.\n\n{story.compact(view)}\n\n"
+            f"You have up to {RESEARCH_SEARCHES} web searches. When you are done, reply with only this JSON object and no "
+            'other text: {"overview": "<the paragraph>", "sources": ["<url>"]}')
 
 
 def research_prompt(header, fixtures):
@@ -119,7 +161,7 @@ def parse_configs(text, task):
             problems.append(f"{entry}: {cfg.provider} effort must be one of {', '.join(EFFORTS[cfg.provider])}")
         elif providers.MODELS.get(cfg.model) != cfg.provider:
             problems.append(f"{entry}: no list price recorded for {cfg.model} at {cfg.provider}, so its spending can't be capped")
-        elif task == "research" and (cfg.provider, cfg.model) in RATINGS_ONLY:
+        elif task != "ratings" and (cfg.provider, cfg.model) in RATINGS_ONLY:
             problems.append(f"{entry}: {cfg.model} can't search the web here, so it takes part in ratings only")
         elif cfg in configs:
             problems.append(f"{entry}: listed twice")
@@ -159,7 +201,7 @@ def add_usage(totals, usage):
 def estimate(cfg, task, prompt_chars):
     """A generous guess at one task's cost, for the budget check before it starts: the prompt at three
     characters a token, twice over for ratings (a second request may follow), 100,000 tokens of pages
-    for research, 10,000 output tokens, and twelve searches."""
+    for research and the overview, 10,000 output tokens, and twelve searches."""
     p_in, p_out, p_search = price_card(cfg)
     if task == "ratings":
         return 2 * (prompt_chars / 3 * p_in) + 10_000 * p_out
@@ -211,10 +253,11 @@ def anthropic_text(content):
     return "".join(pieces), native
 
 
-def anthropic_research(client, cfg, system, prompt):
+def anthropic_research(client, cfg, system, prompt, key="blurbs"):
     """Claude's research request as story.py makes it (dynamic web search and fetch, effort, caching,
     the server-side fallback), continued while the server pauses the turn. The answer is the final
-    text; if that holds no blurbs JSON, every text block of the turn is searched for it."""
+    text; if that holds no JSON answer (an object with `key`), every text block of the turn is searched
+    for it."""
     messages, reply, seen, usage, texts = [{"role": "user", "content": prompt}], Reply(served=cfg.model), {}, {}, []
     tools = [{"type": "web_search_20260209", "name": "web_search", "max_uses": RESEARCH_SEARCHES},
              {"type": "web_fetch_20260209", "name": "web_fetch", "max_uses": RESEARCH_FETCHES}]
@@ -236,7 +279,7 @@ def anthropic_research(client, cfg, system, prompt):
             break
         messages.append({"role": "assistant", "content": message.content})
     reply.text, reply.native = anthropic_text(message.content)
-    if extract_json(reply.text)[0] is None:
+    if extract_json(reply.text, key)[0] is None:
         reply.text, reply.native = "".join(texts), []
     reply.stop = {"end_turn": "end", "max_tokens": "max_tokens", "refusal": "refusal"}.get(message.stop_reason, message.stop_reason or "unknown")
     reply.usage = usage
@@ -292,17 +335,21 @@ def run_ratings(cfg, header, fixtures, keys, clients):
     return result
 
 
-def extract_json(text):
-    """The first JSON object in `text` holding a "blurbs" list, and where it starts; (None, None) if none."""
+ANSWERS = {"blurbs": list, "overview": str}     # each research task's JSON answer: its key, and that value's type
+
+
+def extract_json(text, key="blurbs"):
+    """The first JSON object in `text` holding the answer `key` with a value of its type, and where it
+    starts and ends; (None, None, None) if none."""
     decoder = json.JSONDecoder()
     for m in re.finditer(r"\{", text or ""):
         try:
-            value, _ = decoder.raw_decode(text, m.start())
+            value, end = decoder.raw_decode(text, m.start())
         except ValueError:
             continue
-        if isinstance(value, dict) and isinstance(value.get("blurbs"), list):
-            return value, m.start()
-    return None, None
+        if isinstance(value, dict) and isinstance(value.get(key), ANSWERS[key]):
+            return value, m.start(), end
+    return None, None, None
 
 
 def blurb_spans(text, start):
@@ -329,7 +376,7 @@ def blurb_spans(text, start):
 def research_blurbs(reply, ids):
     """{fixture ID: blurb} from a research reply, or None when it holds no blurbs JSON. Each blurb keeps
     its text as written, the URLs it lists and the provider's own citations that fall within it."""
-    data, start = extract_json(reply.text)
+    data, start, _ = extract_json(reply.text)
     if data is None:
         return None
     elements = blurb_spans(reply.text, start) or [(value, None) for value in data["blurbs"]]
@@ -338,13 +385,34 @@ def research_blurbs(reply, ids):
         mid = value.get("match_id") if isinstance(value, dict) else None
         if mid not in ids or mid in out:
             continue
-        written = value.get("blurb") if isinstance(value.get("blurb"), str) else ""
-        written = re.sub(r"\s+", " ", story.normalize_editorial({"blurb": written})["blurb"]).strip()
-        text = without_links(written)
-        listed = list(dict.fromkeys(u.strip() for u in value.get("sources") or [] if isinstance(u, str) and u.strip()))
-        native = list(dict.fromkeys(url for s, e, url in reply.native if span and s < span[1] and e > span[0]))
-        out[mid] = {"text": text, "length": len(text), "listed": listed, "native": native, "links_in_text": text != written}
+        out[mid] = written_entry(value.get("blurb"), value.get("sources"), reply.native, span)
     return out
+
+
+def written_entry(written, sources, native, span):
+    """One blurb or overview as the report and the review page take it: its text as the page would
+    show it, the URLs it lists, and the provider's own citations that fall within `span` of the reply."""
+    written = written if isinstance(written, str) else ""
+    written = re.sub(r"\s+", " ", story.normalize_editorial({"blurb": written})["blurb"]).strip()
+    text = without_links(written)
+    listed = list(dict.fromkeys(u.strip() for u in sources or [] if isinstance(u, str) and u.strip())) \
+        if isinstance(sources, list) else []
+    cited = list(dict.fromkeys(url for s, e, url in native if span and s < span[1] and e > span[0]))
+    return {"text": text, "length": len(text), "listed": listed, "native": cited, "links_in_text": text != written}
+
+
+def overview_entry(reply):
+    """The overview from a reply, or None when it holds no overview JSON. The provider's citations
+    count when they fall within that JSON object."""
+    data, start, end = extract_json(reply.text, "overview")
+    if data is None:
+        return None
+    return written_entry(data["overview"], data.get("sources"), reply.native, (start, end))
+
+
+def cited(result):
+    """Every blurb or overview a research or overview run wrote, for checking their sources."""
+    return [*result.get("blurbs", {}).values(), *([result["overview"]] if result.get("overview") else [])]
 
 
 def without_links(text):
@@ -357,15 +425,18 @@ def without_links(text):
     return re.sub(r"\s+([.,;:!?])", r"\1", re.sub(r"\s+", " ", text)).strip()
 
 
-def run_research(cfg, header, fixtures, keys, clients):
+def searched(cfg, system, prompt, key, keys, clients, read):
+    """One request with the provider's own web search, answered in JSON under `key`, as a result:
+    `read` takes the reply and gives (status, fields for the result). A failure is the result's error,
+    with what was spent before it. Returns (result, reply), the reply None if no answer came."""
     result = {"config": f"{cfg.provider}:{cfg.model}:{cfg.effort}", "provider": cfg.provider, "model": cfg.model,
-              "effort": cfg.effort, "served": None, "usage": {}, "queries": [], "blurbs": {}}
+              "effort": cfg.effort, "served": None, "usage": {}, "queries": []}
     started, reply = time.monotonic(), None
     try:
         if cfg.provider == "anthropic":
-            reply = anthropic_research(anthropic_client(clients), cfg, RESEARCH_SYSTEM, research_prompt(header, fixtures))
+            reply = anthropic_research(anthropic_client(clients), cfg, system, prompt, key)
         else:
-            reply = providers.request(cfg.model, cfg.effort, RESEARCH_SYSTEM, research_prompt(header, fixtures), keys[cfg.provider],
+            reply = providers.request(cfg.model, cfg.effort, system, prompt, keys[cfg.provider],
                                       max_tokens=RESEARCH_MAX_TOKENS, tool_calls=RESEARCH_SEARCHES + RESEARCH_FETCHES,
                                       url_key=match_key)
         result.update(served=reply.served, stop=reply.stop, usage=add_usage({}, reply.usage), queries=reply.queries,
@@ -374,13 +445,30 @@ def run_research(cfg, header, fixtures, keys, clients):
             # A search tool's reply that records no search: keep it as received, to see whether the
             # provider didn't search or put its record where the parser doesn't look.
             result["raw"] = json.dumps(reply.raw, ensure_ascii=False)[:60000]
-        blurbs = research_blurbs(reply, {f["id"] for f in fixtures})
-        result["status"] = "ok" if blurbs else "unparsed" if blurbs is None else "empty"
-        result["blurbs"] = blurbs or {}
+        status, fields = read(reply)
+        result.update(fields, status=status)
     except Exception as e:
         result.update(status="error", error=f"{type(e).__name__}: {e}"[:600])
     result["seconds"] = round(time.monotonic() - started, 1)
     result["cost_usd"] = cost_of(cfg, {k: result["usage"].get(k, 0) for k in USAGE_KEYS})
+    return result, reply
+
+
+def run_research(cfg, header, fixtures, keys, clients):
+    def read(reply):
+        blurbs = research_blurbs(reply, {f["id"] for f in fixtures})
+        return "ok" if blurbs else "unparsed" if blurbs is None else "empty", {"blurbs": blurbs or {}}
+    result, reply = searched(cfg, RESEARCH_SYSTEM, research_prompt(header, fixtures), "blurbs", keys, clients, read)
+    result.setdefault("blurbs", {})
+    return result, reply
+
+
+def run_overview(cfg, header, view, keys, clients):
+    def read(reply):
+        entry = overview_entry(reply)
+        return ("unparsed" if entry is None else "ok" if entry["text"] else "empty"), {"overview": entry if entry and entry["text"] else None}
+    result, reply = searched(cfg, OVERVIEW_SYSTEM, overview_prompt(header, view), "overview", keys, clients, read)
+    result.setdefault("overview", None)
     return result, reply
 
 
@@ -423,13 +511,14 @@ def check_link(url, timeout=20):
 
 
 def settle_sources(runs, replies, workers=8):
-    """Resolves Google's grounding redirects into the pages they stand for, then marks every cited URL:
+    """Resolves Google's grounding redirects into the pages they stand for, then marks every URL a
+    blurb or overview cites:
     `returned` when the provider's own search returned it in that response, and its state now."""
     redirects = set()
     for result, reply in zip(runs, replies):
         if reply is not None and result["provider"] == "google":
             redirects |= set(reply.redirects)
-            redirects |= {u for b in result["blurbs"].values() for u in b["listed"] if urlsplit(u).netloc == GROUNDING_HOST}
+            redirects |= {u for b in cited(result) for u in b["listed"] if urlsplit(u).netloc == GROUNDING_HOST}
     with ThreadPoolExecutor(max_workers=workers) as pool:
         resolved = dict(zip(sorted(redirects), pool.map(location, sorted(redirects))))
     for result, reply in zip(runs, replies):
@@ -440,7 +529,7 @@ def settle_sources(runs, replies, workers=8):
             target = resolved.get(uri)
             if target and match_key(target):
                 returned.setdefault(match_key(target), (target, title))
-        for blurb in result["blurbs"].values():
+        for blurb in cited(result):
             blurb["native"] = list(dict.fromkeys(resolved.get(u) or u for u in blurb["native"]))
             blurb["sources"] = []
             for url in blurb["listed"]:
@@ -450,11 +539,11 @@ def settle_sources(runs, replies, workers=8):
                 if match_key(url) not in {match_key(s["url"]) for s in blurb["sources"]}:
                     blurb["sources"].append({"url": url, "listed": False, "returned": True})
         result["pages_returned"] = len(returned)
-    urls = sorted({s["url"] for result in runs for b in result["blurbs"].values() for s in b["sources"]})
+    urls = sorted({s["url"] for result in runs for b in cited(result) for s in b["sources"]})
     with ThreadPoolExecutor(max_workers=workers) as pool:
         states = dict(zip(urls, pool.map(check_link, urls)))
     for result in runs:
-        for blurb in result["blurbs"].values():
+        for blurb in cited(result):
             for source in blurb["sources"]:
                 source.update(states.get(source["url"], {"state": "unreachable", "status": None}))
     return resolved
@@ -614,6 +703,49 @@ def research_section(research, fixtures, names):
     return lines
 
 
+def overview_section(overview):
+    runs = overview["runs"]
+    if not runs:
+        return []
+    limit = overview.get("limit", OVERVIEW_LIMIT)
+    lines = [f"### Overview: one paragraph about the whole slate, at most {limit} characters", "",
+             "Each model is given every match with known coverage, on any service and in any competition, in the time "
+             "frame the top three come from: the next 24 hours, longer when that holds fewer than three. Sources are "
+             "checked as for the blurbs.", "",
+             f"| Model | Cost | Time | Searches | Characters | Over {limit} | Cited | From its search | Loads | Dead | Blocked or unreachable | Notes |",
+             "|---|---|---|---|---|---|---|---|---|---|---|---|"]
+    for r in runs:
+        o = r.get("overview")
+        listed = [s for s in (o or {}).get("sources", []) if s["listed"]]
+        state = lambda *names_: sum(s.get("state") in names_ for s in listed)
+        u = r["usage"]
+        notes = [r.get("error") or ""] if r.get("status") == "error" else []
+        if r.get("status") in ("unparsed", "empty"):
+            notes.append("no overview JSON in the reply" if r["status"] == "unparsed" else "an empty overview")
+        if r.get("stop") not in (None, "end"):
+            notes.append(f"stopped: {r['stop']}")
+        native = sum(1 for s in (o or {}).get("sources", []) if not s["listed"])
+        if native:
+            notes.append(f"{native} more cited by the provider's own annotations")
+        if o and o["links_in_text"]:
+            notes.append("links in the text")
+        lines.append(f"| {cell(r['model'])} at {r['effort']} | {money(r.get('cost_usd'))} | {r.get('seconds', '?')}s "
+                     f"| {u.get('searches', 0) + u.get('opens', 0)} | {o['length'] if o else 0} | {'yes' if o and o['length'] > limit else ''} "
+                     f"| {len(listed)} | {sum(s['returned'] for s in listed)} | {state('live')} | {state('dead')} "
+                     f"| {state('blocked', 'unreachable')} | {cell('; '.join(n for n in notes if n))} |")
+    lines += ["", "<details><summary><b>The overviews</b></summary>", ""]
+    for r in runs:
+        o = r.get("overview")
+        if not o:
+            lines += [f"- *{cell(r['model'])} at {r['effort']}:* no overview", ""]
+            continue
+        marks = [f"[{storylines.host(s['url'])}]({s['url']}) ({'from its search' if s['returned'] else '**not from its search**'}, "
+                 f"{s.get('state', '?')}{'' if s['listed'] else ', provider annotation'})" for s in o.get("sources", [])]
+        lines += [f"- *{cell(r['model'])} at {r['effort']}* ({o['length']} characters): {o['text']}",
+                  f"  Sources: {'; '.join(marks) if marks else 'none'}", ""]
+    return lines + ["</details>", ""]
+
+
 def report(results, facts, rows, published):
     names = {m["id"]: f"{m['home']['name'].strip()} v {m['away']['name'].strip()}" for m in facts.get("ranking_candidates", [])}
     lines = [f"## Provider comparison for {facts.get('weekday', '')} {facts.get('date', '')}", "",
@@ -627,6 +759,7 @@ def report(results, facts, rows, published):
     lines.append("")
     lines += ratings_section(results["ratings"], rows, published, names, results.get("window_hours"))
     lines += research_section(results["research"], results["research"]["fixtures"], names)
+    lines += overview_section(results.get("overview") or {"runs": []})
     return "\n".join(lines)
 
 
@@ -645,6 +778,7 @@ def main(argv=None):
     ap.add_argument("--published", help="the story.json the page publishes now")
     ap.add_argument("--ratings", default="", help="configurations for the ratings task")
     ap.add_argument("--research", default="", help="configurations for the research task")
+    ap.add_argument("--overview", default="", help="configurations for the overview task")
     ap.add_argument("--fixtures", default="", help="fixture IDs for the research task (default: chosen as featured() says)")
     ap.add_argument("--budget", type=float, default=5.0, help="USD; no task starts that could take spending past it")
     ap.add_argument("--out", required=True, help="where to write the results as JSON")
@@ -652,6 +786,7 @@ def main(argv=None):
 
     try:
         ratings, research = parse_configs(args.ratings, "ratings"), parse_configs(args.research, "research")
+        overviews = parse_configs(args.overview, "overview")
     except ValueError as e:
         log(str(e))
         return 2
@@ -671,7 +806,8 @@ def main(argv=None):
     keys = {p: os.environ.get(KEYS[p], "") for p in PROVIDERS}
     budget, clients = Budget(args.budget), {}
     results = {"date": facts.get("date"), "built_at": facts.get("built_at"), "budget_usd": args.budget, "window_hours": hours,
-               "ratings": [], "research": {"fixtures": chosen, "runs": []}, "skipped": []}
+               "ratings": [], "research": {"fixtures": chosen, "runs": []}, "overview": {"limit": OVERVIEW_LIMIT, "runs": []},
+               "skipped": []}
 
     def admit(cfg, task, prompt_chars):
         why = (f"no {KEYS[cfg.provider]}" if not keys[cfg.provider] else
@@ -700,7 +836,18 @@ def main(argv=None):
             log(f"  {result['status']}: {len(result['blurbs'])} blurbs, {money(result['cost_usd'])}, {result['seconds']}s {result.get('error', '')}")
             results["research"]["runs"].append(result)
             replies.append(reply)
-    settle_sources(results["research"]["runs"], replies)
+    view = overview_view(facts)
+    overview_chars = len(OVERVIEW_SYSTEM) + len(overview_prompt(header, view))
+    for cfg in sorted(overviews, key=lambda c: estimate(c, "overview", overview_chars)):
+        if view["fixtures"] and admit(cfg, "overview", overview_chars):
+            log(f"overview: {cfg.name} on {len(view['fixtures'])} fixtures")
+            result, reply = run_overview(cfg, header, view, keys, clients)
+            budget.charge(result["cost_usd"])
+            log(f"  {result['status']}: {(result['overview'] or {}).get('length', 0)} characters, {money(result['cost_usd'])}, "
+                f"{result['seconds']}s {result.get('error', '')}")
+            results["overview"]["runs"].append(result)
+            replies.append(reply)
+    settle_sources(results["research"]["runs"] + results["overview"]["runs"], replies)
     results["spent_usd"] = budget.spent
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
     with open(args.out, "w", encoding="utf-8") as f:

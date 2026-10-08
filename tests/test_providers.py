@@ -95,6 +95,13 @@ class Configs(unittest.TestCase):
         self.assertEqual(compare.parse_configs("", "ratings"), [])
         self.assertEqual(compare.parse_configs(" None ", "research"), [])     # GitHub turns an empty input into the default
 
+    def test_the_overview_needs_a_model_that_can_search(self):
+        with self.assertRaises(ValueError) as caught:
+            compare.parse_configs("anthropic:claude-haiku-5-5:low openai:gpt-6.1-sol:medium", "overview")
+        self.assertEqual(str(caught.exception), "overview: anthropic:claude-haiku-5-5:low: claude-haiku-5-5 can't search the web "
+                                                "here, so it takes part in ratings only")
+        self.assertEqual(compare.parse_configs("openai:gpt-6.1-sol:medium", "overview"), [compare.Config("openai", "gpt-6.1-sol", "medium")])
+
 
 class SameQuestion(unittest.TestCase):
     """Every provider is asked what story.py asks Claude, word for word."""
@@ -164,6 +171,94 @@ class SameQuestion(unittest.TestCase):
         self.assertEqual(c_body["output_config"], {"effort": "medium"})
         self.assertIn("at most 260 characters", prompt)
         self.assertIn('[{"id":"1","kickoff":"Sat Oct 10, 7:30 AM ET"', prompt)          # the facts the ratings get, too
+
+
+    def test_the_overview_carries_the_same_text_and_each_providers_search(self):
+        post = Recorder({"status": "completed", "output": [], "usage": {}},
+                        {"candidates": [{"content": {"parts": [{"text": ""}]}, "finishReason": "STOP"}]})
+        claude = FakeClaude(SimpleNamespace(model="claude-sonnet-5-5", usage=claude_usage(), stop_reason="end_turn",
+                                            content=[SimpleNamespace(type="text", text='{"overview": ""}')]))
+        view = compare.overview_view(OVERVIEW_FACTS)
+        with patch.object(providers, "post_json", post):
+            for cfg in (compare.Config("openai", "gpt-6.1-sol", "medium"), compare.Config("google", "gemini-3.8-flash", "medium"),
+                        compare.Config("anthropic", "claude-sonnet-5-5", "medium")):
+                compare.run_overview(cfg, HEADER, view, {"openai": "sk", "google": "g"}, {"anthropic": claude})
+        (_, o_body, _), (_, g_body, _) = post.calls
+        c_body = claude.calls[0]
+        prompt = compare.overview_prompt(HEADER, view)
+        self.assertEqual((o_body["instructions"], o_body["input"]), (compare.OVERVIEW_SYSTEM, prompt))
+        self.assertEqual((g_body["systemInstruction"]["parts"][0]["text"], g_body["contents"][0]["parts"][0]["text"]),
+                         (compare.OVERVIEW_SYSTEM, prompt))
+        self.assertEqual((c_body["system"], c_body["messages"][0]["content"]), (compare.OVERVIEW_SYSTEM, prompt))
+        self.assertEqual((o_body["tools"], o_body["max_tool_calls"]), ([{"type": "web_search"}], 12))
+        self.assertEqual(g_body["tools"], [{"google_search": {}}])
+        self.assertEqual([t["type"] for t in c_body["tools"]], ["web_search_20260209", "web_fetch_20260209"])
+        self.assertIn("at most 450 characters", prompt)
+        self.assertIn(story.compact(view), prompt)
+
+
+OVERVIEW_FACTS = {
+    "overview_fixtures": [
+        {"id": "1", "kickoff_utc": "2026-10-08T19:00:00+00:00", "league_id": "eng.1", "default_competition": True, "state": "pre",
+         "competition": "Premier League", "home": {"name": "Arsenal"}, "away": {"name": "Leeds United"}, "watch_on": "Peacock",
+         "available_service_ids": ["peacock"], "broadcasters": ["Peacock"], "stature": 80, "time_confirmed": True,
+         "source_url": "https://www.espn.com/soccer/match/_/gameId/1", "kickoff": "Thu Oct 8, 3:00 PM ET"},
+        {"id": "2", "kickoff_utc": "2026-10-08T20:00:00+00:00", "league_id": "ksa.1", "default_competition": False, "state": "in",
+         "competition": "Saudi Pro League", "home": {"name": "Al Hilal"}, "away": {"name": "Al Nassr"},
+         "available_service_ids": ["fox"], "broadcasters": ["FOX One"], "stature": 60, "kickoff": "Thu Oct 8, 4:00 PM ET"},
+        {"id": "3", "kickoff_utc": "2026-10-09T19:00:00+00:00", "league_id": "esp.1", "competition": "La Liga",
+         "home": {"name": "Real Madrid"}, "away": {"name": "Villarreal"}, "kickoff": "Fri Oct 9, 3:00 PM ET"}],
+    "next_24_hours": [{"id": "1", "competition": "Premier League"}], "later_if_needed": [{"id": "4", "competition": "Serie A"}],
+    "played_today": [{"id": "9", "result": "Celtic 2-1 Rangers"}],
+    "owner_services": ["Peacock"], "league_candidates": [{"league_id": "eng.1", "matches": []}]}
+
+
+class OverviewFacts(unittest.TestCase):
+    def test_build_pys_overview_fixtures_without_the_households_lineup(self):
+        view = compare.overview_view(OVERVIEW_FACTS)
+        # In build.py's order, without what the page shows the default household or build.py's own score;
+        # next_24_hours and later_if_needed are the full design's and play no part.
+        self.assertEqual(view["fixtures"], [
+            {"competition": "Premier League", "home": {"name": "Arsenal"}, "away": {"name": "Leeds United"},
+             "broadcasters": ["Peacock"], "kickoff": "Thu Oct 8, 3:00 PM ET"},
+            {"competition": "Saudi Pro League", "home": {"name": "Al Hilal"}, "away": {"name": "Al Nassr"},
+             "broadcasters": ["FOX One"], "kickoff": "Thu Oct 8, 4:00 PM ET", "in_progress": True},
+            {"competition": "La Liga", "home": {"name": "Real Madrid"}, "away": {"name": "Villarreal"}, "kickoff": "Fri Oct 9, 3:00 PM ET"}])
+        self.assertEqual(view["played_today"], [{"id": "9", "result": "Celtic 2-1 Rangers"}])
+        self.assertEqual(set(view), {"played_today", "fixtures"})
+        self.assertEqual(compare.overview_view({}), {"fixtures": []})
+
+
+class Overviews(unittest.TestCase):
+    def test_the_paragraph_its_sources_and_the_citations_within_it(self):
+        text = ('Here it is:\n```json\n{"sources": ["https://a.example/1", "https://a.example/1", 7, " "], '
+                '"overview": "Arsenal host Leeds  on Thursday ([bbc.com](https://www.bbc.com/x?utm_source=openai)), and Al Hilal meet Al Nassr."}\n```')
+        inside = text.index("Arsenal")
+        reply = compare.Reply(text=text, native=[(inside, inside + 7, "https://a.example/1"), (0, 4, "https://before.example/x")])
+        entry = compare.overview_entry(reply)
+        self.assertEqual(entry["text"], "Arsenal host Leeds on Thursday, and Al Hilal meet Al Nassr.")
+        self.assertEqual(entry["length"], len(entry["text"]))
+        self.assertEqual(entry["listed"], ["https://a.example/1"])
+        self.assertEqual(entry["native"], ["https://a.example/1"])           # the one outside the JSON is not the overview's
+        self.assertTrue(entry["links_in_text"])
+        self.assertIsNone(compare.overview_entry(compare.Reply(text='{"overview": ["not", "text"]}')))
+        self.assertIsNone(compare.overview_entry(compare.Reply(text='{"blurbs": []}')))
+        self.assertEqual(compare.overview_entry(compare.Reply(text='{"overview": "A.", "sources": "https://x.example"}'))["listed"], [])
+
+    def test_statuses(self):
+        def run(text):
+            post = Recorder({"status": "completed", "usage": {}, "output": [
+                {"type": "message", "content": [{"type": "output_text", "text": text, "annotations": []}]}]})
+            with patch.object(providers, "post_json", post):
+                return compare.run_overview(LUNA, HEADER, compare.overview_view(OVERVIEW_FACTS), {"openai": "sk"}, {})[0]
+        self.assertEqual((run('{"overview": "A.", "sources": []}')["status"], run('{"overview": "A."}')["overview"]["text"]), ("ok", "A."))
+        empty = run('{"overview": " ", "sources": []}')
+        self.assertEqual((empty["status"], empty["overview"]), ("empty", None))
+        unparsed = run("I could not find anything.")
+        self.assertEqual((unparsed["status"], unparsed["overview"]), ("unparsed", None))
+        with patch.object(providers, "post_json", Recorder()):              # no reply left: the request fails
+            failed = compare.run_overview(LUNA, HEADER, {}, {"openai": "sk"}, {})[0]
+        self.assertEqual((failed["status"], failed["overview"], failed["cost_usd"]), ("error", None, 0))
 
 
 class OpenAIReplies(unittest.TestCase):
@@ -304,9 +399,10 @@ class ClaudeResearch(unittest.TestCase):
 class Blurbs(unittest.TestCase):
     def test_the_json_is_found_after_prose_and_inside_fences(self):
         text = 'Here they are {not json}:\n```json\n{"blurbs": [{"match_id": "1", "blurb": "A.", "sources": []}]}\n```'
-        data, start = compare.extract_json(text)
-        self.assertEqual((data, text[start]), ({"blurbs": [{"match_id": "1", "blurb": "A.", "sources": []}]}, "{"))
-        self.assertEqual(compare.extract_json('{"ratings": []} and no blurbs'), (None, None))
+        data, start, end = compare.extract_json(text)
+        self.assertEqual((data, text[start], text[end - 1]), ({"blurbs": [{"match_id": "1", "blurb": "A.", "sources": []}]}, "{", "}"))
+        self.assertEqual(compare.extract_json('{"ratings": []} and no blurbs'), (None, None, None))
+        self.assertEqual(compare.extract_json('{"blurbs": "not a list"}'), (None, None, None))
         self.assertIsNone(compare.research_blurbs(compare.Reply(text='{"blurbs": [{"match_id": "1"'), {"1"}))
 
     def test_unknown_repeated_and_linked_blurbs(self):
@@ -651,8 +747,31 @@ def blurbs_json(ids, source):
     return json.dumps({"blurbs": [{"match_id": i, "blurb": f"News for {i}.", "sources": [source(i)]} for i in ids]})
 
 
+OVERVIEW_ASK = '{"overview": "<the paragraph>"'
+
+
+def overview_json(source):
+    return json.dumps({"overview": "Arsenal host Leeds United on Thursday.", "sources": [source]})
+
+
 def fake_api(url, body, headers, **_):
-    """OpenAI's and Google's APIs, answering ratings and research requests in their documented shapes."""
+    """OpenAI's and Google's APIs, answering ratings, research and overview requests in their documented shapes."""
+    prompt = body.get("input") or body["contents"][0]["parts"][0]["text"]
+    if OVERVIEW_ASK in prompt:
+        usage = {"input_tokens": 3000, "input_tokens_details": {"cached_tokens": 1000}, "output_tokens": 500,
+                 "output_tokens_details": {"reasoning_tokens": 200}}
+        if "openai" in url:
+            return {"model": body["model"], "status": "completed", "usage": usage, "output": [
+                {"type": "web_search_call", "action": {"type": "search", "query": "q", "sources": [{"type": "url", "url": "https://o.example/overview"}]}},
+                {"type": "web_search_call", "action": {"type": "open_page", "url": "https://o.example/overview"}},
+                {"type": "message", "content": [{"type": "output_text", "text": overview_json("https://o.example/overview?utm_source=openai"),
+                                                 "annotations": []}]}]}
+        text = overview_json("https://made.up/overview")
+        return {"modelVersion": "gemini", "usageMetadata": {"promptTokenCount": 3000, "candidatesTokenCount": 500, "thoughtsTokenCount": 200},
+                "candidates": [{"finishReason": "STOP", "content": {"parts": [{"text": text}]}, "groundingMetadata": {
+                    "webSearchQueries": ["q1", "q2"], "groundingChunks": [{"web": {"uri": REDIRECT + "overview", "title": "g.example"}}],
+                    "groundingSupports": [{"segment": {"startIndex": text.index("Arsenal"), "endIndex": text.index("Arsenal") + 7, "text": "Arsenal"},
+                                           "groundingChunkIndices": [0]}]}}]}
     if "openai" in url:
         ids = asked_fixtures(body["input"])
         usage = {"input_tokens": 2000, "input_tokens_details": {"cached_tokens": 0}, "output_tokens": 300,
@@ -682,22 +801,30 @@ class FakeAnthropic:
 
     def stream(self, **kwargs):
         prompt = kwargs["messages"][0]["content"]
-        ids = asked_fixtures(prompt)
-        if "tools" in kwargs:
+        ids = [] if OVERVIEW_ASK in prompt else asked_fixtures(prompt)
+        if OVERVIEW_ASK in prompt:
+            content = [SimpleNamespace(type="server_tool_use", name="web_search", input={"query": "q"}),
+                       SimpleNamespace(type="web_search_tool_result", content=[
+                           SimpleNamespace(type="web_search_result", url="https://c.example/overview", title="overview")]),
+                       SimpleNamespace(type="text", text=overview_json("https://made.up/claude"), citations=None)]
+        elif "tools" in kwargs:
             content = [SimpleNamespace(type="server_tool_use", name="web_search", input={"query": "q"}),
                        SimpleNamespace(type="web_search_tool_result", content=[
                            SimpleNamespace(type="web_search_result", url=f"https://c.example/{i}", title=i) for i in ids]),
                        SimpleNamespace(type="text", text=blurbs_json(ids, lambda i: f"https://c.example/{i}"), citations=None)]
         else:
             content = [SimpleNamespace(type="text", text=ratings_json(ids, 50))]
-        message = SimpleNamespace(model=kwargs["model"], stop_reason="end_turn", content=content, usage=claude_usage(input_tokens=2000, output_tokens=300))
+        searches = SimpleNamespace(web_search_requests=sum(b.type == "server_tool_use" for b in content), web_fetch_requests=0)
+        message = SimpleNamespace(model=kwargs["model"], stop_reason="end_turn", content=content,
+                                  usage=claude_usage(input_tokens=2000, output_tokens=300, server_tool_use=searches))
         return contextlib.nullcontext(SimpleNamespace(get_final_message=lambda: message))
 
 
 class EveryProvider(unittest.TestCase):
-    def test_a_run_with_every_provider_reports_both_tasks(self):
-        facts = dict(FACTS, ranking_candidates=FACTS["ranking_candidates"])
+    def test_a_run_with_every_provider_reports_every_task(self):
+        facts = dict(FACTS, overview_fixtures=OVERVIEW_FACTS["overview_fixtures"])
         live = {f"https://o.example/{i}?utm_source=openai" for i in "abcde"} | {f"https://c.example/{i}" for i in "abcde"}
+        live.add("https://o.example/overview?utm_source=openai")
         with tempfile.TemporaryDirectory() as tmp:
             tmp = Path(tmp)
             (tmp / "facts.json").write_text(json.dumps(facts))
@@ -711,7 +838,8 @@ class EveryProvider(unittest.TestCase):
                     redirect_stdout(out):
                 code = compare.main(["--facts", str(tmp / "facts.json"), "--page", str(tmp / "page.html"), "--out", str(tmp / "r.json"),
                                      "--ratings", "anthropic:claude-haiku-5-5:low openai:gpt-6-luna:low google:gemini-3.8-flash:low",
-                                     "--research", "anthropic:claude-sonnet-5-5:medium openai:gpt-6.1-sol:medium google:gemini-3.1-pro-preview:medium"])
+                                     "--research", "anthropic:claude-sonnet-5-5:medium openai:gpt-6.1-sol:medium google:gemini-3.1-pro-preview:medium",
+                                     "--overview", "openai:gpt-6.1-sol:medium google:gemini-3.8-flash:medium anthropic:claude-opus-5-5:medium"])
                 results = json.loads((tmp / "r.json").read_text())
         text = out.getvalue()
         self.assertEqual(code, 0)
@@ -731,7 +859,29 @@ class EveryProvider(unittest.TestCase):
         # Gemini 3.1 Pro: 2,000 input at $2/M, 400 output (with thinking) at $12/M, one query at $0.014.
         pro = next(r for r in results["research"]["runs"] if r["model"] == "gemini-3.1-pro-preview")
         self.assertAlmostEqual(pro["cost_usd"], 2000 * 2e-6 + 400 * 12e-6 + 0.014)
-        self.assertAlmostEqual(results["spent_usd"], sum(r["cost_usd"] for r in results["ratings"] + results["research"]["runs"]))
+        # The overview: run cheapest first by estimate (Flash, sol, then Opus), each with its sources checked.
+        overviews = {r["model"]: r for r in results["overview"]["runs"]}
+        self.assertEqual(list(overviews), ["gemini-3.8-flash", "gpt-6.1-sol", "claude-opus-5-5"])
+        self.assertEqual([r["status"] for r in overviews.values()], ["ok", "ok", "ok"])
+        line = lambda name: next(line for line in text.splitlines() if line.startswith(f"| {name} at medium | $") and "| 38 |" in line)
+        # Characters, over the limit, cited, from its search, loads, dead, blocked, notes. OpenAI's page open counts as a search.
+        self.assertIn("| 2 | 38 |  | 1 | 1 | 1 | 0 | 0 |  |", line("gpt-6.1-sol"))
+        self.assertIn("| 2 | 38 |  | 1 | 0 | 0 | 1 | 0 | 1 more cited by the provider's own annotations |", line("gemini-3.8-flash"))
+        # Claude cites a page its search never returned.
+        self.assertIn("| 1 | 38 |  | 1 | 0 | 0 | 1 | 0 |  |", line("claude-opus-5-5"))
+        self.assertIn("### Overview: one paragraph about the whole slate, at most 450 characters", text)
+        self.assertIn("- *gpt-6.1-sol at medium* (38 characters): Arsenal host Leeds United on Thursday.", text)
+        self.assertIn("[made.up](https://made.up/claude) (**not from its search**, dead)", text)
+        self.assertEqual(overviews["gemini-3.8-flash"]["overview"]["sources"][1],
+                         {"url": "https://g.example/overview", "listed": False, "returned": True, "state": "live", "status": 200})
+        # gpt-6.1-sol: 2,000 uncached input at $2/M, 1,000 cached at $0.10/M, 500 output at $10/M, two web search calls at a cent.
+        self.assertAlmostEqual(overviews["gpt-6.1-sol"]["cost_usd"], 2000 * 2e-6 + 1000 * 0.1e-6 + 500 * 10e-6 + 2 * 0.01)
+        # Claude Opus 5.5: 2,000 input at $4/M, 300 output at $20/M, one search at a cent.
+        self.assertAlmostEqual(overviews["claude-opus-5-5"]["cost_usd"], 2000 * 4e-6 + 300 * 20e-6 + 0.01)
+        # Gemini 3.8 Flash: 3,000 input at $0.75/M, 700 output (with thinking) at $3.75/M, two queries at $0.014.
+        self.assertAlmostEqual(overviews["gemini-3.8-flash"]["cost_usd"], 3000 * 0.75e-6 + 700 * 3.75e-6 + 2 * 0.014)
+        self.assertAlmostEqual(results["spent_usd"], sum(r["cost_usd"] for r in results["ratings"] + results["research"]["runs"]
+                                                         + results["overview"]["runs"]))
 
 
 class Estimates(unittest.TestCase):

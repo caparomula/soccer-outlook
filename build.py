@@ -1463,6 +1463,16 @@ def write_facts(path, matches, built_at, today):
         first_window = [m for m in candidates if m.utc < boundary]
         league_candidates.append(dict(league_id=league, competition=LEAGUES[league]["name"],
                                       matches=[entry(m) for m in first_window]))
+    # The overview's fixtures, from the time frame the page's top three are chosen in (web/app.js's
+    # renderPicks), whatever the visitor's services and competitions: every match with known coverage
+    # in the next 24 hours, and while that holds fewer than three, the 24 hours from the next kickoff
+    # after them. An international break can leave a day with none, and later_if_needed stops at 20
+    # fixtures, partway through a busy Saturday morning.
+    frame, rest = list(near), sorted(later, key=lambda m: m.utc)
+    while len(frame) < 3 and rest:
+        boundary = rest[0].utc + timedelta(hours=24)
+        frame += [m for m in rest if m.utc < boundary]
+        rest = [m for m in rest if m.utc >= boundary]
     by_stature = lambda ms: sorted(ms, key=lambda m: (-m.score, m.utc))
     facts = {
         "date": today.isoformat(),
@@ -1475,6 +1485,7 @@ def write_facts(path, matches, built_at, today):
         "next_24_hours": [entry(m) for m in sorted(near, key=lambda m: m.utc)],
         "later_if_needed": [entry(m) for m in sorted(later, key=lambda m: m.utc)[:20]],
         "league_candidates": league_candidates,
+        "overview_fixtures": [entry(m) for m in sorted(frame, key=lambda m: m.utc)],
         "ranking_candidates": [dict(id=m.id, kickoff_utc=m.utc.isoformat(), competition=m.comp, league_id=m.league,
                                     source_url=f"https://www.espn.com/soccer/match/_/gameId/{m.id}",
                                     stage=m.stage, home=team_facts(m.home), away=team_facts(m.away))

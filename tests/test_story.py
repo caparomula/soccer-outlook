@@ -759,6 +759,38 @@ class RollingFacts(unittest.TestCase):
         self.assertNotIn("fifa.friendly.w", candidates)
         self.assertNotIn("schedule_by_day", facts)
 
+    def test_the_overview_gets_the_top_threes_time_frame_on_every_service(self):
+        from tests.page_fixture import render_page
+
+        def overview(fixtures):
+            with tempfile.TemporaryDirectory() as tmp:
+                path = Path(tmp) / "facts.json"
+                render_page(build, fixtures=fixtures, facts_path=path)
+                return [m["id"] for m in json.loads(path.read_text())["overview_fixtures"]]
+        hidden = next(lg for lg, info in build.LEAGUES.items() if info.get("default_off"))
+        # Built at 17:00 UTC on 7 October: the next 24 hours run to 17:00 on the 8th. Coverage known on any
+        # service counts, in any competition; a match with none listed, or finished, doesn't.
+        near = [("live", "2026-10-07T16:30:00+00:00", "in", "ESPN+", "eng.1"),
+                ("hidden", "2026-10-07T19:00:00+00:00", "pre", "ESPN+", hidden),
+                ("unlisted", "2026-10-07T18:00:00+00:00", "pre", None, "fifa.friendly.w"),
+                ("finished", "2026-10-07T16:00:00+00:00", "post", "ESPN+", "eng.1"),
+                ("inside", "2026-10-08T16:59:00+00:00", "pre", "Peacock", "usa.1")]
+        later = [("edge", "2026-10-08T17:00:00+00:00", "pre", "ESPN+", "esp.1")]
+        self.assertEqual(overview(near + later), ["live", "hidden", "inside"])
+        # Fewer than three: the 24 hours from the next kickoff join, and no more once there are three.
+        sparse = [("one", "2026-10-07T20:00:00+00:00", "pre", "ESPN+", "eng.1"),
+                  ("a", "2026-10-09T12:00:00+00:00", "pre", "ESPN+", "esp.1"),
+                  ("b", "2026-10-10T11:59:00+00:00", "pre", "Peacock", "eng.1"),
+                  ("c", "2026-10-10T12:00:00+00:00", "pre", "ESPN+", "ita.1")]
+        self.assertEqual(overview(sparse), ["one", "a", "b"])
+        # An international break: nothing in the next 24 hours, two in the next span, so the one after joins too.
+        empty = [("a", "2026-10-09T12:00:00+00:00", "pre", "ESPN+", "esp.1"), ("b", "2026-10-09T13:00:00+00:00", "pre", "ESPN+", "esp.1"),
+                 ("c", "2026-10-11T12:00:00+00:00", "pre", "ESPN+", "ita.1"), ("d", "2026-10-11T13:00:00+00:00", "pre", "ESPN+", "ita.1")]
+        self.assertEqual(overview(empty), ["a", "b", "c", "d"])
+        # Thirty in the first later span: every one, where later_if_needed stops at twenty.
+        busy = [(str(i), f"2026-10-09T{12 + i // 6:02d}:{i % 6 * 10:02d}:00+00:00", "pre", "ESPN+", "esp.1") for i in range(30)]
+        self.assertEqual(overview(busy), [str(i) for i in range(30)])
+
     def test_later_leagues_are_not_lost_when_other_leagues_fill_the_digest(self):
         from tests.page_fixture import render_page
         fixtures = [(str(i), "2026-10-09T18:00:00+00:00", "pre", "ESPN+", "esp.1") for i in range(21)]
