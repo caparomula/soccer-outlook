@@ -76,47 +76,12 @@ RESEARCH_MAX_TOKENS = 32000
 MAX_CONTINUATIONS = 4                           # Claude's paused turns, as story.py continues them
 BLURB_LIMIT = story.LIMITS["blurb"]
 OVERVIEW_LIMIT = story.LIMITS["lede"]           # the page's overview paragraph
+OVERVIEW_SYSTEM, overview_view, overview_prompt = story.OVERVIEW_SYSTEM, story.overview_view, story.overview_prompt
 USER_AGENT = "Mozilla/5.0 (compatible; SoccerOutlookLinkCheck/1.0; +https://github.com/caparomula/soccer-outlook)"
 
 RESEARCH_SYSTEM = """You write match blurbs for Soccer Outlook, a soccer schedule for viewers in the United States. The page already lists kickoff times, channels, table positions, recent form and top scorers, so a blurb must add something specific about the upcoming match: its stakes, player availability, likely selection supported by reporting, a relevant matchup, or a scheduling change. General club news, ownership stories and unrelated controversy do not belong.
 
 Research with web search before writing, and read a full article when a search snippet is not enough. Prefer recent reporting from established outlets: clubs and federations, major newspapers, broadcasters, wire services. State only what the pages you read in this session say or what the supplied facts establish. If you cannot confirm something, leave it out rather than guess, and never predict results or invent lineups, injuries or quotes. Write plainly, in present tense."""
-
-
-OVERVIEW_SYSTEM = """You write the daily overview for Soccer Outlook, a soccer schedule for viewers in the United States that covers many competitions and streaming services. The overview is one short paragraph at the top of the page, and every visitor reads it whatever leagues and services they follow, so it should tell a fan what is worth knowing across the whole slate, including competitions they may not usually watch. The page already lists kickoff times, channels, table positions, recent form and top scorers, so the overview must add something specific: the stakes of particular matches, player availability, likely selection supported by reporting, a notable matchup, or a scheduling change. General club news, ownership stories and unrelated controversy do not belong.
-
-Research with web search before writing, and read a full article when a search snippet is not enough. Prefer recent reporting from established outlets: clubs and federations, major newspapers, broadcasters, wire services. State only what the pages you read in this session say or what the supplied facts establish. If you cannot confirm something, leave it out rather than guess, and never predict results or invent lineups, injuries or quotes. Write plainly, in present tense."""
-
-
-HOUSEHOLD = ("watch_on", "available_service_ids", "hidden_by_default", "stature")
-
-
-def overview_view(facts):
-    """The overview's view of the facts: build.py's overview_fixtures (every match with known coverage
-    in the time frame the page's top three come from, on any service and in any competition), each
-    compactly, in kickoff order. What the page shows the default household (watch_on, its services,
-    competitions hidden by default) is left out, and so is build.py's own stature score: the overview
-    is for every visitor, whatever they follow, and an unexplained number only invites guessing."""
-    view = {"fixtures": [{k: v for k, v in story.compact_fixture(m).items() if k not in HOUSEHOLD}
-                         for m in facts.get("overview_fixtures", [])]}
-    if facts.get("played_today"):
-        view["played_today"] = facts["played_today"]
-    return view
-
-
-def overview_prompt(header, view):
-    return (f"{header}\n\nWrite the overview: one paragraph of two to four sentences, at most {OVERVIEW_LIMIT} characters, about "
-            "these fixtures as a whole, across competitions, rather than one league's preview. Give weekdays or dates and Eastern "
-            "times rather than 'today' or 'tomorrow', since the page is read through the day and into the next. Cite one to five "
-            "URLs of pages your searches returned in this session that support it. Put URLs only in sources, never in the text. "
-            "If no reporting you find supports an overview, give an empty overview and no sources rather than guess.\n\n"
-            "'fixtures' lists, in kickoff order, every match with known US coverage kicking off in the next 24 hours, on any "
-            "service and in any competition; when fewer than three do, it runs on through the 24 hours from the next kickoff. "
-            "'broadcasters' are the US channels and services that carry a match; a match without them is on its competition's "
-            "usual US home, its channel not posted yet. 'played_today', when present, gives the day's notable results so far, "
-            f"for context.\n\n{story.compact(view)}\n\n"
-            f"You have up to {RESEARCH_SEARCHES} web searches. When you are done, reply with only this JSON object and no "
-            'other text: {"overview": "<the paragraph>", "sources": ["<url>"]}')
 
 
 def research_prompt(header, fixtures):
