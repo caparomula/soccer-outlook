@@ -119,6 +119,8 @@ a { color: inherit; }
 .sec__h { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
 .sec__h h2 { font-size: 26px; text-transform: uppercase; letter-spacing: 0.04em; }
 .sec__h p { margin: 0; color: var(--muted); font-size: 14px; }
+/* For screen readers only: the schedule's day headings stand on their own on screen. */
+.vh { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 .picks { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
 .pick { position: relative; display: block; text-decoration: none; background: var(--card); border: 1px solid var(--line); border-top: 4px solid var(--svc); border-radius: var(--radius); padding: 14px 14px 28px; min-width: 0; }
 .pick__rating, .pick__when { padding-right: 48px; }
@@ -228,7 +230,6 @@ a { color: inherit; }
 .bucket__count { margin-left: auto; font-family: var(--body); font-weight: 400; font-size: 13px; color: var(--muted); letter-spacing: 0; text-transform: none; white-space: nowrap; }
 .bucket--live .bucket__h { color: var(--amber); border-color: var(--amber); }
 .bucket--now .bucket__h { color: var(--accent); border-color: var(--accent); }
-.dayhead { font-family: var(--display); font-weight: 600; font-size: 16px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); margin-top: 14px; padding: 4px 0; border-bottom: 1px dashed var(--line); }
 .rows { list-style: none; margin: 0; padding: 0; }
 .row { display: grid; grid-template-columns: 76px minmax(0, 1fr) 212px; gap: 8px 14px; align-items: start; padding: 12px 0; border-bottom: 1px solid var(--line); }
 .row__league { display: flex; margin-bottom: 6px; }

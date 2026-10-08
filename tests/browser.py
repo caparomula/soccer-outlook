@@ -73,7 +73,7 @@ class BrowserChecks(unittest.TestCase):
         page.clock.pause_at(BUILT_AT)
         try:
             page.goto(f"{self.base}/{target}/index.html?scoresbase={self.base}/espn/#at-{at}")
-            expect(page.locator("#outlook-sub")).to_contain_text("The next 24 hours")
+            expect(page.locator("#eyebrow")).not_to_have_text("Your lineup")       # the script's first render dates it
             page.clock.run_for(1)
             if feed["requests"]:
                 expect(page.locator("#livenote")).to_contain_text("last checked")
@@ -527,8 +527,8 @@ class BrowserChecks(unittest.TestCase):
 
     def test_midnight_and_sports_day_boundary(self):
         cases = [
-            ("20261007-2359", "Tonight", "Tonight", "Tomorrow"),
-            ("20261008-0001", "Tonight", "Tonight", "Tomorrow"),
+            ("20261007-2359", "Today", "Today", "Tomorrow"),
+            ("20261008-0001", "Today", "Today", "Tomorrow"),
             ("20261008-0359", "Earlier today", "Live now", "Tomorrow"),
             ("20261008-0400", "Yesterday", "Live now", "Live now"),
         ]
@@ -543,7 +543,7 @@ class BrowserChecks(unittest.TestCase):
         for target in self.targets:
             with self.subTest(target=target), self.page(target) as (page, feed):
                 row = page.locator('li.row[data-id="upcoming"]')
-                self.assertEqual(self.bucket(page, "upcoming"), "This afternoon")
+                self.assertEqual(self.bucket(page, "upcoming"), "Today")
                 expect(page.locator("#schedule-summary")).to_contain_text("1 live · 5 upcoming")
                 feed["data"] = scoreboard("in")
                 page.clock.run_for(60000)
@@ -594,7 +594,7 @@ class BrowserChecks(unittest.TestCase):
                     ("unknown", "2026-10-07T18:00:00+00:00", "pre", "Mystery Sports+", "esp.1"),
                     ("off-lineup", "2026-10-07T19:00:00+00:00", "pre", "Peacock", "eng.1"),
                     ("usual-off-lineup", "2026-10-07T19:00:00+00:00", "pre", None, "eng.1"),
-                    ("later", "2026-10-10T18:00:00+00:00", "pre", "ESPN+", "esp.1")]
+                    ("later", "2026-10-11T18:00:00+00:00", "pre", "ESPN+", "esp.1")]
         html = render_page(build, fixtures=fixtures)
         story = self.tagged_story()
         part = {"segments": [{"text": "Relevant match with coverage pending.", "match_ids": ["unlisted"]}], "sources": []}
@@ -608,12 +608,12 @@ class BrowserChecks(unittest.TestCase):
             for mid in ("unlisted", "unknown", "off-lineup", "usual-off-lineup"):
                 expect(page.locator(f'li.row[data-id="{mid}"]')).to_be_hidden()
             expect(page.locator("#schedule-summary")).to_contain_text("with unconfirmed coverage")
-            expect(page.locator("#outlook-body > .empty")).to_contain_text("No matches on your selected services and competitions in the next 24 hours.")
+            expect(page.locator("#outlook-body > .empty")).to_contain_text("No matches on your selected services and competitions in the next three days.")
             self.assertTrue(page.locator("#outlook-body").evaluate("el => el.firstElementChild.classList.contains('empty')"))
             expect(page.locator("#forecast, #forecast-later")).to_have_count(0)
             expect(page.locator("#story")).to_be_hidden()
-            # The header counts the window, today and the three days after it: only later is on the lineup.
-            expect(page.locator("#tally-n")).to_have_text("1")
+            # The header counts the window, today and the three days after it; later, on the lineup, is past it.
+            expect(page.locator("#tally-n")).to_have_text("0")
             page.locator("#btn-all").click()
             for mid in ("unlisted", "unknown", "off-lineup", "usual-off-lineup"):
                 expect(page.locator(f'li.row[data-id="{mid}"]')).to_be_visible()
@@ -1434,54 +1434,66 @@ class BrowserChecks(unittest.TestCase):
         with self.page("after", html=render_page(build, fixtures=fixtures)) as (page, _):
             expect(page.locator("#tally-n")).to_have_text("4")
             expect(page.locator("#tally-txt")).to_have_text("matches on your services in the next three days")
-            expect(page.locator('li.row[data-id="last"]')).to_be_attached()
-            self.assertEqual(self.bucket(page, "last"), "Beyond 24 hours")
-            # Listed under Saturday, whose late night it is, not under Sunday's date.
-            self.assertIn("Saturday", page.locator('li.row[data-id="last"]').evaluate("row => row.closest('ol').previousElementSibling.textContent"))
+            # last is Saturday's late night, so it is listed under Saturday, not under Sunday's date.
+            self.assertEqual(self.bucket(page, "last"), "Saturday, October 10")
             expect(page.locator('li.row[data-id="beyond"]')).to_be_hidden()
+            # The schedule summary still reports the next 24 hours: inside, not edge, a day on to the minute.
             expect(page.locator("#schedule-summary")).to_contain_text("1 upcoming")
             expect(page.locator("#nextup")).to_have_attribute("data-match-id", "inside")
             self.assertEqual(page.locator("#picks .pick").evaluate_all("els => els.map(e => e.dataset.matchId)"), ["edge", "later", "last"])
             expect(page.locator("#picks-section")).to_be_visible()
-            expect(page.locator('li.row[data-id="inside"]')).to_be_visible()
-            expect(page.locator('li.row[data-id="edge"]')).to_be_visible()
-            expect(page.locator('details[data-b="later"]')).to_have_attribute("open", "")
-            page.locator('details[data-b="later"] > summary').click()
-            expect(page.locator('li.row[data-id="edge"]')).to_be_hidden()
+            for mid in ("inside", "edge"):
+                expect(page.locator(f'li.row[data-id="{mid}"]')).to_be_visible()
+                self.assertEqual(self.bucket(page, mid), "Tomorrow")
             page.evaluate("location.hash = '#at-20261007-1301'")
+            expect(page.locator("#schedule-summary")).to_contain_text("2 upcoming")
             expect(page.locator("#tally-n")).to_have_text("4")
-            self.assertEqual(self.bucket(page, "edge"), "Tomorrow")
-            expect(page.locator('li.row[data-id="edge"]')).to_be_visible()
-            expect(page.locator('details[data-b="later"]')).not_to_have_attribute("open", "")
             # At 3:59 am on Thursday it is still Wednesday's sports day; at 4:00 the window takes in Sunday.
             page.evaluate("location.hash = '#at-20261008-0359'")
             expect(page.locator('li.row[data-id="beyond"]')).to_be_hidden()
             page.evaluate("location.hash = '#at-20261008-0400'")
             expect(page.locator("#tally-n")).to_have_text("5")
-            self.assertEqual(self.bucket(page, "beyond"), "Beyond 24 hours")
+            self.assertEqual([self.bucket(page, mid) for mid in ("inside", "later", "beyond")],
+                             ["Today", "Saturday, October 10", "Sunday, October 11"])
 
-    def test_later_section_defaults_follow_visible_match_count(self):
-        for count in (0, 4, 5):
-            fixtures = [(str(i), "2026-10-07T18:00:00+00:00", "pre", "ESPN+", "esp.1") for i in range(count)]
-            fixtures.append(("later", "2026-10-09T18:00:00+00:00", "pre", "ESPN+", "esp.1"))
-            with self.subTest(count=count), self.page("after", html=render_page(build, fixtures=fixtures)) as (page, _):
-                fold = page.locator('details[data-b="later"]')
-                self.assertEqual(fold.evaluate('el => el.open'), count < 5)
-                expect(page.locator("#forecast, #forecast-later")).to_have_count(0)
-        fixtures = [("upcoming" if i == 0 else str(i), "2026-10-07T17:05:00+00:00", "pre", "ESPN+", "esp.1") for i in range(4)]
-        fixtures += [("fifth", "2026-10-07T18:00:00+00:00", "pre", "Apple TV", "usa.1"),
-                     ("later", "2026-10-09T18:00:00+00:00", "pre", "ESPN+", "esp.1")]
-        with self.page("after", html=render_page(build, fixtures=fixtures)) as (page, feed):
-            fold = page.locator('details[data-b="later"]')
-            expect(fold).not_to_have_attribute("open", "")
-            page.locator("#btn-menu").click()
-            page.locator('[data-kind="have"][data-key="apple"]').click()
-            expect(fold).to_have_attribute("open", "")
-            page.locator("#btn-filters-close").click()
-            fold.locator('summary').click()
-            feed["data"] = scoreboard("in")
-            page.clock.run_for(60000)
-            expect(fold).not_to_have_attribute("open", "")
+    def test_schedule_is_grouped_by_day(self):
+        # 1 pm on Wednesday the 7th. Today runs to 4 am Thursday, so late (1:30 am) is tonight's; thu-late, at 3
+        # am on Friday, is Thursday's and the only match Tomorrow has; sun is past the window.
+        fixtures = [("soon", "2026-10-07T17:05:00+00:00", "pre", "ESPN+"),
+                    ("late", "2026-10-08T05:30:00+00:00", "pre", "ESPN+"),
+                    ("thu-late", "2026-10-09T07:00:00+00:00", "pre", "ESPN+"),
+                    ("fri", "2026-10-09T18:00:00+00:00", "pre", "ESPN+"),
+                    ("sat", "2026-10-10T18:00:00+00:00", "pre", "ESPN+"),
+                    ("sun", "2026-10-11T18:00:00+00:00", "pre", "ESPN+")]
+        heads = lambda page: page.locator("#outlook-body > .bucket > .bucket__h").evaluate_all(
+            "hs => hs.map(h => [h.children[0].textContent, h.children[1].textContent])")
+        for width in (1280, 390):
+            with self.subTest(width=width), self.page("after", width=width, html=render_page(build, fixtures=fixtures)) as (page, _):
+                # Today and Tomorrow give their dates in grey, the later days only their dates, and the date of
+                # Tomorrow is Thursday's, though its one match kicks off on Friday's calendar date.
+                self.assertEqual(heads(page), [["Today", "Wednesday, October 7"], ["Tomorrow", "Thursday, October 8"],
+                                               ["Friday, October 9", ""], ["Saturday, October 10", ""]])
+                self.assertEqual([self.bucket(page, mid) for mid in ("soon", "late", "thu-late", "fri", "sat")],
+                                 ["Today", "Today", "Tomorrow", "Friday, October 9", "Saturday, October 10"])
+                expect(page.locator('li.row[data-id="sun"]')).to_be_hidden()
+                # Every day is open: nothing folds but today's and yesterday's results.
+                expect(page.locator("#outlook-body details")).to_have_count(0)
+                for mid in ("soon", "late", "thu-late", "fri", "sat"):
+                    expect(page.locator(f'li.row[data-id="{mid}"]')).to_be_visible()
+                expect(page.locator('#outlook-body > .bucket[data-b="today"]')).to_have_class(re.compile(r"\bbucket--now\b"))
+                expect(page.locator("#outlook-body .when").first).to_have_css("color", page.evaluate(
+                    "getComputedStyle(document.querySelector('#picks-sub')).color"))
+                # The section keeps a heading for screen readers, not on screen; no "24 hours" is left in it.
+                expect(page.locator("#outlook-h")).to_have_text("Schedule")
+                box = page.locator("#outlook > .sec__h").bounding_box()       # clipped to a pixel, and taking no room
+                self.assertLessEqual((box["width"], box["height"]), (1, 1))
+                self.assertLess(page.locator("#outlook-body").bounding_box()["y"] - page.locator("#outlook").bounding_box()["y"], 1)
+                expect(page.locator("#outlook")).not_to_contain_text("24 hours")
+                self.full_page_shot(page, f"days-{width}.png")
+                # At 1 am on Thursday it is still Wednesday's sports day, and Today still says so.
+                page.evaluate("location.hash = '#at-20261008-0100'")
+                expect(page.locator('#outlook-body > .bucket[data-b="today"] .when')).to_have_text("Wednesday, October 7")
+                self.assertEqual(self.bucket(page, "late"), "Today")
 
     def test_later_news_stays_in_match_cards_with_one_overview(self):
         fixtures = [("main", "2026-10-09T18:00:00+00:00", "pre", "ESPN+", "esp.1"),
@@ -1503,7 +1515,7 @@ class BrowserChecks(unittest.TestCase):
                 for card, mid in (("#nextup", "main"), ("#picks .pick", "second")):
                     expect(page.locator(f'{card}[data-match-id="{mid}"] .row__story')).to_contain_text(f"Match news for {mid}.")
                     expect(page.locator(f'li.row[data-id="{mid}"] .row__story')).to_contain_text(f"Match news for {mid}.")
-                expect(page.locator('details[data-b="later"]')).to_have_attribute("open", "")
+                expect(page.locator('li.row[data-id="main"]')).to_be_visible()
                 self.full_page_shot(page, f"empty-near-{width}.png")
 
     def test_later_overview_is_retained_and_rolls_into_window(self):

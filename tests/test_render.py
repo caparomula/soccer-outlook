@@ -67,6 +67,17 @@ class Window(unittest.TestCase):
                 self.assertEqual('<tr class="tbl__playing">' in page, inside)
 
 
+class StaticDays(unittest.TestCase):
+    def test_the_static_schedule_heads_its_days_as_the_script_does(self):
+        """Before the script runs (or without it), the days are headed as the script heads them: Today and
+        Tomorrow with the date beside them, a later day by its date."""
+        page = render_page(build)
+        heads = re.findall(r'<section class="bucket" data-static="1"><h3 class="bucket__h"><span>([^<]*)</span>'
+                           r'<span class="when">([^<]*)</span>', page)
+        self.assertEqual(heads, [("Today", "Wednesday, October 7"), ("Tomorrow", "Thursday, October 8"),
+                                 ("Saturday, October 10", "")])
+
+
 class MalformedFeed(unittest.TestCase):
     """ESPN's lists can hold nulls: on 7 October 2026 the Saudi Pro League table gave a team
     `logos: [null]` and every build crashed. A bad entry must cost at most that entry."""

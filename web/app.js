@@ -31,9 +31,13 @@
   function rankOf(id) { var i = serviceOrder().indexOf(id); return i < 0 ? 99 : i; }
   var SHORT = { cable: 'cable', ota: 'antenna', free: 'free app' };   // buckets where the channel leads
   function escHtml(t) { return String(t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
-  var ORDER = ['live', 'morning', 'afternoon', 'evening', 'tonight', 'tomorrow', 'later', 'earlier', 'yesterday'];
-  var TITLES = { live: 'Live now', morning: 'This morning', afternoon: 'This afternoon', evening: 'This evening', tonight: 'Tonight', tomorrow: 'Tomorrow', later: 'Beyond 24 hours', earlier: 'Earlier today', yesterday: 'Yesterday' };
-  var FOLDED = { later: true, earlier: true, yesterday: true };
+  // The schedule's sections: matches in progress, one per sports day of the window (WINDOW_DAYS + 1
+  // of them: Today and Tomorrow, then the later days by their dates), and today's and yesterday's
+  // results, folded.
+  var DAYS = ['today', 'tomorrow', 'day2', 'day3'];
+  var ORDER = ['live'].concat(DAYS, ['earlier', 'yesterday']);
+  var TITLES = { live: 'Live now', today: 'Today', tomorrow: 'Tomorrow', earlier: 'Earlier today', yesterday: 'Yesterday' };
+  var FOLDED = { earlier: true, yesterday: true };
 
   rows.forEach(function (r) {
     r._card = new MatchCard(r);
@@ -503,7 +507,6 @@
   function bucketOf(r, now) {
     var idx = dayIndex(r._k, now);
     if (idx > WINDOW_DAYS) return null;
-    if (r._state !== 'post' && r._k >= now + FOCUS_MS) return 'later';
     // A live match can cross midnight or the 4 am sports-day boundary.
     if (inFocus(r, now) && r._tv && r._k <= now) return 'live';
     if (idx < 0) return idx === -1 ? 'yesterday' : null;
@@ -512,16 +515,12 @@
       if (r._state === 'in' && (now < r._k + LIVE_MS + 30 * 60000 || Date.now() - (r._seen || 0) < 10 * 60000)) return 'live';
       if (r._tv && now >= r._k && now < r._k + LIVE_MS) return 'live';
       if (r._tv && now >= r._k + LIVE_MS) return 'earlier';
-      if (!r._tv) return 'tonight';
-      var h = new Date(r._k).getHours(); if (h < DAY_START) h += 24;
-      return h < 12 ? 'morning' : h < 17 ? 'afternoon' : h < 20 ? 'evening' : 'tonight';
     }
-    return idx === 1 ? 'tomorrow' : 'later';
+    return DAYS[idx];
   }
-  function nowBucketName(now) {
-    var h = new Date(now).getHours(); if (h < DAY_START) h += 24;
-    return h < 12 ? 'morning' : h < 17 ? 'afternoon' : h < 20 ? 'evening' : 'tonight';
-  }
+  // The start of the sports day `idx` days after now's, for its heading: a 1 am kickoff belongs to the
+  // day before its calendar date, so the date comes from the day, not from its first match.
+  function dayDate(idx, now) { var d = sportsDayStart(new Date(now)); d.setDate(d.getDate() + idx); return d; }
 
   // Write local kickoff times into the rows once (static markup carries Eastern time).
   rows.forEach(function (r) {
@@ -534,7 +533,6 @@
   var tzName = tz || 'local time';
   try { tzName = new Intl.DateTimeFormat(undefined, { timeZoneName: 'short' }).formatToParts(new Date()).filter(function (p) { return p.type === 'timeZoneName'; })[0].value; } catch (e) {}
   document.getElementById('fresh').textContent = document.getElementById('fresh').textContent.replace('Times shown in Eastern.', showET ? 'Times shown in ' + tzName + ', with Eastern underneath.' : 'Times shown in Eastern.');
-  document.getElementById('outlook-sub').textContent = 'The next 24 hours; later fixtures follow below';
 
   // ---- rendering -----------------------------------------------------------------------------
   // Re-rendering moves rows and rebuilds cards, the overview and the details preview; a focused
@@ -620,51 +618,41 @@
     return result;
   }
   function rebuild(groups, all, now) {
-    var sparse = upcoming(groups).filter(function (r) { return inFocus(r, now); }).length < 5;
-    var context = mode + '|' + Object.keys(HAVE).join(',') + '|' + Object.keys(compOff).join(',') + '|' + sparse;
+    var context = mode + '|' + Object.keys(HAVE).join(',') + '|' + Object.keys(compOff).join(',');
     if (context !== foldContext) { foldContext = context; foldChoices = {}; }
     var frag = document.createDocumentFragment();
-    var current = nowBucketName(now), anyUpcoming = false;
+    var anyUpcoming = false;
     ORDER.forEach(function (b) {
       var list = groups[b];
       if (!list.length) return;
       list.sort(function (a, c) { return a._k - c._k || c._score - a._score; });
       var sec, host;
       var h = document.createElement('h3'); h.className = 'bucket__h';
-      var title = TITLES[b];
-      var when = '';
-      if (b === 'tomorrow') when = fmtDay.format(new Date(list[0]._k));
+      // Today and Tomorrow name the day and give its date in grey; a later day is headed by its date.
+      var day = DAYS.indexOf(b), title = TITLES[b] || fmtDay.format(dayDate(day, now));
+      var when = TITLES[b] && day >= 0 ? fmtDay.format(dayDate(day, now)) : '';
       h.innerHTML = '<span></span><span class="when"></span><span class="bucket__count"></span>';
       h.firstChild.textContent = title;
       h.children[1].textContent = when;
       h.children[2].textContent = list.length + (list.length === 1 ? ' match' : ' matches');
       if (FOLDED[b]) {
         sec = document.createElement('details'); sec.className = 'fold bucket'; sec.setAttribute('data-b', b);
-        sec.open = Object.prototype.hasOwnProperty.call(foldChoices, b) ? foldChoices[b] : b === 'later' && sparse;
+        sec.open = Object.prototype.hasOwnProperty.call(foldChoices, b) && foldChoices[b];
         var sum = document.createElement('summary'); sum.appendChild(h);
         sum.addEventListener('click', function () { foldChoices[b] = !sec.open; });
         var car = document.createElement('span'); car.className = 'caret'; car.innerHTML = ' <span class="c">show &#9662;</span><span class="o">hide &#9652;</span>'; h.children[2].appendChild(car);
         sec.appendChild(sum); host = sec;
       } else {
-        sec = document.createElement('section'); sec.className = 'bucket' + (b === 'live' ? ' bucket--live' : (b === current ? ' bucket--now' : ''));
-        sec.appendChild(h); host = sec;
+        sec = document.createElement('section'); sec.className = 'bucket' + (b === 'live' ? ' bucket--live' : b === 'today' ? ' bucket--now' : '');
+        sec.setAttribute('data-b', b); sec.appendChild(h); host = sec;
         anyUpcoming = true;
       }
-      if (b === 'later') {
-        var byDay = {};
-        list.forEach(function (r) { var d = sportsDayStart(new Date(r._k)).toDateString(); (byDay[d] = byDay[d] || []).push(r); });
-        Object.keys(byDay).forEach(function (d) {
-          var dh = document.createElement('div'); dh.className = 'dayhead'; dh.textContent = fmtDay.format(new Date(byDay[d][0]._k)); host.appendChild(dh);
-          var ol = document.createElement('ol'); ol.className = 'rows'; byDay[d].forEach(function (r) { ol.appendChild(r); }); host.appendChild(ol);
-        });
-      } else {
-        var ol2 = document.createElement('ol'); ol2.className = 'rows'; list.forEach(function (r) { ol2.appendChild(r); }); host.appendChild(ol2);
-      }
+      var ol = document.createElement('ol'); ol.className = 'rows'; list.forEach(function (r) { ol.appendChild(r); }); host.appendChild(ol);
       frag.appendChild(sec);
     });
     if (!anyUpcoming) {
       var e = document.createElement('p'); e.className = 'empty';
-      e.textContent = mode === 'mine' ? 'No matches on your selected services and competitions in the next 24 hours. Choose "Everything" to include other matches, including unconfirmed coverage, or adjust your filters.' : 'No matches in the next 24 hours with these competition filters.';
+      e.textContent = mode === 'mine' ? 'No matches on your selected services and competitions in the next three days. Choose "Everything" to include other matches, including unconfirmed coverage, or adjust your filters.' : 'No matches in the next three days with these competition filters.';
       frag.insertBefore(e, frag.firstChild);
     }
     // Rows not placed (outside the window) are parked out of sight.
@@ -955,7 +943,8 @@
     }
   });
 
-  function upcoming(groups) { return [].concat(groups.live, groups.morning, groups.afternoon, groups.evening, groups.tonight, groups.tomorrow); }
+  // The window's rows still to come or in progress (today's finished matches and yesterday's are not).
+  function upcoming(groups) { return DAYS.reduce(function (list, b) { return list.concat(groups[b]); }, groups.live.slice()); }
   function logoClone(r, i, cls) { var l = r.querySelectorAll('.logo')[i]; var c = l ? l.cloneNode(true) : document.createElement('i'); c.className = cls + (c.className.indexOf('logo--txt') > -1 ? ' logo--txt' : '') + (l ? ' ' + Array.prototype.filter.call(l.classList, function (x) { return x.indexOf('l-') === 0; }).join(' ') : ''); return c; }
   function timeLabel(r) { if (!r._tv) return 'TBD'; var st = splitTime(new Date(r._k)); return st.ap ? st.t + ' ' + st.ap : st.t; }
   function dayTag(r, now) { var idx = dayIndex(r._k, now); return idx === 0 ? '' : idx === 1 ? ' tomorrow' : ' ' + fmtShortDay.format(new Date(r._k)); }
@@ -1164,7 +1153,7 @@
 
   function renderLineup(groups, now) {
     // The window's matches (today and the three days after it), by service.
-    var week = upcoming(groups).concat(groups.later).filter(function (r) { return !compHidden(r) && r._state !== 'post'; });
+    var week = upcoming(groups).filter(function (r) { return !compHidden(r) && r._state !== 'post'; });
     var host = document.getElementById('lineup'); host.innerHTML = '';
     var ids = serviceOrder().filter(function (id) { return HAVE[id]; });
     if (!ids.length) { var e = document.createElement('p'); e.className = 'empty'; e.textContent = 'No services selected. Open "Lineup & filters" and tap the ones you have.'; host.appendChild(e); return; }
@@ -1268,7 +1257,7 @@
     // Only the date: the schedule runs past the next 24 hours, so the line above the title can't claim that window.
     document.getElementById('eyebrow').textContent = fmtDay.format(new Date(now));
     // The window's matches still to come or in progress: today and the three days after it.
-    var up = upcoming(groups).concat(groups.later).filter(function (r) { return r._state !== 'post'; }), on = up.filter(onSvc);
+    var up = upcoming(groups).filter(function (r) { return r._state !== 'post'; }), on = up.filter(onSvc);
     document.getElementById('tally-n').textContent = on.length;
     document.getElementById('tally-txt').textContent = mode === 'mine' ? 'matches on your services in the next three days' : 'of ' + up.length + ' matches in the next three days are on your services';
   }
