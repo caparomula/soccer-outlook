@@ -535,8 +535,12 @@ class Run(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             tmp = Path(tmp)
             (tmp / "facts.json").write_text(json.dumps(FACTS))
-            (tmp / "page.html").write_text(page(dict(a=50, b=40, c=30, d=20, e=10)))
-            (tmp / "published.json").write_text(json.dumps({"rankings": {k: {"score": v} for k, v in self.ORDER["claude-haiku-5-5"].items()}}))
+            later = ROW.format(id="f", utc="2026-10-20T19:00:00Z", svc="espn", outlook=99)
+            (tmp / "page.html").write_text(page(dict(a=50, b=40, c=30, d=20, e=10)) + later)
+            # The published ratings also reach a day past the window, as the real ones do (f, on 20 October).
+            published = {k: {"score": v} for k, v in self.ORDER["claude-haiku-5-5"].items()}
+            published["f"] = {"score": 99}
+            (tmp / "published.json").write_text(json.dumps({"rankings": published}))
             out = io.StringIO()
             env = {k: "test" for k in keys}
             with patch.dict(os.environ, env, clear=False), patch.object(compare, "rate_once", rate), \
@@ -579,8 +583,9 @@ class Run(unittest.TestCase):
         self.assertIn(f"| 5/5 | 1.00 {interval} | -1.00 | 1.00 |", row("claude-haiku-5-5"))
         # Against the other providers: luna's consensus is Haiku alone (-1); Haiku's is the mean of the two OpenAI models (-1).
         self.assertIn("| -1.00 | -1.00 |", row("gpt-6-luna"))
-        # Eastern days: a and b on the 8th, c and d on the 9th, e on the 10th. The reverse order still shares every
-        # pick (each day has at most two fixtures) but puts the published #1 first only on the 10th.
+        # Eastern days: a and b on the 8th, c and d on the 9th, e on the 10th; f, on the 20th, is outside every
+        # model's window and doesn't count. The reverse order still shares every pick (each day has at most two
+        # fixtures) but puts the published #1 first only on the 10th.
         self.assertIn("| 5 of 5 picks · same #1 on 3 of 3 days |", row("claude-haiku-5-5"))
         self.assertIn("| 5 of 5 picks · same #1 on 1 of 3 days |", row("gpt-6-luna"))
         self.assertIn("served by gpt-6-sol", row("gpt-6.1-sol"))

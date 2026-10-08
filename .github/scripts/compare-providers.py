@@ -754,7 +754,10 @@ def consensus(results, provider):
 
 def top_three_agreement(scores, reference, rows):
     """'9 of 12 picks · same #1 on 2 of 4 days': how many of the reference's top three on the default
-    lineup each Eastern day this order also picks, and on how many days it puts the same match first."""
+    lineup each Eastern day this order also picks, and on how many days it puts the same match first.
+    The reference counts only the fixtures this order rated: the published ratings reach days past the
+    ratings window, where no model in the comparison could pick anything."""
+    reference = {k: v for k, v in reference.items() if k in scores}
     base, mine = storylines.top_three_by_day(reference, rows), storylines.top_three_by_day(scores, rows)
     if not base:
         return ""
