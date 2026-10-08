@@ -283,6 +283,28 @@ class PageScoring(unittest.TestCase):
         for model, effort in (("gpt-6-luna", "low"), ("claude-sonnet-5-5", "medium")):
             self.assertEqual(load(base.replace('"gemini-3.1-pro-preview"', f'"{model}"').replace('overview_effort = "medium"', f'overview_effort = "{effort}"')).overview_model, model)
 
+    def test_the_blurbs_take_the_overviews_rules(self):
+        base = FIXTURE_SETTINGS.replace('effort = "low"\n', 'effort = "low"\nblurbs_model = "gpt-6.1-sol"\nblurbs_effort = "medium"\n')
+        ok = load(base)
+        self.assertEqual((ok.blurbs_model, ok.blurbs_effort, ok.overview_model), ("gpt-6.1-sol", "medium", None))
+        for change, expected in (
+                (('blurbs_model = "gpt-6.1-sol"', 'blurbs_model = "gemini-3.1-flash-lite"'),
+                 "[ai] blurbs_model: the top picks' blurbs are written after a web search, so it must be one of"),
+                (('blurbs_effort = "medium"', 'blurbs_effort = "maximal"'), "[ai] blurbs_effort: gpt-6.1-sol takes none, minimal"),
+                (('blurbs_effort = "medium"\n', ''), "[ai]: blurbs_model and blurbs_effort go together"),
+                (('design = "ratings"\nmodel = "gpt-6.1-sol"\neffort = "low"', 'design = "full"\nmodel = "claude-opus-5-5"\neffort = "medium"'),
+                 "[ai] blurbs_model: the full design writes its own blurbs")):
+            with self.subTest(expected=expected), self.assertRaises(build.SettingsError) as raised:
+                load(base.replace(*change))
+            self.assertIn(expected, str(raised.exception))
+        with patch.object(build, "SETTINGS", replace(fixture_settings(build), blurbs_model="gpt-6.1-sol", blurbs_effort="medium")):
+            footer = build.about_ai()
+        self.assertIn("For the cards, gpt-6.1-sol, an OpenAI AI model, searches the web for a blurb on each of the 6 best-scored matches", footer)
+        self.assertIn("It is published only with a page its own search returned", footer)
+        with patch.object(build, "SETTINGS", replace(fixture_settings(build), blurbs_model="gpt-6.1-sol", blurbs_effort="medium",
+                                                     overview_model="gemini-3.1-pro-preview", overview_effort="medium")):
+            self.assertIn("Each is published only with a page its own search returned", build.about_ai())
+
     def test_the_footer_names_the_overview_model_and_its_rule(self):
         no_overview = self.footer(render_page(build))
         self.assertIn("not predicted results, and the page shows no AI-written text.", no_overview)

@@ -349,6 +349,8 @@ class Settings:
     effort: str
     overview_model: str | None     # the ratings design's overview, written after a web search; None for none
     overview_effort: str | None
+    blurbs_model: str | None       # the ratings design's blurbs for the top picks, likewise
+    blurbs_effort: str | None
     blend: dict          # ai, outlook, interest, league_priority: weights, at least one of each pair above 0
     outlook: dict        # the [outlook] table as checked; knockout words in lower case, channel lists as sets
 
@@ -449,7 +451,8 @@ def load_settings(path, channels):
     if problems:
         raise SettingsError(f"{os.path.basename(path)}:\n  " + "\n  ".join(problems))
     return Settings(ai=ai["enabled"], design=ai["design"], model=ai["model"], effort=ai["effort"],
-                    overview_model=ai["overview_model"], overview_effort=ai["overview_effort"], blend=blend, outlook=outlook)
+                    overview_model=ai["overview_model"], overview_effort=ai["overview_effort"],
+                    blurbs_model=ai["blurbs_model"], blurbs_effort=ai["blurbs_effort"], blend=blend, outlook=outlook)
 
 
 SETTINGS = load_settings(SETTINGS_PATH, {o["label"] for o in OUTLETS.values()})
@@ -1137,12 +1140,19 @@ def about_ai():
                    "days (further ahead when they are few) for popularity (25%), expected gameplay (35%) and competitive "
                    "impact (40%), from ESPN's table, form and stage and without seeing the Outlook score. Its ratings are "
                    "editorial judgments, not predicted results")
-        if not SETTINGS.overview_model:
+        if not SETTINGS.overview_model and not SETTINGS.blurbs_model:
             return ratings + ", and the page shows no AI-written text."
-        return ratings + (f". Then {who(SETTINGS.overview_model)}, searches the web and writes the overview at the top (marked "
-                          "AI Summary) about the matches the top three come from, on every service and in every competition, "
-                          "so it reads the same whatever you choose to see. It is published only with a page its own search "
-                          "returned, linked beside it; a day without one has no overview. The page shows no other AI-written text.")
+        text = ratings + "."
+        if SETTINGS.overview_model:
+            text += (f" Then {who(SETTINGS.overview_model)}, searches the web and writes the overview at the top (marked "
+                     "AI Summary) about the matches the top three come from, on every service and in every competition, "
+                     "so it reads the same whatever you choose to see.")
+        if SETTINGS.blurbs_model:
+            text += (f" For the cards, {who(SETTINGS.blurbs_model)}, searches the web for a blurb on each of the "
+                     f"{story_candidates()} best-scored matches in the time frame the top three come from.")
+        each = "Each is" if SETTINGS.overview_model and SETTINGS.blurbs_model else "It is"
+        return text + (f" {each} published only with a page its own search returned, linked beside it; a day without one "
+                       "has none. The page shows no other AI-written text.")
     return ("The overview (marked AI Summary) and the match blurbs are written by Claude, Anthropic's AI model "
             f"({SETTINGS.model}), once a day, early in the morning; the midday and evening rebuilds update fixtures, "
             "broadcasters and scores but keep the morning's text. Blurbs link to their sources; one that rests only on "
@@ -1153,6 +1163,12 @@ def about_ai():
             "schedule row. Claude also rates each upcoming match for popularity (25%), expected gameplay (35%) and "
             "competitive impact (40%), without seeing the Outlook score; its ratings are editorial judgments, not "
             "predicted results.")
+
+
+def story_candidates():
+    """How many top matches get a researched blurb (story.py's BLURB_CANDIDATES), for the footer."""
+    import story
+    return story.BLURB_CANDIDATES
 
 
 def about_scores():
@@ -1496,6 +1512,11 @@ def write_facts(path, matches, built_at, today):
         "later_if_needed": [entry(m) for m in sorted(later, key=lambda m: m.utc)[:20]],
         "league_candidates": league_candidates,
         "overview_fixtures": [entry(m) for m in sorted(frame, key=lambda m: m.utc)],
+        # What story.py needs to rank that frame as the page ranks its picks (web/app.js's pickValue), to
+        # choose the matches whose blurbs to research: the blend's weights and each match's Outlook score.
+        # No prompt carries it: the AI rates without seeing the Outlook score.
+        "pick_inputs": {"blend": dict(SETTINGS.blend),
+                        "outlook": {m.id: outlook_score(outlook_parts(m)) for m in frame}},
         "ranking_candidates": [dict(id=m.id, kickoff_utc=m.utc.isoformat(), competition=m.comp, league_id=m.league,
                                     source_url=f"https://www.espn.com/soccer/match/_/gameId/{m.id}",
                                     stage=m.stage, home=team_facts(m.home), away=team_facts(m.away))

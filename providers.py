@@ -76,13 +76,15 @@ MAX_TOKENS = 32000
 
 def check_ai(table):
     """settings.toml's [ai] table, checked: ({"enabled", "design", "model", "effort", "provider",
-    "overview_model", "overview_effort", "overview_provider"}, []), the overview's three None when the
-    table names no overview model, or (None, problems) listing every problem found. build.py refuses to
+    "overview_model", "overview_effort", "overview_provider", "blurbs_model", "blurbs_effort",
+    "blurbs_provider"}, []), the overview's and the blurbs' three None when the table names no model for
+    them, or (None, problems) listing every problem found. build.py refuses to
     publish on a problem; story.py then spends nothing, so the two never act on different readings of
     the file."""
     if not isinstance(table, dict):
         return None, ["[ai]: must be a table"]
-    expected, optional, problems = ("enabled", "design", "model", "effort"), ("overview_model", "overview_effort"), []
+    expected, problems = ("enabled", "design", "model", "effort"), []
+    optional = ("overview_model", "overview_effort", "blurbs_model", "blurbs_effort")
     extra = sorted(set(table) - set(expected) - set(optional))
     if extra:
         problems.append(f"[ai]: unknown key {', '.join(extra)} (expected {', '.join(expected + optional)})")
@@ -101,22 +103,27 @@ def check_ai(table):
         problems.append(f"[ai] effort: {model} takes {', '.join(EFFORTS[provider])}")
     if design == "full" and provider and model not in RESEARCH_MODELS:
         problems.append(f"[ai] model: the full design is Claude's research, so it needs {' or '.join(RESEARCH_MODELS)}")
-    # The overview: a paragraph written once a day after a web search, so its model must be able to search.
-    o_model, o_effort = table.get("overview_model"), table.get("overview_effort")
-    o_provider = MODELS.get(o_model) if isinstance(o_model, str) else None
-    if ("overview_model" in table) != ("overview_effort" in table):
-        problems.append("[ai]: overview_model and overview_effort go together")
-    elif "overview_model" in table:
-        if o_provider is None or o_model not in SEARCH_MODELS:
-            problems.append(f"[ai] overview_model: the overview is written after a web search, so it must be one of {', '.join(SEARCH_MODELS)}")
-        elif o_effort not in EFFORTS[o_provider]:
-            problems.append(f"[ai] overview_effort: {o_model} takes {', '.join(EFFORTS[o_provider])}")
-        if design == "full":
-            problems.append("[ai] overview_model: the full design writes its own overview; overview_model is for the ratings design")
+    # The overview and the top picks' blurbs: written once a day after a web search, so each model must be
+    # able to search, and both belong to the ratings design (the full design writes its own).
+    searched = {}
+    for job, what, own in (("overview", "the overview is written", "its own overview"),
+                           ("blurbs", "the top picks' blurbs are written", "its own blurbs")):
+        j_model, j_effort = table.get(f"{job}_model"), table.get(f"{job}_effort")
+        j_provider = MODELS.get(j_model) if isinstance(j_model, str) else None
+        if (f"{job}_model" in table) != (f"{job}_effort" in table):
+            problems.append(f"[ai]: {job}_model and {job}_effort go together")
+        elif f"{job}_model" in table:
+            if j_provider is None or j_model not in SEARCH_MODELS:
+                problems.append(f"[ai] {job}_model: {what} after a web search, so it must be one of {', '.join(SEARCH_MODELS)}")
+            elif j_effort not in EFFORTS[j_provider]:
+                problems.append(f"[ai] {job}_effort: {j_model} takes {', '.join(EFFORTS[j_provider])}")
+            if design == "full":
+                problems.append(f"[ai] {job}_model: the full design writes {own}; {job}_model is for the ratings design")
+        searched.update({f"{job}_model": j_model if j_provider else None, f"{job}_effort": j_effort if j_provider else None,
+                         f"{job}_provider": j_provider})
     if problems:
         return None, problems
-    return {"enabled": enabled, "design": design, "model": model, "effort": effort, "provider": provider,
-            "overview_model": o_model, "overview_effort": o_effort if o_model else None, "overview_provider": o_provider}, []
+    return {"enabled": enabled, "design": design, "model": model, "effort": effort, "provider": provider, **searched}, []
 
 
 class ProviderError(Exception):

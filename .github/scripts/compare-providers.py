@@ -72,21 +72,7 @@ RESEARCH_MAX_TOKENS = 32000
 BLURB_LIMIT = story.LIMITS["blurb"]
 OVERVIEW_LIMIT = story.LIMITS["lede"]           # the page's overview paragraph
 OVERVIEW_SYSTEM, overview_view, overview_prompt = story.OVERVIEW_SYSTEM, story.overview_view, story.overview_prompt
-
-RESEARCH_SYSTEM = """You write match blurbs for Soccer Outlook, a soccer schedule for viewers in the United States. The page already lists kickoff times, channels, table positions, recent form and top scorers, so a blurb must add something specific about the upcoming match: its stakes, player availability, likely selection supported by reporting, a relevant matchup, or a scheduling change. General club news, ownership stories and unrelated controversy do not belong.
-
-Research with web search before writing, and read a full article when a search snippet is not enough. Prefer recent reporting from established outlets: clubs and federations, major newspapers, broadcasters, wire services. State only what the pages you read in this session say or what the supplied facts establish. If you cannot confirm something, leave it out rather than guess, and never predict results or invent lineups, injuries or quotes. Write plainly, in present tense."""
-
-
-def research_prompt(header, fixtures):
-    return (f"{header}\n\nWrite one blurb for each of these {len(fixtures)} fixtures, at most {BLURB_LIMIT} characters each, "
-            "and cite one to three URLs of pages your searches returned in this session that support it. Put URLs only in "
-            "sources, never in the blurb text. If no reporting you find supports a blurb for a fixture, give it an empty "
-            "blurb and no sources rather than guess.\n\n"
-            f"Fixtures:\n{story.compact(fixtures)}\n\n"
-            f"You have up to {RESEARCH_SEARCHES} web searches. When you are done, reply with only this JSON object and no "
-            'other text: {"blurbs": [{"match_id": "<fixture id>", "blurb": "<the blurb>", "sources": ["<url>"]}]}')
-
+RESEARCH_SYSTEM, research_prompt = story.RESEARCH_SYSTEM, story.research_prompt
 
 def log(msg):
     print(msg, file=sys.stderr, flush=True)
@@ -240,25 +226,7 @@ def extract_json(text, key="blurbs"):
     return story.find_json(text, key, ANSWERS[key])
 
 
-def blurb_spans(text, start):
-    """[(element, (start, end))] for each element of the "blurbs" array in the object at `start`, so a
-    provider's citation spans can be matched to the fixture whose blurb they fall in; [] if the text
-    can't be walked."""
-    m = re.compile(r'"blurbs"\s*:\s*\[').search(text, start)
-    if not m:
-        return []
-    decoder, pos, out = json.JSONDecoder(), m.end(), []
-    try:
-        while True:
-            while pos < len(text) and text[pos] in " \t\r\n,":
-                pos += 1
-            if pos >= len(text) or text[pos] == "]":
-                return out
-            value, end = decoder.raw_decode(text, pos)
-            out.append((value, (pos, end)))
-            pos = end
-    except ValueError:
-        return out
+blurb_spans = story.blurb_spans
 
 
 def research_blurbs(reply, ids):

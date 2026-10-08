@@ -59,7 +59,10 @@ web search (Claude's web search and fetch, OpenAI's web_search, Google's groundi
 paragraph about every match with known coverage in the time frame the page's top three come from,
 on any service and in any competition, since every visitor reads it whatever they follow. It is
 published only with a cited page the model's search returned (checked_overview says how), and a
-failure costs the page its overview, never its ratings. In the ratings design every mode that writes rates,
+failure costs the page its overview, never its ratings. `blurbs_model` and `blurbs_effort` add card
+blurbs for the top picks the same way: the BLURB_CANDIDATES best matches in that frame by the page's
+own pick score, one request with that model's web search, and each blurb kept only with a cited page
+its search returned. In the ratings design every mode that writes rates,
 and daily and auto rate once a day. A story written by another design, model or effort than the
 settings name now doesn't count as today's, and even keep writes when the published one is such a
 story: the push that changes the settings puts the change on the page at once. Off (or unreadable,
@@ -487,6 +490,50 @@ def overview_request(model, effort, key, facts, client=None):
                              tool_calls=OVERVIEW_SEARCHES + OVERVIEW_READS, url_key=link_key)
 
 
+def search_pages(reply, cited, resolve, workers=8):
+    """({link key: (url, title)} for every page the reply's search returned, {grounding link: the page it
+    leads to}). Google's grounding links are resolved, those in the grounding record and those the model
+    cites alike: only Google's grounding service issues them, so one that leads to a page is a page its
+    search found, though Gemini 3.x replies often carry no grounding record of it."""
+    redirects = sorted(set(reply.redirects) | {u for u in cited if urlsplit(u).netloc == GROUNDING_HOST})
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        resolved = dict(zip(redirects, pool.map(resolve, redirects)))
+    returned = dict(reply.returned)
+    for uri, title in reply.redirects.items():
+        target = resolved.get(uri)
+        if target and link_key(target):
+            returned.setdefault(link_key(target), (target, title))
+    for uri in redirects:
+        if resolved.get(uri) and link_key(resolved[uri]):
+            returned.setdefault(link_key(resolved[uri]), (resolved[uri], ""))
+    return returned, {u: t for u, t in resolved.items() if t}
+
+
+def own_pages(urls, returned, resolved):
+    """The cited `urls` its search returned, as page sources ({url, title}), each page once."""
+    kept, keys = [], set()
+    for url in urls:
+        shown = resolved.get(url) or url
+        key = link_key(shown)
+        if key and key in returned and key not in keys:
+            keys.add(key)
+            kept.append({"url": shown, "title": (returned[key][1] or "")[:200]})
+    return kept
+
+
+def dead_pages(urls, check, workers=8):
+    """The pages among `urls` that no longer load. One whose site refuses a script is not dead: that
+    says nothing about the page."""
+    urls = sorted(set(urls))
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        return {u for u, state in zip(urls, pool.map(check, urls)) if state.get("state") == "dead"}
+
+
+def listed_urls(sources):
+    """The URLs an answer lists as its sources, each once; anything else in the list is ignored."""
+    return list(dict.fromkeys(u.strip() for u in sources if isinstance(u, str) and u.strip())) if isinstance(sources, list) else []
+
+
 def checked_overview(reply, resolve=None, check=None, workers=8):
     """The overview the page may show from `reply`, as ({"text", "sources"}, ""), or (None, why).
 
@@ -505,40 +552,135 @@ def checked_overview(reply, resolve=None, check=None, workers=8):
     if not text:
         return None, "it wrote an empty overview, having found nothing it could support"
     text = clip(text, LIMITS["lede"])
-    sources = data.get("sources") if isinstance(data.get("sources"), list) else []
-    listed = list(dict.fromkeys(u.strip() for u in sources if isinstance(u, str) and u.strip()))
+    listed = listed_urls(data.get("sources"))
     native = list(dict.fromkeys(url for s, e, url in reply.native if s < end and e > start))
-    redirects = sorted(set(reply.redirects) | {u for u in listed + native if urlsplit(u).netloc == GROUNDING_HOST})
-    with ThreadPoolExecutor(max_workers=workers) as pool:
-        resolved = dict(zip(redirects, pool.map(resolve, redirects)))
-    returned = dict(reply.returned)
-    for uri, title in reply.redirects.items():
-        target = resolved.get(uri)
-        if target and link_key(target):
-            returned.setdefault(link_key(target), (target, title))
-    # Only Google's grounding service issues these redirect links, so one the model cites that leads to a
-    # page is a page its search found, though Gemini 3.x replies often carry no grounding record of it.
-    for uri in redirects:
-        if resolved.get(uri) and link_key(resolved[uri]):
-            returned.setdefault(link_key(resolved[uri]), (resolved[uri], ""))
-    kept, keys = [], set()
-    for url in listed + native:
-        shown = resolved.get(url) or url
-        key = link_key(shown)
-        if key and key in returned and key not in keys:
-            keys.add(key)
-            kept.append({"url": shown, "title": (returned[key][1] or "")[:200]})
+    returned, resolved = search_pages(reply, listed + native, resolve, workers)
+    kept = own_pages(listed + native, returned, resolved)
     if not kept:
         searched = reply.queries or reply.returned or reply.redirects
         return None, (("it cited no pages" if not listed + native else
                        f"none of the {len(listed)} pages it cited came from its own search")
                       + ("; its reply recorded no search" if not searched else ""))
-    with ThreadPoolExecutor(max_workers=workers) as pool:
-        states = list(pool.map(lambda s: check(s["url"]), kept))
-    kept = [s for s, state in zip(kept, states) if state.get("state") != "dead"]
+    dead = dead_pages([src["url"] for src in kept], check, workers)
+    kept = [src for src in kept if src["url"] not in dead]
     if not kept:
         return None, "every page from its own search that it cited is gone"
     return {"text": text, "sources": kept[:OVERVIEW_MAX_SOURCES]}, ""
+
+
+
+# ---- the ratings design's blurbs for the top picks ------------------------------------------------
+BLURB_CANDIDATES = 6      # the top three, and room for a viewer's league priority or top card to change them
+DEFAULT_BLEND = {"ai": 50, "outlook": 50, "interest": 80, "league_priority": 20}
+
+
+RESEARCH_SYSTEM = """You write match blurbs for Soccer Outlook, a soccer schedule for viewers in the United States. The page already lists kickoff times, channels, table positions, recent form and top scorers, so a blurb must add something specific about the upcoming match: its stakes, player availability, likely selection supported by reporting, a relevant matchup, or a scheduling change. General club news, ownership stories and unrelated controversy do not belong.
+
+Research with web search before writing, and read a full article when a search snippet is not enough. Prefer recent reporting from established outlets: clubs and federations, major newspapers, broadcasters, wire services. State only what the pages you read in this session say or what the supplied facts establish. If you cannot confirm something, leave it out rather than guess, and never predict results or invent lineups, injuries or quotes. Write plainly, in present tense."""
+
+
+def research_prompt(header, fixtures):
+    return (f"{header}\n\nWrite one blurb for each of these {len(fixtures)} fixtures, at most {LIMITS['blurb']} characters each, "
+            "and cite one to three URLs of pages your searches returned in this session that support it. Put URLs only in "
+            "sources, never in the blurb text. If no reporting you find supports a blurb for a fixture, give it an empty "
+            "blurb and no sources rather than guess.\n\n"
+            f"Fixtures:\n{compact(fixtures)}\n\n"
+            f"You have up to {OVERVIEW_SEARCHES} web searches. When you are done, reply with only this JSON object and no "
+            'other text: {"blurbs": [{"match_id": "<fixture id>", "blurb": "<the blurb>", "sources": ["<url>"]}]}')
+
+
+def blurb_spans(text, start):
+    """[(element, (start, end))] for each element of the "blurbs" array in the object at `start`, so a
+    provider's citation spans can be matched to the fixture whose blurb they fall in; [] if the text
+    can't be walked."""
+    m = re.compile(r'"blurbs"\s*:\s*\[').search(text, start)
+    if not m:
+        return []
+    decoder, pos, out = json.JSONDecoder(), m.end(), []
+    try:
+        while True:
+            while pos < len(text) and text[pos] in " \t\r\n,":
+                pos += 1
+            if pos >= len(text) or text[pos] == "]":
+                return out
+            value, end = decoder.raw_decode(text, pos)
+            out.append((value, (pos, end)))
+            pos = end
+    except ValueError:
+        return out
+
+
+def pick_candidates(facts, rankings, count=BLURB_CANDIDATES):
+    """The matches whose blurbs to research: the `count` best in overview_fixtures (the frame the page's
+    top three come from) by the pick score web/app.js gives a visitor who hasn't reordered the leagues:
+    interest, the AI rating and the Outlook score in the blend's proportion (either alone when the other
+    is missing), mixed with the league's default priority, the page's league order. Ties go by kickoff,
+    then ID. A match with neither score can't be ranked and isn't chosen."""
+    inputs = facts.get("pick_inputs") or {}
+    blend, outlook = dict(DEFAULT_BLEND, **(inputs.get("blend") or {})), inputs.get("outlook") or {}
+    order = [g.get("league_id") for g in facts.get("leagues", [])]
+
+    def priority(league):
+        if league not in order:
+            return 0.0
+        return 100.0 if len(order) < 2 else 100 * (len(order) - 1 - order.index(league)) / (len(order) - 1)
+
+    def pick(m):
+        rating, own = (rankings.get(m["id"]) or {}).get("score"), outlook.get(m["id"])
+        if rating is not None and own is not None and blend["ai"] + blend["outlook"] > 0:
+            interest = (rating * blend["ai"] + own * blend["outlook"]) / (blend["ai"] + blend["outlook"])
+        else:
+            interest = own if own is not None else rating
+        if interest is None:
+            return None
+        return (interest * blend["interest"] + priority(m.get("league_id")) * blend["league_priority"]) / (blend["interest"] + blend["league_priority"])
+    scored = [(pick(m), m) for m in facts.get("overview_fixtures", [])]
+    scored = sorted(((v, m) for v, m in scored if v is not None), key=lambda x: (-x[0], x[1].get("kickoff_utc", ""), x[1]["id"]))
+    return [m for _, m in scored[:count]]
+
+
+def blurb_request(model, effort, key, facts, fixtures, client=None):
+    """The blurbs for `fixtures` asked of `model` with its provider's own web search: a providers.Reply."""
+    prompt = research_prompt(overview_header(facts), [rating_fixture(m) for m in fixtures])
+    if providers.MODELS[model] == "anthropic":
+        return claude_search(client or claude_client(), model, effort, RESEARCH_SYSTEM, prompt, "blurbs", list,
+                             OVERVIEW_SEARCHES, OVERVIEW_READS, OVERVIEW_MAX_TOKENS)
+    return providers.request(model, effort, RESEARCH_SYSTEM, prompt, key, max_tokens=OVERVIEW_MAX_TOKENS,
+                             tool_calls=OVERVIEW_SEARCHES + OVERVIEW_READS, url_key=link_key)
+
+
+def checked_blurbs(reply, ids, resolve=None, check=None, workers=8):
+    """The blurbs the page may show from `reply`: ({fixture ID: {"blurb", "sources"}}, why), why naming
+    what was dropped. The overview's rule, per blurb: its sources are the pages it cites (and the
+    provider's own citations inside it) that the model's search returned and that still load, and a
+    blurb without one is dropped. The text is made plain and cut to LIMITS["blurb"] at a sentence; a
+    fixture not asked about, or given twice, is ignored."""
+    resolve, check = resolve or location, check or check_link
+    data, start, _ = find_json(reply.text, "blurbs", list)
+    if data is None:
+        return {}, "its reply held no blurbs" + (f" (it stopped: {reply.stop})" if reply.stop not in ("", "end") else "")
+    elements = blurb_spans(reply.text, start) or [(value, None) for value in data["blurbs"]]
+    written = {}
+    for value, span in elements:
+        mid = value.get("match_id") if isinstance(value, dict) else None
+        if mid not in ids or mid in written:
+            continue
+        text = plain_text(normalize_editorial({"blurb": value.get("blurb") if isinstance(value.get("blurb"), str) else ""})["blurb"])
+        native = [url for s, e, url in reply.native if span and s < span[1] and e > span[0]]
+        written[mid] = (clip(text, LIMITS["blurb"]), list(dict.fromkeys(listed_urls(value.get("sources")) + native)))
+    written = {mid: w for mid, w in written.items() if w[0]}
+    returned, resolved = search_pages(reply, [u for _, urls in written.values() for u in urls], resolve, workers)
+    kept = {mid: (text, own_pages(urls, returned, resolved)) for mid, (text, urls) in written.items()}
+    dead = dead_pages([src["url"] for _, sources in kept.values() for src in sources], check, workers)
+    out = {}
+    for mid, (text, sources) in kept.items():
+        sources = [src for src in sources if src["url"] not in dead][:3]
+        if sources:
+            out[mid] = {"blurb": text, "sources": sources}
+    unsupported = len(written) - len(out)
+    why = ", ".join(p for p in (f"{len(ids) - len(written)} not written" if len(written) < len(ids) else "",
+                                f"{unsupported} without a page its search returned that still loads" if unsupported else "") if p)
+    return out, why
 
 
 def tools(budget):
@@ -1421,6 +1563,45 @@ def add_overview(story, facts, model, effort, request=overview_request):
     return account
 
 
+def add_blurbs(story, facts, model, effort, request=blurb_request):
+    """Asks `model` for blurbs for the top picks (pick_candidates) and puts those checked_blurbs passes
+    on their ratings in `story`, where the page shows them on cards and rows, logging and summarizing
+    what happened and what it cost. Returns the run's account for --usage-out. A failure costs the page
+    its blurbs, never its ratings."""
+    key_name = providers.KEY_NAMES[providers.MODELS[model]]
+    candidates = pick_candidates(facts, story.get("rankings") or {})
+    account = {"model": model, "effort": effort, "served": None, "asked": [m["id"] for m in candidates], "written": 0,
+               "why": "", "usage": {}, "cost_usd": None, "seconds": 0.0}
+    story.update(blurbs_model=model, blurbs_effort=effort)
+    if not candidates:
+        account["why"] = "no rated match with known coverage in the top three's time frame"
+    elif not os.environ.get(key_name):
+        account["why"] = f"no {key_name}"
+    else:
+        started = time.monotonic()
+        try:
+            reply = request(model, effort, os.environ[key_name], facts, candidates)
+            account.update(served=reply.served or model, usage=sum_usage({}, reply.usage))
+            blurbs, account["why"] = checked_blurbs(reply, set(account["asked"]))
+        except Exception as e:     # the blurbs are extra: their failure must not cost the page its ratings
+            blurbs, account["why"] = {}, f"the request failed: {type(e).__name__}: {e}"[:400]
+        account["seconds"] = round(time.monotonic() - started, 1)
+        priced_as = account["served"] if account["served"] in providers.MODELS else model
+        account["cost_usd"] = providers.cost(priced_as, {k: account["usage"].get(k, 0) for k in REPLY_USAGE_KEYS})
+        for mid, b in blurbs.items():
+            story["rankings"][mid].update(b)
+        account["written"] = len(blurbs)
+        story["match_blurb_coverage"] = {"written": sum("blurb" in r for r in story["rankings"].values()), "total": len(story["rankings"])}
+    u = account["usage"]
+    spent = (f"; {u.get('searches', 0) + u.get('opens', 0)} searches recorded, input {u.get('in', 0):,} tokens, output "
+             f"{u.get('out', 0):,}; {account['seconds']:.0f}s; about ${account['cost_usd']:.4f}" if account["cost_usd"] is not None else "")
+    line = (f"Blurbs: {account['served'] or model} at {effort}{spent}; {account['written']} of {len(candidates)} top picks"
+            + (f" ({account['why']})" if account["why"] else ""))
+    log(line)
+    summary(line)
+    return account
+
+
 def ai_settings(path):
     """settings.toml's [ai] table as providers.check_ai reads it ({"enabled", "design", "model", "effort",
     "provider"}), or None when the file can't be read or the table is malformed. build.py refuses to
@@ -1436,11 +1617,12 @@ def ai_settings(path):
 
 def written_by(story, config):
     """Whether `story` came from the design, model and effort settings.toml names now, and in the ratings
-    design the same overview model and effort (or none). One from another (the published story, on the
+    design the same overview and blurbs models and efforts (or none). One from another (the published story, on the
     day the model is switched) is not today's, so the next run writes."""
     kinds = ("ratings",) if config["design"] == "ratings" else ("full", "refresh")
-    same_overview = config["design"] != "ratings" or (
-        (story.get("overview_model"), story.get("overview_effort")) == (config.get("overview_model"), config.get("overview_effort")))
+    same_overview = config["design"] != "ratings" or all(
+        (story.get(f"{job}_model"), story.get(f"{job}_effort")) == (config.get(f"{job}_model"), config.get(f"{job}_effort"))
+        for job in ("overview", "blurbs"))
     return (story.get("kind") in kinds and (story.get("requested_model") or story.get("model")) == config["model"]
             and story.get("effort") == config["effort"] and same_overview)
 
@@ -1569,9 +1751,11 @@ def main():
     seconds = time.monotonic() - started
     cost = report_cost(totals, served, model, effort, mode, seconds) if any(totals.values()) else None
     published = bool(story)
-    overview = None
+    overview = blurbs = None
     if published and mode == "ratings" and config and config.get("overview_model"):
         overview = add_overview(story, facts, config["overview_model"], config["overview_effort"])
+    if published and mode == "ratings" and config and config.get("blurbs_model"):
+        blurbs = add_blurbs(story, facts, config["blurbs_model"], config["blurbs_effort"])
     if args.usage_out:
         coverage = (story or {}).get("ranking_coverage", {})
         save(args.usage_out, {"mode": mode, "model": model, "served": served, "provider": provider, "effort": effort,
@@ -1580,7 +1764,7 @@ def main():
                               "published": published, "notes": len(story["notes"]) if story else 0,
                               "forecast": bool(story and story.get("forecast")),
                               "rated": coverage.get("rated", 0), "carried": coverage.get("carried", 0),
-                              "dropped": story["_dropped"] if story else None, "overview": overview})
+                              "dropped": story["_dropped"] if story else None, "overview": overview, "blurbs": blurbs})
     if published:
         story.pop("_dropped", None)
         # model is who answered (a fallback or a dated snapshot shows here); requested_model is what

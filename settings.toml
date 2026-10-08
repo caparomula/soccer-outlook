@@ -33,6 +33,11 @@
 #            that can search: claude-sonnet-5-5 or claude-opus-5-5, any OpenAI model, gemini-3.8-flash
 #            or gemini-3.1-pro-preview. In a blind test on 8 October 2026 gemini-3.1-pro-preview's
 #            overview was graded best, for about $0.05 to $0.08 a day (plus its searches).
+#   blurbs_model, blurbs_effort
+#            likewise for the cards: this model searches the web for a blurb on each of the six
+#            best-scored matches in that time frame (the top three, and room for a visitor's league
+#            priority to change them), each published only with a page its own search returned. In
+#            the same test gpt-6.1-sol's blurbs were graded best, for about $0.13 a day.
 #
 # The commit that changes any of these rebuilds the page and writes that day's ratings (and overview)
 # or storylines with the new choice at once (one paid run), rather than at the next morning's build.
@@ -44,6 +49,8 @@ model = "gpt-6.1-sol"
 effort = "low"
 overview_model = "gemini-3.1-pro-preview"
 overview_effort = "medium"
+blurbs_model = "gpt-6.1-sol"
+blurbs_effort = "medium"
 
 
 # ---- Pick score ----------------------------------------------------------------------------------

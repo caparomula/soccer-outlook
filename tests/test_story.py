@@ -907,6 +907,129 @@ class Overview(unittest.TestCase):
     main = Modes.main
 
 
+
+RATINGS_BLURBS = RATINGS + 'blurbs_model = "gpt-6.1-sol"\nblurbs_effort = "medium"\n'
+
+
+def frame_fixture(mid, league, hours=3):
+    return dict(fixture(mid, hours, league), league_id=league)
+
+
+class TopPickBlurbs(unittest.TestCase):
+    """Blurbs for the top picks: which matches get one, what of an answer may reach the cards, and how
+    the daily run asks for them."""
+    main = Modes.main
+
+    def facts(self, outlook, blend=None, leagues=("eng.1", "esp.1", "ita.1")):
+        frame = [frame_fixture(mid, league, hours) for mid, league, hours in
+                 (("a", "eng.1", 3), ("b", "esp.1", 4), ("c", "ita.1", 5), ("d", "eng.1", 6), ("e", "esp.1", 7))]
+        return {"leagues": [{"league_id": lg} for lg in leagues], "overview_fixtures": frame,
+                "pick_inputs": {"blend": blend or {"ai": 50, "outlook": 50, "interest": 80, "league_priority": 20}, "outlook": outlook}}
+
+    def test_candidates_by_the_pages_own_pick_score(self):
+        # Priorities by the page's league order: eng.1 100, esp.1 50, ita.1 0.
+        rankings = {"a": {"score": 40}, "b": {"score": 80}, "c": {"score": 90}, "d": {"score": 60}}
+        facts = self.facts({"a": 60, "b": 60, "c": 80, "e": 70})
+        # Interest a 50, b 70, c 85, d 60 (no Outlook score), e 70 (no rating).
+        # Pick: a 0.8*50+0.2*100 = 60; b 56+10 = 66; c 68+0 = 68; d 48+20 = 68; e 56+10 = 66.
+        ids = lambda **kw: [m["id"] for m in story.pick_candidates(facts, rankings, **kw)]
+        self.assertEqual(ids(), ["c", "d", "b", "e", "a"])                  # ties go by kickoff
+        self.assertEqual(ids(count=2), ["c", "d"])
+        # The blend decides: with interest alone, league priority doesn't count.
+        self.assertEqual([m["id"] for m in story.pick_candidates(
+            self.facts({"a": 60, "b": 60, "c": 80, "e": 70}, blend={"ai": 50, "outlook": 50, "interest": 1, "league_priority": 0}), rankings)],
+            ["c", "b", "e", "d", "a"])
+        # A match with neither score can't be ranked.
+        self.assertEqual([m["id"] for m in story.pick_candidates(self.facts({}), {"a": {"score": 50}})], ["a"])
+        self.assertEqual(story.pick_candidates({}, {}), [])
+
+    def test_only_blurbs_its_search_supports_reach_the_cards(self):
+        page, other = "https://news.example/a", "https://news.example/b"
+        text = json.dumps({"blurbs": [
+            {"match_id": "a", "blurb": "Saka [1] returns ([bbc](https://bbc.com/x)) for Arsenal.", "sources": [page + "?utm_source=openai"]},
+            {"blurb": "B" * 250 + ". " + "C" * 50 + ".", "match_id": "b", "sources": ["https://made.up/x"]},
+            {"match_id": "c", "blurb": "Unsupported.", "sources": ["https://made.up/y"]},
+            {"match_id": "a", "blurb": "A second try.", "sources": [page]},
+            {"match_id": "zz", "blurb": "Not asked about.", "sources": [page]}]})
+        b_at = text.index("BBB")
+        reply = providers.Reply(text=text, stop="end", returned={story.link_key(page): (page, "A"), story.link_key(other): (other, "B")},
+                                native=[(b_at, b_at + 10, other)])
+        blurbs, why = story.checked_blurbs(reply, {"a", "b", "c", "d"}, resolve=lambda u: None, check=live, workers=2)
+        self.assertEqual(blurbs, {
+            "a": {"blurb": "Saka returns for Arsenal.", "sources": [{"url": page + "?utm_source=openai", "title": "A"}]},
+            # The made-up page goes, but the provider's own citation inside the blurb stands; cut at a sentence.
+            "b": {"blurb": "B" * 250 + ".", "sources": [{"url": other, "title": "B"}]}})
+        self.assertEqual(why, "1 not written, 1 without a page its search returned that still loads")
+        gone, why = story.checked_blurbs(reply, {"a"}, resolve=lambda u: None, check=lambda u: {"state": "dead", "status": 404})
+        self.assertEqual((gone, why), ({}, "1 without a page its search returned that still loads"))
+        self.assertEqual(story.checked_blurbs(providers.Reply(text="Sorry.", stop="refusal"), {"a"}),
+                         ({}, "its reply held no blurbs (it stopped: refusal)"))
+
+    def test_the_daily_run_researches_the_top_picks_after_the_ratings(self):
+        calls, lines, real = [], [], story.write_story
+        rate = openai_ratings(calls)
+        page = "https://news.example/one"
+
+        def post(url, body, headers, **kw):
+            if "tools" not in body:
+                return rate(url, body, headers, **kw)
+            calls.append((url, body, headers))
+            asked = json.loads(body["input"].split("Fixtures:\n", 1)[1].split("\n\nYou have up to", 1)[0])
+            answer = json.dumps({"blurbs": [{"match_id": f["id"], "blurb": f"News for {f['id']}.", "sources": [page + "?utm_source=openai"]}
+                                            for f in asked]})
+            return {"model": "gpt-6.1-sol", "status": "completed", "output": [
+                {"type": "web_search_call", "action": {"type": "search", "query": "q", "sources": [{"type": "url", "url": page}]}},
+                {"type": "message", "content": [{"type": "output_text", "text": answer, "annotations": []}]}],
+                "usage": {"input_tokens": 30000, "input_tokens_details": {"cached_tokens": 0}, "output_tokens": 1000,
+                          "output_tokens_details": {"reasoning_tokens": 500}}}
+        facts = dict(RUN_FACTS, overview_fixtures=[fixture("1", 3), fixture("2", 30, "esp.1")],
+                     pick_inputs={"blend": {"ai": 50, "outlook": 50, "interest": 80, "league_priority": 20}, "outlook": {"1": 40, "2": 90}})
+        with patch.object(providers, "post_json", post), patch.object(story, "summary", lines.append), \
+                patch.object(story, "check_link", live), patch.dict(RUN_FACTS, facts):
+            result = self.main("daily", None, writer=real, settings=RATINGS_BLURBS, key="sk", key_name="OPENAI_API_KEY")
+        ratings_call, (b_url, b_body, _) = calls
+        self.assertNotIn("tools", ratings_call[1])                      # the ratings first, then the research
+        self.assertEqual((b_body["instructions"], b_body["reasoning"], b_body["tools"]), (story.RESEARCH_SYSTEM, {"effort": "medium"}, [{"type": "web_search"}]))
+        # Both rated 61.5; 2 has the better Outlook score (90 v 40) and 1 the better league (eng.1 100 v esp.1 50):
+        # 1 is 0.8 x 50.75 + 20 = 60.6, 2 is 0.8 x 75.75 + 10 = 70.6.
+        self.assertEqual(b_body["input"], story.research_prompt(story.overview_header(dict(facts, date="2026-10-07")),
+                                                                [story.rating_fixture(fixture("2", 30, "esp.1")), story.rating_fixture(fixture("1", 3))]))
+        for mid in ("1", "2"):
+            self.assertEqual((result["rankings"][mid]["blurb"], result["rankings"][mid]["sources"]),
+                             (f"News for {mid}.", [{"url": page + "?utm_source=openai", "title": ""}]))
+        self.assertNotIn("blurb", result["rankings"]["3"])
+        self.assertEqual((result["blurbs_model"], result["blurbs_effort"], result["match_blurb_coverage"]),
+                         ("gpt-6.1-sol", "medium", {"written": 2, "total": 5}))
+        # 30,000 input at $2/M, 1,000 output at $10/M and one search call at a cent.
+        self.assertIn("about $0.0800; 2 of 2 top picks", next(line for line in lines if line.startswith("Blurbs:")))
+
+    def test_a_failed_request_keeps_the_ratings_and_a_changed_choice_rewrites(self):
+        calls, lines, real = [], [], story.write_story
+        rate = openai_ratings(calls)
+
+        def post(url, body, headers, **kw):
+            if "tools" in body:
+                raise providers.ProviderError("HTTP 500: overloaded")
+            return rate(url, body, headers, **kw)
+        with patch.object(providers, "post_json", post), patch.object(story, "summary", lines.append):
+            result = self.main("daily", None, writer=real, settings=RATINGS_BLURBS, key="sk", key_name="OPENAI_API_KEY")
+        self.assertEqual(sorted(result["rankings"]), ["1", "2", "3", "4", "5"])
+        self.assertFalse(any("blurb" in r for r in result["rankings"].values()))
+        self.assertIn("(the request failed: ProviderError: HTTP 500: overloaded)", next(line for line in lines if line.startswith("Blurbs:")))
+        fresh = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        mine = dict(BY_RATINGS, version=1, date="2026-10-07", generated_at=fresh)
+        modes = []
+
+        def writer(facts, model, effort, mode, *rest):
+            modes.append(mode)
+            return None, model
+        with patch.object(story, "summary", lambda *_: None):
+            self.main("keep", mine, writer=writer, key="sk", key_name="OPENAI_API_KEY", settings=RATINGS_BLURBS)
+            kept = dict(mine, blurbs_model="gpt-6.1-sol", blurbs_effort="medium")
+            self.assertEqual(self.main("keep", kept, writer=writer, key="sk", key_name="OPENAI_API_KEY", settings=RATINGS_BLURBS), kept)
+        self.assertEqual(modes, ["ratings"])
+
+
 class RollingFacts(unittest.TestCase):
     def test_boundary_and_all_competitions_are_available_to_claude(self):
         from tests.page_fixture import render_page
@@ -944,7 +1067,13 @@ class RollingFacts(unittest.TestCase):
             with tempfile.TemporaryDirectory() as tmp:
                 path = Path(tmp) / "facts.json"
                 render_page(build, fixtures=fixtures, facts_path=path)
-                return [m["id"] for m in json.loads(path.read_text())["overview_fixtures"]]
+                facts = json.loads(path.read_text())
+            ids = [m["id"] for m in facts["overview_fixtures"]]
+            # What story.py needs to rank them as the page does: the blend, and each one's Outlook score.
+            self.assertEqual(sorted(facts["pick_inputs"]["outlook"]), sorted(ids))
+            self.assertEqual(facts["pick_inputs"]["blend"], {"ai": 50, "outlook": 50, "interest": 80, "league_priority": 20})
+            self.assertTrue(all(isinstance(v, float) for v in facts["pick_inputs"]["outlook"].values()))
+            return ids
         hidden = next(lg for lg, info in build.LEAGUES.items() if info.get("default_off"))
         # Built at 17:00 UTC on 7 October: the next 24 hours run to 17:00 on the 8th. Coverage known on any
         # service counts, in any competition; a match with none listed, or finished, doesn't.
