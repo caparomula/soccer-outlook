@@ -948,9 +948,9 @@ def interpret(league, ev):
         if not d.get("scoringPlay") or d.get("shootout"):
             continue
         who = (dicts(d.get("athletesInvolved")) or [{}])[0]
-        note = "pen" if d.get("penaltyKick") else ("og" if d.get("ownGoal") else "")
+        kind = "pen" if d.get("penaltyKick") else ("og" if d.get("ownGoal") else "")   # not `note`: that is ESPN's match note
         goals.append(((d.get("clock") or {}).get("displayValue") or "", str((d.get("team") or {}).get("id") or ""),
-                      who.get("shortName") or who.get("displayName") or "", note))
+                      who.get("shortName") or who.get("displayName") or "", kind))
     heads = dicts(comp.get("headlines"))
     recap = (heads[0].get("description") or "") if heads else ""
     # DraftKings' prices, which ESPN's scoreboard carries for most league matches: the draw price says

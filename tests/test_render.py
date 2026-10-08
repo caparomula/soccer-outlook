@@ -112,6 +112,18 @@ class Markup(unittest.TestCase):
                     {"homeAway": "away", "team": {"displayName": "Spain", "id": "164", "abbreviation": "ESP"}}],
                     "status": {"type": {"state": "pre", "shortDetail": "Sat"}}}]}
 
+    def test_goals_leave_the_match_note_alone(self):
+        # The goal loop once reused the note's variable for a goal's kind, so a played match lost
+        # ESPN's note ("Leg 2 of 2 · aggregate 3-1") to "" or showed "pen" in its place.
+        event = self.event()
+        comp = event["competitions"][0]
+        comp["notes"] = [{"headline": "Leg 2 of 2 · aggregate 3-1"}]
+        comp["details"] = [{"scoringPlay": True, "penaltyKick": True, "team": {"id": "660"},
+                            "clock": {"displayValue": "63'"}, "athletesInvolved": [{"shortName": "C. Pulisic"}]}]
+        match = build.interpret("fifa.friendly.w", event)
+        self.assertEqual(match.note, "Leg 2 of 2 · aggregate 3-1")
+        self.assertEqual(match.goals, [("63'", "660", "C. Pulisic", "pen")])
+
     def test_match_link_must_be_http(self):
         espn = "https://www.espn.com/soccer/match/_/gameId/9"
         self.assertEqual(build.interpret("fifa.friendly.w", self.event([{"href": "javascript:alert(1)"}, {"href": espn}])).link, espn)
