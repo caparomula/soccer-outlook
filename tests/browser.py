@@ -1575,6 +1575,10 @@ class BrowserChecks(unittest.TestCase):
         with self.page("after", story=self.overview_story(sources)) as (page, _):
             expect(page.locator("#story-by a")).to_have_text(["ESPN table and form", "news.example", "news.example (2)"])
             self.assertIn("not from reporting", page.locator("#story-by a").first.get_attribute("title"))
+            # The page's disclosure that the overview is written by AI, ahead of its sources.
+            expect(page.locator("#story-by")).to_have_text("AI Summary · ESPN table and form, news.example, news.example (2)")
+        with self.page("after", story=self.overview_story([])) as (page, _):
+            expect(page.locator("#story-by")).to_have_text("AI Summary")
 
 
 # Exit status when Chromium can't start: the checks didn't run, which says nothing about the page.

@@ -1306,7 +1306,9 @@
       document.getElementById('story-h').textContent = hasNear ? 'Overview' : 'Overview · Further ahead';
       if (lead.length && lead[0].league_id) storyEl.setAttribute('data-league', lead[0].league_id);
       else storyEl.removeAttribute('data-league');
-      var storyBy = document.getElementById('story-by'); storyBy.textContent = 'Written by Claude';
+      // The page's disclosure that the overview is written by AI (Anthropic's Usage Policy asks for one
+      // on automatically published text); the footer says which model and how.
+      var storyBy = document.getElementById('story-by'); storyBy.textContent = 'AI Summary';
       var links = sourceLinks(sources, 4);
       if (links.childNodes.length) { storyBy.appendChild(document.createTextNode(' · ')); storyBy.appendChild(links); }
     });
