@@ -950,8 +950,10 @@ class BrowserChecks(unittest.TestCase):
                 expect(page.locator('#nextup-h')).to_have_text('Live now')
                 expect(page.locator('#nextup-sub')).to_have_text('Best pick score of the 2 in progress in your lineup')
                 expect(page.locator('#nextup-status')).to_have_text("30'")
-                # Interest (80 + Outlook 57.5) / 2 = 68.75; 80% of that and 20% of league priority 100.
-                expect(page.locator('#nextup-rating')).to_have_text('Pick score · 75/100')
+                # Interest (80 + Outlook 57.5) / 2 = 68.75; 80% of that and 20% of league priority 100: five dots, no words.
+                expect(page.locator('#nextup-rating')).to_have_attribute('aria-label', 'Pick score 75 out of 100, 5 dots of 5')
+                expect(page.locator('#nextup-rating i')).to_have_count(5)
+                expect(page.locator('#nextup-rating')).to_have_text('')
                 self.assertEqual(page.locator('#picks .pick').evaluate_all('els => els.map(e => e.dataset.matchId)'), ['live-second', 'mls', 'future'])
                 expect(page.locator('#picks .row__story')).to_have_count(3)
                 expect(page.locator('#picks .story-src a')).to_have_count(3)
@@ -1271,18 +1273,15 @@ class BrowserChecks(unittest.TestCase):
                     self.assertAlmostEqual(chip["x"], body["x"], delta=1)
                 else:
                     expect(watch).to_be_hidden()
-                    # "Next up" over "1:10 pm" and the score's label over its value, in the narrow column.
-                    # "Pick score" over "92": each part one box from the column's edge (an inline part that
-                    # wraps has a box per line), the separator gone.
-                    parts = page.locator("#nextup-rating > span:visible").evaluate_all(
-                        "els => els.map(e => { const r = e.getClientRects(); return [r.length, r[0].left, r[0].top]; })")
-                    self.assertEqual(len(parts), 2)
-                    for boxes, left, _ in parts:
-                        self.assertEqual(boxes, 1)
-                        self.assertAlmostEqual(left, column["x"], delta=1)
-                    self.assertGreater(parts[1][2], parts[0][2])
+                    # The score's dots at the head of the narrow column, from its edge, all on one line.
+                    dots = page.locator("#nextup-rating i").evaluate_all(
+                        "els => els.map(e => { const r = e.getBoundingClientRect(); return [r.left, r.top, r.width]; })")
+                    self.assertEqual(len(dots), 5)
+                    self.assertAlmostEqual(dots[0][0], column["x"], delta=1)
+                    self.assertEqual(len({round(top) for _, top, _ in dots}), 1)
+                    self.assertTrue(all(w > 3 for _, _, w in dots))
                     # Interest (90 + Outlook 57.5) / 2 = 73.75; 80% of that, 20% of league priority 100.
-                    expect(page.locator("#nextup-rating")).to_have_text("Pick score · 79/100")
+                    expect(page.locator("#nextup-rating")).to_have_attribute("aria-label", "Pick score 79 out of 100, 5 dots of 5")
                     expect(page.locator("#nextup-status")).to_have_text("Kickoff 1:10 pm")
                     status = page.locator("#nextup-status").bounding_box()
                     self.assertLessEqual(status["x"] + status["width"], column["x"] + column["width"] + 1)
@@ -1376,7 +1375,7 @@ class BrowserChecks(unittest.TestCase):
             return page.locator(f'#picks .pick[data-match-id="{mid}"] .pick__rating, #nextup[data-match-id="{mid}"] #nextup-rating')
 
         def card_number(mid):
-            return card_label(mid).text_content().split('· ')[1].split('/')[0]
+            return card_label(mid).get_attribute('aria-label').split(' ')[2]
         for width in (1280, 320):
             with self.subTest(width=width), self.page('after', width=width, html=render_page(build, fixtures=fixtures), story=story) as (page, _):
                 page.locator('#btn-all').click()        # every row, the one off the lineup and the finished one too
@@ -1392,15 +1391,13 @@ class BrowserChecks(unittest.TestCase):
                     self.assertTrue(4 <= dot['width'] <= 6 and 4 <= dot['height'] <= 6)
                 expect(row('low').locator('i')).to_have_count(1)                   # even the dullest match has one
                 self.assertEqual(row('edge').get_attribute('aria-label'), 'Pick score 55 out of 100, 4 dots of 5')   # a threshold counts
-                # The same score, breakdown and dots as the match's card, which also writes the score out.
+                # The same dots, label and breakdown on the match's card, which shows no words for the score either.
                 for mid in ('eng', 'esp'):
-                    number = card_number(mid)
-                    self.assertEqual(row(mid).get_attribute('aria-label').split(' ')[2], number)
-                    n = dots_for(float(number))
-                    self.assertEqual(row(mid).get_attribute('title'), f"Pick score {number}/100, {n} of 5 dots. " + card_label(mid).get_attribute('title'))
-                    expect(card_label(mid).locator('.dots i')).to_have_count(n)
-                    expect(card_label(mid).locator('.dots')).to_have_attribute('aria-hidden', 'true')
-                    self.assertGreater(card_label(mid).locator('.dots i').first.bounding_box()['width'], 3)    # drawn, even in the narrow top card
+                    for attribute in ('aria-label', 'title', 'role'):
+                        self.assertEqual(row(mid).get_attribute(attribute), card_label(mid).get_attribute(attribute))
+                    expect(card_label(mid).locator('i')).to_have_count(dots_for(float(card_number(mid))))
+                    expect(card_label(mid)).to_have_text('')
+                    self.assertGreater(card_label(mid).locator('i').first.bounding_box()['width'], 3)    # drawn, even in the narrow top card
                 # It follows the visitor's league priority.
                 before = float(row('esp').get_attribute('aria-label').split(' ')[2])
                 page.locator('#btn-menu').click()
@@ -1748,9 +1745,10 @@ class BrowserChecks(unittest.TestCase):
             self.assertEqual(page.locator("#picks .pick").evaluate_all("els => els.map(e => e.dataset.matchId)"), ["b", "d", "e"])
             expect(page.locator("#picks-sub")).to_have_text("The best of the next three days by Outlook score + league priority · every service and competition · in kickoff order")
             label = page.locator('#picks .pick[data-match-id="b"] .pick__rating')
-            expect(label).to_have_text("Pick score · 66/100")      # 80% of 57.5 and 20% of league priority 100
+            expect(label).to_have_attribute("aria-label", "Pick score 66 out of 100, 4 dots of 5")      # 80% of 57.5 and 20% of league priority 100
+            expect(label).to_have_text("")
             self.assertEqual(label.get_attribute("title"),
-                             "80% Outlook score (57.5) + 20% league priority (100). Outlook score 57.5: occasion 100 · "
+                             "Pick score 66/100, 4 of 5 dots. 80% Outlook score (57.5) + 20% league priority (100). Outlook score 57.5: occasion 100 · "
                              "evenly matched no data · stakes 0 · TV 0 · goals expected no data.")
             expect(page.locator("footer")).to_contain_text("No AI is used on this page")
             expect(page.locator("#priority-hint")).to_contain_text("80% the Outlook score and 20% this order")
@@ -1767,10 +1765,10 @@ class BrowserChecks(unittest.TestCase):
             self.assertEqual(page.locator("#picks .pick").evaluate_all("els => els.map(e => e.dataset.matchId)"), ["b", "c", "d"])
             expect(page.locator("#picks-sub")).to_have_text("The best of the next three days by AI rating + Outlook score + league priority · every service and competition · in kickoff order")
             label = page.locator('#picks .pick[data-match-id="b"] .pick__rating')
-            expect(label).to_have_text("Pick score · 67/100")      # 80% of 58.75 and 20% of 100
+            expect(label).to_have_attribute("aria-label", "Pick score 67 out of 100, 4 dots of 5")      # 80% of 58.75 and 20% of 100
             # The model settings.toml asked for, not the dated snapshot that answered.
             self.assertEqual(label.get_attribute("title"),
-                             "80% interest (58.8) + 20% league priority (100). Interest: 50% AI rating (60) + 50% Outlook score "
+                             "Pick score 67/100, 4 of 5 dots. 80% interest (58.8) + 20% league priority (100). Interest: 50% AI rating (60) + 50% Outlook score "
                              "(57.5). AI rating by gpt-6.1-sol: Popularity 60 · Expected gameplay 60 · Competitive impact 60. "
                              "Outlook score 57.5: occasion 100 · evenly matched no data · stakes 0 · TV 0 · goals expected no data.")
             expect(page.locator("footer")).to_contain_text("50% the AI rating and 50% the Outlook score")

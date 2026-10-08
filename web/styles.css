@@ -275,12 +275,13 @@ a { color: inherit; }
 .row__goals b { color: var(--fg); font-weight: 600; }
 .row__until { font-size: 11.5px; color: var(--accent); margin-top: 4px; font-variant-numeric: tabular-nums; }
 /* A pick score as one to five tiny golden dots (settings.toml's [dots]): under a row's kickoff, and
-   after a card's score. Gold clears 3:1 against every background it sits on, in both themes. */
+   at the head of a card, in place of a written score. Gold clears 3:1 against every background it sits on, in both themes. */
 .dots { display: inline-flex; align-items: center; gap: 3px; vertical-align: middle; }
 .dots[hidden] { display: none; }        /* a class's display would otherwise override the attribute */
 .dots i { flex: none; width: 5px; height: 5px; border-radius: 50%; background: var(--gold); }
-.row__pick { margin-top: 7px; cursor: help; }
-.nextup__rating .dots, .pick__rating .dots { margin-left: 7px; }
+.row__pick, .nextup__rating.dots, .pick__rating.dots { cursor: help; }
+.row__pick { margin-top: 7px; }
+.nextup__rating.dots { display: flex; margin-bottom: 4px; }
 .more { appearance: none; border: 0; background: transparent; color: var(--muted); font: 600 12px var(--body); cursor: pointer; padding: 2px 4px; margin-left: auto; text-decoration: underline dotted; border-radius: 4px; }
 .more:hover { color: var(--fg); }
 .more:focus-visible { color: var(--fg); outline: 2px solid var(--accent); outline-offset: 2px; }

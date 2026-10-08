@@ -721,10 +721,14 @@
     if (el.childElementCount === n) return;
     el.replaceChildren(); for (var i = 0; i < n; i++) el.appendChild(document.createElement('i'));
   }
-  // On a card, after its written score, which already says it: the dots are only a picture of it.
-  function cardDots(score) {
-    var el = document.createElement('div'); el.className = 'dots'; el.setAttribute('aria-hidden', 'true');   // not a span: the top card's narrow layout blocks those
-    fillDots(el, dotCount(score)); return el;
+  // The dots are the whole display of a pick score, on rows and cards alike: the exact score and its
+  // parts are in the tooltip, and a screen reader hears the score in words.
+  function showDots(el, r, score) {
+    var n = dotCount(score);
+    fillDots(el, n);
+    el.setAttribute('role', 'img');
+    el.setAttribute('aria-label', 'Pick score ' + score + ' out of 100, ' + n + (n === 1 ? ' dot' : ' dots') + ' of 5');
+    el.title = 'Pick score ' + score + '/100, ' + n + ' of 5 dots. ' + scoreDetails(r);
   }
   function share(a, b) { return Math.round(100 * a / (a + b)); }
   function oneDecimal(x) { return Math.round(x * 10) / 10; }
@@ -1030,21 +1034,17 @@
     existing.hidden = !editorialPasses(r) || staleNews(r, now);
   };
   function staleNews(r, now) { return r._state === 'post' || (r._state !== 'in' && r._k < now); }
-  // Every schedule row shows its pick score under the kickoff, the same number and breakdown a pick
-  // card shows, so any two matches can be compared. It follows the visitor's league priority, so it is
-  // set at each redraw; the time column isn't part of the cards, which show their own.
+  // Every schedule row shows its pick score's dots under the kickoff, as its card would, so any two
+  // matches can be compared. They follow the visitor's league priority, so they are set at each redraw;
+  // the time column isn't part of the cards, which show their own.
   MatchCard.prototype.renderPickScore = function () {
     var r = this.row, score = blendedScore(r), el = r.querySelector('.row__pick');
     if (!el) {
-      el = document.createElement('span'); el.className = 'row__pick dots'; el.setAttribute('role', 'img');
+      el = document.createElement('span'); el.className = 'row__pick dots';
       r.querySelector('.row__kickoff').appendChild(el);
     }
     el.hidden = score === null;
-    if (score === null) return;
-    var n = dotCount(score);
-    fillDots(el, n);
-    el.setAttribute('aria-label', 'Pick score ' + score + ' out of 100, ' + n + (n === 1 ? ' dot' : ' dots') + ' of 5');
-    el.title = 'Pick score ' + score + '/100, ' + n + ' of 5 dots. ' + scoreDetails(r);
+    if (score !== null) showDots(el, r, score);
   };
   MatchCard.prototype.render = function (role, now, host) {
     var r = this.row;
@@ -1068,16 +1068,14 @@
       if (!top) host.appendChild(badge);
     }
     var head = document.createElement('div'); head.className = top ? 'nextup__left' : 'pick__head';
+    // The pick score as its dots alone; a page built without scores labels its cards Upcoming instead.
     var score = blendedScore(r), label = document.createElement('div');
-    label.className = top ? 'nextup__rating' : 'pick__rating';
-    label.textContent = score !== null ? 'Pick score · ' + score + '/100' : 'Upcoming';
-    if (score !== null) { label.title = scoreDetails(r); label.appendChild(cardDots(score)); }
+    label.className = (top ? 'nextup__rating' : 'pick__rating') + (score !== null ? ' dots' : '');
+    if (score !== null) showDots(label, r, score);
+    else label.textContent = 'Upcoming';
     head.appendChild(label);
     if (top) {
       label.id = 'nextup-rating'; label.hidden = score === null;
-      if (score !== null) {
-        label.classList.add('pair'); label.innerHTML = pairHtml(); setPair(label, 'Pick score', score + '/100'); label.appendChild(cardDots(score));
-      }
       var status = document.createElement('div'); status.className = 'nextup__status pair'; status.id = 'nextup-status';
       var count = document.createElement('div'); count.className = 'nextup__count'; count.id = 'nextup-count';
       status.innerHTML = pairHtml(); showNextupText(status, count, nextupText(r, now));
