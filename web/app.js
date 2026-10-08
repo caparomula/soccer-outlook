@@ -1009,11 +1009,27 @@
     existing.hidden = !editorialPasses(r) || staleNews(r, now);
   };
   function staleNews(r, now) { return r._state === 'post' || (r._state !== 'in' && r._k < now); }
+  // Every schedule row shows its pick score under the kickoff, the same number and breakdown a pick
+  // card shows, so any two matches can be compared. It follows the visitor's league priority, so it is
+  // set at each redraw; the time column isn't part of the cards, which show their own.
+  MatchCard.prototype.renderPickScore = function () {
+    var r = this.row, score = blendedScore(r), el = r.querySelector('.row__pick');
+    if (!el) {
+      el = document.createElement('span'); el.className = 'row__pick';
+      r.querySelector('.row__kickoff').appendChild(el);
+    }
+    el.hidden = score === null;
+    if (score === null) return;
+    setText(el, 'Pick ' + score);
+    el.setAttribute('aria-label', 'Pick score ' + score + ' out of 100');
+    el.title = scoreDetails(r);
+  };
   MatchCard.prototype.render = function (role, now, host) {
     var r = this.row;
     this.renderNews(now);
     if (role === 'schedule') {
       r.dataset.matchRole = role; r._matchCard = this; this.tick(r, now);
+      this.renderPickScore();
       return r;
     }
     var top = role === 'nextup', off = !onSvc(r);

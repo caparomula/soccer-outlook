@@ -1333,6 +1333,53 @@ class BrowserChecks(unittest.TestCase):
                 page.locator('#comp-pills [data-key="esp.1"]').click()
                 expect(page.locator('#comp-pills [data-key="esp.1"]')).to_have_attribute('aria-pressed', 'false')
 
+    def test_every_row_shows_the_pick_score_its_card_would(self):
+        fixtures = [("eng", "2026-10-07T18:00:00+00:00", "pre", "ESPN+", "eng.1"),
+                    ("esp", "2026-10-07T18:00:00+00:00", "pre", "ESPN+", "esp.1"),
+                    ("off", "2026-10-07T19:00:00+00:00", "pre", "Peacock", "usa.1"),
+                    ("done", "2026-10-07T15:00:00+00:00", "post", "ESPN+", "eng.1")]
+        story = self.tagged_story()
+        story['league_order'] = ['eng.1', 'esp.1']
+        story['rankings'] = {mid: dict(score=score, popularity=score, gameplay=score, impact=score)
+                             for mid, score in (('eng', 80), ('esp', 80.5), ('off', 30), ('done', 60))}
+
+        def row_score(mid):
+            return page.locator(f'li.row[data-id="{mid}"] .row__pick')
+
+        def card_label(mid):        # the pick card's, or the top card's when the match is there
+            return page.locator(f'#picks .pick[data-match-id="{mid}"] .pick__rating, #nextup[data-match-id="{mid}"] #nextup-rating')
+
+        def card_number(mid):
+            return card_label(mid).text_content().split('· ')[1].split('/')[0]
+        for width in (1280, 320):
+            with self.subTest(width=width), self.page('after', width=width, html=render_page(build, fixtures=fixtures), story=story) as (page, _):
+                page.locator('#btn-all').click()        # every row, the one off the lineup and the finished one too
+                page.locator('li.row[data-id="done"]').evaluate("el => { el.closest('details').open = true; }")   # Earlier today is folded
+                for mid in ('eng', 'esp', 'off', 'done'):
+                    expect(row_score(mid)).to_be_visible()
+                    expect(row_score(mid)).to_have_text(re.compile(r'^Pick \d+(\.\d)?$'))
+                # The same number and breakdown as the match's pick card.
+                for mid in ('eng', 'esp'):
+                    expect(row_score(mid)).to_have_text('Pick ' + card_number(mid))
+                    self.assertEqual(row_score(mid).get_attribute('title'), card_label(mid).get_attribute('title'))
+                self.assertEqual(row_score('eng').get_attribute('aria-label'), 'Pick score ' + card_number('eng') + ' out of 100')
+                # It follows the visitor's league priority.
+                before = float(row_score('esp').text_content().split(' ')[1])
+                page.locator('#btn-menu').click()
+                page.locator('.league-priority > summary').click()
+                page.get_by_role('button', name='Move La Liga up', exact=True).click()
+                page.locator('#btn-filters-close').click()
+                self.assertGreater(float(row_score('esp').text_content().split(' ')[1]), before)
+                expect(row_score('esp')).to_have_text('Pick ' + card_number('esp'))
+                # Inside its column at a phone's width, and the page doesn't scroll sideways.
+                cell, label = page.locator('li.row[data-id="esp"] .row__time').bounding_box(), row_score('esp').bounding_box()
+                self.assertLessEqual(label['x'] + label['width'], cell['x'] + cell['width'] + 14)       # into the column gap at most
+                self.assertLessEqual(page.evaluate('document.documentElement.scrollWidth'), width)
+                page.locator('li.row[data-id="esp"]').screenshot(path=str(self.artifacts / f'row-pick-{width}.png'))
+        # A page built without scores shows none.
+        with self.page('after', html=re.sub(r' data-outlook="[^"]*"', '', render_page(build))) as (page, _):
+            expect(page.locator('li.row .row__pick:visible')).to_have_count(0)
+
     def test_rolling_window_and_unrated_recommendation_fallback(self):
         fixtures = [("inside", "2026-10-08T16:59:00+00:00", "pre", "ESPN+"),
                     ("edge", "2026-10-08T17:00:00+00:00", "pre", "ESPN+"),
