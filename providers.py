@@ -137,7 +137,7 @@ class Reply:
     """One provider's answer, normalized. `usage` has the keys cost() reads; `returned` holds
     {key(url): (url, title)} for every page its search returned; `native` holds the provider's own
     citations as (start, end, url) spans of `text`; `redirects` holds Google's grounding links, which
-    point through a redirect, with the title of each."""
+    point through a redirect, with the title of each; `raw` is the reply as received."""
     text: str = ""
     stop: str = ""          # end, max_tokens, refusal, or the provider's own word
     served: str = ""
@@ -146,6 +146,7 @@ class Reply:
     native: list = field(default_factory=list)
     queries: list = field(default_factory=list)
     redirects: dict = field(default_factory=dict)
+    raw: dict = field(default_factory=dict, repr=False)     # the reply as received, for diagnosing a shape the parsers missed
 
 
 def openai_reply(resp, key=None):
@@ -286,7 +287,10 @@ def request(model, effort, system, prompt, key, schema=None, max_tokens=MAX_TOKE
             body["text"] = {"format": {"type": "json_schema", "name": "answer", "schema": schema, "strict": True}}
         else:
             body.update(tools=[{"type": "web_search"}], include=["web_search_call.action.sources"], max_tool_calls=tool_calls)
-        return openai_reply(post_json(OPENAI_URL, body, {"Authorization": f"Bearer {key}"}), url_key)
+        resp = post_json(OPENAI_URL, body, {"Authorization": f"Bearer {key}"})
+        reply = openai_reply(resp, url_key)
+        reply.raw = resp
+        return reply
     if provider == "google":
         config = {"thinkingConfig": {"thinkingLevel": effort}, "maxOutputTokens": max_tokens}
         body = {"systemInstruction": {"parts": [{"text": system}]}, "contents": [{"role": "user", "parts": [{"text": prompt}]}],
@@ -296,7 +300,10 @@ def request(model, effort, system, prompt, key, schema=None, max_tokens=MAX_TOKE
         else:
             body["tools"] = [{"google_search": {}}]
         # The key goes in a header, never the URL, which error messages and logs can show.
-        return gemini_reply(post_json(GEMINI_URL.format(model=model), body, {"x-goog-api-key": key}))
+        resp = post_json(GEMINI_URL.format(model=model), body, {"x-goog-api-key": key})
+        reply = gemini_reply(resp)
+        reply.raw = resp
+        return reply
     raise ValueError(f"{model} isn't an OpenAI or Google model this module calls")
 
 

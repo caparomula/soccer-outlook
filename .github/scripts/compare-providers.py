@@ -368,6 +368,10 @@ def run_research(cfg, header, fixtures, keys, clients):
                                       url_key=match_key)
         result.update(served=reply.served, stop=reply.stop, usage=add_usage({}, reply.usage), queries=reply.queries,
                       text=reply.text[:20000])
+        if cfg.provider != "anthropic" and not reply.queries:
+            # A search tool's reply that records no search: keep it as received, to see whether the
+            # provider didn't search or put its record where the parser doesn't look.
+            result["raw"] = json.dumps(reply.raw, ensure_ascii=False)[:60000]
         blurbs = research_blurbs(reply, {f["id"] for f in fixtures})
         result["status"] = "ok" if blurbs else "unparsed" if blurbs is None else "empty"
         result["blurbs"] = blurbs or {}
