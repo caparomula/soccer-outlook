@@ -23,7 +23,7 @@
   var SERVICE_NAMES = SERVICES.name;
   // How a pick score is made (settings.toml, embedded by build.py), and whether an AI model takes part
   // at all: with AI off the page never asks for story.json, so no AI-written text or rating can appear.
-  var SCORING = { blend: { ai: 50, outlook: 50, interest: 95, league_priority: 5 } };
+  var SCORING = { blend: { ai: 70, outlook: 30, interest: 95, league_priority: 5 } };
   try { SCORING = JSON.parse(document.getElementById('scoring').textContent) || SCORING; } catch (e) {}
   var AI_ON = app.getAttribute('data-ai') !== 'off';
   function rankOf(id) { var i = serviceOrder().indexOf(id); return i < 0 ? 99 : i; }

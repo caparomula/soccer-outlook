@@ -571,7 +571,7 @@ def checked_overview(reply, resolve=None, check=None, workers=8):
 
 # ---- the ratings design's blurbs for the top picks ------------------------------------------------
 BLURB_CANDIDATES = 6      # the top three, and room for a viewer's league priority or top card to change them
-DEFAULT_BLEND = {"ai": 50, "outlook": 50, "interest": 95, "league_priority": 5}    # settings.toml's, should the facts lack it
+DEFAULT_BLEND = {"ai": 70, "outlook": 30, "interest": 95, "league_priority": 5}    # settings.toml's, should the facts lack it
 
 
 RESEARCH_SYSTEM = """You write match blurbs for Soccer Outlook, a soccer schedule for viewers in the United States. The page already lists kickoff times, channels, table positions, recent form and top scorers, so a blurb must add something specific about the upcoming match: its stakes, player availability, likely selection supported by reporting, a relevant matchup, or a scheduling change. General club news, ownership stories and unrelated controversy do not belong.

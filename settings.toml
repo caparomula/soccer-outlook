@@ -65,10 +65,18 @@ blurbs_effort = "medium"
 # way: on 8 October 2026, at 20 it moved pick scores as much as interest's 80 did. At 5 it is a
 # tiebreaker: about a fifth of interest's sway, and moving a league from last to first lifts its
 # matches by 5 points.
+#
+# The AI rating leads interest at 70 to 30. On 8 October 2026 nine models from three providers rated
+# the same matches and agreed with one another at 0.89 to 0.98 (Spearman), but with the Outlook score
+# only at 0.27 to 0.46, so the AI's order hardly depends on which model gives it. The Outlook score is
+# partly a default: its TV part had no broadcaster to go on for 97 of 156 matches. It keeps 30 because
+# it sees what the AI doesn't, the betting market: the AI rated lopsided matches between big clubs
+# higher (its rating fell as the market's draw chance rose, at -0.37), and the Outlook score rewards
+# even ones. At 70 to 30 the AI moves pick scores about twice as much as the Outlook score does.
 
 [blend]
-ai = 50
-outlook = 50
+ai = 70
+outlook = 30
 interest = 95
 league_priority = 5
 
