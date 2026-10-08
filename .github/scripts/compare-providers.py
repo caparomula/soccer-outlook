@@ -105,6 +105,8 @@ class Config:
 def parse_configs(text, task):
     """CONFIGS for `task` as [Config]; raises ValueError listing every entry that can't run."""
     configs, problems = [], []
+    if (text or "").strip().lower() == "none":       # the workflow's way to skip a task: GitHub fills an empty input with its default
+        return []
     for entry in (text or "").split():
         parts = entry.split(":")
         if len(parts) != 3:

@@ -93,6 +93,7 @@ class Configs(unittest.TestCase):
         self.assertEqual(configs, [compare.Config("anthropic", "claude-haiku-5-5", "low"),
                                    compare.Config("google", "gemini-3.1-flash-lite", "minimal")])
         self.assertEqual(compare.parse_configs("", "ratings"), [])
+        self.assertEqual(compare.parse_configs(" None ", "research"), [])     # GitHub turns an empty input into the default
 
 
 class SameQuestion(unittest.TestCase):
