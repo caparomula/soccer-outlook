@@ -90,6 +90,16 @@ class LeagueCodes(unittest.TestCase):
         self.assertIn('data-key="eng.1" data-short="EPL"', page)
 
 
+class DefaultPriority(unittest.TestCase):
+    def test_the_page_takes_its_default_league_priority_from_the_league_table(self):
+        """The page's default league priority is build.py's LEAGUES in order, set by US popularity as researched on
+        8 October 2026: the Champions League, the Premier League and Liga MX lead (README says why)."""
+        page = render_page(build)
+        meta = json.loads(re.search(r'<script type="application/json" id="service-meta">(.*?)</script>', page, re.S).group(1))
+        self.assertEqual(list(meta["leagues"]), list(build.LEAGUES))
+        self.assertEqual(list(build.LEAGUES)[:3], ["uefa.champions", "eng.1", "mex.1"])
+
+
 class MalformedFeed(unittest.TestCase):
     """ESPN's lists can hold nulls: on 7 October 2026 the Saudi Pro League table gave a team
     `logos: [null]` and every build crashed. A bad entry must cost at most that entry."""

@@ -67,42 +67,52 @@ LIVE_MINUTES = 125
 # for the league's emblem in the bar's league strip when ESPN has no emblem for it (or the page is
 # built without images). Where each one is shown in the US (its usual home, or a hint) is in
 # rights.toml.
+#
+# The order is the default league priority (the page's league strip, the panel's enabled leagues
+# and the pick score's league share follow it until a viewer reorders them): US popularity, as
+# researched on 8 October 2026, by the typical US audience for one match, English and Spanish
+# together where both were reported (a listings page compares one match with another). The
+# Champions League leads on that measure (1.7M a match on CBS in 2025-26, against 1.2M for the
+# Premier League on NBC's broadcast network and about 0.5M for Liga MX on TelevisaUnivision);
+# Liga MX leads Nielsen's 2025 total viewing and the Premier League leads in English week to week,
+# so the first three are close. Below about tenth place few US audiences are published, and the
+# order is inferred from the network, its reach and the rights fee. README has the sources.
 # ----------------------------------------------------------------------------------------------
 LEAGUES = {
-    "eng.1": dict(name="Premier League", short="EPL", tier=1),
-    "esp.1": dict(name="La Liga", short="LIGA", tier=1),
-    "ger.1": dict(name="Bundesliga", short="BUND", tier=1),   # Versant from 2026-27: 30+ on USA Network, the rest free on Fandango
-    "ita.1": dict(name="Serie A", short="SERA", tier=1),
-    "fra.1": dict(name="Ligue 1", short="L1", tier=2, default_off=True),
-    "usa.1": dict(name="MLS", short="MLS", tier=2),
-    "mex.1": dict(name="Liga MX", short="LMX", tier=2),
-    "usa.nwsl": dict(name="NWSL", short="NWSL", tier=2, default_off=True),
-    "eng.w.1": dict(name="Women's Super League", short="WSL", tier=2),
     "uefa.champions": dict(name="Champions League", short="UCL", tier=1),
-    "uefa.europa": dict(name="Europa League", short="UEL", tier=2, default_off=True),
-    "uefa.europa.conf": dict(name="Conference League", short="UECL", tier=3, default_off=True),
-    "uefa.wchampions": dict(name="Women's Champions League", short="UWCL", tier=2),
-    "uefa.nations": dict(name="Nations League", short="UNL", tier=2),
+    "eng.1": dict(name="Premier League", short="EPL", tier=1),
+    "mex.1": dict(name="Liga MX", short="LMX", tier=2),
+    "usa.1": dict(name="MLS", short="MLS", tier=2),
+    "esp.1": dict(name="La Liga", short="LIGA", tier=1),
     "fifa.friendly": dict(name="Men's friendly", short="FRI", tier=2),
-    "fifa.friendly.w": dict(name="Women's friendly", short="WFRI", tier=2, default_off=True),
+    "usa.nwsl": dict(name="NWSL", short="NWSL", tier=2, default_off=True),
     "concacaf.nations.league": dict(name="Concacaf Nations League", short="CNL", tier=3),
-    "eng.2": dict(name="Championship", short="EFL", tier=3),
-    "eng.fa": dict(name="FA Cup", short="FAC", tier=2),
-    "eng.league_cup": dict(name="Carabao Cup", short="EFLC", tier=2),
-    "esp.copa_del_rey": dict(name="Copa del Rey", short="CDR", tier=2),
-    "ger.dfb_pokal": dict(name="DFB-Pokal", short="DFB", tier=2),
-    "ita.coppa_italia": dict(name="Coppa Italia", short="COPI", tier=2),
-    "ned.1": dict(name="Eredivisie", short="ERE", tier=2, default_off=True),
-    "por.1": dict(name="Primeira Liga", short="POR", tier=3),
-    "sco.1": dict(name="Scottish Premiership", short="SPFL", tier=3),
-    "usa.usl.1": dict(name="USL Championship", short="USLC", tier=3, default_off=True),
-    "usa.usl.l1": dict(name="USL League One", short="USL1", tier=3, default_off=True),
-    "bra.1": dict(name="Brasileirão", short="BRA", tier=3),
-    "arg.1": dict(name="Liga Profesional (Argentina)", short="ARG", tier=3),
-    "ksa.1": dict(name="Saudi Pro League", short="SPL", tier=3),
+    "ita.1": dict(name="Serie A", short="SERA", tier=1),
+    "ger.1": dict(name="Bundesliga", short="BUND", tier=1),   # Versant from 2026-27: 30+ on USA Network, the rest free on Fandango
+    "uefa.europa": dict(name="Europa League", short="UEL", tier=2, default_off=True),
     "concacaf.champions": dict(name="Concacaf Champions Cup", short="CCC", tier=2),
+    "fifa.friendly.w": dict(name="Women's friendly", short="WFRI", tier=2, default_off=True),
+    "eng.fa": dict(name="FA Cup", short="FAC", tier=2),
+    "uefa.nations": dict(name="Nations League", short="UNL", tier=2),
+    "fra.1": dict(name="Ligue 1", short="L1", tier=2, default_off=True),
+    "esp.copa_del_rey": dict(name="Copa del Rey", short="CDR", tier=2),
+    "eng.league_cup": dict(name="Carabao Cup", short="EFLC", tier=2),
+    "usa.usl.1": dict(name="USL Championship", short="USLC", tier=3, default_off=True),
+    "eng.2": dict(name="Championship", short="EFL", tier=3),
+    "uefa.europa.conf": dict(name="Conference League", short="UECL", tier=3, default_off=True),
     "usa.open": dict(name="U.S. Open Cup", short="USOC", tier=3),
+    "uefa.wchampions": dict(name="Women's Champions League", short="UWCL", tier=2),
+    "eng.w.1": dict(name="Women's Super League", short="WSL", tier=2),
+    "ita.coppa_italia": dict(name="Coppa Italia", short="COPI", tier=2),
+    "ger.dfb_pokal": dict(name="DFB-Pokal", short="DFB", tier=2),
+    "sco.1": dict(name="Scottish Premiership", short="SPFL", tier=3),
+    "ned.1": dict(name="Eredivisie", short="ERE", tier=2, default_off=True),
+    "ksa.1": dict(name="Saudi Pro League", short="SPL", tier=3),
     "caf.nations": dict(name="Africa Cup of Nations", short="AFCN", tier=2),
+    "por.1": dict(name="Primeira Liga", short="POR", tier=3),
+    "arg.1": dict(name="Liga Profesional (Argentina)", short="ARG", tier=3),
+    "bra.1": dict(name="Brasileirão", short="BRA", tier=3),
+    "usa.usl.l1": dict(name="USL League One", short="USL1", tier=3, default_off=True),
 }
 
 # ----------------------------------------------------------------------------------------------

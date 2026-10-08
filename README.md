@@ -16,9 +16,60 @@ Tap **Lineup** in the bar under the title and tap the services you have and the 
 
 The leagues you have enabled also sit in the bar, as their emblems in your priority order (a league ESPN has no emblem for shows a short code, such as EPL), so switching one is a tap rather than a trip to the panel. A tap hides that league's matches for now and greys its emblem, with a slash and a dashed edge; another tap shows them again. A note at the foot of the window names what changed and offers **Undo**. A league hidden this way stays enabled, marked "hidden for now" in the panel, and stays hidden on your next visit until you tap it again; disabling it in the panel takes it out of the bar and forgets that, so it comes back shown. Leagues are added and removed in the Lineup panel; with none enabled there is no strip. The strip sits between Lineup and the coffee link and scrolls sideways when your leagues don't all fit (faded at an edge with more beyond), so the bar stays one line: where it would leave the strip room for fewer than five emblems, Lineup shows its icon alone, and only where even that is too little (a very narrow screen, a large text size) does the strip take a line of its own. The strip is one stop for the Tab key; the arrow keys, Home and End move along it. Broadcasters stay in the panel: they change when you subscribe or cancel, not from one match to the next.
 
-Drag the league pills to reorder them (use the grip on touch screens), or expand **League priority** for keyboard-accessible up/down controls. A tap still toggles a league. In the full design Claude supplies the initial order; otherwise the built-in order (Premier League first). Your services, league selections and priority order are saved automatically in this browser's local storage; reset restores the defaults and that initial order. Each competition you switch on or off is remembered by name, and one you have never set (because it had no fixtures when you chose) follows its default when it appears. League priority runs from 100 for the first league to 0 for the last, evenly spaced over the full list. Filters do not renormalize it. A pick's score is **95% match interest + 5% league priority**, so the order only breaks near-ties (20% let it move pick scores as much as match interest did, since priority spans 0 to 100 while interest mostly sits between 40 and 65), where match interest is the AI rating and the page's own Outlook score at 70% and 30% (nine models from three providers agreed with one another far more than any of them with the Outlook score, which keeps a share for the betting market's view the AI doesn't see), or the Outlook score alone with AI off or for a match without an AI rating (below, with the settings that tune it). Every match shows its pick score as one to five tiny golden dots, and no number: under the kickoff in its schedule row, and at the head of a card. The thresholds are fixed scores set in `settings.toml`'s `[dots]` (two dots from 35, three from 45, four from 55, five from 68), narrow in the middle where most scores sit and wide at the ends, so a dot means the same every week: on 8 October 2026 they gave 13% of the rated matches one dot, 34% two, 33% three, 20% four and 1% five. The dots follow your league priority; their tooltip gives the exact score and every part, and a screen reader hears the score.
+Drag the league pills to reorder them (use the grip on touch screens), or expand **League priority** for keyboard-accessible up/down controls. A tap still toggles a league. In the full design Claude supplies the initial order; otherwise the built-in order, by US popularity (below). Your services, league selections and priority order are saved automatically in this browser's local storage; reset restores the defaults and that initial order. Each competition you switch on or off is remembered by name, and one you have never set (because it had no fixtures when you chose) follows its default when it appears. League priority runs from 100 for the first league to 0 for the last, evenly spaced over the full list. Filters do not renormalize it. A pick's score is **95% match interest + 5% league priority**, so the order only breaks near-ties (20% let it move pick scores as much as match interest did, since priority spans 0 to 100 while interest mostly sits between 40 and 65), where match interest is the AI rating and the page's own Outlook score at 70% and 30% (nine models from three providers agreed with one another far more than any of them with the Outlook score, which keeps a share for the betting market's view the AI doesn't see), or the Outlook score alone with AI off or for a match without an AI rating (below, with the settings that tune it). Every match shows its pick score as one to five tiny golden dots, and no number: under the kickoff in its schedule row, and at the head of a card. The thresholds are fixed scores set in `settings.toml`'s `[dots]` (two dots from 35, three from 45, four from 55, five from 68), narrow in the middle where most scores sit and wide at the ends, so a dot means the same every week: on 8 October 2026 they gave 13% of the rated matches one dot, 34% two, 33% three, 20% four and 1% five. The dots follow your league priority; their tooltip gives the exact score and every part, and a screen reader hears the score.
 
 The default services are HBO Max, Fox One, Paramount+, ESPN Unlimited, Apple TV, USA Network, Prime Video, Netflix and Disney+. All competitions are enabled except Women's friendly, USL Championship, USL League One, NWSL, Eredivisie, Ligue 1, Conference League and Europa League. These defaults are set by `OWNER` and the `LEAGUES` entries marked `default_off` in `build.py`. Saved browser choices take precedence until reset. Matches of the US national teams (`FEATURED_TEAMS` in `build.py`) show by default even in a competition that is off by default, such as women's friendlies; switching that competition off hides them too.
+
+### Default league priority
+
+Until you reorder them, leagues follow the order of `LEAGUES` in `build.py`, which sets the league strip, the panel's enabled leagues and the league share of the pick score. Since 8 October 2026 that order is by popularity in the US, measured mainly by the typical US audience for one match, with English- and Spanish-language audiences together where both are reported, because the page compares one match with another. Total viewing, rights fees and surveys broke ties. (It had been a rough grouping with the Premier League first.) The order:
+
+1. Champions League
+2. Premier League
+3. Liga MX
+4. MLS
+5. La Liga
+6. men's friendlies
+7. NWSL
+8. Concacaf Nations League
+9. Serie A
+10. Bundesliga
+11. Europa League
+12. Concacaf Champions Cup
+13. women's friendlies
+14. FA Cup
+15. UEFA Nations League
+16. Ligue 1
+17. Copa del Rey
+18. Carabao Cup
+19. USL Championship
+20. EFL Championship
+21. Conference League
+22. U.S. Open Cup
+23. Women's Champions League
+24. Women's Super League
+25. Coppa Italia
+26. DFB-Pokal
+27. Scottish Premiership
+28. Eredivisie
+29. Saudi Pro League
+30. Africa Cup of Nations
+31. Primeira Liga
+32. Argentina's Liga Profesional
+33. Brasileirão
+34. USL League One
+
+- **The first three are close, and each leads on a different measure.**
+  - The Champions League averaged 1.71 million viewers a match on CBS in 2025-26, up 39% ([Awful Announcing](https://awfulannouncing.com/cbs/uefa-champions-league-final-sets-viewership-record-club-soccer.html)).
+  - The Premier League averaged 1.2 million on NBC's broadcast network and 535,000 per match window across NBC and USA Network ([NBC Sports](https://www.nbcsports.com/pressbox/press-releases/nbc-sports-caps-2025-26-premier-league-season-highlighted-by-memorable-moments-fantastic-finishes-viewership-milestones)).
+  - Liga MX averaged 501,000 a match on TelevisaUnivision's networks early in the Apertura 2025 ([Goal, citing Sports Business Journal](https://www.goal.com/en/lists/liga-mx-remains-the-most-watched-soccer-league-on-u-s-television/blt2eb5436af5948721)), and Nielsen ranked it first in US soccer viewership for 2025, ahead of the Champions League and the Premier League ([SVG](https://www.sportsvideo.org/2026/04/30/nielsen-u-s-viewers-spent-79-8-billion-minutes-watching-soccer-in-2025/)).
+  - On English-language audiences alone the Premier League would lead; on total viewing, Liga MX would.
+- **MLS** averaged 711,000 a match in the 2025 playoffs, across linear and streaming ([MLS](https://www.mlssoccer.com/news/mls-sees-strong-playoff-viewership-heading-into-mls-cup-presented-by-audi)). Its regular-season audiences on Apple aren't independently measured.
+- **La Liga** had its best US season on ESPN in 2025-26: 91,000 viewers a match on average across ESPN's linear channels, and 1.3 million for the May 2026 Clásico ([La Liga](https://www.laliga.com/en-US/news/laliga-scores-best-season-ever-in-us-on-espn-platforms)).
+- **The NWSL** drew 1.18 million for its 2025 final on CBS, a record ([NWSL](https://www.nwslsoccer.com/news/2025-nwsl-championship-postseason-records)). It sits below La Liga for La Liga's larger following and rights fee, but with many matches on broadcast TV it could fairly swap places with it.
+- **Men's friendlies** rank sixth for the USMNT's and Mexico's matches: the USMNT drew 1.5 million against Germany in June 2026, though only 252,000 to 286,000 for its January friendlies ([Awful Announcing](https://awfulannouncing.com/ratings/usmnt-germany-record-friendly-viewership-turner-tbs.html)). Most other friendlies get little US coverage. The page already shows the US national teams' matches when their competition is filtered out.
+- **Below about tenth place** few US audiences are published (Paramount+, ESPN+, beIN and Fox Soccer Plus don't report them), so those places are inferred from the network, its reach, the rights fee and the clubs involved.
+- **One caveat on the 2025-26 figures:** Nielsen's measurement changed that fall (Big Data + Panel, and wider out-of-home counting), which lifted live sports, so gains between seasons are partly the change.
 
 ## How it runs
 

@@ -1289,8 +1289,9 @@ class BrowserChecks(unittest.TestCase):
                     self.assertAlmostEqual(dots[0][0], column["x"], delta=1)
                     self.assertEqual(len({round(top) for _, top, _ in dots}), 1)
                     self.assertTrue(all(w > 3 for _, _, w in dots))
-                    # Interest (90 + Outlook 57.5) / 2 = 73.75; 80% of that, 20% of league priority 100.
-                    expect(page.locator("#nextup-rating")).to_have_attribute("aria-label", "Pick score 79 out of 100, 5 dots of 5")
+                    # Interest (90 + Outlook 57.5) / 2 = 73.75; 80% of that, 20% of the Premier League's league priority.
+                    pick = round(0.8 * 73.75 + 0.2 * self.default_priority("eng.1"), 1)
+                    expect(page.locator("#nextup-rating")).to_have_attribute("aria-label", f"Pick score {pick:g} out of 100, 5 dots of 5")
                     expect(page.locator("#nextup-status")).to_have_text("Kickoff 1:10 pm")
                     status = page.locator("#nextup-status").bounding_box()
                     self.assertLessEqual(status["x"] + status["width"], column["x"] + column["width"] + 1)
@@ -1504,6 +1505,13 @@ class BrowserChecks(unittest.TestCase):
                 self.assertEqual(self.bucket(page, "late"), "Today")
 
     @staticmethod
+    def default_priority(league):
+        """A league's default priority, as README defines it: 100 for the first of build.py's LEAGUES to 0 for the
+        last, evenly spaced."""
+        order = list(build.LEAGUES)
+        return 100 * (len(order) - 1 - order.index(league)) / (len(order) - 1)
+
+    @staticmethod
     def strip_ids(page):
         return page.locator("#league-strip-list .strip__lg").evaluate_all("els => els.map(e => e.dataset.league)")
 
@@ -1515,15 +1523,17 @@ class BrowserChecks(unittest.TestCase):
                     ("usa", "2026-10-07T23:00:00+00:00", "pre", "ESPN+", "fifa.friendly")]
         html = render_page(build, fixtures=fixtures, team_names={"usa": ("United States", "Mexico")})
         mid = lambda box: box["y"] + box["height"] / 2
+        in_order = lambda *keys: [k for k in build.LEAGUES if k in keys]
         for width in (1280, 390):
             with self.subTest(width=width), self.page("after", width=width, html=html, touch=width <= 600) as (page, _):
                 strip, note, tally = page.locator("#league-strip"), page.locator("#strip-note"), page.locator("#tally-n")
                 lg = lambda key: page.locator(f'#league-strip-list [data-league="{key}"]')
                 row = lambda key: page.locator(f'li.row[data-id="{key}"]')
-                # The followed leagues (Ligue 1 is off by default), in priority order; without emblems on the page,
-                # by their short codes, each named for screen readers and in its tooltip.
-                self.assertEqual(self.strip_ids(page), ["eng.1", "esp.1", "ita.1", "fifa.friendly"])
-                expect(page.locator("#league-strip-list .strip__lg")).to_have_text(["EPL", "LIGA", "SERA", "FRI"])
+                # The followed leagues (Ligue 1 is off by default), in the default priority order (build.py's LEAGUES);
+                # without emblems on the page, by their short codes, each named for screen readers and in its tooltip.
+                followed = in_order("eng.1", "esp.1", "ita.1", "fifa.friendly")
+                self.assertEqual(self.strip_ids(page), followed)
+                expect(page.locator("#league-strip-list .strip__lg")).to_have_text([build.LEAGUES[k]["short"] for k in followed])
                 expect(lg("esp.1")).to_have_attribute("aria-label", "La Liga")
                 expect(lg("esp.1")).to_have_attribute("title", "La Liga")
                 expect(page.locator('#league-strip-list [aria-pressed="true"]')).to_have_count(4)
@@ -1584,11 +1594,11 @@ class BrowserChecks(unittest.TestCase):
                 # Disabling a league takes it out of the strip and forgets its pause: enabled again, it comes back
                 # shown, and a league enabled for the first time joins in its priority place.
                 pill.click()
-                self.assertEqual(self.strip_ids(page), ["eng.1", "ita.1", "fifa.friendly"])
+                self.assertEqual(self.strip_ids(page), in_order("eng.1", "ita.1", "fifa.friendly"))
                 expect(page.locator('#comp-disabled [data-key="esp.1"]')).to_have_count(1)
                 page.locator('#comp-pills [data-key="esp.1"]').click()
                 page.locator('#comp-pills [data-key="fra.1"]').click()
-                self.assertEqual(self.strip_ids(page), ["eng.1", "esp.1", "ita.1", "fra.1", "fifa.friendly"])
+                self.assertEqual(self.strip_ids(page), in_order("eng.1", "esp.1", "ita.1", "fra.1", "fifa.friendly"))
                 expect(lg("esp.1")).to_have_attribute("aria-pressed", "true")
                 expect(row("liga")).to_be_visible()
                 expect(row("ligue")).to_be_visible()
@@ -1600,16 +1610,17 @@ class BrowserChecks(unittest.TestCase):
                 page.keyboard.press("Tab")
                 expect(lg("fifa.friendly")).to_be_focused()
                 page.keyboard.press("Home")
-                expect(lg("eng.1")).to_be_focused()
+                expect(lg(followed[0])).to_be_focused()
                 page.keyboard.press("ArrowRight")
-                expect(lg("esp.1")).to_be_focused()
+                expect(lg(followed[1])).to_be_focused()
                 page.keyboard.press("ArrowLeft")
                 page.keyboard.press("ArrowLeft")
-                expect(lg("eng.1")).to_be_focused()
+                expect(lg(followed[0])).to_be_focused()
                 page.keyboard.press("End")
-                expect(lg("fifa.friendly")).to_be_focused()
+                last = self.strip_ids(page)[-1]
+                expect(lg(last)).to_be_focused()
                 page.keyboard.press("Space")
-                expect(lg("fifa.friendly")).to_have_attribute("aria-pressed", "false")
+                expect(lg(last)).to_have_attribute("aria-pressed", "false")
                 page.keyboard.press("Tab")
                 expect(page.get_by_role("link", name="Buy me a coffee", exact=True)).to_be_focused()
                 # With no league enabled there is no strip.
@@ -1619,14 +1630,14 @@ class BrowserChecks(unittest.TestCase):
                 expect(strip).to_be_hidden()
                 # Select all enables every league, shown; Reset forgets what the strip hid since.
                 page.locator("#btn-select-leagues").click()
-                self.assertEqual(self.strip_ids(page), ["eng.1", "esp.1", "ita.1", "fra.1", "fifa.friendly"])
+                self.assertEqual(self.strip_ids(page), in_order("eng.1", "esp.1", "ita.1", "fra.1", "fifa.friendly"))
                 expect(page.locator('#league-strip-list [aria-pressed="false"]')).to_have_count(0)
                 page.locator("#btn-filters-close").click()
                 lg("esp.1").click()
                 expect(lg("esp.1")).to_have_attribute("aria-pressed", "false")
                 page.locator("#btn-menu").click()
                 page.locator("#btn-reset").click()
-                self.assertEqual(self.strip_ids(page), ["eng.1", "esp.1", "ita.1", "fifa.friendly"])
+                self.assertEqual(self.strip_ids(page), followed)
                 expect(page.locator('#league-strip-list [aria-pressed="false"]')).to_have_count(0)
                 self.assertIsNone(page.evaluate("localStorage.getItem('ssg1-league-paused')"))
                 # Where the bar's line can't spare the strip room for its emblems (five, or these four), here because
@@ -1960,10 +1971,12 @@ class BrowserChecks(unittest.TestCase):
             self.assertEqual(page.locator("#picks .pick").evaluate_all("els => els.map(e => e.dataset.matchId)"), ["b", "d", "e"])
             expect(page.locator("#picks-sub")).to_have_text("The best of the next three days by Outlook score + league priority · every service and competition · in kickoff order")
             label = page.locator('#picks .pick[data-match-id="b"] .pick__rating')
-            expect(label).to_have_attribute("aria-label", "Pick score 66 out of 100, 4 dots of 5")      # 80% of 57.5 and 20% of league priority 100
+            pick = round(0.8 * 57.5 + 0.2 * self.default_priority("eng.1"), 1)      # 80% of 57.5, 20% of league priority
+            expect(label).to_have_attribute("aria-label", f"Pick score {pick:g} out of 100, 4 dots of 5")
             expect(label).to_have_text("")
             self.assertEqual(label.get_attribute("title"),
-                             "Pick score 66/100, 4 of 5 dots. 80% Outlook score (57.5) + 20% league priority (100). Outlook score 57.5: occasion 100 · "
+                             f"Pick score {pick:g}/100, 4 of 5 dots. 80% Outlook score (57.5) + 20% league priority "
+                             f"({round(self.default_priority('eng.1'), 1):g}). Outlook score 57.5: occasion 100 · "
                              "evenly matched no data · stakes 0 · TV 0 · goals expected no data.")
             expect(page.locator("footer")).to_contain_text("No AI is used on this page")
             expect(page.locator("#priority-hint")).to_contain_text("80% the Outlook score and 20% this order")
