@@ -11,7 +11,7 @@ import unittest
 from unittest.mock import patch
 
 import build
-from tests.page_fixture import render_page
+from tests.page_fixture import BUILT_AT, TODAY, render_page
 
 
 class Tags(HTMLParser):
@@ -111,6 +111,19 @@ class Markup(unittest.TestCase):
                     {"homeAway": "home", "team": {"displayName": home, "id": "660", "abbreviation": "USA"}},
                     {"homeAway": "away", "team": {"displayName": "Spain", "id": "164", "abbreviation": "ESP"}}],
                     "status": {"type": {"state": "pre", "shortDetail": "Sat"}}}]}
+
+    def test_top_scorers_have_no_photo(self):
+        # ESPN sends a photo for some top scorers (105 of 704 on 8 October, mostly MLS and Eredivisie).
+        # The page shows none: a photo on one match in twenty read as a glitch, not a feature.
+        event = self.event()
+        event["competitions"][0]["competitors"][0]["leaders"] = [{"name": "goals", "leaders": [{"displayValue": "5", "athlete": {
+            "shortName": "C. Pulisic", "headshot": "https://a.espncdn.com/i/headshots/soccer/players/full/12345.png"}}]}]
+        match = build.interpret("fifa.friendly.w", event)
+        self.assertEqual((match.home.leader, match.home.leader_goals), ("C. Pulisic", "5"))
+        links = build.image_links([match], {})
+        page = build.build_page([match], links, BUILT_AT, [], TODAY)
+        self.assertFalse("headshots" in " ".join(links.values()) + page, "a player photo reached the page")
+        self.assertFalse('class="head' in page, "the page still has a place for a player photo")
 
     def test_goals_leave_the_match_note_alone(self):
         # The goal loop once reused the note's variable for a goal's kind, so a played match lost

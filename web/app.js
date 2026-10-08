@@ -1046,7 +1046,17 @@
       });
       name.replaceChildren(link);
     });
-    content.querySelector('.row__detail').remove();
+    // Without a blurb a card has room for what the Details panel holds: each team's season record and
+    // top scorer join its lines (CSS shows them under .match--facts), and the panel's links take the
+    // place of its Details button. With a blurb, or in a row, they stay in the panel.
+    var detail = content.querySelector('.row__detail'), facts = !content.querySelector('.row__story');
+    host.classList.toggle('match--facts', facts);
+    if (facts) {
+      var links = detail.querySelector('.detail__links'), more = content.querySelector('.pills .more');
+      if (more) more.remove();
+      if (links) { links.className = 'match__links'; content.appendChild(links); }
+    }
+    detail.remove();
     var watch = r.querySelector('.row__watch'), service = watch && watch.cloneNode(true);
     if (service) service.className = 'match__watch' + (top ? ' nextup__watch' : '');
     // A pick is tall and narrow, so its broadcaster goes in the body; the top card has the row's

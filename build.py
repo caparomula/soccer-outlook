@@ -484,8 +484,6 @@ class Team:
     record: str = ""        # season record W-D-L
     leader: str = ""        # top scorer's short name
     leader_goals: str = ""
-    head_key: str = ""      # logo-cache key of the top scorer's headshot, when embedded
-    head_url: str = ""
     color: str = ""         # team colors as 6-digit hex, when ESPN has them
     alt: str = ""
     rank: int = 0           # table position within the league or group
@@ -809,9 +807,6 @@ def logo_key(url):
     m = re.search(r"/leaguelogos/soccer/\d+(?:-dark)?/(\d+)\.png", url)
     if m:
         return "L" + m.group(1)
-    m = re.search(r"/headshots/soccer/players/full/(\d+)\.png", url)
-    if m:
-        return "h" + m.group(1)
     m = re.search(r"/guid/([0-9a-f-]+)/", url)
     if m:
         return "g" + m.group(1).replace("-", "")
@@ -884,8 +879,6 @@ def interpret(league, ev):
                 ath = top.get("athlete") or {}
                 team.leader = ath.get("shortName") or ath.get("displayName") or ""
                 team.leader_goals = top.get("displayValue") or ""
-                team.head_url = ath.get("headshot") or ""
-                team.head_key = logo_key(team.head_url) if team.head_url else ""
                 break
         for attr, key in (("color", "color"), ("alt", "alternateColor")):
             v = (t.get(key) or "").strip().lstrip("#")
@@ -1014,9 +1007,6 @@ def save_logo_cache(path, cache):
         json.dump({"format": CACHE_FORMAT, "logos": cache}, f)
 
 
-HEADSHOT_MIN_SCORE = 100
-
-
 def cdn_url(url, px, crop=False):
     """ESPN's resizing proxy for one of its images, at px square (twice the largest CSS size used)."""
     path = url.split("espncdn.com", 1)[-1]
@@ -1032,8 +1022,6 @@ def image_links(matches, league_logos):
         for t in (m.home, m.away):
             if t.logo_key:
                 links[t.logo_key] = cdn_url(t.logo_url, 96)
-            if t.head_key and m.score >= HEADSHOT_MIN_SCORE:
-                links[t.head_key] = cdn_url(t.head_url, 96, crop=True)
     for lg, url in league_logos.items():
         links[logo_key(url)] = cdn_url(url, 64)
     for st in STANDINGS.values():
@@ -1045,14 +1033,12 @@ def image_links(matches, league_logos):
 
 
 def fetch_logos(matches, cache, workers, league_logos):
-    """Downloads every team logo, league logo and (for marquee matches) top-scorer headshot not yet cached."""
+    """Downloads every team logo and league logo not yet cached."""
     wanted = {}
     for m in matches:
         for t in (m.home, m.away):
             if t.logo_key and t.logo_key not in cache:
                 wanted[t.logo_key] = t.logo_url
-            if m.score >= HEADSHOT_MIN_SCORE and t.head_key and t.head_key not in cache:
-                wanted[t.head_key] = t.head_url
     for lg, url in league_logos.items():
         k = logo_key(url)
         if k not in cache and any(m.league == lg for m in matches):
@@ -1225,7 +1211,16 @@ def form_html(form):
     return f'<i class="form" title="Last five: {esc(form)}">{cells}</i>' if cells else ""
 
 
+def record_html(record):
+    """The season record as ESPN gives it (wins-draws-losses), with the words in a tooltip."""
+    m = re.fullmatch(r"(\d+)-(\d+)-(\d+)", record or "")
+    words = f' title="Won {m.group(1)}, drawn {m.group(2)}, lost {m.group(3)} this season"' if m else ""
+    return f'<span class="team__rec"{words}>{esc(record)}</span>'
+
+
 def team_sub(t):
+    """Under a team's name: its table place and points, then its form. The season record rides along
+    hidden, for a card with no blurb to show (a row keeps it in its Details panel)."""
     bits = []
     if t.rank:
         bits.append(ordinal(t.rank) + (f" of {t.size}" if t.size and t.size <= 6 else ""))
@@ -1233,16 +1228,26 @@ def team_sub(t):
             bits.append(f"{t.pts} pt" if t.pts == "1" else f"{t.pts} pts")
     elif t.record:
         bits.append(t.record)
-    txt = " · ".join(bits)
+    txt = esc(" · ".join(bits))
+    if t.rank and t.record:
+        txt += f'<span class="team__more"> · </span>{record_html(t.record)}'
     f = form_html(t.form)
     if not txt and not f:
         return ""
-    return f'<span class="team__sub">{esc(txt)}{f}</span>'
+    return f'<span class="team__sub"><span class="team__table">{txt}</span>{f}</span>'
+
+
+def scorer_html(t):
+    """The team's top scorer, hidden in a row (its Details panel has it) and shown on a card with no blurb."""
+    if not t.leader or t.leader_goals in ("", "0"):
+        return ""
+    goals = "1 goal" if t.leader_goals == "1" else f"{t.leader_goals} goals"
+    return f'<span class="team__scorer">Top scorer {esc(t.leader)}, {esc(goals)}</span>'
 
 
 def team_html(t, cache, score_html):
     return (f'<span class="team">{logo_html(t, cache)}<span class="team__txt"><span class="team__name">{esc(t.name)}</span>'
-            f'{team_sub(t)}</span>{score_html}</span>')
+            f'{team_sub(t)}{scorer_html(t)}</span>{score_html}</span>')
 
 
 def gcal_link(m):
@@ -1271,7 +1276,6 @@ def goals_html(m):
 def detail_html(m, cache):
     cols = []
     for t in (m.home, m.away):
-        head = f'<i class="head l-{esc(t.head_key)}"></i>' if t.head_key and t.head_key in cache else ""
         facts = []
         if t.rank:
             grouped = len((STANDINGS.get(m.league) or {}).get("tables") or []) > 1   # name the group only when there are several
@@ -1280,7 +1284,7 @@ def detail_html(m, cache):
             facts.append(f"Record {t.record}")
         if t.leader and t.leader_goals not in ("", "0"):
             facts.append(f"Top scorer {t.leader}, {t.leader_goals} goal" + ("" if t.leader_goals == "1" else "s"))
-        cols.append(f'<div class="detail__team">{head}<div><div class="detail__name">{esc(t.name)}</div><div class="detail__facts">{esc(" · ".join(facts)) if facts else "No table or scorer data yet."}</div></div></div>')
+        cols.append(f'<div class="detail__team"><div><div class="detail__name">{esc(t.name)}</div><div class="detail__facts">{esc(" · ".join(facts)) if facts else "No table or scorer data yet."}</div></div></div>')
     facts = []
     if m.venue:
         facts.append(esc(m.venue))
@@ -1291,9 +1295,9 @@ def detail_html(m, cache):
     recap = f'<p class="detail__recap">{esc(m.recap)}</p>' if m.recap else ""
     links = []
     if m.link:
-        links.append(f'<a href="{esc(m.link)}" target="_blank" rel="noopener">Match page on ESPN</a>')
+        links.append(f'<a href="{esc(m.link)}" target="_blank" rel="noopener">ESPN match page</a>')
     if m.state == "pre":
-        links.append(f'<a href="{esc(gcal_link(m))}" target="_blank" rel="noopener">Add to Google Calendar</a>')
+        links.append(f'<a href="{esc(gcal_link(m))}" target="_blank" rel="noopener" title="Add to Google Calendar">Add to calendar</a>')
     if m.league in STANDINGS:
         links.append(f'<a href="#tables" class="detail__table" data-lg="{esc(m.league)}">League table</a>')
     venue_p = f'<p class="detail__venue">{" &middot; ".join(facts)}</p>' if facts else ""
@@ -1515,8 +1519,6 @@ def build_page(matches, cache, built_at, failed, today):
     used = set()
     for m in matches:
         used.update([m.home.logo_key, m.away.logo_key])
-        if m.score >= HEADSHOT_MIN_SCORE:
-            used.update([m.home.head_key, m.away.head_key])
         if LEAGUE_LOGOS.get(m.league):
             used.add(logo_key(LEAGUE_LOGOS[m.league]))
     for lg, st in STANDINGS.items():
@@ -1688,15 +1690,15 @@ def main():
     page = build_page(matches, cache, built_at, failed, today)
     trimmed = ""
     if len(page.encode("utf-8")) > PAGE_BUDGET:
-        # First without headshots and league logos, then also without logos for background leagues.
-        slim = {k: v for k, v in cache.items() if not k.startswith(("h", "L"))}
+        # First without league logos, then also without logos for background leagues.
+        slim = {k: v for k, v in cache.items() if not k.startswith("L")}
         page = build_page(matches, slim, built_at, failed, today)
-        trimmed = "headshots+league logos"
+        trimmed = "league logos"
         if len(page.encode("utf-8")) > PAGE_BUDGET:
             keep = {t.logo_key for m in matches if LEAGUES[m.league]["tier"] < 3 for t in (m.home, m.away)}
             slim = {k: v for k, v in slim.items() if k in keep}
             page = build_page(matches, slim, built_at, failed, today)
-            trimmed = "headshots+league logos+tier-3 team logos"
+            trimmed = "league logos+tier-3 team logos"
     if not args.fragment:
         page = as_document(page)
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)

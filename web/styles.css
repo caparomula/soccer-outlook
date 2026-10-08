@@ -251,6 +251,14 @@ a { color: inherit; }
 .team__txt { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }
 .team__name { font-weight: 600; font-size: 17px; overflow-wrap: anywhere; }
 .team__sub { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 3px 6px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; margin-top: 3px; }
+/* A team's season record and top scorer: in a row they wait in the Details panel; a card with no
+   blurb shows them, and the panel's links under its broadcasters instead of a Details button. */
+.team__more, .team__rec, .team__scorer { display: none; }
+.match--facts .team__more, .match--facts .team__rec { display: inline; }
+.match--facts .team__scorer { display: block; margin-top: 3px; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.match__links { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 10px 0 0; font-size: 12.5px; }
+.match__links a { color: var(--muted); }
+.match__links a:hover, .match__links a:focus-visible { color: var(--fg); }
 .form { display: inline-flex; gap: 2px; }
 .f { width: 8px; height: 8px; border-radius: 2px; background: var(--draw); display: inline-block; }
 .f-w { background: var(--win); } .f-l { background: var(--loss); }
@@ -283,7 +291,6 @@ html.has-match-dialog, .has-match-dialog body { overflow: hidden; }
 .detail__team { display: flex; gap: 10px; align-items: center; min-width: 0; }
 .detail__name { font-weight: 600; }
 .detail__facts { color: var(--muted); }
-.head { width: 40px; height: 40px; border-radius: 50%; background: var(--off-bg) center / cover no-repeat; flex: none; }
 .detail__venue, .detail__recap, .detail__links { margin: 8px 0 0; color: var(--muted); }
 .detail__recap { color: var(--fg); }
 .detail__links a { margin-right: 14px; }

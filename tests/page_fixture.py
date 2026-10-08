@@ -90,7 +90,7 @@ def render_page(builder, *, fragment=False, fixtures=None, failed=(), facts_path
             home_name, away_name = (team_names or {}).get(match_id, ("Arsenal", "Chelsea"))
             home = builder.Team(home_name, "ARS", "", "", id="1", color="ef0107",
                                 score="2" if state == "post" else "0", form="WWDLW",
-                                rank=1, pts="18", size=2, leader="A. Player", leader_goals="6")
+                                rank=1, pts="18", size=2, record="6-0-2", leader="A. Player", leader_goals="6")
             away = builder.Team(away_name, "CHE", "", "", id="2", color="034694",
                                 score="1" if state == "post" else "0", form="WLWDW",
                                 rank=2, pts="15", size=2)

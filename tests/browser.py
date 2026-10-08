@@ -237,7 +237,9 @@ class BrowserChecks(unittest.TestCase):
                 expect(page.locator('#match-dialog-title')).to_have_text('Arsenal v Chelsea')
                 expect(page.locator('#match-dialog-close')).to_be_focused()
                 expect(dialog.locator('.detail__facts').first).to_contain_text('Top scorer A. Player, 6 goals')
-                expect(dialog.get_by_role('link', name='Add to Google Calendar')).to_have_attribute('href', re.compile('^https://calendar.google.com/'))
+                calendar = dialog.get_by_role('link', name='Add to calendar')
+                expect(calendar).to_have_attribute('href', re.compile('^https://calendar.google.com/'))
+                expect(calendar).to_have_attribute('title', 'Add to Google Calendar')
                 expect(row.locator('.row__detail')).to_be_hidden()
                 self.assertEqual(before, row.bounding_box())
                 box = dialog.bounding_box()
@@ -1034,8 +1036,9 @@ class BrowserChecks(unittest.TestCase):
                 expect(count).to_have_text("Awaiting score")
                 expect(page.locator('li.row[data-id="upcoming"] .row__live')).to_have_text("Awaiting score")
                 self.assertLessEqual(page.evaluate("document.documentElement.scrollWidth"), width)
-                # Once ESPN reports it under way, the same card turns live and keeps keyboard focus.
-                page.locator("#nextup button.more").focus()
+                # Once ESPN reports it under way, the same card turns live and keeps keyboard focus (on its
+                # League table link: with no blurb the card shows its details, and has no Details button).
+                page.locator("#nextup a.detail__table").focus()
                 feed["data"] = scoreboard("in")
                 page.clock.run_for(60000)
                 expect(card).to_have_class(re.compile(r"\bnextup--live\b"))
@@ -1043,7 +1046,7 @@ class BrowserChecks(unittest.TestCase):
                 expect(page.locator("#nextup-sub")).to_have_text("In progress in your lineup")
                 expect(status).to_have_text("63'")
                 expect(count).to_have_text("2\u20131")
-                expect(page.locator("#nextup button.more")).to_be_focused()
+                expect(page.locator("#nextup a.detail__table")).to_be_focused()
                 self.assertLessEqual(page.evaluate("document.documentElement.scrollWidth"), width)
                 # At full time it moves on to the next match, here one whose kickoff is also awaiting word.
                 feed["data"] = scoreboard("post")
@@ -1449,7 +1452,7 @@ class BrowserChecks(unittest.TestCase):
             page.clock.run_for(60000)       # a goal re-renders the schedule and moves the row
             expect(page.locator('li.row[data-id="upcoming"]')).to_have_attribute("data-state", "in")
             self.assertTrue(details.evaluate("el => el === document.activeElement"))
-            pick = page.locator('#picks .pick[data-match-id="upcoming"] button.more')
+            pick = page.locator('#picks .pick[data-match-id="upcoming"] a.detail__table')
             pick.focus()
             page.evaluate("window.__oldButton = document.activeElement")
             clocked = deepcopy(scoreboard("in"))
@@ -1458,7 +1461,7 @@ class BrowserChecks(unittest.TestCase):
             page.clock.run_for(60000)       # a clock change rebuilds the pick cards
             expect(page.locator('li.row[data-id="upcoming"] .row__status')).to_have_text("64'")
             self.assertTrue(page.evaluate("!window.__oldButton.isConnected && document.activeElement.matches("
-                                          "'#picks .pick[data-match-id=\"upcoming\"] button.more')"))
+                                          "'#picks .pick[data-match-id=\"upcoming\"] a.detail__table')"))
 
     def test_hover_preview_stays_open_through_a_live_update(self):
         with self.page("after") as (page, feed):
@@ -1545,6 +1548,42 @@ class BrowserChecks(unittest.TestCase):
         with self.page("after", at="20261007-1310") as (page, _):
             expect(page.locator('li.row[data-id="upcoming"] .row__live')).to_have_text("Awaiting score")
             expect(page.locator('li.row[data-id="live"] .row__live')).to_have_text("Live")
+
+    def test_a_card_without_a_blurb_shows_what_its_details_panel_holds(self):
+        # The fixture's home team is first of two with 18 points, a 6-0-2 record and a top scorer, A. Player, on 6.
+        for width in (1280, 390, 320):
+            with self.subTest(width=width), self.page("after", width=width) as (page, _):
+                card = page.locator("#picks .pick").first
+                expect(card).to_have_class(re.compile(r"\bmatch--facts\b"))
+                home = card.locator(".team").first
+                expect(home.locator(".team__table")).to_have_text("1st of 2 · 18 pts · 6-0-2")
+                expect(home.locator(".team__rec")).to_have_attribute("title", "Won 6, drawn 0, lost 2 this season")
+                expect(home.locator(".team__scorer")).to_have_text("Top scorer A. Player, 6 goals")
+                expect(home.locator(".team__scorer")).to_be_visible()
+                expect(card.locator(".more")).to_have_count(0)                 # nothing left hidden behind it
+                expect(card.locator(".match__links a")).to_have_text(["Add to calendar", "League table"])
+                expect(page.locator("#nextup")).to_have_class(re.compile(r"\bmatch--facts\b"))
+                expect(page.locator("#nextup .match__links")).to_be_visible()
+                # The schedule's rows stay compact: the same facts wait in their Details panel.
+                row = page.locator(f'li.row[data-id="{card.get_attribute("data-match-id")}"]')
+                expect(row.locator(".team__rec").first).to_be_hidden()
+                expect(row.locator(".team__scorer").first).to_be_hidden()
+                expect(row.locator("button.more")).to_be_visible()
+                self.assertLessEqual(page.evaluate("document.documentElement.scrollWidth"), width)
+                card.screenshot(path=str(self.artifacts / f"pick-facts-{width}.png"))
+                card.get_by_role("link", name="League table").click()
+                expect(page.locator('.tables__item[data-lg="eng.1"]')).to_have_attribute("open", "")
+        # With a blurb the card keeps it and its Details button, and the facts stay in the panel.
+        story = self.overview_story()
+        story["rankings"] = {mid: {"score": 60, "popularity": 60, "gameplay": 60, "impact": 60, "blurb": f"Context for {mid}.",
+                                   "sources": [{"url": "https://news.example/a", "title": "A"}]} for mid in ("upcoming", "midnight", "late", "dawn")}
+        with self.page("after", story=story) as (page, _):
+            card = page.locator("#picks .pick").first
+            expect(card.locator(".row__story")).to_have_count(1)
+            expect(card).not_to_have_class(re.compile(r"\bmatch--facts\b"))
+            expect(card.locator(".team__scorer").first).to_be_hidden()
+            expect(card.locator("button.more")).to_have_count(1)
+            expect(card.locator(".match__links")).to_have_count(0)
 
     def test_picks_are_scored_before_claude_rates_them(self):
         with self.page("after") as (page, _):
