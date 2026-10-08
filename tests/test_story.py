@@ -316,7 +316,7 @@ class FakeSDK:
 
 
 def totals():
-    return dict.fromkeys(("in", "out", "cache_write", "cache_read", "searches", "fetches"), 0)
+    return dict.fromkeys(("in", "out", "cache_write", "cache_read", "searches", "fetches", "prompt_max"), 0)
 
 
 def run(sdk, mode="full", previous=None, facts=RUN_FACTS, spent=None):
@@ -350,7 +350,9 @@ class Requests(unittest.TestCase):
         self.assertEqual(result["ranking_coverage"], {"rated": 5, "total": 5, "carried": 0})
         self.assertEqual(result["notes"]["1"]["sources"], [{"url": READ, "title": "T"}])
         self.assertEqual(result["league_order"], ["esp.1", "eng.1", "ita.1"])   # completed in build.py's order
-        self.assertEqual(spent, {"in": 40, "out": 20, "cache_write": 8, "cache_read": 12, "searches": 0, "fetches": 0})
+        # Four requests of 10 fresh, 2 cache-written and 3 cache-read tokens: sums, but the largest single prompt.
+        self.assertEqual(spent, {"in": 40, "out": 20, "cache_write": 8, "cache_read": 12, "searches": 0, "fetches": 0,
+                                 "prompt_max": 15})
 
     def test_research_prompt_sends_each_fixture_once_and_no_rating_candidates(self):
         sdk = FakeSDK([news_reply(publication(), read=[READ])])
@@ -702,6 +704,90 @@ class LeagueBlurbs(unittest.TestCase):
 
     def test_refresh_keeps_blurb_sources(self):
         self.assertIn(story.url_key(SOURCE), story.earlier_sources({"league_blurbs": [{"sources": [{"url": SOURCE}]}]}))
+
+
+
+def scores(fixtures):
+    return [{"match_id": f["id"], "popularity": 50, "gameplay": 60, "impact": 70} for f in fixtures]
+
+
+class RatingsMode(unittest.TestCase):
+    """Ratings mode: Claude's three scores for the next three days, and nothing else."""
+    BUILT = datetime(2026, 10, 8, 12, tzinfo=timezone.utc)
+
+    def facts(self, hours):
+        fixture = lambda i, h: {"id": f"m{i}", "kickoff_utc": (self.BUILT + timedelta(hours=h)).isoformat(),
+                                "competition": "Premier League", "home": {"name": f"Home {i}"}, "away": {"name": f"Away {i}"}}
+        return dict(RUN_FACTS, built_at="2026-10-08T12:00:00Z", ranking_candidates=[fixture(i, h) for i, h in enumerate(hours)])
+
+    def test_the_window_is_three_days_widened_a_day_at_a_time(self):
+        facts = self.facts([10, 30, 80, 100, 150])
+        for least, ids, hours in ((2, ["m0", "m1"], 72),                      # enough within three days
+                                  (3, ["m0", "m1", "m2"], 96),                # one more day reaches 80 hours out
+                                  (4, ["m0", "m1", "m2", "m3"], 120),
+                                  (10, ["m0", "m1", "m2", "m3", "m4"], 168)):  # widened until nothing is left out
+            with patch.object(story, "MIN_RATED", least):
+                window, got = story.rating_window(facts)
+            self.assertEqual(([m["id"] for m in window], got), (ids, hours), least)
+        facts["ranking_candidates"].append({"id": "odd", "kickoff_utc": "soon"})
+        with patch.object(story, "MIN_RATED", 2):
+            self.assertIn("odd", [m["id"] for m in story.rating_window(facts)[0]])   # kept, not lost
+
+    def test_scores_only_no_research_and_no_text(self):
+        sdk = FakeSDK([], rate=scores)
+        with patch.object(story, "MIN_RATED", 1):
+            result, served = run(sdk, mode="ratings", facts=self.facts([10, 30, 80]))
+        self.assertEqual((sdk.research_calls(), len(sdk.rating_calls()), served), ([], 1, "test-model"))
+        call = sdk.rating_calls()[0]
+        self.assertEqual(call["system"], story.SCORES_SYSTEM)
+        self.assertEqual(call["output_config"]["format"]["schema"], story.SCORES_SCHEMA)
+        self.assertNotIn("tools", call)
+        self.assertNotIn("Reporting from this run's research", call["messages"][0]["content"])
+        self.assertEqual([f["id"] for f in FakeSDK.fixtures(call)], ["m0", "m1"])     # 80 hours out is beyond the window
+        # 25% of 50, 35% of 60 and 40% of 70: 12.5 + 21 + 28.
+        self.assertEqual(result["rankings"]["m0"], {"popularity": 50, "gameplay": 60, "impact": 70, "score": 61.5})
+        self.assertEqual((result["lede_items"], result["league_blurbs"], result["notes"]), ([], [], {}))
+        self.assertEqual((result["ranking_coverage"], result["window_hours"]), ({"rated": 2, "total": 2, "carried": 0}, 72))
+
+    def test_a_missing_score_is_asked_for_once_more(self):
+        asked = []
+
+        def rate(fixtures):
+            asked.append([f["id"] for f in fixtures])
+            return scores(fixtures[1:] if len(asked) == 1 else fixtures)       # the first answer leaves one out
+        with patch.object(story, "MIN_RATED", 1):
+            result, _ = run(FakeSDK([], rate=rate), mode="ratings", facts=self.facts([10, 20, 30]))
+        self.assertEqual(asked, [["m0", "m1", "m2"], ["m0"]])
+        self.assertEqual(sorted(result["rankings"]), ["m0", "m1", "m2"])
+
+    def test_haiku_requests_carry_no_fallback(self):
+        for model, fallback in (("claude-haiku-5-5", False), ("claude-opus-5-5", True)):
+            sdk = FakeSDK([], rate=scores)
+            with patch.dict(sys.modules, {"anthropic": sdk.module}), patch.object(story, "log", lambda *_: None), \
+                    patch.object(story, "MIN_RATED", 1):
+                story.write_story(self.facts([10]), model, "low", "ratings", None, totals())
+            call = sdk.rating_calls()[0]
+            self.assertEqual((call["model"], "fallbacks" in call, "betas" in call), (model, fallback, fallback))
+
+    def test_haiku_takes_part_in_ratings_mode_only(self):
+        models = []
+
+        def writer(facts, model, *rest):
+            models.append(model)
+            return None, model
+        main = Modes.main      # the helper that runs story.main() with its own settings file
+        for mode in ("full", "ratings"):
+            main(self, mode, None, writer=writer, extra=["--model", "claude-haiku-5-5"])
+        self.assertEqual(models, [story.DEFAULT_MODEL, "claude-haiku-5-5"])
+
+    def test_prices_per_million_tokens(self):
+        million = {"in": 1_000_000, "cache_write": 0, "cache_read": 1_000_000, "out": 1_000_000, "searches": 0, "fetches": 0,
+                   "prompt_max": 50_000}
+        self.assertAlmostEqual(story.cost_of(million, "claude-sonnet-5-5"), 2 + 0.10 + 10)        # cache reads 0.05x input
+        self.assertAlmostEqual(story.cost_of(dict(million, searches=1), "claude-opus-5-5"), 4 + 0.20 + 20 + 0.01)
+        self.assertAlmostEqual(story.cost_of(million, "claude-haiku-5-5"), 0.10 + 0.01 + 0.50)
+        self.assertAlmostEqual(story.cost_of(dict(million, prompt_max=100_000), "claude-haiku-5-5"), 0.10 + 0.01 + 0.50)
+        self.assertAlmostEqual(story.cost_of(dict(million, prompt_max=100_001), "claude-haiku-5-5"), 0.50 + 0.05 + 2.50)
 
 
 if __name__ == "__main__":

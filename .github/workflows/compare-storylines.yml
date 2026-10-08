@@ -7,6 +7,12 @@
 # high effort costs more and Sonnet 5.5 about half as much, so the default four come to roughly $6-8
 # together (list fewer to spend less). The run summary shows each one's cost, time, searches and
 # notes, then its overview, league paragraphs, notes and ratings with the sites they cite.
+#
+# With mode "ratings", each configuration writes only Claude's three scores for the next three days
+# (story.py's ratings mode: no research, no blurbs, no web search), and the summary measures how far
+# the configurations agree with each other, with the ratings published now and with the page's own
+# Outlook score. That costs cents: on 8 October about 130 fixtures, estimated at under a cent on
+# Haiku 5.5 at low effort, about $0.08 on Sonnet 5.5 and $0.16 on Opus 5.5.
 # To adopt a configuration, set the repository variables STORY_MODEL, STORY_EFFORT and
 # STORY_REFRESH_EFFORT (Settings, Secrets and variables, Actions, Variables).
 name: Compare storyline models
@@ -18,6 +24,11 @@ on:
         description: "model:effort pairs to compare, separated by spaces"
         type: string
         default: "claude-opus-5-5:high claude-opus-5-5:medium claude-sonnet-5-5:high claude-sonnet-5-5:medium"
+      mode:
+        description: "full: research, blurbs and ratings, as the page uses now; ratings: Claude's three scores only (Haiku 5.5 allowed)"
+        type: choice
+        options: [full, ratings]
+        default: full
 
 permissions:
   contents: read
@@ -40,6 +51,7 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           CONFIGS: ${{ inputs.configs }}
+          MODE: ${{ inputs.mode || 'full' }}
         run: |
           python3 -m venv .venv
           .venv/bin/pip install --quiet "anthropic>=1.11,<2"
@@ -50,9 +62,13 @@ jobs:
             label=$(printf '%s-%s' "$model" "$effort" | tr -c 'A-Za-z0-9._-' '_')
             echo "::group::${model} at ${effort}"
             # One run at a time, so they don't compete for rate limits; a failed one doesn't stop the rest.
-            timeout 15m .venv/bin/python story.py --facts work/facts.json --mode full --model "$model" --effort "$effort" --ignore-switch \
+            timeout 15m .venv/bin/python story.py --facts work/facts.json --mode "$MODE" --model "$model" --effort "$effort" --ignore-switch \
               --out "work/compare/${label}.json" --usage-out "work/compare/${label}.usage.json" || true
             echo "::endgroup::"
           done
+          # The ratings the page publishes now, for the ratings comparison to measure against.
+          curl -fsS --max-time 30 "https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}/story.json" \
+            -o work/published-story.json || echo "no published story to compare with"
           # To the run's page, and to its log, which the API can read where it can't read the page.
-          python3 .github/scripts/compare-storylines.py work/facts.json work/compare | tee -a "$GITHUB_STEP_SUMMARY"
+          python3 .github/scripts/compare-storylines.py work/facts.json work/compare work/page.html work/published-story.json \
+            | tee -a "$GITHUB_STEP_SUMMARY"

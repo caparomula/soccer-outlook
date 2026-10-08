@@ -44,6 +44,10 @@ Modes, one per kind of build:
   auto     full when there is no story for today, keep when today's is less than MIN_GAP_HOURS old
            (GitHub can start a schedule hours late, right before the next one), otherwise refresh:
            storylines updated through the day, at the cost of those updates as well
+  ratings  Claude's three scores and nothing else: no research, overview or blurbs, and no web search;
+           one structured request for the fixtures kicking off within RATING_WINDOW_HOURS, widened a
+           day at a time when that holds fewer than MIN_RATED. The cheap design, and the only mode
+           Haiku 5.5 can run; the comparison workflow measures it against the full design
 On failure, a refresh keeps today's earlier news, and ratings are still attempted.
 
 Model and effort come from --model and --effort, else STORY_MODEL and STORY_EFFORT (STORY_REFRESH_EFFORT
@@ -60,7 +64,7 @@ It exits 0 unless its arguments are wrong: a failed story must never block the s
 published.
 
 Usage: python story.py --facts work/facts.json --out site/story.json [--previous old-story.json]
-                       [--mode daily|auto|full|refresh|keep] [--model ID] [--effort LEVEL] [--usage-out FILE]
+                       [--mode daily|auto|full|refresh|keep|ratings] [--model ID] [--effort LEVEL] [--usage-out FILE]
                        [--settings settings.toml] [--ignore-switch]
 """
 import argparse
@@ -82,9 +86,9 @@ DEFAULT_MODEL = "claude-opus-5-5"
 # nearly flat, medium matching high's accuracy at 70-87% of the cost (Optimizing for cost and
 # intelligence, checked 2026-10-07). .github/workflows/compare-storylines.yml checks that on this
 # workload; the repository variables STORY_EFFORT and STORY_REFRESH_EFFORT override these.
-DEFAULT_EFFORT = {"full": "medium", "refresh": "medium"}
+DEFAULT_EFFORT = {"full": "medium", "refresh": "medium", "ratings": "low"}
 EFFORTS = ("low", "medium", "high", "xhigh", "max")
-BUDGETS = {"full": (12, 6), "refresh": (5, 2)}   # (web searches, full-page reads) per run
+BUDGETS = {"full": (12, 6), "refresh": (5, 2), "ratings": (0, 0)}   # (web searches, full-page reads) per run
 MAX_TOKENS = 64000                    # research request: a backstop only, streamed and billed only when used
 MAX_REQUESTS = 6                      # pause_turn continuations, one nudge to publish and one repair
 # Ratings: about 85 output tokens a fixture, so a chunk stays near 5,000 tokens however busy the week.
@@ -92,20 +96,37 @@ RATING_CHUNK = 60
 RATING_WORKERS = 3
 RATING_MAX_TOKENS = 32000
 RERATE_HOURS = 24                     # a refresh re-rates fixtures kicking off this soon
+# Ratings mode rates what kicks off within RATING_WINDOW_HOURS, widened a day at a time until the window
+# holds MIN_RATED fixtures (an international break leaves the next three days nearly empty). The script
+# decides this, not the model: it knows the fixtures, and asking would cost tokens and add a judgment.
+RATING_WINDOW_HOURS = 72
+MIN_RATED = 20
+SCORES_CHUNK = 200                    # ratings mode: about 25 output tokens a fixture, so one request covers a window
 MIN_GAP_HOURS = 3                     # auto mode keeps a story this fresh rather than paying again
 LIMITS = {"blurb": 260, "league": 450, "item": 520, "lede": 450, "note": 320}
 FACTS_TITLE = "ESPN table and form"
 WEIGHTS = (("popularity", .25), ("gameplay", .35), ("impact", .40))
-# List prices in USD per token, for the cost line only (checked 2026-10-07 against
+# List prices in USD per token, for the cost line only (checked 2026-10-08 against
 # https://platform.claude.com/docs/en/about-claude/pricing): input, 5-minute cache write, cache read,
-# output. Both models take the dynamic-filtering web tools, effort, structured outputs and server-side
-# fallbacks, which this script relies on; Haiku 4.5 takes none of them, so it isn't offered.
+# output. Opus and Sonnet 5.5 take the dynamic-filtering web tools, effort, structured outputs and
+# server-side fallbacks, which the research relies on. Haiku 5.5 takes effort and structured outputs
+# but not those web tools, and has no server-side fallback (sending one is an error), so it is offered
+# for ratings mode only, which uses no tools. Haiku 5.5 is priced by prompt length: a request whose
+# prompt (fresh, cache-written and cache-read input together) is over the limit pays the second card.
 PRICES = {
     "claude-opus-5-5": (4.00e-6, 5.00e-6, 0.20e-6, 20.00e-6),
-    "claude-sonnet-5-5": (2.00e-6, 2.50e-6, 0.20e-6, 10.00e-6),
+    "claude-sonnet-5-5": (2.00e-6, 2.50e-6, 0.10e-6, 10.00e-6),
+    "claude-haiku-5-5": (0.10e-6, 0.125e-6, 0.01e-6, 0.50e-6),
 }
+LONG_PROMPTS = {"claude-haiku-5-5": (100_000, (0.50e-6, 0.625e-6, 0.05e-6, 2.50e-6))}
+RATINGS_ONLY_MODELS = {"claude-haiku-5-5"}
 PRICE_SEARCH = 0.01                   # per web search on any model; web fetch costs only its tokens
 REQUEST_OPTIONS = dict(betas=["server-side-fallback-2026-07-01"], fallbacks="default")
+
+
+def request_options(model):
+    """The server-side fallback for a declined request, on the models that have one."""
+    return {} if model in RATINGS_ONLY_MODELS else REQUEST_OPTIONS
 
 SYSTEM = """You write the daily storylines for Soccer Outlook, a soccer schedule with visitor-controlled competition and service filters. News serves upcoming matches available through the visitor's selected services. The news candidate lists contain only fixtures with listed or usual service coverage. Prioritize the default lineup for the opening; visitors can select other services and the browser filters the text accordingly. The page already lists kickoff times, channels, table positions, recent form and top scorers. Cover only facts that directly affect a specific upcoming fixture: the stakes, player availability, likely selection supported by reporting, a relevant matchup, or a scheduling change. An upcoming international break belongs only when explaining its effect on a listed fixture. Exclude general club news, financial investigations, ownership stories, or unrelated managerial controversy. Mentioning a team that has a fixture is not enough: explain the concrete match connection.
 
@@ -217,11 +238,16 @@ FACTS_GUIDE = ("'fixtures' holds each fixture's facts once, keyed by its ID; nex
                "page switches off unless the visitor turns it on. 'played_today', when present, gives the day's "
                "notable results so far, for context.")
 
+RATING_SCALE = """Give separate integer scores from 0 to 100 for popularity (audience appeal), gameplay (expected football quality and competitiveness, without predicting a result) and impact (the competitive stakes of this particular fixture, supported by stage or table context). Use one absolute scale across all competitions and days: 20 = limited appeal, quality or stakes; 40 = routine; 60 = notably appealing, competitive or meaningful; 80 = exceptional; 95 = a rare global event or decisive final. Judge each dimension independently: a famous club does not automatically mean compelling play or high stakes, and missing evidence must not inflate a score. Do not normalize scores to this group, force any fixture above 80, or change scores for where the match can be watched. The combined score is 25% popularity, 35% gameplay and 40% impact."""
 RATING_SYSTEM = """You rate upcoming soccer fixtures for Soccer Outlook, a schedule for viewers in the United States. Rate every fixture you are given, exactly once, as an editorial assessment from the supplied facts (teams, table, form, stage), established audience appeal and the reporting supplied with the request. Do not invent injuries, lineups, stakes or predicted scores.
 
-Give separate integer scores from 0 to 100 for popularity (audience appeal), gameplay (expected football quality and competitiveness, without predicting a result) and impact (the competitive stakes of this particular fixture, supported by stage or table context). Use one absolute scale across all competitions and days: 20 = limited appeal, quality or stakes; 40 = routine; 60 = notably appealing, competitive or meaningful; 80 = exceptional; 95 = a rare global event or decisive final. Judge each dimension independently: a famous club does not automatically mean compelling play or high stakes, and missing evidence must not inflate a score. Do not normalize scores to this group, force any fixture above 80, or change scores for where the match can be watched. The combined score is 25% popularity, 35% gameplay and 40% impact.
+""" + RATING_SCALE + """
 
 Give every fixture its own blurb of at most 260 characters explaining its matchup, stakes or relevant news: specific, standing on its own, not a restatement of the teams, time, channel or score. When a blurb uses the supplied reporting, cite that reporting's URL exactly as listed. When it rests only on the supplied fixture facts, leave its sources empty: the page labels such blurbs as based on ESPN's table and form. Never cite any other URL."""
+# Ratings mode: the same scale on the facts alone, with no blurb to write and no reporting to use.
+SCORES_SYSTEM = """You rate upcoming soccer fixtures for Soccer Outlook, a schedule for viewers in the United States. Rate every fixture you are given, exactly once, as an editorial assessment from the supplied facts (teams, table, form, stage) and established audience appeal. Do not invent injuries, lineups, stakes or predicted scores.
+
+""" + RATING_SCALE
 
 RATING_SCHEMA = {
     "type": "object", "additionalProperties": False, "required": ["ratings"],
@@ -236,6 +262,20 @@ RATING_SCHEMA = {
             "blurb": {"type": "string", "description": "At most 260 characters."},
             "sources": {"type": "array", "items": {"type": "string"},
                         "description": "URLs from the supplied reporting that the blurb uses; empty when it rests on the fixture facts."},
+        }}}},
+}
+
+
+SCORES_SCHEMA = {
+    "type": "object", "additionalProperties": False, "required": ["ratings"],
+    "properties": {"ratings": {"type": "array", "items": {
+        "type": "object", "additionalProperties": False,
+        "required": ["match_id", "popularity", "gameplay", "impact"],
+        "properties": {
+            "match_id": {"type": "string"},
+            "popularity": {"type": "integer", "description": "0-100"},
+            "gameplay": {"type": "integer", "description": "0-100"},
+            "impact": {"type": "integer", "description": "0-100"},
         }}}},
 }
 
@@ -681,26 +721,31 @@ def usage_of(message):
             "cache_read": getattr(usage, "cache_read_input_tokens", 0) or 0,
             "out": usage.output_tokens or 0,
             "searches": (getattr(stu, "web_search_requests", 0) or 0) if stu else 0,
-            "fetches": (getattr(stu, "web_fetch_requests", 0) or 0) if stu else 0}
+            "fetches": (getattr(stu, "web_fetch_requests", 0) or 0) if stu else 0,
+            "prompt_max": (usage.input_tokens or 0) + (getattr(usage, "cache_creation_input_tokens", 0) or 0)
+                          + (getattr(usage, "cache_read_input_tokens", 0) or 0)}
 
 
 def add_usage(totals, usage):
+    """Adds one request's usage to the run's; prompt_max keeps the largest single prompt."""
     for key, value in usage.items():
-        totals[key] += value
+        totals[key] = max(totals.get(key, 0), value) if key == "prompt_max" else totals.get(key, 0) + value
 
 
-def rate_chunk(client, model, effort, fixtures, context, header):
+def rate_chunk(client, model, effort, fixtures, context, header, scores_only=False):
     """One rating request: structured output, no tools. Returns (ratings as sent, usage, stop reason).
-    Runs on a worker thread, so it touches nothing shared; the caller merges the results."""
-    prompt = (f"{header}\n\nReporting from this run's research, which a blurb may use and cite:\n{compact(context)}\n\n"
-              f"Rate each of these {len(fixtures)} fixtures exactly once:\n{compact(fixtures)}")
+    With scores_only, the three scores alone, from the fixtures' facts (ratings mode); otherwise a
+    blurb too, which may use this run's research. Runs on a worker thread, so it touches nothing
+    shared; the caller merges the results."""
+    reporting = "" if scores_only else f"Reporting from this run's research, which a blurb may use and cite:\n{compact(context)}\n\n"
+    prompt = f"{header}\n\n{reporting}Rate each of these {len(fixtures)} fixtures exactly once:\n{compact(fixtures)}"
     with client.beta.messages.stream(
         model=model,
         max_tokens=RATING_MAX_TOKENS,
-        system=RATING_SYSTEM,
+        system=SCORES_SYSTEM if scores_only else RATING_SYSTEM,
         messages=[{"role": "user", "content": prompt}],
-        output_config={"effort": effort, "format": {"type": "json_schema", "schema": RATING_SCHEMA}},
-        **REQUEST_OPTIONS,
+        output_config={"effort": effort, "format": {"type": "json_schema", "schema": SCORES_SCHEMA if scores_only else RATING_SCHEMA}},
+        **request_options(model),
     ) as stream:
         message = stream.get_final_message()
     usage = usage_of(message)
@@ -715,19 +760,21 @@ def rate_chunk(client, model, effort, fixtures, context, header):
     return (ratings if isinstance(ratings, list) else []), usage, message.stop_reason
 
 
-def write_ratings(client, model, effort, facts, wanted, context, seen, links, totals):
-    """Rates the fixtures in `wanted`, RATING_CHUNK at a time on RATING_WORKERS threads, then asks
-    once more for any that came back without a rating or a blurb. Returns {fixture ID: rating}."""
+def write_ratings(client, model, effort, facts, wanted, context, seen, links, totals, scores_only=False):
+    """Rates the fixtures in `wanted`, RATING_CHUNK at a time (SCORES_CHUNK with scores_only) on
+    RATING_WORKERS threads, then asks once more for any that came back without a rating or, unless
+    scores_only, without a blurb. Returns {fixture ID: rating}."""
     candidates, wanted = {m["id"]: m for m in facts.get("ranking_candidates", [])}, set(wanted)
     order = [mid for mid in candidates if mid in wanted]
     header = (f"It is {clock(facts['built_at'])} on {facts.get('weekday', '')}, {facts.get('date', '')}, US Eastern time."
               if facts.get("built_at") else "")
     ratings, pending = {}, order
     for attempt in (1, 2):
-        chunks = [pending[i:i + RATING_CHUNK] for i in range(0, len(pending), RATING_CHUNK)]
+        size = SCORES_CHUNK if scores_only else RATING_CHUNK
+        chunks = [pending[i:i + size] for i in range(0, len(pending), size)]
         with ThreadPoolExecutor(max_workers=RATING_WORKERS) as pool:
             futures = [pool.submit(rate_chunk, client, model, effort, [rating_fixture(candidates[mid]) for mid in chunk],
-                                   context, header) for chunk in chunks]
+                                   context, header, scores_only) for chunk in chunks]
             for chunk, future in zip(chunks, futures):
                 try:
                     raw, usage, stop = future.result()
@@ -740,12 +787,13 @@ def write_ratings(client, model, effort, facts, wanted, context, seen, links, to
                 for mid, rating in clean_rankings(raw, set(chunk), seen, links).items():
                     if mid not in ratings or ("blurb" in rating and "blurb" not in ratings[mid]):
                         ratings[mid] = rating
-        pending = [mid for mid in order if "blurb" not in ratings.get(mid, {})]
+        pending = [mid for mid in order if mid not in ratings or not (scores_only or "blurb" in ratings[mid])]
+        missing = "a rating" if scores_only else "a rating or a blurb"
         if not pending or attempt == 2:
             break
-        log(f"asking again for {len(pending)} fixture(s) without a rating or a blurb")
+        log(f"asking again for {len(pending)} fixture(s) without {missing}")
     if pending:
-        log(f"ratings incomplete: {len(pending)} fixture(s) without a rating or a blurb")
+        log(f"ratings incomplete: {len(pending)} fixture(s) without {missing}")
     return ratings
 
 
@@ -932,6 +980,26 @@ def write_news(client, facts, model, effort, mode, previous, totals, links, seen
     return story, served
 
 
+def rating_window(facts):
+    """Ratings mode's fixtures: those kicking off within RATING_WINDOW_HOURS of the build, widened a day
+    at a time until there are MIN_RATED or no more. Returns (fixtures, hours). A kickoff that can't be
+    read is kept, as a refresh keeps it due: better rated than lost."""
+    candidates = facts.get("ranking_candidates", [])
+    built = datetime.fromisoformat(facts["built_at"].replace("Z", "+00:00"))
+
+    def before(m, limit):
+        try:
+            return datetime.fromisoformat(m["kickoff_utc"].replace("Z", "+00:00")) < limit
+        except (KeyError, AttributeError, ValueError):
+            return True
+    hours = RATING_WINDOW_HOURS
+    while True:
+        window = [m for m in candidates if before(m, built + timedelta(hours=hours))]
+        if len(window) >= MIN_RATED or len(window) == len(candidates):
+            return window, hours
+        hours += 24
+
+
 def write_story(facts, model, effort, mode, previous, totals):
     """Runs the research, then the ratings, and returns (story dict or None, served model), adding the
     usage of every request to `totals` as it goes, so a run that fails partway still reports what it
@@ -940,6 +1008,14 @@ def write_story(facts, model, effort, mode, previous, totals):
 
     client = anthropic.Anthropic(max_retries=3)
     links = fixture_links(facts)
+    if mode == "ratings":
+        # Claude's three scores and nothing else: no research, no overview or blurbs, no web search.
+        window, hours = rating_window(facts)
+        log(f"rating {len(window)} fixtures kicking off within {hours} hours")
+        rankings = write_ratings(client, model, effort, facts, [m["id"] for m in window], [], {}, links, totals, scores_only=True)
+        story = {"lede_items": [], "notes": {}, "league_blurbs": [], "league_order": [], "_dropped": 0, "rankings": rankings,
+                 "ranking_coverage": {"rated": len(rankings), "total": len(window), "carried": 0}, "window_hours": hours}
+        return (story if rankings else None), model
     seen = earlier_sources(previous) if mode == "refresh" and previous else {}
     try:
         news, served = write_news(client, facts, model, effort, mode, previous, totals, links, seen)
@@ -993,6 +1069,9 @@ def cost_of(totals, model):
     prices = PRICES.get(model)
     if not prices:
         return None
+    limit, long_prices = LONG_PROMPTS.get(model, (None, None))
+    if limit is not None and totals.get("prompt_max", 0) > limit:
+        prices = long_prices    # as if every request were long: exact for ratings mode's one request, an upper bound otherwise
     p_in, p_write, p_read, p_out = prices
     return (totals["in"] * p_in + totals["cache_write"] * p_write + totals["cache_read"] * p_read + totals["out"] * p_out
             + totals["searches"] * PRICE_SEARCH)
@@ -1068,7 +1147,7 @@ def main():
     ap.add_argument("--facts", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--previous", help="the story.json currently published, to reuse or fall back on")
-    ap.add_argument("--mode", choices=("daily", "auto", "full", "refresh", "keep"), default="keep")
+    ap.add_argument("--mode", choices=("daily", "auto", "full", "refresh", "keep", "ratings"), default="keep")
     ap.add_argument("--model", help=f"default: STORY_MODEL, else {DEFAULT_MODEL}")
     ap.add_argument("--effort", choices=EFFORTS, help="default: STORY_EFFORT or STORY_REFRESH_EFFORT, else by mode")
     ap.add_argument("--usage-out", help="write the run's tokens, searches, cost and time here as JSON")
@@ -1103,6 +1182,9 @@ def main():
     if model not in PRICES:
         log(f"{model} isn't one this script supports ({', '.join(PRICES)}); using {DEFAULT_MODEL}")
         model = DEFAULT_MODEL
+    elif model in RATINGS_ONLY_MODELS and mode != "ratings":
+        log(f"{model} takes part in ratings mode only (it can't run the research); using {DEFAULT_MODEL}")
+        model = DEFAULT_MODEL
     effort_var = "STORY_REFRESH_EFFORT" if mode == "refresh" else "STORY_EFFORT"
     effort = args.effort or os.environ.get(effort_var) or DEFAULT_EFFORT[mode]
     if effort not in EFFORTS:
@@ -1116,7 +1198,7 @@ def main():
         return 0
 
     started = time.monotonic()
-    totals = {"in": 0, "cache_write": 0, "cache_read": 0, "out": 0, "searches": 0, "fetches": 0}
+    totals = {"in": 0, "cache_write": 0, "cache_read": 0, "out": 0, "searches": 0, "fetches": 0, "prompt_max": 0}
     try:
         story, served = write_story(facts, model, effort, mode, todays, totals)
     except Exception as e:     # any failure here must leave the page publishable
