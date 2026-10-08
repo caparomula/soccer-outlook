@@ -59,12 +59,18 @@ blurbs_effort = "medium"
 # score, which chooses the top card's live match and the top three, is that interest and the
 # visitor's league priority in proportion to `interest` and `league_priority`. Every score runs from
 # 0 to 100, and each pair of weights needs at least one above 0.
+#
+# League priority spreads over the whole 0 to 100 range, in two clusters (the big leagues near the top,
+# the rest near the bottom), while interest mostly sits between 40 and 65, so a small weight goes a long
+# way: on 8 October 2026, at 20 it moved pick scores as much as interest's 80 did. At 5 it is a
+# tiebreaker: about a fifth of interest's sway, and moving a league from last to first lifts its
+# matches by 5 points.
 
 [blend]
 ai = 50
 outlook = 50
-interest = 80
-league_priority = 20
+interest = 95
+league_priority = 5
 
 
 # ---- Outlook score -------------------------------------------------------------------------------

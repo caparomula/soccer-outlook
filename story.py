@@ -174,7 +174,7 @@ PUBLISH_TOOL = {
         "required": ["lede_items", "league_order", "league_blurbs", "notes", "forecast"],
         "properties": {
             "league_order": {"type": "array", "items": {"type": "string"},
-                             "description": "Every supplied leagues league_id exactly once, ordered by general viewing interest for a US soccer audience. Consider overall quality, appeal and stakes, independently of today's filters. Visitors can reorder this default. The browser blends 80% match interest with 20% league priority."},
+                             "description": "Every supplied leagues league_id exactly once, ordered by general viewing interest for a US soccer audience. Consider overall quality, appeal and stakes, independently of today's filters. Visitors can reorder this default. The browser blends match interest with a small share of league priority, as a tiebreaker."},
             "lede_items": {
                 "type": "array", "items": EDITORIAL_SCHEMA,
                 "description": "A general overview in one short paragraph, at most 450 characters total. One to three tagged sentences connecting the day's available fixtures and pertinent match news. Prioritize current-day fixtures on the default services and enabled competitions; look further ahead when none qualify. Every claim must be tied to supplied fixtures and to pages read in this session. Do not repeat the individual match blurbs.",
@@ -571,7 +571,7 @@ def checked_overview(reply, resolve=None, check=None, workers=8):
 
 # ---- the ratings design's blurbs for the top picks ------------------------------------------------
 BLURB_CANDIDATES = 6      # the top three, and room for a viewer's league priority or top card to change them
-DEFAULT_BLEND = {"ai": 50, "outlook": 50, "interest": 80, "league_priority": 20}
+DEFAULT_BLEND = {"ai": 50, "outlook": 50, "interest": 95, "league_priority": 5}    # settings.toml's, should the facts lack it
 
 
 RESEARCH_SYSTEM = """You write match blurbs for Soccer Outlook, a soccer schedule for viewers in the United States. The page already lists kickoff times, channels, table positions, recent form and top scorers, so a blurb must add something specific about the upcoming match: its stakes, player availability, likely selection supported by reporting, a relevant matchup, or a scheduling change. General club news, ownership stories and unrelated controversy do not belong.
@@ -1269,7 +1269,7 @@ def user_prompt(facts, budget):
             f"Here are the candidate matches. {FACTS_GUIDE}\n\n"
             f"{compact(news_view(facts))}\n\n"
             "Write a paragraph for every supplied league, plus up to eight researched match notes. Rank all supplied leagues "
-            "in league_order by general viewing interest; the browser separately blends 80% match interest with 20% league priority. Use the match ids exactly as given. "
+            "in league_order by general viewing interest; the browser separately adds a small share of league priority to match interest, as a tiebreaker. Use the match ids exactly as given. "
             f"{FORECAST_GUIDE} "
             f"You have up to {budget[0]} web searches and {budget[1]} page reads.")
 
@@ -1309,7 +1309,7 @@ def refresh_prompt(facts, previous, budget):
             "must affect a specific upcoming fixture. Keep qualifying notes with their sources exactly as given; revise or replace "
             "the others, and add notes for matches that have become the day's stories. Supply a paragraph for every league, "
             "including later options for filter changes; past results are context, not the lead. Notes are only for matches in the lists "
-            "above. Rank every supplied league in league_order by general viewing interest; this supplies the separate 20% league-priority component. "
+            "above. Rank every supplied league in league_order by general viewing interest; this supplies the separate league-priority tiebreaker. "
             "Use the match ids exactly as given. "
             f"{FORECAST_GUIDE} Rewrite it for this moment. "
             f"You have up to {budget[0]} web searches and {budget[1]} page reads. Call publish_story once with the "
