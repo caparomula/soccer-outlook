@@ -115,7 +115,7 @@ RATING_CHUNK = 60
 RATING_WORKERS = 3
 RATING_MAX_TOKENS = 32000
 RERATE_HOURS = 24                     # a refresh re-rates fixtures kicking off this soon
-# The page's window: today and the three days after it, a day running from 4 am to 4 am as on the page
+# The page's window: today and the three days after it, a day changing at 4 am rather than midnight as on the page
 # (web/app.js's WINDOW_DAYS and DAY_START), so Thursday's page shows Thursday to Sunday. Ratings mode rates
 # what kicks off in it and nothing past it, which the page doesn't show; build.py lists the schedule,
 # the top three's matches and its counts by the same window. The script decides this, not the model:

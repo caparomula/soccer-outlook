@@ -1,6 +1,6 @@
 (function () {
   'use strict';
-  var DAY_START = 4;                 // a sports day runs 4 am to 4 am local time
+  var DAY_START = 4;                 // a day changes at 4 am local time, not midnight, so a late game stays with its evening (README)
   var WINDOW_DAYS = 3;               // the page shows today and the three days after it (story.py's WINDOW_DAYS)
   var FOCUS_MS = 24 * 60 * 60000;
   var LIVE_MS = 125 * 60000;
