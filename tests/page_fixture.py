@@ -1,10 +1,52 @@
 """Small, synthetic schedule shared by rendering and offline browser checks."""
+from contextlib import nullcontext
+from dataclasses import replace
 from datetime import date, datetime, timezone
+import os
+import tempfile
 from unittest.mock import patch
 
 
 BUILT_AT = datetime(2026, 10, 7, 17, tzinfo=timezone.utc)
 TODAY = date(2026, 10, 7)
+
+
+# settings.toml's first values, fixed here: the tests render with these, so that tuning the real file
+# or switching AI off never fails a test, and so never holds up a publish. A test of the switch says
+# which way it wants it.
+FIXTURE_SETTINGS = """
+[ai]
+enabled = true
+
+[blend]
+claude = 50
+outlook = 50
+interest = 80
+league_priority = 20
+
+[outlook]
+weights = { stature = 40, close = 25, stakes = 15, tv = 10, goals = 10 }
+missing = 0.5
+stature_full = 150
+draw_from = 0.10
+draw_to = 0.30
+bottom = 0.6
+goals_from = 2.0
+goals_to = 4.0
+knockout = { "final" = 1.0, "semifinal" = 0.9, "quarterfinal" = 0.8, "round of 16" = 0.7, "playoff" = 0.7 }
+network = ["ABC", "CBS", "FOX", "NBC", "Telemundo", "Univision", "UniMás"]
+cable = ["ESPN", "ESPN2", "FS1", "FS2", "USA Network"]
+"""
+
+
+def fixture_settings(builder, **changes):
+    """FIXTURE_SETTINGS read through the real loader, with `changes` (such as ai=False) applied."""
+    with tempfile.TemporaryDirectory() as tmp:
+        path = os.path.join(tmp, "settings.toml")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(FIXTURE_SETTINGS)
+        settings = builder.load_settings(path, {o["label"] for o in builder.OUTLETS.values()})
+    return replace(settings, **changes)
 
 
 class FixedDatetime(datetime):
@@ -14,13 +56,17 @@ class FixedDatetime(datetime):
 
 
 def render_page(builder, *, fragment=False, fixtures=None, failed=(), facts_path=None, team_names=None, league_logos=False,
-                tbd=()):
-    """Exercise the real renderer with fixed time, rights, teams, scores and a table.
+                tbd=(), ai=True, stature=None, odds=None):
+    """Exercise the real renderer with fixed time, rights, teams, scores, a table and settings.
 
     Fixtures named in `tbd` have a kickoff time to be set (ESPN's timeValid false); their kickoff
-    is then only a placeholder on the right day.
+    is then only a placeholder on the right day. `ai` is the settings' switch; `stature` maps a
+    fixture to its stature score (150 otherwise), `odds` to its (draw chance, goal line). A baseline
+    build from before the settings existed renders without them.
     """
-    with (patch.object(builder, "TODAY", TODAY),
+    scored = hasattr(builder, "load_settings")
+    with (patch.object(builder, "SETTINGS", fixture_settings(builder, ai=ai)) if scored else nullcontext(),
+          patch.object(builder, "TODAY", TODAY),
           patch.object(builder, "datetime", FixedDatetime),
           patch.dict(builder.UNKNOWN_OUTLETS, {}, clear=True),
           patch.dict(builder.LEAGUE_LOGOS, {}, clear=True),
@@ -57,7 +103,8 @@ def render_page(builder, *, fragment=False, fixtures=None, failed=(), facts_path
                 home=home, away=away, venue="Fixture Stadium", state=state,
                 status="FT" if state == "post" else "30'" if state == "in" else "",
                 outlets=outlets, rule=rule, hint="", service=service, basis=basis,
-                outlet=outlet, score=150))
+                outlet=outlet, score=(stature or {}).get(match_id, 150),
+                **(dict(zip(("draw", "goal_line"), (odds or {}).get(match_id, (None, None)))) if scored else {})))
         table = [dict(id=t.id, name=t.name, rank=t.rank, pts=t.pts, logo="",
                       gp="8", rec="6-0-2", gd="+10") for t in (home, away)]
         builder.STANDINGS["eng.1"] = {"tables": [("", table)]}

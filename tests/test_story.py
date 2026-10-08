@@ -519,11 +519,17 @@ class Modes(unittest.TestCase):
         self.assertEqual(modes, ["full"])
         self.assertEqual((result["date"], result["kind"], result["lede"]), ("2026-10-07", "full", "Today's."))
 
-    def main(self, mode, previous, key="test-key", writer=None):
+    def main(self, mode, previous, key="test-key", writer=None, settings="[ai]\nenabled = true\n", extra=()):
+        """Runs story.main() on RUN_FACTS with its own settings file (`settings` is its text, or None
+        for no file at all), so the repository's switch never decides a test."""
         with tempfile.TemporaryDirectory() as tmp:
             facts_path, prev_path, out = Path(tmp) / "facts.json", Path(tmp) / "prev.json", Path(tmp) / "story.json"
             facts_path.write_text(json.dumps(dict(RUN_FACTS, date="2026-10-07")))
-            args = ["story.py", "--facts", str(facts_path), "--out", str(out), "--mode", mode]
+            settings_path = Path(tmp) / "settings.toml"
+            if settings is not None:
+                settings_path.write_text(settings)
+            args = ["story.py", "--facts", str(facts_path), "--out", str(out), "--mode", mode,
+                    "--settings", str(settings_path), *extra]
             if previous is not None:
                 prev_path.write_text(json.dumps(previous))
                 args += ["--previous", str(prev_path)]
@@ -535,6 +541,27 @@ class Modes(unittest.TestCase):
                     patch.object(story, "write_story", writer), patch.object(story, "log", lambda *_: None):
                 self.assertEqual(story.main(), 0)
             return json.loads(out.read_text()) if out.exists() else None
+
+    def test_ai_switched_off_calls_nothing_and_drops_the_published_story(self):
+        fresh = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        today = {"version": 1, "date": "2026-10-07", "generated_at": fresh, "lede": "Today's."}
+        off = "[ai]\nenabled = false\n"
+        # Not even kept: the publish that follows must take Claude's text off the page.
+        for mode in ("keep", "daily", "full", "refresh", "auto"):
+            self.assertIsNone(self.main(mode, today, settings=off), mode)
+        self.assertIsNone(self.main("daily", None, settings=off))
+        # A switch that can't be read spends nothing either.
+        for unreadable in (None, "[ai]\nenabled = \"yes\"\n", "[ai\n", "ai = 3\n"):
+            self.assertIsNone(self.main("full", today, settings=unreadable), unreadable)
+
+    def test_measuring_ignores_the_switch(self):
+        calls = []
+
+        def writer(*args, **kwargs):
+            calls.append(next(a for a in args if a in ("full", "refresh")))
+            return None, "test-model"
+        self.main("full", None, writer=writer, settings="[ai]\nenabled = false\n", extra=["--ignore-switch"])
+        self.assertEqual(calls, ["full"])
 
     def test_keep_and_fallbacks_never_lose_the_published_story(self):
         fresh = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")

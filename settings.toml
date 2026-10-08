@@ -1,0 +1,67 @@
+# Soccer Outlook settings: whether Claude takes part, and how the page scores matches.
+#
+# A commit to main rebuilds the page, so a change here, even one made in GitHub's web editor, is live
+# within a few minutes. Each build checks this file and refuses to publish if it is malformed, listing
+# every problem it finds; `python3 -m unittest -v` runs the same checks before you push.
+
+
+# ---- AI ------------------------------------------------------------------------------------------
+# Claude's part of the page: the overview, the match blurbs and Claude's interest rating for each
+# match, written once a day by story.py. Switched off, nothing calls the API: the page publishes no
+# storylines, shows no AI-written text, and picks matches by the Outlook score and league priority.
+# Switched back on, the build that the commit starts writes the day's storylines (one paid run),
+# rather than leaving the page without them until the next morning's build.
+
+[ai]
+enabled = true
+
+
+# ---- Pick score ----------------------------------------------------------------------------------
+# A match's interest is Claude's rating and the Outlook score in proportion to `claude` and
+# `outlook`; with AI off, or for a match Claude hasn't rated, it is the Outlook score alone. The pick
+# score, which chooses the top card's live match and the top three, is that interest and the
+# visitor's league priority in proportion to `interest` and `league_priority`. Every score runs from
+# 0 to 100, and each pair of weights needs at least one above 0.
+
+[blend]
+claude = 50
+outlook = 50
+interest = 80
+league_priority = 20
+
+
+# ---- Outlook score -------------------------------------------------------------------------------
+# The page's own interest score, from ESPN's data alone: the same facts and the same arithmetic for
+# every match, and nothing Claude wrote (Claude doesn't see it either, so each can check the other).
+# Five parts, each from 0 to 1, combine in proportion to `weights`:
+#
+#   stature  the occasion: the competition's tier and any marquee clubs or nations (build.py's
+#            stature score, divided by `stature_full` and capped at 1)
+#   close    how evenly matched, from the betting market's implied chance of a draw: `draw_from` or
+#            less is 0, `draw_to` or more is 1
+#   stakes   the table, from each team's place (1 for first, 0 for last): the lower-placed team's
+#            place, so a meeting near the top counts most; or, when more, `bottom` times the
+#            higher-placed team's distance from the top, so a meeting near the bottom counts too.
+#            A knockout round takes its value from `knockout` instead, by the longest of its words
+#            found in ESPN's stage name ("Semifinals" is a semifinal, not a final).
+#   tv       a broadcast network listed (1), else a cable channel (0.5), else neither (0), from the
+#            channel lists below, which use rights.toml's names
+#   goals    the betting market's goal line: `goals_from` or less is 0, `goals_to` or more is 1
+#
+# A part the data says nothing about (no odds, no table, no broadcaster listed yet) counts as
+# `missing`, so it neither helps nor hurts. The odds are DraftKings' prices from ESPN's scoreboard;
+# they shape this score and are never shown on the page.
+
+[outlook]
+weights = { stature = 40, close = 25, stakes = 15, tv = 10, goals = 10 }
+missing = 0.5
+stature_full = 150
+draw_from = 0.10
+draw_to = 0.30
+bottom = 0.6
+goals_from = 2.0
+goals_to = 4.0
+knockout = { "final" = 1.0, "semifinal" = 0.9, "quarterfinal" = 0.8, "round of 16" = 0.7, "playoff" = 0.7 }
+network = ["ABC", "CBS", "FOX", "NBC", "Telemundo", "Univision", "UniMás"]
+cable = ["ESPN", "ESPN2", "ESPN Deportes", "FS1", "FS2", "Fox Deportes", "USA Network", "CBS Sports Network",
+         "TNT", "TBS", "truTV", "TUDN", "Universo", "beIN Sports", "beIN Sports en Español"]

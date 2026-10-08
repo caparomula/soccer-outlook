@@ -16,6 +16,9 @@
 # STORY_MODEL, STORY_EFFORT and STORY_REFRESH_EFFORT (Settings, Secrets and variables, Actions,
 # Variables); story.py has the defaults. Storylines need the ANTHROPIC_API_KEY repository secret.
 # Without it, or if the call fails, the page is published with the day's earlier story, or none.
+# settings.toml's [ai] enabled switches Claude off and on: off, story.py calls nothing and writes
+# nothing, so the page is published without storylines; the push that switches it back on finds the
+# live page built with AI off and writes the day's story at once, instead of at the next morning build.
 #
 # Which services carry which channels, and where each competition usually lives, is in rights.toml.
 # The unit tests (rights data, storyline checks, rendering) and the browser checks run before the
@@ -125,7 +128,12 @@ jobs:
           case "$EVENT" in
             schedule) mode=daily ;;     # the day's story once, by its first scheduled build; later builds keep it
             workflow_dispatch) mode="${WANT:-refresh}" ;;
-            *) mode=keep ;;      # a code push: the news hasn't changed
+            *) mode=keep         # a code push: the news hasn't changed...
+               # ...unless the live page was built with AI off: then this push is the switch coming back
+               # on (or another change while it is off, when story.py calls nothing anyway).
+               if curl -fsS --max-time 30 "${site_url}/" -o work/live.html && grep -q 'data-ai="off"' work/live.html; then
+                 mode=daily
+               fi ;;
           esac
           echo "storyline mode: ${mode}"
           .venv/bin/python story.py --facts work/facts.json --out site/story.json "${previous[@]}" --mode "$mode"

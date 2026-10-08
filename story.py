@@ -51,12 +51,17 @@ for refresh runs), else the defaults below, for both kinds of request. --usage-o
 tokens, searches, cost and time as JSON, for comparing configurations
 (.github/workflows/compare-storylines.yml).
 
-Without ANTHROPIC_API_KEY the script reuses today's previous story if there is one and otherwise
-writes nothing, so the page simply shows no storylines. It exits 0 unless its arguments are wrong:
-a failed story must never block the schedule from being published.
+settings.toml's [ai] enabled is the owner's switch. Off (or unreadable, to be safe), the script makes no
+API call and writes nothing, not even the story already published, so the next publish takes Claude's
+text and ratings off the page; --ignore-switch is for measuring configurations
+(compare-storylines.yml), which publishes nothing. Without ANTHROPIC_API_KEY the script reuses today's
+previous story if there is one and otherwise writes nothing, so the page simply shows no storylines.
+It exits 0 unless its arguments are wrong: a failed story must never block the schedule from being
+published.
 
 Usage: python story.py --facts work/facts.json --out site/story.json [--previous old-story.json]
                        [--mode daily|auto|full|refresh|keep] [--model ID] [--effort LEVEL] [--usage-out FILE]
+                       [--settings settings.toml] [--ignore-switch]
 """
 import argparse
 import json
@@ -64,12 +69,14 @@ import os
 import re
 import sys
 import time
+import tomllib
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
 
 ET = ZoneInfo("America/New_York")
+SETTINGS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "settings.toml")
 DEFAULT_MODEL = "claude-opus-5-5"
 # Effort per mode: both at Opus 5.5's own default. On research work Anthropic's published curves are
 # nearly flat, medium matching high's accuracy at 70-87% of the cost (Optimizing for cost and
@@ -1002,6 +1009,18 @@ def report_cost(totals, served, effort, mode, seconds):
     return cost
 
 
+def ai_switch(path):
+    """settings.toml's [ai] enabled: True or False, or None when the file can't be read or the value
+    isn't true or false. build.py refuses to publish on a malformed file, so None means something
+    changed between the two; the caller then spends nothing."""
+    try:
+        with open(path, "rb") as f:
+            enabled = (tomllib.load(f).get("ai") or {}).get("enabled")
+    except (OSError, tomllib.TOMLDecodeError, AttributeError):
+        return None
+    return enabled if isinstance(enabled, bool) else None
+
+
 def load_previous(path):
     try:
         with open(path, encoding="utf-8") as f:
@@ -1053,7 +1072,17 @@ def main():
     ap.add_argument("--model", help=f"default: STORY_MODEL, else {DEFAULT_MODEL}")
     ap.add_argument("--effort", choices=EFFORTS, help="default: STORY_EFFORT or STORY_REFRESH_EFFORT, else by mode")
     ap.add_argument("--usage-out", help="write the run's tokens, searches, cost and time here as JSON")
+    ap.add_argument("--settings", default=SETTINGS_PATH, help="the settings file with the AI switch (default: settings.toml)")
+    ap.add_argument("--ignore-switch", action="store_true", help="run even with AI switched off, for measuring configurations")
     args = ap.parse_args()
+
+    # Before anything that writes: with AI off even the published story must not be carried forward.
+    switch = True if args.ignore_switch else ai_switch(args.settings)
+    if switch is not True:
+        why = "AI is switched off in settings.toml" if switch is False else "settings.toml's AI switch can't be read"
+        log(f"{why}: no storylines and no API calls")
+        summary(f"Storylines: none; {why}.")
+        return 0
 
     with open(args.facts, encoding="utf-8") as f:
         facts = json.load(f)

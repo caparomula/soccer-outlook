@@ -21,6 +21,11 @@
   var SERVICES = { order: [], name: {}, owner: [] };
   try { SERVICES = JSON.parse(document.getElementById('service-meta').textContent) || SERVICES; } catch (e) {}
   var SERVICE_NAMES = SERVICES.name;
+  // How a pick score is made (settings.toml, embedded by build.py), and whether Claude takes part at
+  // all: with AI off the page never asks for story.json, so no AI-written text or rating can appear.
+  var SCORING = { blend: { claude: 50, outlook: 50, interest: 80, league_priority: 20 } };
+  try { SCORING = JSON.parse(document.getElementById('scoring').textContent) || SCORING; } catch (e) {}
+  var AI_ON = app.getAttribute('data-ai') !== 'off';
   function rankOf(id) { var i = serviceOrder().indexOf(id); return i < 0 ? 99 : i; }
   var SHORT = { cable: 'cable', ota: 'antenna', free: 'free app' };   // buckets where the channel leads
   function escHtml(t) { return String(t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
@@ -35,6 +40,8 @@
     r._svc = r.getAttribute('data-svc');
     r._lg = r.getAttribute('data-lg');
     r._score = parseInt(r.getAttribute('data-score'), 10) || 0;
+    var outlook = parseFloat(r.getAttribute('data-outlook'));
+    r._outlook = isFinite(outlook) ? outlook : null;   // the page's own score, from ESPN's data alone
     r._state = r.getAttribute('data-state');
     r._featured = r.getAttribute('data-featured') === '1';
     try { r._o = JSON.parse(r.getAttribute('data-o') || '[]'); } catch (e) { r._o = []; }
@@ -679,22 +686,45 @@
     var rating = STORY.rankings && STORY.rankings[r.getAttribute('data-id')];
     return rating && typeof rating.score === 'number' && rating.score >= 0 && rating.score <= 100 ? rating : null;
   }
+  // A match's interest is Claude's rating and the Outlook score in settings.toml's proportions, or the
+  // Outlook score alone with AI off or for a match Claude hasn't rated; its pick score adds the
+  // visitor's league priority. All run from 0 to 100; null only on a page built without scores.
+  function interestOf(r) {
+    var rating = ratingOf(r), own = r._outlook, b = SCORING.blend;
+    if (rating && own !== null && b.claude + b.outlook > 0) return (rating.score * b.claude + own * b.outlook) / (b.claude + b.outlook);
+    return own !== null ? own : rating ? rating.score : null;
+  }
+  function pickValue(r) {
+    var interest = interestOf(r), b = SCORING.blend;
+    return interest === null ? null : (interest * b.interest + leaguePriority(r) * b.league_priority) / (b.interest + b.league_priority);
+  }
   function byRating(a, b) {
-    var ar = ratingOf(a), br = ratingOf(b);
-    return (br ? blendedScore(b) : -1) - (ar ? blendedScore(a) : -1) ||
-      (br ? br.score : -1) - (ar ? ar.score : -1) || byTime(a, b);
+    var av = pickValue(a), bv = pickValue(b);
+    return (bv === null ? -1 : bv) - (av === null ? -1 : av) || byTime(a, b);
   }
   function leaguePriority(r) {
     var order = leagueOrder(), position = order.indexOf(r._lg);
     return position < 0 ? 0 : order.length < 2 ? 100 : 100 * (order.length - 1 - position) / (order.length - 1);
   }
-  function blendedScore(r) {
-    var rating = ratingOf(r);
-    return rating ? Math.round((rating.score * 0.8 + leaguePriority(r) * 0.2) * 10) / 10 : null;
-  }
+  function blendedScore(r) { var v = pickValue(r); return v === null ? null : Math.round(v * 10) / 10; }
+  function share(a, b) { return Math.round(100 * a / (a + b)); }
+  function oneDecimal(x) { return Math.round(x * 10) / 10; }
+  var OUTLOOK_NAMES = [['stature', 'occasion'], ['close', 'evenly matched'], ['stakes', 'stakes'], ['tv', 'TV'], ['goals', 'goals expected']];
+  // The tooltip on a pick score: every part with its weight and value, so a surprising pick explains itself.
   function scoreDetails(r) {
-    var rating = ratingOf(r);
-    return '80% Claude interest (' + rating.score + ') + 20% league priority (' + Math.round(leaguePriority(r)) + '). ' + ratingDetails(rating);
+    var rating = ratingOf(r), own = r._outlook, b = SCORING.blend, both = rating && own !== null;
+    var lines = [share(b.interest, b.league_priority) + '% ' + (both ? 'interest' : own !== null ? 'Outlook score' : 'Claude interest') +
+      ' (' + oneDecimal(interestOf(r)) + ') + ' + share(b.league_priority, b.interest) + '% league priority (' + Math.round(leaguePriority(r)) + ').'];
+    if (both) lines.push('Interest: ' + share(b.claude, b.outlook) + '% Claude (' + rating.score + ') + ' + share(b.outlook, b.claude) + '% Outlook score (' + own + ').');
+    if (rating) lines.push('Claude: ' + ratingDetails(rating) + '.');
+    if (own !== null) {
+      var parts = {};
+      try { parts = JSON.parse(r.getAttribute('data-outlook-parts') || '{}') || {}; } catch (e) {}
+      lines.push('Outlook score ' + own + ': ' + OUTLOOK_NAMES.map(function (p) {
+        return p[1] + ' ' + (typeof parts[p[0]] === 'number' ? parts[p[0]] : 'no data');
+      }).join(' · ') + '.');
+    }
+    return lines.join(' ');
   }
   function availableUpcoming(now) {
     return rows.filter(function (r) { return r._b && editorialPasses(r) && r._state !== 'post' && (r._k > now || r._b === 'live'); });
@@ -713,7 +743,7 @@
     if (!nextRow) { nextupEl.removeAttribute('data-match-id'); return; }
     // The heading names the card ("Next up" or "Live now", from nextupText); the line under it, how
     // its match was chosen.
-    var choice = ratingOf(nextRow) ? 'Best pick score' : 'First to kick off';
+    var choice = pickValue(nextRow) !== null ? 'Best pick score' : 'First to kick off';
     setText(document.getElementById('nextup-sub'), nextRow._state !== 'in' ? 'The soonest kickoff in your lineup'
       : live.length > 1 ? choice + ' of the ' + live.length + ' in progress in your lineup' : 'In progress in your lineup');
     nextRow._card.render('nextup', now, nextupEl);
@@ -924,9 +954,10 @@
     document.getElementById('picks-section').hidden = !chosen.length;
     picksEl.innerHTML = '';
     // Without ratings the cards are simply the next matches; calling them picks would claim a judgment.
-    var rated = chosen.some(function (r) { return ratingOf(r); });
+    var rated = chosen.some(function (r) { return pickValue(r) !== null; }), claude = chosen.some(function (r) { return ratingOf(r); });
     document.getElementById('picks-h').textContent = !rated ? 'Upcoming' : chosen.length === 3 ? 'Top three' : chosen.length === 2 ? 'Top two' : 'Top pick';
-    document.getElementById('picks-sub').textContent = rated ? 'Selected by interest + league priority · shown in kickoff order' : 'In kickoff order · no ratings yet';
+    document.getElementById('picks-sub').textContent = !rated ? 'In kickoff order · no ratings yet'
+      : (claude ? 'Selected by Claude + Outlook score + league priority' : 'Selected by Outlook score + league priority') + ' · shown in kickoff order';
     chosen.forEach(function (r) { picksEl.appendChild(r._card.render('pick', now)); });
   }
 
@@ -979,14 +1010,14 @@
       if (!top) host.appendChild(badge);
     }
     var head = document.createElement('div'); head.className = top ? 'nextup__left' : 'pick__head';
-    var rating = ratingOf(r), label = document.createElement('div');
+    var score = blendedScore(r), label = document.createElement('div');
     label.className = top ? 'nextup__rating' : 'pick__rating';
-    label.textContent = rating ? 'Pick score · ' + blendedScore(r) + '/100' : 'Upcoming';
-    if (rating) label.title = scoreDetails(r);
+    label.textContent = score !== null ? 'Pick score · ' + score + '/100' : 'Upcoming';
+    if (score !== null) label.title = scoreDetails(r);
     head.appendChild(label);
     if (top) {
-      label.id = 'nextup-rating'; label.hidden = !rating;
-      if (rating) { label.classList.add('pair'); label.innerHTML = pairHtml(); setPair(label, 'Pick score', blendedScore(r) + '/100'); }
+      label.id = 'nextup-rating'; label.hidden = score === null;
+      if (score !== null) { label.classList.add('pair'); label.innerHTML = pairHtml(); setPair(label, 'Pick score', score + '/100'); }
       var status = document.createElement('div'); status.className = 'nextup__status pair'; status.id = 'nextup-status';
       var count = document.createElement('div'); count.className = 'nextup__count'; count.id = 'nextup-count';
       status.innerHTML = pairHtml(); showNextupText(status, count, nextupText(r, now));
@@ -1309,7 +1340,8 @@
       else storyEl.removeAttribute('data-league');
       // The page's disclosure that the overview is written by AI (Anthropic's Usage Policy asks for one
       // on automatically published text); the footer says which model and how.
-      var storyBy = document.getElementById('story-by'); storyBy.textContent = 'AI Summary';
+      // Only over an overview: a hidden section keeps no AI label, so a page with AI off carries none at all.
+      var storyBy = document.getElementById('story-by'); storyBy.textContent = lead.length ? 'AI Summary' : '';
       var links = sourceLinks(sources, 4);
       if (links.childNodes.length) { storyBy.appendChild(document.createTextNode(' · ')); storyBy.appendChild(links); }
     });
@@ -1348,7 +1380,7 @@
     if (!quiet) render(true);
   }
   function loadStory() {
-    if (!window.fetch || location.protocol === 'file:') return;
+    if (!AI_ON || !window.fetch || location.protocol === 'file:') return;
     storyAskedAt = Date.now();
     fetch('story.json', { cache: 'no-cache' })
       .then(function (r) { return r.ok ? r.json() : null; })

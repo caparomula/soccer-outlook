@@ -35,6 +35,7 @@ import concurrent.futures as cf
 import gzip
 import html
 import json
+import math
 import os
 import re
 import subprocess
@@ -325,6 +326,123 @@ if set(OWNER) - set(SERVICES):
     raise RightsError(f"OWNER names services rights.toml doesn't define: {sorted(set(OWNER) - set(SERVICES))}")
 
 
+# ----------------------------------------------------------------------------------------------
+# settings.toml holds what the owner tunes: whether Claude takes part, how a pick score blends its
+# parts, and the recipe for the page's own Outlook score. load_settings() checks it as load_rights()
+# checks rights.toml, so a typo stops the build instead of quietly changing every pick.
+SETTINGS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "settings.toml")
+OUTLOOK_PARTS = ("stature", "close", "stakes", "tv", "goals")
+
+
+class SettingsError(ValueError):
+    """settings.toml is malformed; the message lists every problem found."""
+
+
+@dataclass(frozen=True)
+class Settings:
+    ai: bool             # whether Claude writes storylines and rates matches
+    blend: dict          # claude, outlook, interest, league_priority: weights, at least one of each pair above 0
+    outlook: dict        # the [outlook] table as checked; knockout words in lower case, channel lists as sets
+
+
+def load_settings(path, channels):
+    """Reads settings.toml and checks every value against `channels`, the channel names rights.toml
+    defines. Every problem is collected before raising, so one run lists them all."""
+    with open(path, "rb") as f:
+        try:
+            data = tomllib.load(f)
+        except tomllib.TOMLDecodeError as e:
+            raise SettingsError(f"{os.path.basename(path)}: {e}") from None
+    problems = []
+
+    def table(where, value, expected):
+        if not isinstance(value, dict):
+            problems.append(f"{where}: must be a table")
+            return {}
+        extra = sorted(set(value) - set(expected))
+        if extra:
+            problems.append(f"{where}: unknown key {', '.join(extra)} (expected {', '.join(expected)})")
+        absent = [k for k in expected if k not in value]
+        if absent:
+            problems.append(f"{where}: missing {', '.join(absent)}")
+        return value
+
+    def number(where, value, low, high=None):
+        """A finite number within [low, high], or None (an absent value is reported as missing)."""
+        if value is None:
+            return None
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+            problems.append(f"{where}: must be a number")
+            return None
+        if value < low or (high is not None and value > high):
+            problems.append(f"{where}: must be from {low} to {high}" if high is not None else f"{where}: must be at least {low}")
+            return None
+        return float(value)
+
+    def rising(where, low, high):
+        if low is not None and high is not None and low >= high:
+            problems.append(f"{where}: the first must be below the second")
+
+    def names(where, value):
+        if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
+            problems.append(f"{where}: must be a list of channel names")
+            return frozenset()
+        unknown = [v for v in value if v not in channels]
+        if unknown:
+            problems.append(f"{where}: {', '.join(unknown)} not a channel in rights.toml")
+        return frozenset(value)
+
+    top = table(os.path.basename(path), data, ("ai", "blend", "outlook"))
+    ai = table("[ai]", top.get("ai", {}), ("enabled",))
+    if "enabled" in ai and not isinstance(ai["enabled"], bool):
+        problems.append("[ai] enabled: must be true or false")
+
+    b = table("[blend]", top.get("blend", {}), ("claude", "outlook", "interest", "league_priority"))
+    blend = {k: number(f"[blend] {k}", b.get(k), 0) for k in ("claude", "outlook", "interest", "league_priority")}
+    for pair in (("claude", "outlook"), ("interest", "league_priority")):
+        if all(blend[k] is not None for k in pair) and sum(blend[k] for k in pair) <= 0:
+            problems.append(f"[blend] {' and '.join(pair)}: at least one must be above 0")
+
+    o = table("[outlook]", top.get("outlook", {}), ("weights", "missing", "stature_full", "draw_from", "draw_to", "bottom",
+                                                    "goals_from", "goals_to", "knockout", "network", "cable"))
+    w = table("[outlook] weights", o.get("weights", {}), OUTLOOK_PARTS)
+    weights = {k: number(f"[outlook] weights.{k}", w.get(k), 0) for k in OUTLOOK_PARTS}
+    if all(v is not None for v in weights.values()) and sum(weights.values()) <= 0:
+        problems.append("[outlook] weights: at least one must be above 0")
+    outlook = dict(weights=weights,
+                   missing=number("[outlook] missing", o.get("missing"), 0, 1),
+                   stature_full=number("[outlook] stature_full", o.get("stature_full"), 1),
+                   draw_from=number("[outlook] draw_from", o.get("draw_from"), 0, 1),
+                   draw_to=number("[outlook] draw_to", o.get("draw_to"), 0, 1),
+                   bottom=number("[outlook] bottom", o.get("bottom"), 0, 1),
+                   goals_from=number("[outlook] goals_from", o.get("goals_from"), 0, 20),
+                   goals_to=number("[outlook] goals_to", o.get("goals_to"), 0, 20))
+    rising("[outlook] draw_from, draw_to", outlook["draw_from"], outlook["draw_to"])
+    rising("[outlook] goals_from, goals_to", outlook["goals_from"], outlook["goals_to"])
+    knockout = o.get("knockout", {})
+    if not isinstance(knockout, dict):
+        problems.append("[outlook] knockout: must be a table of stage words")
+        knockout = {}
+    outlook["knockout"] = {}
+    for word, value in knockout.items():
+        v = number(f"[outlook] knockout.{word}", value, 0, 1)
+        if not word.strip():
+            problems.append("[outlook] knockout: a stage word can't be empty")
+        elif v is not None:
+            outlook["knockout"][word.strip().lower()] = v
+    outlook["network"] = names("[outlook] network", o.get("network", []))
+    outlook["cable"] = names("[outlook] cable", o.get("cable", []))
+    both = sorted(outlook["network"] & outlook["cable"])
+    if both:
+        problems.append(f"[outlook] network and cable both list {', '.join(both)}")
+    if problems:
+        raise SettingsError(f"{os.path.basename(path)}:\n  " + "\n  ".join(problems))
+    return Settings(ai=ai["enabled"], blend=blend, outlook=outlook)
+
+
+SETTINGS = load_settings(SETTINGS_PATH, {o["label"] for o in OUTLETS.values()})
+
+
 MARQUEE_CLUBS = {
     "Arsenal", "Chelsea", "Liverpool", "Manchester City", "Manchester United", "Tottenham Hotspur",
     "Newcastle United", "Real Madrid", "Barcelona", "Atlético Madrid", "Bayern Munich",
@@ -401,6 +519,73 @@ class Match:
     recap: str = ""
     attendance: int = 0
     link: str = ""          # ESPN's match page
+    draw: object = None     # the betting market's implied chance of a draw, 0-1, when ESPN carries odds
+    goal_line: object = None  # the market's over/under goal line, when ESPN carries odds
+
+
+def implied_chance(moneyline):
+    """The chance an American moneyline implies, margin included: +240 is 100/340, -120 is 120/220,
+    "EVEN" is one half. None for anything that isn't a price (American prices are 100 or more either
+    way, so anything strictly between -100 and +100 is not one)."""
+    if isinstance(moneyline, str):
+        text = moneyline.strip().upper()
+        moneyline = "100" if text == "EVEN" else text.replace("+", "", 1)
+    if isinstance(moneyline, bool):
+        return None
+    try:
+        price = float(moneyline)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(price) or -100 < price < 100:
+        return None
+    return 100 / (price + 100) if price > 0 else -price / (-price + 100)
+
+
+def finite_number(value):
+    """A finite number from a number or numeric text ESPN sends, else None."""
+    if isinstance(value, bool):
+        return None
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return None
+    return v if math.isfinite(v) else None
+
+
+def clamp01(x):
+    return max(0.0, min(1.0, x))
+
+
+def outlook_parts(m, settings=None):
+    """The Outlook score's parts for a match, each from 0 to 1, or None where the data says nothing:
+    no odds, no table and no knockout round, no broadcaster listed yet. settings.toml says what each
+    part measures and why."""
+    o = (settings or SETTINGS).outlook
+    parts = {"stature": clamp01(m.score / o["stature_full"])}
+    parts["close"] = None if m.draw is None else clamp01((m.draw - o["draw_from"]) / (o["draw_to"] - o["draw_from"]))
+    stage = (m.stage or "").lower()
+    word = next((w for w in sorted(o["knockout"], key=len, reverse=True) if w in stage), None)   # "semifinal" before "final"
+    if word is not None:
+        parts["stakes"] = o["knockout"][word]
+    elif m.home.rank and m.away.rank and m.home.size > 1 and m.away.size > 1:
+        place = [1 - (min(t.rank, t.size) - 1) / (t.size - 1) for t in (m.home, m.away)]   # 1 for first, 0 for last
+        parts["stakes"] = max(min(place), o["bottom"] * (1 - max(place)))
+    else:
+        parts["stakes"] = None
+    labels = {out.label for out in m.outlets}
+    # Nothing listed is normal more than a few days out, and says nothing about the match.
+    parts["tv"] = None if not labels else 1.0 if labels & o["network"] else 0.5 if labels & o["cable"] else 0.0
+    parts["goals"] = None if m.goal_line is None else clamp01((m.goal_line - o["goals_from"]) / (o["goals_to"] - o["goals_from"]))
+    return parts
+
+
+def outlook_score(parts, settings=None):
+    """The Outlook score from its parts: their weighted mean, a missing part counted at `missing`,
+    from 0 to 100 to one decimal."""
+    o = (settings or SETTINGS).outlook
+    w = o["weights"]
+    weighted = sum(w[k] * (o["missing"] if parts[k] is None else parts[k]) for k in OUTLOOK_PARTS)
+    return round(100 * weighted / sum(w.values()), 1)     # scaled before dividing, so exact cases stay exact
 
 
 def map_outlet(name, league):
@@ -768,6 +953,15 @@ def interpret(league, ev):
                       who.get("shortName") or who.get("displayName") or "", note))
     heads = dicts(comp.get("headlines"))
     recap = (heads[0].get("description") or "") if heads else ""
+    # DraftKings' prices, which ESPN's scoreboard carries for most league matches: the draw price says
+    # how evenly matched the market sees the teams, the total how many goals it expects. They feed
+    # the Outlook score only; the page never shows a price.
+    draw = goal_line = None
+    for odds in dicts(comp.get("odds")):
+        price = odds.get("drawOdds")
+        draw = implied_chance(price.get("moneyLine")) if isinstance(price, dict) else None
+        goal_line = finite_number(odds.get("overUnder"))
+        break
     try:
         attendance = int(comp.get("attendance") or 0)
     except (TypeError, ValueError):
@@ -797,7 +991,7 @@ def interpret(league, ev):
                  time_valid=bool(comp.get("timeValid", True)), league=league, comp=info["name"], stage=stage,
                  note=note, home=home, away=away, venue=venue, state=state, status=status, outlets=outlets,
                  rule=rule, hint=hint, service=service, basis=basis, outlet=outlet, score=score,
-                 goals=goals, recap=recap, attendance=attendance, link=link)
+                 goals=goals, recap=recap, attendance=attendance, link=link, draw=draw, goal_line=goal_line)
 
 
 # ----------------------------------------------------------------------------------------------
@@ -906,6 +1100,64 @@ def owner_prose():
     """The owner's lineup as a phrase for the page's opening line, written from OWNER."""
     names = ["free apps" if k == "free" else SERVICES[k] for k in OWNER]
     return names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
+
+
+def shares(weights):
+    """Whole percentages in proportion to `weights` that sum to 100 (largest remainders round up)."""
+    total = sum(weights.values())
+    exact = {k: 100 * v / total for k, v in weights.items()}
+    out = {k: math.floor(v) for k, v in exact.items()}
+    for k in sorted(exact, key=lambda k: exact[k] - out[k], reverse=True)[:100 - sum(out.values())]:
+        out[k] += 1
+    return out
+
+
+OUTLOOK_WORDS = {"stature": "the occasion (the competition, and marquee clubs or nations)",
+                 "close": "how evenly matched the betting market sees the teams",
+                 "stakes": "what the table or the knockout round puts at stake",
+                 "tv": "whether a broadcast network or a cable channel carries it",
+                 "goals": "how many goals the market expects"}
+
+
+def priority_hint():
+    """The Lineup panel's account of what league priority does, with the settings' proportions."""
+    b = SETTINGS.blend
+    pick = shares({"interest": b["interest"], "league_priority": b["league_priority"]})
+    interest = "match interest (Claude's rating and the Outlook score)" if SETTINGS.ai else "the Outlook score"
+    return f"A pick's score is {pick['interest']}% {interest} and {pick['league_priority']}% this order."
+
+
+def about_ai():
+    """The footer's account of Claude's part, or of its absence."""
+    if not SETTINGS.ai:
+        return "No AI is used on this page: there is no overview, no match blurbs and no AI rating."
+    return ("The overview (marked AI Summary) and the match blurbs are written by Claude, Anthropic's AI model, once a day, "
+            "early in the morning; the midday and evening rebuilds update fixtures, broadcasters and scores but keep the "
+            "morning's text. Blurbs link to their sources; one that rests only on ESPN's table, form and stage is labelled "
+            "\"ESPN table and form\". Claude supplies a general overview, league context and a sourced blurb for every rated "
+            "match. The overview focuses on the current day when possible and looks further ahead when needed. Blurbs with no "
+            "available matches are hidden; excluded phrases within a relevant blurb are dimmed. One overview appears at the "
+            "top; match-specific news stays with its match card or schedule row. Claude also rates each upcoming match for "
+            "popularity (25%), expected gameplay (35%) and competitive impact (40%), without seeing the Outlook score; its "
+            "ratings are editorial judgments, not predicted results.")
+
+
+def about_scores():
+    """The footer's account of the Outlook score and the pick score, with the settings' proportions."""
+    w = shares(SETTINGS.outlook["weights"])
+    parts = [f"{OUTLOOK_WORDS[k]} ({w[k]}%)" for k in OUTLOOK_PARTS if w[k]]
+    listed = parts[0] if len(parts) == 1 else ", ".join(parts[:-1]) + " and " + parts[-1]
+    b = SETTINGS.blend
+    pick = shares({"interest": b["interest"], "league_priority": b["league_priority"]})
+    text = ("The page's own Outlook score rates every match from ESPN's data alone, by the same arithmetic for each: "
+            f"{listed}. The betting market's view comes from DraftKings' prices in ESPN's feed; the page shows no prices. ")
+    if SETTINGS.ai:
+        mix = shares({"claude": b["claude"], "outlook": b["outlook"]})
+        return text + (f"A match's interest is {mix['claude']}% Claude's rating and {mix['outlook']}% the Outlook score (the "
+                       "Outlook score alone for a match Claude hasn't rated), and its pick score is "
+                       f"{pick['interest']}% interest and {pick['league_priority']}% league priority, adjustable in Lineup.")
+    return text + (f"A match's pick score is {pick['interest']}% the Outlook score and {pick['league_priority']}% league "
+                   "priority, adjustable in Lineup.")
 
 
 def owner_pill_service(via):
@@ -1078,9 +1330,12 @@ def row_html(m, cache):
     outlets_json = json.dumps([dict({"l": o.label, "v": o.via, "f": int(o.free), "e": int(o.es)}, **({} if o.known else {"u": 1}))
                                for o in m.outlets], ensure_ascii=False)
     rule_json = json.dumps({"l": m.rule.label, "v": m.rule.via}, ensure_ascii=False) if m.rule else ""
+    parts = outlook_parts(m)
+    parts_json = json.dumps({k: None if v is None else round(100 * v) for k, v in parts.items()})
     return (
         f'<li class="row {avail}" data-id="{esc(m.id)}" data-utc="{m.utc.strftime("%Y-%m-%dT%H:%M:%SZ")}" data-tv="{tv}" '
         f'data-lg="{esc(m.league)}" data-svc="{m.service or "none"}" data-basis="{m.basis}" data-score="{m.score}" '
+        f'data-outlook="{outlook_score(parts):g}" data-outlook-parts="{esc(parts_json)}" '
         f'data-state="{m.state}" data-home="{esc(m.home.name)}" data-away="{esc(m.away.name)}" data-comp="{esc(m.comp)}" '
         + ('data-featured="1" ' if featured(m) else "") +
         f'data-outlet="{esc(m.outlet)}" data-hc="{m.home.color}" data-ac="{m.away.color}" data-o="{esc(outlets_json)}"' + (f' data-r="{esc(rule_json)}"' if rule_json else "") + '>'
@@ -1281,6 +1536,11 @@ def build_page(matches, cache, built_at, failed, today):
     page = (TEMPLATE
             .replace("@@LOGO_CSS@@", logo_css)
             .replace("@@SERVICE_META@@", json.dumps(svc_meta).replace("</", "<\\/"))
+            .replace("@@SCORING@@", json.dumps({"blend": SETTINGS.blend}).replace("</", "<\\/"))
+            .replace("@@AI@@", "on" if SETTINGS.ai else "off")
+            .replace("@@PRIORITY_HINT@@", esc(priority_hint()))
+            .replace("@@ABOUT_AI@@", esc(about_ai()))
+            .replace("@@ABOUT_SCORES@@", esc(about_scores()))
             .replace("@@BUILT_ISO@@", built_at.strftime("%Y-%m-%dT%H:%M:%SZ"))
             .replace("@@INCOMPLETE@@", "1" if failed else "0")
             .replace("@@BUILT_ET@@", esc(built_et.strftime("%a %b ") + str(built_et.day) + built_et.strftime(", %I:%M %p ET").replace(" 0", " ")))

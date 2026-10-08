@@ -41,7 +41,7 @@ class BrowserChecks(unittest.TestCase):
         errors = []
         page.on("pageerror", lambda error: errors.append(str(error)))
         # "hold" names a part of a scoreboard path whose answers wait in "held" for the test to send.
-        feed = {"data": {"events": []}, "fail": False, "requests": 0, "hold": None, "held": []}
+        feed = {"data": {"events": []}, "fail": False, "requests": 0, "hold": None, "held": [], "stories": 0}
 
         def route_request(route):
             url = urlsplit(route.request.url)
@@ -56,6 +56,7 @@ class BrowserChecks(unittest.TestCase):
                 else:
                     route.fulfill(content_type="application/json", body=json.dumps(feed["data"]))
             elif url.path.endswith("/story.json"):
+                feed["stories"] += 1
                 if story is None:
                     route.fulfill(status=404, body="No fixture story")
                 else:
@@ -893,7 +894,8 @@ class BrowserChecks(unittest.TestCase):
                 expect(page.locator('#nextup-h')).to_have_text('Live now')
                 expect(page.locator('#nextup-sub')).to_have_text('Best pick score of the 2 in progress in your lineup')
                 expect(page.locator('#nextup-status')).to_have_text("30'")
-                expect(page.locator('#nextup-rating')).to_have_text('Pick score · 84/100')
+                # Interest (80 + Outlook 57.5) / 2 = 68.75; 80% of that and 20% of league priority 100.
+                expect(page.locator('#nextup-rating')).to_have_text('Pick score · 75/100')
                 self.assertEqual(page.locator('#picks .pick').evaluate_all('els => els.map(e => e.dataset.matchId)'), ['live-second', 'mls', 'future'])
                 expect(page.locator('#picks .row__story')).to_have_count(3)
                 expect(page.locator('#picks .story-src a')).to_have_count(3)
@@ -1216,7 +1218,8 @@ class BrowserChecks(unittest.TestCase):
                         self.assertEqual(boxes, 1)
                         self.assertAlmostEqual(left, column["x"], delta=1)
                     self.assertGreater(parts[1][2], parts[0][2])
-                    expect(page.locator("#nextup-rating")).to_have_text("Pick score · 92/100")    # 80% of 90, 20% of 100
+                    # Interest (90 + Outlook 57.5) / 2 = 73.75; 80% of that, 20% of league priority 100.
+                    expect(page.locator("#nextup-rating")).to_have_text("Pick score · 79/100")
                     expect(page.locator("#nextup-status")).to_have_text("Kickoff 1:10 pm")
                     status = page.locator("#nextup-status").bounding_box()
                     self.assertLessEqual(status["x"] + status["width"], column["x"] + column["width"] + 1)
@@ -1543,14 +1546,63 @@ class BrowserChecks(unittest.TestCase):
             expect(page.locator('li.row[data-id="upcoming"] .row__live')).to_have_text("Awaiting score")
             expect(page.locator('li.row[data-id="live"] .row__live')).to_have_text("Live")
 
-    def test_cards_without_ratings_are_not_called_picks(self):
+    def test_picks_are_scored_before_claude_rates_them(self):
         with self.page("after") as (page, _):
-            expect(page.locator("#picks-h")).to_have_text("Upcoming")
-            expect(page.locator("#picks-sub")).to_have_text("In kickoff order · no ratings yet")
+            expect(page.locator("#picks-h")).to_have_text("Top three")
+            expect(page.locator("#picks-sub")).to_have_text("Selected by Outlook score + league priority · shown in kickoff order")
         story = self.overview_story()
         story["rankings"] = {mid: {"score": 50, "popularity": 50, "gameplay": 50, "impact": 50} for mid in ("upcoming", "midnight", "late")}
         with self.page("after", story=story) as (page, _):
             expect(page.locator("#picks-h")).to_have_text("Top three")
+            expect(page.locator("#picks-sub")).to_have_text("Selected by Claude + Outlook score + league priority · shown in kickoff order")
+        # A page built without scores (an older build) still lists the next matches, without calling them picks.
+        with self.page("after", html=re.sub(r' data-outlook="[^"]*"', "", render_page(build))) as (page, _):
+            expect(page.locator("#picks-h")).to_have_text("Upcoming")
+            expect(page.locator("#picks-sub")).to_have_text("In kickoff order · no ratings yet")
+
+    # Five matches in the next 24 hours, one league, statures chosen so the Outlook scores differ:
+    # 100 x (0.40 x stature / 150 + 0.25 x 0.5 + 0 + 0 + 0.10 x 0.5) gives a 25.5, b 57.5, c 33.5,
+    # d 49.5 and e 41.5. The soonest, a, takes the top card; the picks come from the other four.
+    SCORED = [(mid, f"2026-10-07T{hour}:00:00+00:00", "pre", "ESPN+") for mid, hour in zip("abcde", (18, 19, 20, 21, 22))]
+    STATURE = {"a": 30, "b": 150, "c": 60, "d": 120, "e": 90}
+
+    def test_with_ai_off_picks_rank_by_the_outlook_score_and_no_story_is_asked_for(self):
+        html = render_page(build, fixtures=self.SCORED, stature=self.STATURE, ai=False)
+        with self.page("after", html=html, story=self.overview_story()) as (page, feed):
+            page.clock.run_for(11 * 60000)      # past the ten minutes after which an open tab asks again
+            self.assertEqual(feed["stories"], 0)
+            expect(page.locator("#story")).to_be_hidden()
+            expect(page.locator("#story-by")).to_have_text("")      # the byline is never filled in
+            self.assertNotIn("AI Summary", page.locator("body").inner_text())
+            expect(page.locator("#nextup")).to_have_attribute("data-match-id", "a")
+            self.assertEqual(page.locator("#picks .pick").evaluate_all("els => els.map(e => e.dataset.matchId)"), ["b", "d", "e"])
+            expect(page.locator("#picks-sub")).to_have_text("Selected by Outlook score + league priority · shown in kickoff order")
+            label = page.locator('#picks .pick[data-match-id="b"] .pick__rating')
+            expect(label).to_have_text("Pick score · 66/100")      # 80% of 57.5 and 20% of league priority 100
+            self.assertEqual(label.get_attribute("title"),
+                             "80% Outlook score (57.5) + 20% league priority (100). Outlook score 57.5: occasion 100 · "
+                             "evenly matched no data · stakes 0 · TV 0 · goals expected no data.")
+            expect(page.locator("footer")).to_contain_text("No AI is used on this page")
+            expect(page.locator("#priority-hint")).to_contain_text("80% the Outlook score and 20% this order")
+
+    def test_claude_and_the_outlook_score_share_the_interest(self):
+        # Claude alone would drop d (its lowest), the Outlook score alone c (its lowest). Their mean,
+        # b 58.75, c 51.75, d 49.75, e 46.75, drops e.
+        story = self.overview_story()
+        story["rankings"] = {mid: {"score": score, "popularity": score, "gameplay": score, "impact": score}
+                             for mid, score in (("a", 50), ("b", 60), ("c", 70), ("d", 50), ("e", 52))}
+        html = render_page(build, fixtures=self.SCORED, stature=self.STATURE)
+        with self.page("after", html=html, story=story) as (page, feed):
+            self.assertGreater(feed["stories"], 0)
+            self.assertEqual(page.locator("#picks .pick").evaluate_all("els => els.map(e => e.dataset.matchId)"), ["b", "c", "d"])
+            expect(page.locator("#picks-sub")).to_have_text("Selected by Claude + Outlook score + league priority · shown in kickoff order")
+            label = page.locator('#picks .pick[data-match-id="b"] .pick__rating')
+            expect(label).to_have_text("Pick score · 67/100")      # 80% of 58.75 and 20% of 100
+            self.assertEqual(label.get_attribute("title"),
+                             "80% interest (58.8) + 20% league priority (100). Interest: 50% Claude (60) + 50% Outlook score "
+                             "(57.5). Claude: Popularity 60 · Expected gameplay 60 · Competitive impact 60. Outlook score 57.5: "
+                             "occasion 100 · evenly matched no data · stakes 0 · TV 0 · goals expected no data.")
+            expect(page.locator("footer")).to_contain_text("50% Claude's rating and 50% the Outlook score")
 
     def test_malformed_story_does_not_stop_filters_or_scores(self):
         story = self.overview_story(sources="not a list")

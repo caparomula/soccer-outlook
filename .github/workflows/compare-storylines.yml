@@ -50,7 +50,7 @@ jobs:
             label=$(printf '%s-%s' "$model" "$effort" | tr -c 'A-Za-z0-9._-' '_')
             echo "::group::${model} at ${effort}"
             # One run at a time, so they don't compete for rate limits; a failed one doesn't stop the rest.
-            timeout 15m .venv/bin/python story.py --facts work/facts.json --mode full --model "$model" --effort "$effort" \
+            timeout 15m .venv/bin/python story.py --facts work/facts.json --mode full --model "$model" --effort "$effort" --ignore-switch \
               --out "work/compare/${label}.json" --usage-out "work/compare/${label}.usage.json" || true
             echo "::endgroup::"
           done
