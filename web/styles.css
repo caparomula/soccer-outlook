@@ -201,16 +201,13 @@ a { color: inherit; }
 }
 @media (pointer: coarse) {
   .fpill { padding: 7px 12px; font-size: 14px; }
-  .fbtn, .seg button { padding: 8px 14px; }
+  .fbtn { padding: 8px 14px; }
   .more { padding: 6px 8px; font-size: 13px; }
 }
 .drawer__hint { margin: -2px 0 2px; font-size: 12.5px; color: var(--muted); max-width: 70ch; }
 .controls__row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
 .controls__lbl { font-family: var(--display); font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-right: 4px; min-width: 76px; }
-.seg { display: inline-flex; border: 1px solid var(--line-strong); border-radius: 999px; overflow: hidden; }
-.seg button { appearance: none; background: transparent; border: 0; color: var(--fg); font: 600 14px var(--body); padding: 7px 14px; cursor: pointer; white-space: nowrap; }
-.seg button[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
-.seg button:focus-visible, .fpill:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.fpill:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .fpill { appearance: none; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line-strong); background: var(--card); color: var(--fg); border-radius: 999px; padding: 4px 10px; font: 600 13px var(--body); cursor: pointer; user-select: none; }
 .fpill .dot { width: 8px; height: 8px; }
 .fpill .lg { flex: none; width: 22px; height: 22px; margin: 0; }
@@ -418,25 +415,22 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
   .hdr__tally .big { font-size: 32px; }
   .hdr__tally .small { font-size: 12px; max-width: 16ch; }
   .bar { column-gap: 8px; }
-  .bar .seg button { font-size: 13px; padding-inline: 8px; }
   .bar .menu-btn { font-size: 13px; padding-inline: 10px; }
   .coffee { padding: 5px; }
   .coffee__txt { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 }
-/* Where the bar's controls would wrap (a narrow phone, a fallback or enlarged font), the script marks
-   it tight: Lineup shows its icon alone, keeping its name for screen readers, and the toggle's
-   padding narrows, so the bar stays one line at the top of the window. */
+/* Where the league strip would lack room beside Lineup and the coffee link (a phone, a fallback or
+   enlarged font), the script marks the bar tight: Lineup shows its icon alone, keeping its name for
+   screen readers, so the bar can stay one line at the top of the window. */
 .bar--tight { column-gap: 6px; }
 .bar--tight .menu-btn__caret { display: none; }
 .bar--tight .menu-btn { padding-inline: 9px; }
-.bar--tight .seg button { padding-inline: 6px; }
 .bar--tight .menu-btn__txt { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-/* The league strip: the leagues the viewer follows, as emblems in the bar, each a toggle that hides or
-   shows its matches. It shares the controls' line where it has room for a run of emblems and takes a
-   line of its own below them where it hasn't (the script measures, as for the tight bar); either way
-   it is one row that scrolls sideways, faded at an edge with more beyond it. The button that opens
-   the panel stays outside the scrolling row, always in reach. Off is not colour alone: faded, grey,
-   dashed and struck through. */
+/* The league strip: the leagues the viewer follows, as emblems in the bar between Lineup and the
+   coffee link, each a toggle that hides or shows its matches. It shares their line where it has room
+   for a run of emblems and takes a line of its own below them where it hasn't (the script measures,
+   as for the tight bar); either way it is one row that scrolls sideways, faded at an edge with more
+   beyond it. Off is not colour alone: faded, grey, dashed and struck through. */
 .strip { flex: 1 1 0; min-width: 0; display: flex; align-items: center; gap: 6px; }
 .strip[hidden] { display: none; }
 .bar--strip-below .strip { order: 1; flex-basis: 100%; }
@@ -445,7 +439,7 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
 .strip__list.fade-r { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); }
 .strip__list.fade-l { -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(to left, #000 calc(100% - 28px), transparent); }
 .strip__list.fade-l.fade-r { -webkit-mask-image: linear-gradient(to right, transparent, #000 28px, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(to right, transparent, #000 28px, #000 calc(100% - 28px), transparent); }
-.strip__lg, .strip__edit { appearance: none; flex: none; position: relative; display: inline-grid; place-items: center; width: 34px; height: 34px; padding: 0; border-radius: 50%; cursor: pointer; }
+.strip__lg { appearance: none; flex: none; position: relative; display: inline-grid; place-items: center; width: 34px; height: 34px; padding: 0; border-radius: 50%; cursor: pointer; }
 .strip__lg { border: 1px solid var(--line-strong); background: var(--card); color: var(--fg); }
 .strip__mark { display: grid; place-items: center; }
 .strip__lg .lg { display: block; width: 22px; height: 22px; margin: 0; }
@@ -453,12 +447,8 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
 .strip__lg[aria-pressed="false"] { background: transparent; border-style: dashed; }
 .strip__lg[aria-pressed="false"] .strip__mark { opacity: 0.35; filter: grayscale(1); }
 .strip__lg[aria-pressed="false"]::after { content: ""; position: absolute; left: 7px; right: 7px; top: calc(50% - 1px); height: 2px; border-radius: 1px; background: var(--muted); transform: rotate(-45deg); }
-.strip__edit { border: 1px dashed var(--line-strong); background: transparent; color: var(--muted); font: 400 22px/1 var(--body); }
-.strip__edit-txt { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-.strip--empty .strip__edit { display: inline-flex; gap: 6px; width: auto; padding: 0 12px; border-radius: 999px; font-size: 14px; font-weight: 600; }
-.strip--empty .strip__edit-txt { position: static; width: auto; height: auto; overflow: visible; clip-path: none; }
-.strip__lg:hover, .strip__edit:hover { border-color: var(--fg); }
-.strip__lg:focus-visible, .strip__edit:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.strip__lg:hover { border-color: var(--fg); }
+.strip__lg:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 /* After a tap in the strip, a note says what changed and offers the way back, at the foot of the
    window: above the page, below the panel. */
 .strip-note { position: fixed; z-index: 25; left: 50%; bottom: 16px; transform: translateX(-50%); max-width: calc(100% - 32px);

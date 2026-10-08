@@ -1601,7 +1601,6 @@ def build_page(matches, cache, built_at, failed, today):
     logo_css = "".join(f'.l-{k}{{background-image:url("{v}")}}' for k, v in sorted(cache.items())
                        if k in used and '"' not in v and "\\" not in v)
     n_on = sum(1 for m in focus if m.service)
-    n_all = len(focus)
     failed_note = ""
     if failed:
         bad = sorted({LEAGUES[lg]["name"] for lg, _ in failed})
@@ -1618,7 +1617,7 @@ def build_page(matches, cache, built_at, failed, today):
             .replace("@@BUILT_ISO@@", built_at.strftime("%Y-%m-%dT%H:%M:%SZ"))
             .replace("@@INCOMPLETE@@", "1" if failed else "0")
             .replace("@@BUILT_ET@@", esc(built_et.strftime("%a %b ") + str(built_et.day) + built_et.strftime(", %I:%M %p ET").replace(" 0", " ")))
-            .replace("@@N_ON@@", str(n_on)).replace("@@N_ALL@@", str(n_all))
+            .replace("@@N_ON@@", str(n_on))
             .replace("@@HAVE_PILLS@@", have_pills).replace("@@COMP_PILLS@@", comp_pills)
             .replace("@@HAVE_OFF_PILLS@@", have_off_pills).replace("@@COMP_OFF_PILLS@@", comp_off_pills)
             .replace("@@OUTLOOK@@", "".join(static_sections))

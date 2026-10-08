@@ -311,15 +311,20 @@ class BrowserChecks(unittest.TestCase):
         html = render_page(build, fixtures=fixtures, team_names=names, league_logos=True)
         for width in (1280, 820, 600, 390, 320):
             with self.subTest(width=width), self.page("after", width=width, html=html) as (page, _):
-                page.locator("#btn-all").click()
-                # The masthead (title, tally) above the bar with the view toggle and Lineup, on one line at every width.
-                expect(page.locator('#bar #controls .seg')).to_have_count(1)
+                page.locator('#btn-menu').click()
+                page.locator('#btn-select-services').click()      # every match on a service, whichever carries it
+                page.locator('#btn-filters-close').click()
+                # The masthead (title, tally) above the bar: Lineup, the league strip and the coffee link, on one line
+                # at every width; the view toggle is gone.
                 expect(page.locator('#bar #btn-menu')).to_have_count(1)
-                title, toggle, menu, tally, bar = (page.locator(selector).bounding_box() for selector in ('.hdr h1', '#controls .seg', '#btn-menu', '.hdr__tally', '#bar'))
+                expect(page.locator('#btn-mine, #btn-all, #bar .seg')).to_have_count(0)
+                title, menu, strip, coffee, tally, bar = (page.locator(selector).bounding_box() for selector in ('.hdr h1', '#btn-menu', '#league-strip', '.coffee', '.hdr__tally', '#bar'))
                 self.assertLessEqual(title['x'] + title['width'], tally['x'])
                 self.assertGreaterEqual(bar['y'], max(title['y'] + title['height'], tally['y'] + tally['height']) - 1)
-                self.assertLessEqual(toggle['x'] + toggle['width'], menu['x'])
-                self.assertAlmostEqual(toggle['y'] + toggle['height'] / 2, menu['y'] + menu['height'] / 2, delta=2)
+                self.assertLessEqual(menu['x'] + menu['width'], strip['x'])
+                self.assertLessEqual(strip['x'] + strip['width'], coffee['x'])
+                for box in (strip, coffee):
+                    self.assertAlmostEqual(box['y'] + box['height'] / 2, menu['y'] + menu['height'] / 2, delta=2)
                 page.locator('#btn-menu').click()
                 panel = page.locator('#drawer').bounding_box()
                 self.assertGreaterEqual(panel['y'], menu['y'] + menu['height'])
@@ -411,13 +416,15 @@ class BrowserChecks(unittest.TestCase):
                 expect(page.locator('[data-kind="have"][aria-pressed="true"]')).to_have_count(0)
                 self.assertEqual(keys(page, "comp", "true"), set(leagues))
 
-                page.locator("#btn-all").click()
-                expect(page.locator('li.row:visible')).to_have_count(len(leagues))
+                # The "Everything" view is gone (8 October 2026): one saved from before is cleared, not obeyed.
+                page.evaluate("localStorage.setItem('ssg2-mode', JSON.stringify('all'))")
+                page.reload()
+                expect(page.locator('li.row:visible')).to_have_count(0)
+                self.assertIsNone(page.evaluate("localStorage.getItem('ssg2-mode')"))
                 page.locator("#btn-menu").click()
                 page.get_by_role("button", name="Reset to defaults", exact=True).click()
                 self.assertEqual(keys(page, "have", "true"), enabled_services)
                 self.assertEqual(keys(page, "comp", "false"), hidden_leagues)
-                expect(page.locator("#btn-mine")).to_have_attribute("aria-pressed", "true")
                 expect(page.locator('li.row:visible')).to_have_count(2)
                 page.reload()
                 self.assertEqual(keys(page, "have", "true"), enabled_services)
@@ -589,7 +596,7 @@ class BrowserChecks(unittest.TestCase):
             page.locator("#btn-clear").click()
             expect(summary).to_contain_text("No services selected")
 
-    def test_unconfirmed_matches_only_appear_under_everything(self):
+    def test_unconfirmed_coverage_never_reaches_the_schedule(self):
         fixtures = [("unlisted", "2026-10-07T18:00:00+00:00", "pre", None, "fifa.friendly.w"),
                     ("unknown", "2026-10-07T18:00:00+00:00", "pre", "Mystery Sports+", "esp.1"),
                     ("off-lineup", "2026-10-07T19:00:00+00:00", "pre", "Peacock", "eng.1"),
@@ -614,18 +621,17 @@ class BrowserChecks(unittest.TestCase):
             expect(page.locator("#story")).to_be_hidden()
             # The header counts the window, today and the three days after it; later, on the lineup, is past it.
             expect(page.locator("#tally-n")).to_have_text("0")
-            page.locator("#btn-all").click()
-            for mid in ("unlisted", "unknown", "off-lineup", "usual-off-lineup"):
-                expect(page.locator(f'li.row[data-id="{mid}"]')).to_be_visible()
+            # With every service selected, the Peacock match comes in; those with unconfirmed coverage stay out, as the
+            # "Everything" view that showed them is gone (8 October 2026): nothing listed and no usual home (the
+            # Premier League has none this season, so usual-off-lineup is one), or a channel the page doesn't know.
+            page.locator("#btn-menu").click()
+            page.locator("#btn-select-services").click()
+            page.locator("#btn-filters-close").click()
+            expect(page.locator('li.row[data-id="off-lineup"]')).to_be_visible()
+            for mid in ("unlisted", "unknown", "usual-off-lineup"):
+                expect(page.locator(f'li.row[data-id="{mid}"]')).to_be_hidden()
             expect(page.locator("#forecast, #forecast-later")).to_have_count(0)
             expect(page.locator("#story")).to_be_hidden()
-            page.locator("#btn-menu").click()
-            page.locator('#comp-pills [data-key="fifa.friendly.w"]').click()
-            expect(page.locator('li.row[data-id="unlisted"]')).to_be_hidden()
-            expect(page.locator("#forecast, #forecast-later")).to_have_count(0)
-            page.locator("#btn-filters-close").click()
-            page.locator("#btn-mine").click()
-            expect(page.locator('li.row[data-id="unknown"]')).to_be_hidden()
 
     def test_counts_all_leagues_and_groups_simultaneous_kickoffs(self):
         for leagues in (["usa.1"] * 6 + ["usa.nwsl"] * 6, ["caf.nations"] * 4):
@@ -655,8 +661,13 @@ class BrowserChecks(unittest.TestCase):
             summary = page.locator("#schedule-summary")
             expect(summary).to_contain_text("1 listed on your services; 1 with usual coverage on your services (not yet listed); 1 with unconfirmed coverage")
             expect(summary).to_contain_text("Some fixtures may be missing")
-            page.locator("#btn-all").click()
-            expect(summary).to_contain_text("1 more at this time")
+            # With every service, the Peacock match joins the simultaneous kickoffs; the unrecognized channel doesn't.
+            page.locator("#btn-menu").click()
+            page.locator("#btn-select-services").click()
+            page.locator("#btn-filters-close").click()
+            expect(summary).to_contain_text("2 listed on your services")
+            expect(summary.locator("p").filter(has_text="Next kickoff")).to_contain_text("Arsenal v Chelsea — Peacock")
+            expect(summary.locator("p").filter(has_text="Next kickoff")).not_to_contain_text("Mystery")
 
     def test_summary_uses_actual_next_date_and_marks_pending_scores(self):
         fixtures = [("late-score", "2026-10-07T16:00:00+00:00", "pre", "ESPN+", "eng.1"),
@@ -706,10 +717,8 @@ class BrowserChecks(unittest.TestCase):
                 expect(editorial).to_be_hidden()
                 page.locator('[data-kind="have"][data-key="espn"]').click()
                 expect(editorial).to_contain_text("Context for the Spanish match.")
-                page.locator("#btn-filters-close").click()
-                page.locator("#btn-all").click()
-                expect(editorial).to_contain_text("Context for the Spanish match.")
                 expect(editorial).not_to_contain_text("Context for Chicago")
+                page.locator("#btn-filters-close").click()
 
     def test_one_phrase_dims_without_changing_other_league_or_connecting_words(self):
         fixtures = [("mls", "2026-10-07T18:00:00+00:00", "pre", "Apple TV", "usa.1"),
@@ -739,8 +748,6 @@ class BrowserChecks(unittest.TestCase):
                     expect(page.locator(host)).to_contain_text("This evening MLS and the Premier League have matches.")
                 page.locator("#btn-filters-close").click()
                 self.full_page_shot(page, f"phrases-{theme}.png")
-                page.locator("#btn-all").click()
-                expect(page.locator("#story-lede .editorial-part--filtered")).to_have_text("MLS")
                 page.locator("#btn-menu").click()
                 page.locator('#comp-pills [data-key="usa.1"]').click()
                 expect(page.locator("#story-lede .editorial-part--filtered")).to_have_text("MLS")
@@ -816,10 +823,6 @@ class BrowserChecks(unittest.TestCase):
                 page.locator("#btn-menu").click()
                 page.locator("#btn-clear").click()
                 expect(page.locator("#story")).to_be_hidden()
-                page.locator("#btn-filters-close").click()
-                page.locator("#btn-all").click()
-                expect(page.locator("#story")).to_be_hidden()
-                page.locator("#btn-menu").click()
                 page.locator('[data-kind="have"][data-key="fox"]').click()
                 expect(lede).to_have_text("Friday French match context.")
                 page.locator('[data-kind="have"][data-key="fox"]').click()
@@ -883,9 +886,6 @@ class BrowserChecks(unittest.TestCase):
                 self.assertEqual(picks(), ["routine", "best", "near"])
                 self.assertEqual(off(), ["routine", "best", "near"])
                 page.locator("#btn-filters-close").click()
-                page.locator("#btn-all").click()
-                expect(hero).to_be_hidden()
-                self.assertEqual(picks(), ["routine", "best", "near"])
                 # A match nobody is known to carry is never a pick, however it is rated.
                 expect(page.locator('#picks [data-match-id="unknown"]')).to_have_count(0)
 
@@ -1040,7 +1040,6 @@ class BrowserChecks(unittest.TestCase):
                 expect(page.locator('#picks .pick[data-match-id="future"] .row__story')).to_be_visible()
                 expect(page.locator('#picks .pick[data-match-id="future"] .row__story')).to_contain_text('Specific context for future.')
                 page.locator('#btn-filters-close').click()
-                page.locator('#btn-all').click()
                 expect(page.locator('#nextup')).to_have_attribute('data-match-id', 'mls')
                 expect(page.locator('#picks .pick')).to_have_count(3)
 
@@ -1078,7 +1077,8 @@ class BrowserChecks(unittest.TestCase):
                 expect(count).to_have_text("9:58")
                 page.evaluate("location.hash = '#at-20261007-1300'")
                 expect(count).to_have_text("10:00")
-                # It follows the lineup both ways; Everything widens the schedule, not the card.
+                # It follows the lineup both ways: a service added brings its sooner kickoff to the card, and taking
+                # the service away gives the card back.
                 page.locator("#btn-menu").click()
                 page.locator('#comp-pills [data-key="usa.nwsl"]').click()
                 expect(card).to_have_attribute("data-match-id", "nwsl")
@@ -1088,11 +1088,12 @@ class BrowserChecks(unittest.TestCase):
                 page.locator('[data-kind="have"][data-key="espn"]').click()
                 expect(card).to_have_attribute("data-match-id", "apple")
                 page.locator('[data-kind="have"][data-key="espn"]').click()
-                page.locator("#btn-filters-close").click()
-                page.locator("#btn-all").click()
+                page.locator('[data-kind="have"][data-key="peacock"]').click()
                 expect(page.locator('li.row[data-id="elsewhere"]')).to_be_visible()
+                expect(card).to_have_attribute("data-match-id", "elsewhere")
+                page.locator('[data-kind="have"][data-key="peacock"]').click()
                 expect(card).to_have_attribute("data-match-id", "upcoming")
-                page.locator("#btn-mine").click()
+                page.locator("#btn-filters-close").click()
                 # The countdown runs to kickoff ...
                 page.evaluate("location.hash = '#at-20261007-1309'")
                 expect(count).to_have_text("1:00")
@@ -1159,8 +1160,8 @@ class BrowserChecks(unittest.TestCase):
                 expect(link).to_have_attribute("href", "https://buymeacoffee.com/caparomula")
                 expect(link).to_have_attribute("target", "_blank")
                 self.assertIn("noopener", link.get_attribute("rel").split())
-                # At the right end of the bar, on the toggle's line (the bar stays in view; see the bar's check).
-                box, bar, toggle = link.bounding_box(), page.locator("#bar").bounding_box(), page.locator("#controls .seg").bounding_box()
+                # At the right end of the bar, on Lineup's line (the bar stays in view; see the bar's check).
+                box, bar, toggle = link.bounding_box(), page.locator("#bar").bounding_box(), page.locator("#btn-menu").bounding_box()
                 self.assertAlmostEqual(box["x"] + box["width"], bar["x"] + bar["width"], delta=1)
                 self.assertAlmostEqual(box["y"] + box["height"] / 2, toggle["y"] + toggle["height"] / 2, delta=2)
                 # The words where there's room; a phone shows the cup and keeps the name for screen readers.
@@ -1174,12 +1175,12 @@ class BrowserChecks(unittest.TestCase):
 
     @staticmethod
     def long_day():
-        """36 matches 25 minutes apart; every third is on a service outside the default lineup."""
+        """36 matches 25 minutes apart; every third is La Liga's, the rest the Premier League's."""
         fixtures = []
         for i in range(36):
             hour, minute = divmod(17 * 60 + 10 + i * 25, 60)
             fixtures.append((f"m{i:02d}", f"2026-10-{7 + hour // 24:02d}T{hour % 24:02d}:{minute:02d}:00+00:00", "pre",
-                             "Peacock" if i % 3 == 2 else "ESPN+", "eng.1"))
+                             "ESPN+", "esp.1" if i % 3 == 2 else "eng.1"))
         return render_page(build, fixtures=fixtures)
 
     def test_bar_stays_at_the_top_keeps_the_readers_place_and_focus_in_view(self):
@@ -1190,33 +1191,35 @@ class BrowserChecks(unittest.TestCase):
             with self.subTest(width=width), self.page("after", width=width, html=self.long_day(), touch=width <= 600) as (page, _):
                 bar = page.locator("#bar")
                 expect(bar).not_to_have_css("background-color", "rgba(0, 0, 0, 0)")    # what scrolls beneath is hidden
+                liga = page.locator('#league-strip-list [data-league="esp.1"]')
+                liga.click()                                                             # La Liga hidden for now
                 page.evaluate("window.scrollTo(0, 2200)")
-                # Deep in the page the view toggle, Lineup and the coffee link are still at the top of the window.
+                # Deep in the page Lineup, the league strip and the coffee link are still at the top of the window.
                 box = bar.bounding_box()
                 self.assertAlmostEqual(box["y"], 0, delta=1)
-                for control in (page.locator("#btn-mine"), page.locator("#btn-all"), page.locator("#btn-menu"),
-                                page.get_by_role("link", name="Buy me a coffee", exact=True)):
+                for control in (page.locator("#btn-menu"), liga, page.get_by_role("link", name="Buy me a coffee", exact=True)):
                     expect(control).to_be_in_viewport()
                     self.assertLessEqual(control.bounding_box()["y"] + control.bounding_box()["height"], box["y"] + box["height"])
-                # Switching the view from there keeps the reader's place: the row at the top of the view stays
-                # put, and the rows Everything reveals appear around it.
+                # Showing La Liga again from the strip there keeps the reader's place: the row at the top of the view
+                # stays put, and its matches appear around it; hiding it again takes them away around it.
                 before = page.evaluate(top_row)
-                page.locator("#btn-all").click()
+                liga.click()
                 expect(page.locator('li.row[data-id="m02"]')).to_be_visible()
                 # (Scroll offsets are whole pixels, so each correction can round by up to a pixel.)
                 row = page.locator(f'li.row[data-id="{before["id"]}"]')
                 self.assertAlmostEqual(row.evaluate("el => el.getBoundingClientRect().top"), before["top"], delta=2)
-                page.locator("#btn-mine").click()
+                liga.click()
                 expect(page.locator('li.row[data-id="m02"]')).to_be_hidden()
                 self.assertAlmostEqual(row.evaluate("el => el.getBoundingClientRect().top"), before["top"], delta=2)
-                # A row the change hides gives way to the next one shown, in its place: in Everything, put a
-                # Peacock match first in the window, under the bar (where the browser's own scroll anchoring
-                # would lose it), then go back to the lineup, which hides it.
-                page.locator("#btn-all").click()
+                # A row the change hides gives way to the next one shown, in its place: with La Liga shown, put one of
+                # its matches first in the window, under the bar (where the browser's own scroll anchoring would lose
+                # it), then hide La Liga.
+                liga.click()
                 page.evaluate("window.scrollBy(0, document.querySelector('li.row[data-id=m05]').getBoundingClientRect().top + 10)")
-                page.locator("#btn-mine").click()
+                liga.click()
                 expect(page.locator('li.row[data-id="m05"]')).to_be_hidden()
                 self.assertAlmostEqual(page.locator('li.row[data-id="m06"]').evaluate("el => el.getBoundingClientRect().top"), -10, delta=2)
+                page.clock.run_for(5000)       # the strip's note, and its Undo in the tab order, gone
                 # The Lineup panel opens right beneath its button, scrolled or not.
                 page.locator("#btn-menu").click()
                 panel, menu = page.locator("#drawer").bounding_box(), page.locator("#btn-menu").bounding_box()
@@ -1384,7 +1387,9 @@ class BrowserChecks(unittest.TestCase):
             return card_label(mid).get_attribute('aria-label').split(' ')[2]
         for width in (1280, 320):
             with self.subTest(width=width), self.page('after', width=width, html=render_page(build, fixtures=fixtures), story=story) as (page, _):
-                page.locator('#btn-all').click()        # every row, the one off the lineup and the finished one too
+                page.locator('#btn-menu').click()          # every service: every row, the finished one too
+                page.locator('#btn-select-services').click()
+                page.locator('#btn-filters-close').click()
                 page.locator('li.row[data-id="done"]').evaluate("el => { el.closest('details').open = true; }")   # Earlier today is folded
                 for mid in ('eng', 'esp', 'off', 'done', 'low', 'edge'):
                     expect(row(mid)).to_be_visible()
@@ -1522,14 +1527,12 @@ class BrowserChecks(unittest.TestCase):
                 expect(lg("esp.1")).to_have_attribute("aria-label", "La Liga")
                 expect(lg("esp.1")).to_have_attribute("title", "La Liga")
                 expect(page.locator('#league-strip-list [aria-pressed="true"]')).to_have_count(4)
-                # On a wide screen the strip shares the controls' line; on a phone it has the line below, all of it.
-                seg, bar, box = page.locator("#controls .seg").bounding_box(), page.locator("#bar").bounding_box(), strip.bounding_box()
-                if width > 600:
-                    self.assertAlmostEqual(mid(box), mid(seg), delta=3)
-                else:
-                    self.assertGreaterEqual(box["y"], seg["y"] + seg["height"])
-                    self.assertAlmostEqual(box["width"], bar["width"], delta=1)
-                    self.assertAlmostEqual(mid(page.locator(".coffee").bounding_box()), mid(seg), delta=3)
+                # Between Lineup and the coffee link, on their line, at either width.
+                menu, coffee, box = page.locator("#btn-menu").bounding_box(), page.locator(".coffee").bounding_box(), strip.bounding_box()
+                self.assertLessEqual(menu["x"] + menu["width"], box["x"])
+                self.assertLessEqual(box["x"] + box["width"], coffee["x"])
+                self.assertAlmostEqual(mid(box), mid(menu), delta=3)
+                self.assertAlmostEqual(mid(coffee), mid(menu), delta=3)
                 self.assertLessEqual(page.evaluate("document.documentElement.scrollWidth"), width)
                 # A tap hides the league's matches for now, says so, and leaves it enabled in the panel, marked.
                 expect(tally).to_have_text("4")
@@ -1570,17 +1573,11 @@ class BrowserChecks(unittest.TestCase):
                 self.assertEqual(sorted(page.evaluate("JSON.parse(localStorage.getItem('ssg1-league-paused'))")), ["esp.1", "fifa.friendly"])
                 lg("fifa.friendly").click()
                 expect(row("usa")).to_be_visible()
-                # The button at the strip's end opens the panel at its leagues, where a hidden one says so.
-                edit, drawer = page.locator("#league-strip-edit"), page.locator("#drawer")
-                edit.click()
+                # Leagues are enabled and disabled in the Lineup panel, where a hidden one says so.
+                menu_btn, drawer = page.locator("#btn-menu"), page.locator("#drawer")
+                expect(page.locator("#league-strip button:not(.strip__lg)")).to_have_count(0)
+                menu_btn.click()
                 expect(drawer).to_be_visible()
-                expect(edit).to_have_attribute("aria-expanded", "true")
-                # In view in the panel, at its top unless the panel can't scroll that far.
-                head, panel = page.locator("#comp-h").bounding_box(), drawer.bounding_box()
-                self.assertGreaterEqual(head["y"], panel["y"])
-                self.assertLessEqual(head["y"] + head["height"], panel["y"] + panel["height"])
-                at_end = drawer.evaluate("el => el.scrollTop >= el.scrollHeight - el.clientHeight - 1")
-                self.assertTrue(head["y"] < panel["y"] + 60 or at_end)
                 expect(pill.locator(".fpill__tag")).to_be_visible()
                 expect(pill.locator(".fpill__tag")).to_have_text("hidden for now")
                 expect(page.locator('#comp-enabled [data-key="ita.1"] .fpill__tag')).to_be_hidden()
@@ -1595,14 +1592,12 @@ class BrowserChecks(unittest.TestCase):
                 expect(lg("esp.1")).to_have_attribute("aria-pressed", "true")
                 expect(row("liga")).to_be_visible()
                 expect(row("ligue")).to_be_visible()
-                # Escape closes the panel and returns to the button that opened it.
                 page.keyboard.press("Escape")
                 expect(drawer).to_be_hidden()
-                expect(edit).to_be_focused()
-                expect(edit).to_have_attribute("aria-expanded", "false")
+                expect(menu_btn).to_be_focused()
                 # One tab stop, on the league last used; the arrow keys, Home and End move along the strip.
                 expect(page.locator('#league-strip-list [tabindex="0"]')).to_have_count(1)
-                page.keyboard.press("Shift+Tab")
+                page.keyboard.press("Tab")
                 expect(lg("fifa.friendly")).to_be_focused()
                 page.keyboard.press("Home")
                 expect(lg("eng.1")).to_be_focused()
@@ -1616,13 +1611,12 @@ class BrowserChecks(unittest.TestCase):
                 page.keyboard.press("Space")
                 expect(lg("fifa.friendly")).to_have_attribute("aria-pressed", "false")
                 page.keyboard.press("Tab")
-                expect(edit).to_be_focused()
-                # With no league enabled the strip is its button, which says what it is for.
+                expect(page.get_by_role("link", name="Buy me a coffee", exact=True)).to_be_focused()
+                # With no league enabled there is no strip.
                 page.locator("#btn-menu").click()
                 page.locator("#btn-clear-leagues").click()
                 self.assertEqual(self.strip_ids(page), [])
-                expect(page.locator(".strip__edit-txt")).to_be_visible()
-                expect(page.locator(".strip__edit-txt")).to_have_text("Add or remove leagues")
+                expect(strip).to_be_hidden()
                 # Select all enables every league, shown; Reset forgets what the strip hid since.
                 page.locator("#btn-select-leagues").click()
                 self.assertEqual(self.strip_ids(page), ["eng.1", "esp.1", "ita.1", "fra.1", "fifa.friendly"])
@@ -1635,6 +1629,24 @@ class BrowserChecks(unittest.TestCase):
                 self.assertEqual(self.strip_ids(page), ["eng.1", "esp.1", "ita.1", "fifa.friendly"])
                 expect(page.locator('#league-strip-list [aria-pressed="false"]')).to_have_count(0)
                 self.assertIsNone(page.evaluate("localStorage.getItem('ssg1-league-paused')"))
+                # Where the bar's line can't spare the strip room for its emblems (five, or these four), here because
+                # the coffee link is made wide as a large text size would, Lineup first drops its name, then the strip
+                # takes the line below.
+                page.locator("#btn-filters-close").click()
+                if width > 600:
+                    continue
+                for css, tight, below in ((".coffee { min-width: 100px }", True, False), (".coffee { min-width: 170px }", False, True)):
+                    page.evaluate("css => { const s = document.getElementById('probe-css') || document.head.appendChild(Object.assign(document.createElement('style'), { id: 'probe-css' })); s.textContent = css; }", css)
+                    page.evaluate("window.dispatchEvent(new Event('resize'))")
+                    bar_class = page.locator("#bar").get_attribute("class").split()
+                    self.assertEqual(("bar--tight" in bar_class, "bar--strip-below" in bar_class), (tight, below), css)
+                    menu, coffee, box = page.locator("#btn-menu").bounding_box(), page.locator(".coffee").bounding_box(), strip.bounding_box()
+                    self.assertAlmostEqual(mid(coffee), mid(menu), delta=3)
+                    if below:
+                        self.assertGreaterEqual(box["y"], menu["y"] + menu["height"])
+                        self.assertAlmostEqual(box["width"], page.locator("#bar").bounding_box()["width"], delta=1)
+                    else:
+                        self.assertAlmostEqual(mid(box), mid(menu), delta=3)
 
     def test_league_strip_shows_emblems_and_keeps_the_readers_place(self):
         # 36 Premier League matches, then one Liga match; the page has its emblems.
@@ -1709,17 +1721,16 @@ class BrowserChecks(unittest.TestCase):
             expect(page.locator("#story-lede")).to_have_text("Later context.")
             expect(page.locator("#forecast, #forecast-later")).to_have_count(0)
 
-    def test_match_notes_follow_services_even_in_everything_mode(self):
+    def test_match_notes_follow_services(self):
         fixtures = [("peacock", "2026-10-07T18:00:00+00:00", "pre", "Peacock", "eng.1")]
         story = self.tagged_story()
         story["notes"] = {"peacock": {"note": "Match-specific lineup news.", "sources": []}}
         with self.page("after", html=render_page(build, fixtures=fixtures), story=story) as (page, _):
-            page.locator("#btn-all").click()
-            expect(page.locator('li.row[data-id="peacock"]')).to_be_visible()
-            expect(page.locator('li.row .row__story')).to_be_hidden()
+            expect(page.locator('li.row[data-id="peacock"]')).to_be_hidden()
             expect(page.locator('.miss__story')).to_have_count(0)
             page.locator("#btn-menu").click()
             page.locator('[data-kind="have"][data-key="peacock"]').click()
+            expect(page.locator('li.row[data-id="peacock"]')).to_be_visible()
             expect(page.locator('li.row .row__story')).to_be_visible()
 
     def test_filtering_near_news_can_reveal_available_later_fallback(self):

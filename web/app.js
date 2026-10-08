@@ -115,7 +115,9 @@
   }
 
   // ---- lineup and filters ----------------------------------------------------------------------
-  var mode = read(LS.mode) === 'all' ? 'all' : 'mine';
+  // The page shows the matches the viewer's services carry. Until 8 October 2026 an "Everything" view
+  // widened the schedule to every match; a choice of it saved then is cleared, not obeyed.
+  try { localStorage.removeItem(LS.mode); } catch (e) {}
   var drawerOpen = false;
   var drawer = document.getElementById('drawer'), btnMenu = document.getElementById('btn-menu');
   var storedHave = read(LS.have);
@@ -377,11 +379,8 @@
   }
   function applyFilterUI() {
     renderLeagueOrder();
-    controls.classList.toggle('mode-mine', mode === 'mine');
     drawer.hidden = !drawerOpen; btnMenu.setAttribute('aria-expanded', String(drawerOpen));
     document.getElementById('filter-sum').textContent = filterSummary();
-    document.getElementById('btn-mine').setAttribute('aria-pressed', String(mode === 'mine'));
-    document.getElementById('btn-all').setAttribute('aria-pressed', String(mode === 'all'));
     drawer.querySelectorAll('.fpill').forEach(function (b) {
       var k = b.getAttribute('data-key'), comp = b.getAttribute('data-kind') === 'comp';
       var on = comp ? followed(k) : !!HAVE[k];
@@ -395,8 +394,10 @@
     renderStrip();
   }
   function passes(r) {
-    // This view promises availability; unconfirmed coverage belongs in Everything.
-    if (mode === 'mine' && !onSvc(r)) return false;
+    // The schedule promises availability: a match shows when one of the viewer's services carries it
+    // (listed, or its usual home). One on other services shows under Elsewhere when a broadcaster is
+    // listed; one with unconfirmed coverage doesn't show.
+    if (!onSvc(r)) return false;
     if (compHidden(r)) return false;
     return true;
   }
@@ -409,29 +410,27 @@
     var right = Math.min(Math.max(16, window.innerWidth - rect.right), window.innerWidth - width - 16);
     drawer.style.setProperty('--drawer-top', top + 'px'); drawer.style.setProperty('--drawer-right', right + 'px');
   }
-  // Closing from the keyboard returns focus to whichever button opened the panel: Lineup, or the
-  // league strip's button.
-  var drawerOpener = null;
-  function setDrawer(open, refocus, opener) {
+  function setDrawer(open, refocus) {
     if (!open && filterDrag) finishFilterDrag({ pointerId: filterDrag.id, type: 'pointercancel' });
-    if (open) drawerOpener = opener || btnMenu;
     drawerOpen = open; applyFilterUI();
     if (open) { positionDrawer(); drawer.scrollTop = 0; drawer.focus({ preventScroll: true }); }
-    else if (refocus) (drawerOpener || btnMenu).focus({ preventScroll: true });
+    else if (refocus) btnMenu.focus({ preventScroll: true });
   }
   window.addEventListener('resize', positionDrawer);
   window.addEventListener('scroll', positionDrawer, { passive: true });
   // The controls bar stays at the top of the window. Keyboard focus that lands under it is scrolled
   // clear once the browser has scrolled it into view (WCAG 2.4.11). CSS scroll padding can't do
-  // this: browsers count the stuck bar's own controls as hidden behind it too, and focusing the view
-  // toggle far down the page threw the reader hundreds of pixels back up. Only a Tab moves the page:
+  // this: browsers count the stuck bar's own controls as hidden behind it too, and focusing one of
+  // them far down the page threw the reader hundreds of pixels back up. Only a Tab moves the page:
   // focus put back after a redraw uses preventScroll and stays where the reader left it.
   var bar = document.getElementById('bar'), tabbing = false;
-  // The bar keeps its controls to one line where it can: when they would wrap, it goes tight (the
-  // styles say what that drops). The league strip shares that line where it has room for a run of
-  // emblems, else it takes the line below. Measured rather than set by width, since fonts, text size
-  // and the number of leagues followed decide it.
-  var STRIP_INLINE_PX = 240;
+  // The bar is one line where it can be: Lineup, the league strip and the coffee link. The strip
+  // needs room for a run of emblems (five, or all of them when they are fewer); to make it, Lineup
+  // first drops its name and keeps its icon (tight: the styles say what that drops), and only where
+  // even that leaves too little (a narrow phone, a large text size) does the strip take the line
+  // below. Measured rather than set by width, since fonts, text size and the number of leagues
+  // followed decide it.
+  var STRIP_INLINE_PX = 190;
   function fitBar() {
     if (!bar) return;
     // Measured on an invisible copy of the bar, out of the page's flow, and the outcome applied to the
@@ -443,21 +442,23 @@
     probe.setAttribute('aria-hidden', 'true'); probe.setAttribute('inert', '');
     probe.style.cssText = 'position:absolute;visibility:hidden;pointer-events:none;left:0;top:0;width:' + width + 'px';
     bar.parentNode.appendChild(probe);
-    var items = [probe.querySelector('.seg'), probe.querySelector('.menu-btn'), probe.querySelector('.coffee')];
+    var items = [probe.querySelector('.menu-btn'), probe.querySelector('.coffee')], copy = probe.querySelector('.strip');
     var mid = function (el) { var r = el.getBoundingClientRect(); return r.top + r.height / 2; };
-    var oneLine = function () { return items.every(function (el) { return Math.abs(mid(el) - mid(items[0])) < 4; }); };
-    // The controls' line first, with the strip out of it: the strip never makes the bar tight.
-    probe.classList.remove('bar--tight'); probe.classList.add('bar--strip-below');
-    if (!oneLine()) probe.classList.add('bar--tight');
-    probe.classList.remove('bar--strip-below');
-    // Then the strip joins that line if it leaves the line whole and has room there for a run of
-    // emblems (or all of them, when they are fewer).
-    var copy = probe.querySelector('.strip');
-    if (copy && !copy.hidden) {
-      var natural = copy.querySelector('.strip__list').scrollWidth + copy.querySelector('.strip__edit').getBoundingClientRect().width + 6;
-      if (!oneLine() || copy.getBoundingClientRect().width + 1 < Math.min(natural, STRIP_INLINE_PX)) probe.classList.add('bar--strip-below');
+    var oneLine = function () { return Math.abs(mid(items[0]) - mid(items[1])) < 4; };
+    var roomy = function () {
+      if (!copy || copy.hidden) return true;
+      var natural = copy.querySelector('.strip__list').scrollWidth;
+      return copy.getBoundingClientRect().width + 1 >= Math.min(natural, STRIP_INLINE_PX);
+    };
+    var fits = function (tight, below) {
+      probe.classList.toggle('bar--tight', tight); probe.classList.toggle('bar--strip-below', below);
+      return oneLine() && (below || roomy());
+    };
+    var tight = false, below = false;
+    if (!fits(false, false)) {
+      tight = true;
+      if (!fits(true, false)) { below = !!copy && !copy.hidden; tight = !fits(false, below); }
     }
-    var tight = probe.classList.contains('bar--tight'), below = probe.classList.contains('bar--strip-below');
     probe.remove();
     bar.classList.toggle('bar--tight', tight); bar.classList.toggle('bar--strip-below', below);
     fadeStrip();
@@ -467,10 +468,10 @@
   // The leagues the viewer follows, in priority order, as emblems in the bar (a league ESPN has no
   // emblem for shows its short code): a tap pauses one, hiding its matches for now without unfollowing
   // it, and another shows them again, with a note that offers the way back. It is one tab stop, a
-  // toolbar the arrow keys move along. The button at its end opens the panel at the leagues, where
-  // they are followed, unfollowed and ordered.
+  // toolbar the arrow keys move along. Leagues are followed, unfollowed and ordered in the Lineup
+  // panel; with none followed there is no strip.
   var strip = document.getElementById('league-strip'), stripList = document.getElementById('league-strip-list');
-  var stripEdit = document.getElementById('league-strip-edit'), stripFocus = '', stripShape = '';
+  var stripFocus = '', stripShape = '';
   function renderStrip() {
     if (!strip) return;
     var pills = {};
@@ -495,9 +496,7 @@
       b.setAttribute('aria-pressed', paused[id] ? 'false' : 'true');
       b.tabIndex = id === stripFocus ? 0 : -1;
     });
-    strip.hidden = !filterPills.comp.length;
-    strip.classList.toggle('strip--empty', !ids.length);
-    stripEdit.setAttribute('aria-expanded', String(drawerOpen));
+    strip.hidden = !ids.length;
     // The bar is refitted when the strip's contents change, not on every redraw.
     var shape = strip.hidden + '|' + ids.join(',');
     if (shape !== stripShape) { stripShape = shape; fitBar(); }
@@ -542,12 +541,6 @@
       j = Math.max(0, Math.min(buttons.length - 1, j));
       buttons[i].tabIndex = -1; buttons[j].tabIndex = 0; stripFocus = buttons[j].getAttribute('data-league'); buttons[j].focus();
     });
-    // The panel opens at its leagues.
-    stripEdit.addEventListener('click', function () {
-      if (!drawerOpen) setDrawer(true, false, stripEdit);
-      var head = document.getElementById('comp-h').closest('.drawer__group-head');
-      drawer.scrollTop += head.getBoundingClientRect().top - drawer.getBoundingClientRect().top - 12;
-    });
   }
   fitBar();
   window.addEventListener('resize', fitBar);
@@ -569,7 +562,7 @@
     // The priority list can replace the clicked button before this event reaches document.
     // Its original event path still identifies it as a click inside the panel.
     var path = ev.composedPath();
-    if (drawerOpen && path.indexOf(drawer) < 0 && path.indexOf(btnMenu) < 0 && path.indexOf(stripEdit) < 0) setDrawer(false, false);
+    if (drawerOpen && path.indexOf(drawer) < 0 && path.indexOf(btnMenu) < 0) setDrawer(false, false);
   });
   document.addEventListener('keydown', function (ev) {
     if (drawerOpen && (ev.key === 'Escape' || ev.key === 'Esc')) { ev.preventDefault(); setDrawer(false, true); }
@@ -578,12 +571,10 @@
     var b = ev.target.closest('button'); if (!b || !(b.closest('#controls') || b.closest('#drawer') || b === btnMenu)) return;
     if (b.hasAttribute('data-kind') && suppressFilterClick) { ev.preventDefault(); return; }
     if (b === btnMenu || b.id === 'btn-filters-close') { setDrawer(b === btnMenu ? !drawerOpen : false, b.id === 'btn-filters-close'); return; }
-    if (b.id === 'btn-mine' || b.id === 'btn-all') { mode = b.id === 'btn-all' ? 'all' : 'mine'; write(LS.mode, mode); }
-    else if (b.id === 'btn-reset') {
-      mode = 'mine'; HAVE = {}; SERVICES.owner.forEach(function (k) { HAVE[k] = true; }); storedHave = null;
+    if (b.id === 'btn-reset') {
+      HAVE = {}; SERVICES.owner.forEach(function (k) { HAVE[k] = true; }); storedHave = null;
       compChoice = {}; paused = {}; applyCompChoices();
       storedPriority = null; storedServiceOrder = null;
-      write(LS.mode, mode);
       try { [LS.leagues, LS.compOff, LS.paused, LS.have, LS.priority, LS.services].forEach(function (k) { localStorage.removeItem(k); }); } catch (e) {}
       evaluateAll();
     }
@@ -707,7 +698,7 @@
     var now = nowMs();
     renderLeagueOrder();
     var groups = {}; ORDER.forEach(function (b) { groups[b] = []; });
-    var sig = mode + '|' + Object.keys(HAVE).join(',') + '|' + Object.keys(compOff).join(',') + '|' + JSON.stringify(compChoice) + '|';
+    var sig = Object.keys(HAVE).join(',') + '|' + Object.keys(compOff).join(',') + '|' + JSON.stringify(compChoice) + '|';
     var all = {}; ORDER.forEach(function (b) { all[b] = []; });
     rows.forEach(function (r) {
       var b = bucketOf(r, now);
@@ -753,7 +744,7 @@
     return result;
   }
   function rebuild(groups, all, now) {
-    var context = mode + '|' + Object.keys(HAVE).join(',') + '|' + Object.keys(compOff).join(',');
+    var context = Object.keys(HAVE).join(',') + '|' + Object.keys(compOff).join(',');
     if (context !== foldContext) { foldContext = context; foldChoices = {}; }
     var frag = document.createDocumentFragment();
     var anyUpcoming = false;
@@ -789,7 +780,7 @@
     });
     if (!anyUpcoming) {
       var e = document.createElement('p'); e.className = 'empty';
-      e.textContent = mode === 'mine' ? 'No matches on your selected services and competitions in the next three days. Choose "Everything" to include other matches, including unconfirmed coverage, or adjust your filters.' : 'No matches in the next three days with these competition filters.';
+      e.textContent = 'No matches on your selected services and competitions in the next three days. Open Lineup to add services or competitions.';
       frag.insertBefore(e, frag.firstChild);
     }
     // Rows not placed (outside the window) are parked out of sight.
@@ -1394,9 +1385,8 @@
     // Only the date: the schedule runs past the next 24 hours, so the line above the title can't claim that window.
     document.getElementById('eyebrow').textContent = fmtDay.format(new Date(now));
     // The window's matches still to come or in progress: today and the three days after it.
-    var up = upcoming(groups).filter(function (r) { return r._state !== 'post'; }), on = up.filter(onSvc);
-    document.getElementById('tally-n').textContent = on.length;
-    document.getElementById('tally-txt').textContent = mode === 'mine' ? 'matches on your services in the next three days' : 'of ' + up.length + ' matches in the next three days are on your services';
+    document.getElementById('tally-n').textContent = upcoming(groups).filter(function (r) { return r._state !== 'post'; }).length;
+    document.getElementById('tally-txt').textContent = 'matches on your services in the next three days';
   }
 
   // ---- freshness -----------------------------------------------------------------------------
