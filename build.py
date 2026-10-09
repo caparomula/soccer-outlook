@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Build Soccer Outlook, a soccer schedule filtered by the viewer's US services and leagues.
 
-Fetch fixtures and standings from ESPN, map US broadcasters through rights.toml, and write one
-HTML file with web/page.html, web/styles.css, web/live.js and web/app.js embedded, plus a PNG favicon. The default
+Fetch fixtures and standings from ESPN, map US broadcasters through rights.toml, and write the main
+HTML file with web/page.html, web/styles.css, web/live.js and web/app.js embedded. Full builds also write
+three public schedule pages, a sitemap, a PNG favicon and an IndexNow ownership file. The default
 fetch covers six Eastern calendar dates: yesterday, today and four days ahead. The browser displays today and
 three later days, with each day starting at 4 am in the viewer's time zone, plus recent results.
 
@@ -48,6 +49,7 @@ from zoneinfo import ZoneInfo
 
 import providers
 import story_state  # shared window and candidate limits; the builder does not import AI generation
+import discovery
 
 ET = ZoneInfo("America/New_York")
 ESPN = "https://site.api.espn.com/apis/site/v2/sports/soccer/{league}/scoreboard?dates={day}&limit=200"
@@ -1713,7 +1715,7 @@ def write_facts(path, matches, built_at, today):
         json.dump(facts, f, ensure_ascii=False, indent=1)
 
 
-def build_page(matches, cache, built_at, failed, today, skipped=()):
+def build_page(matches, cache, built_at, failed, today, skipped=(), site_url=None):
     matches.sort(key=lambda m: (m.utc, -m.score, m.comp, m.home.name))
     # Static fallback: rows grouped by Eastern day, headed as the page script heads its days (Today and
     # Tomorrow with the full date in grey, a later day by its weekday with the rest of its date in grey).
@@ -1790,6 +1792,7 @@ def build_page(matches, cache, built_at, failed, today, skipped=()):
             .replace("@@PRIORITY_HINT@@", esc(priority_hint()))
             .replace("@@ABOUT_AI@@", esc(about_ai()))
             .replace("@@ABOUT_SCORES@@", esc(about_scores()))
+            .replace("@@BROWSE@@", discovery.navigation(site_url or SITE_URL))
             .replace("@@BUILT_ISO@@", built_at.strftime("%Y-%m-%dT%H:%M:%SZ"))
             .replace("@@INCOMPLETE@@", "1" if failed or skipped else "0")
             .replace("@@BUILT_ET@@", esc(built_et.strftime("%a %b ") + str(built_et.day) + built_et.strftime(", %I:%M %p ET").replace(" 0", " ")))
@@ -1819,6 +1822,32 @@ def public_site_url(value):
     return value.rstrip("/") + "/"
 
 
+def verification_meta(environ=None):
+    """Optional public ownership tokens supplied by the site's webmaster accounts."""
+    environ = os.environ if environ is None else environ
+    tags = []
+    for variable, name in (("GOOGLE_SITE_VERIFICATION", "google-site-verification"),
+                           ("BING_SITE_VERIFICATION", "msvalidate.01")):
+        value = environ.get(variable, "").strip()
+        if value:
+            if not re.fullmatch(r"[A-Za-z0-9_-]{1,256}", value):
+                raise ValueError(f"{variable} must contain only the verification tag's content token")
+            tags.append(f'<meta name="{name}" content="{esc(value)}">')
+    return "\n".join(tags)
+
+
+def indexnow_key(environ=None):
+    """This public proof-of-ownership key is also served as a text file on the site."""
+    environ = os.environ if environ is None else environ
+    key = environ.get("INDEXNOW_KEY", "").strip()
+    if not key:
+        path = WEB_DIR / "indexnow-key.txt"
+        key = path.read_text(encoding="utf-8").strip() if path.exists() else ""
+    if key and not re.fullmatch(r"[A-Za-z0-9-]{8,128}", key):
+        raise ValueError("INDEXNOW_KEY must be 8–128 letters, digits or hyphens")
+    return key
+
+
 DOCUMENT_HEAD = """<!doctype html>
 <html lang="en">
 <head>
@@ -1834,6 +1863,7 @@ DOCUMENT_HEAD = """<!doctype html>
 <meta property="og:description" content="@@SITE_DESCRIPTION@@">
 <meta property="og:url" content="@@SITE_URL@@">
 <meta name="twitter:card" content="summary">
+@@VERIFICATION@@
 <meta name="color-scheme" content="light dark">
 <link rel="icon" type="image/png" sizes="64x64" href="favicon.png">
 <style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}*,*::before,*::after{box-sizing:inherit}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
@@ -1849,16 +1879,20 @@ def as_document(fragment, site_url=SITE_URL):
     fragment = re.sub(r"\A<title>[^<]*</title>\s*", "", fragment, count=1)
     head = (DOCUMENT_HEAD.replace("@@SITE_TITLE@@", esc(SITE_TITLE))
             .replace("@@SITE_DESCRIPTION@@", esc(SITE_DESCRIPTION))
+            .replace("@@VERIFICATION@@", verification_meta())
             .replace("@@SITE_URL@@", esc(public_site_url(site_url))))
     return head + fragment + "\n</body>\n</html>\n"
 
 
-def sitemap(site_url, built_at):
-    """The public schedule is one indexable page; filters do not create separate URLs."""
+def sitemap(site_url, built_at, paths=()):
+    """Include permanent public pages, while personal filters remain browser preferences."""
     modified = built_at.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    base = public_site_url(site_url)
+    entries = "".join(f'  <url><loc>{esc(base + path)}</loc><lastmod>{modified}</lastmod></url>\n'
+                      for path in ("", *paths))
     return ('<?xml version="1.0" encoding="UTF-8"?>\n'
             '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
-            f'  <url><loc>{esc(public_site_url(site_url))}</loc><lastmod>{modified}</lastmod></url>\n'
+            + entries +
             '</urlset>\n')
 
 
@@ -1937,6 +1971,9 @@ def main():
     ap.add_argument("--warnings", help="also write the mapping report to this file, one warning per line (empty when clean)")
     ap.add_argument("--report", help="write JSON source-completeness and publication status, including on a failed build")
     args = ap.parse_args()
+    # Reject malformed deployment settings before making requests or writing output.
+    head_extra = verification_meta() if not args.fragment else ""
+    discovery_key = indexnow_key() if not args.fragment else ""
 
     write_build_report(args.report, dict(version=1, publishable=False, complete=False,
                                         reasons=["Build did not complete."]))
@@ -1978,17 +2015,17 @@ def main():
     else:
         cache = image_links(matches, league_logos)
 
-    page = build_page(matches, cache, built_at, failed, today, quality.skipped_events)
+    page = build_page(matches, cache, built_at, failed, today, quality.skipped_events, args.site_url)
     trimmed = ""
     if len(page.encode("utf-8")) > PAGE_BUDGET:
         # First without league logos, then also without logos for background leagues.
         slim = {k: v for k, v in cache.items() if not k.startswith("L")}
-        page = build_page(matches, slim, built_at, failed, today, quality.skipped_events)
+        page = build_page(matches, slim, built_at, failed, today, quality.skipped_events, args.site_url)
         trimmed = "league logos"
         if len(page.encode("utf-8")) > PAGE_BUDGET:
             keep = {t.logo_key for m in matches if LEAGUES[m.league]["tier"] < 3 for t in (m.home, m.away)}
             slim = {k: v for k, v in slim.items() if k in keep}
-            page = build_page(matches, slim, built_at, failed, today, quality.skipped_events)
+            page = build_page(matches, slim, built_at, failed, today, quality.skipped_events, args.site_url)
             trimmed = "league logos+tier-3 team logos"
     if not args.fragment:
         page = as_document(page, args.site_url)
@@ -1997,8 +2034,18 @@ def main():
         f.write(page)
     if not args.fragment:
         # A separate PNG supports Safari versions without SVG/data-URI favicons.
-        Path(args.out).resolve().with_name("favicon.png").write_bytes(WEB_DIR.joinpath("favicon.png").read_bytes())
-        Path(args.out).resolve().with_name("sitemap.xml").write_text(sitemap(args.site_url, built_at), encoding="utf-8")
+        output_dir = Path(args.out).resolve().parent
+        output_dir.joinpath("favicon.png").write_bytes(WEB_DIR.joinpath("favicon.png").read_bytes())
+        public_pages = discovery.pages(sys.modules[__name__], matches, cache, built_at, args.site_url,
+                                       failed=failed, skipped=quality.skipped_events, head_extra=head_extra,
+                                       schedule_day=today if args.date else None)
+        for route, document in public_pages.items():
+            destination = output_dir / route / "index.html"
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_text(document, encoding="utf-8")
+        output_dir.joinpath("sitemap.xml").write_text(sitemap(args.site_url, built_at, public_pages), encoding="utf-8")
+        if discovery_key:
+            output_dir.joinpath(f"{discovery_key}.txt").write_text(discovery_key + "\n", encoding="utf-8")
     if args.facts:
         write_facts(args.facts, matches, built_at, today)
     write_build_report(args.report, report)

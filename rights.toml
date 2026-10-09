@@ -105,7 +105,7 @@ checked = 2026-10-03
 [services.para]
 name = "Paramount+"
 channels = ["Paramount+", "CBS"]
-note = "CBS's live matches need the Premium plan. CBS Sports Network streams here only for the competitions under Simulcasts."
+note = "CBS's live matches need the Premium plan. CBS Sports Network is included only for selected competitions."
 source = "CBS Sports and Paramount+ (research for the first build of the page)"
 checked = 2026-10-03
 

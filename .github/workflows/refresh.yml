@@ -85,7 +85,10 @@ jobs:
 
       - name: Build the page
         env:
-          SITE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+          SITE_URL: ${{ vars.SITE_URL || format('https://{0}.github.io/{1}/', github.repository_owner, github.event.repository.name) }}
+          GOOGLE_SITE_VERIFICATION: ${{ vars.GOOGLE_SITE_VERIFICATION }}
+          BING_SITE_VERIFICATION: ${{ vars.BING_SITE_VERIFICATION }}
+          INDEXNOW_KEY: ${{ vars.INDEXNOW_KEY }}
         run: python3 build.py --out site/index.html --site-url "$SITE_URL" --facts work/facts.json --warnings work/mapping-report.txt --report work/build-report.json
 
       - name: Check the page
@@ -156,10 +159,7 @@ jobs:
         with:
           name: generated-site
           path: |
-            site/index.html
-            site/favicon.png
-            site/sitemap.xml
-            site/story.json
+            site/
             work/facts.json
             work/mapping-report.txt
             work/build-report.json

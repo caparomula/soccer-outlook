@@ -1,0 +1,49 @@
+name: Notify search engines
+
+# The generated branch must be live before crawlers are told about it. GitHub's
+# managed Pages workflow has different registry and run names; accept both.
+on:
+  workflow_run:
+    workflows: [pages-build-deployment, pages build and deployment]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: search-discovery
+  cancel-in-progress: false
+
+jobs:
+  notify:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'gh-pages' &&
+       github.event.workflow_run.head_repository.full_name == github.repository &&
+       github.event.workflow_run.path == 'dynamic/pages/pages-build-deployment')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      # Only read the expected sitemap from the deployed commit. Never execute
+      # code from workflow_run.head_sha, which belongs to the generated branch.
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || 'gh-pages' }}
+          path: work/published
+          sparse-checkout: sitemap.xml
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+      - name: Notify IndexNow of the published schedules
+        env:
+          SITE_URL: ${{ vars.SITE_URL || format('https://{0}.github.io/{1}/', github.repository_owner, github.event.repository.name) }}
+          INDEXNOW_KEY: ${{ vars.INDEXNOW_KEY }}
+        run: python3 .github/scripts/indexnow.py --site-url "$SITE_URL" --expected-sitemap work/published/sitemap.xml

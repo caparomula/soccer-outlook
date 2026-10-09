@@ -54,6 +54,9 @@ a { color: inherit; }
 /* Header */
 .hdr { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px 16px; padding-bottom: 12px; }
 .hdr__eyebrow { grid-column: 1 / -1; font-family: var(--display); font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em; font-size: 13px; color: var(--muted); }
+.hdr__intro { grid-column: 1 / -1; margin: 0; font-size: 14px; color: var(--muted); }
+.schedule-links { margin-bottom: 20px; }
+.schedule-links a { display: inline-block; margin: 4px 16px 4px 0; text-underline-offset: 3px; }
 /* The masthead ends in a bar with what a reader reaches for anywhere on the page: the view, the
    lineup and the coffee link. The bar stays at the top of the window while the date, the title and
    the tally scroll away; pinning the whole masthead would take a quarter of a phone's screen. Its

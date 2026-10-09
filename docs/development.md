@@ -28,7 +28,7 @@ Useful build options:
 | `--warnings work/mapping-report.txt` | Save broadcast-mapping warnings; the file is empty when the report is clean. |
 | `--report work/build-report.json` | Save source-health and fixture counts used to decide whether the build can be published. |
 | `--site-url https://example.com/soccer/` | Set the public directory URL used by the canonical link, sharing metadata and sitemap. Defaults to the published Soccer Outlook URL. |
-| `--date YYYY-MM-DD` | Choose the Eastern date used to fetch fixtures and evaluate rights. It does not change the build timestamp or the browser's clock. |
+| `--date YYYY-MM-DD` | Choose the Eastern date used to fetch fixtures, evaluate rights and date the public static schedules. It does not change the build timestamp or the browser's clock. |
 | `--days-back N --days-ahead N` | Change the dates fetched. This does not change the browser's display window. |
 | `--no-logos` | Build without team or league images. |
 | `--embed-images --logos logos.json` | Embed images instead of linking to ESPN; cache downloaded images in the named file. |
@@ -41,6 +41,7 @@ For a browser preview at a chosen local time, append a fragment such as `#at-202
 | File or directory | Responsibility |
 | --- | --- |
 | [`build.py`](../build.py) | Fetch and interpret ESPN data, validate configuration, calculate the Outlook score and generate HTML. Also defines tracked leagues, default services and featured teams. |
+| [`discovery.py`](../discovery.py) | Generate public league and service schedule pages, their links, and search-discovery metadata. |
 | [`rights.toml`](../rights.toml) | Broadcaster aliases, services, simulcasts and each competition's usual coverage, with sources and check dates. |
 | [`settings.toml`](../settings.toml) | AI configuration, score weights and golden-dot thresholds. |
 | [`web/page.html`](../web/page.html) | Page structure. |
@@ -57,11 +58,15 @@ For a browser preview at a chosen local time, append a fragment such as `#at-202
 
 The generator inlines the HTML, CSS and JavaScript assets into the page. Rebuild after editing them. Full builds copy `web/favicon.png` beside the HTML; the PNG works in browsers that do not support SVG favicons. If the SVG artwork changes, re-export the PNG at 64 × 64 with a transparent background. Fragment builds leave the icon to the host page.
 
-Deployment consists of `index.html`, `favicon.png`, `sitemap.xml`, optional `story.json` and a `.nojekyll` file; there is no application server or JavaScript bundler. Generated files in `site/` and test artifacts in `work/` are ignored by Git.
+Deployment consists of `index.html`, `favicon.png`, `sitemap.xml`, the `premier-league/`, `mls/` and `paramount-plus/` schedule pages, optional `story.json`, an optional IndexNow key file and a `.nojekyll` file; there is no application server or JavaScript bundler. Generated files in `site/` and test artifacts in `work/` are ignored by Git.
 
-Full pages allow search indexing and include a descriptive title, summary, canonical URL and sharing metadata in the document head. Each build writes a one-page sitemap beside the HTML, dated with the schedule rebuild time. Fragment builds leave search metadata and discovery files to the host. The workflow supplies the repository's GitHub Pages URL; for a custom domain, set its `SITE_URL` accordingly. Use `--site-url` for other public deployments so their canonical links point to the correct site.
+Full pages allow search indexing and include a descriptive title, summary, canonical URL and sharing metadata in the document head. Each build writes three focused league/service schedules and a sitemap listing the homepage and those pages, dated with the schedule rebuild time. These public schedules use Eastern time and do not apply personal browser filters. Fragment builds leave search metadata and discovery files to the host. The workflows use the repository's GitHub Pages URL by default; for a custom domain, set the repository Actions variable `SITE_URL` to its public directory URL. This keeps generation and IndexNow submission aligned. Use `--site-url` for other public deployments so their canonical links point to the correct site.
 
-Indexing and search placement are decided by search engines. The owner can submit the public URL and `sitemap.xml` through Google Search Console after verifying ownership. A `robots.txt` file only controls crawling when served at the domain root; a file under `/soccer-outlook/` would not do so. The current domain has no blocking robots rules.
+Optional repository Actions variables `GOOGLE_SITE_VERIFICATION` and `BING_SITE_VERIFICATION` supply the public content tokens for Google and Bing's verification meta tags. The builder also accepts these names as environment variables for local builds. Their values are intentionally published; use repository **Variables**, not provider-key secrets. Unset variables produce no verification tags. The stable public IndexNow ownership token comes from [`web/indexnow-key.txt`](../web/indexnow-key.txt); a full build writes the corresponding key file into `site/`. See [Search and discovery](discovery.md) for account setup and submission steps.
+
+An optional `INDEXNOW_KEY` repository variable overrides that token in both workflows; the builder and notification script also accept it as an environment variable. Use the same value for generation and notification. Normal use requires no override.
+
+Indexing and search placement are decided by search engines. A `robots.txt` file only controls crawling when served at the domain root; a file under `/soccer-outlook/` would not do so. The current domain has no blocking robots rules.
 
 ## Test changes
 
@@ -185,7 +190,9 @@ A failing unit test, browser assertion, invalid configuration or unusable source
 
 There are two intentional exceptions: if Chromium cannot be installed or started, the refresh workflow publishes with a warning; and AI generation or mapping-issue failures do not block the schedule. Before AI setup, it saves a compatible, fresh result from the same day as a fallback. The Anthropic SDK is installed only if the planned work needs it. The separate [`Browser checks`](../.github/workflows/browser.yml) workflow runs unit tests, Chromium checks and WebKit smoke checks on relevant pushes and pull requests, including changes to AI and maintenance scripts. It saves screenshots even when checks fail and does not have the refresh workflow's browser-setup bypass.
 
-The `generated-site` artifact includes the HTML, favicon, sitemap, available AI output, source facts, warnings, health report and usage report. Download it from a workflow run to inspect the exact inputs and outputs behind a page. To restore an earlier page, use that artifact's `site/` contents in a new `gh-pages` commit, add `.nojekyll`, and push the branch; the next scheduled build will replace it. Check the source commit and build time before restoring, since old fixtures and ratings will still expire normally.
+The `generated-site` artifact includes the homepage and focused schedules, favicon, sitemap, any IndexNow key file, available AI output, source facts, warnings, health report and usage report. Download it from a workflow run to inspect the exact inputs and outputs behind a page. To restore an earlier page, use that artifact's `site/` contents in a new `gh-pages` commit, add `.nojekyll`, and push the branch; the next scheduled build will replace it. Check the source commit and build time before restoring, since old fixtures and ratings will still expire normally.
+
+The [Notify search engines](../.github/workflows/discovery.yml) workflow notifies IndexNow only after a successful production Pages deployment, using [`.github/scripts/indexnow.py`](../.github/scripts/indexnow.py). It reads the published sitemap and verifies the public key file before submitting URLs. It makes no AI calls; failures are visible in its Actions log and do not block or undo the site deployment. See the [discovery guide](discovery.md) for the public token file and separate search-engine verification steps.
 
 ### Costs and comparison workflows
 

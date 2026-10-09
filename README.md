@@ -19,6 +19,7 @@ ESPN supplies fixtures and live scores. The project maps US broadcast coverage i
 | Choose services, save preferences, or understand the cards | [Using Soccer Outlook](docs/user-guide.md) |
 | Understand the golden dots, ranking formula, or default league order | [How recommendations work](docs/scoring.md) |
 | Run locally, change settings, maintain coverage, or deploy | [Development and maintenance](docs/development.md) |
+| Register with search engines or help people find the app | [Search and discovery](docs/discovery.md) |
 
 ## Run locally
 
@@ -38,7 +39,7 @@ Page structure, styles and browser behavior live in [web/](web/). Rebuild after 
 
 GitHub Actions normally rebuilds the published schedule three times a day. While the page is open, the browser also checks live scores about once a minute. Broadcast listings can change; **usually** means an established rights arrangement rather than a confirmed listing for that match. Check the broadcaster's app before kickoff.
 
-The site allows search indexing and publishes a [sitemap](https://caparomula.github.io/soccer-outlook/sitemap.xml) to help search engines discover it. Images normally load from ESPN, and fonts load from Google Fonts.
+The site allows search indexing and publishes a [sitemap](https://caparomula.github.io/soccer-outlook/sitemap.xml). Its [Premier League](https://caparomula.github.io/soccer-outlook/premier-league/), [MLS](https://caparomula.github.io/soccer-outlook/mls/) and [Paramount+](https://caparomula.github.io/soccer-outlook/paramount-plus/) schedule pages offer direct routes into the app. See [Search and discovery](docs/discovery.md) for search-engine registration and update notifications. Images normally load from ESPN, and fonts load from Google Fonts.
 
 If you find the page useful, you can [buy the owner a coffee](https://www.buymeacoffee.com/caparomula).
 
