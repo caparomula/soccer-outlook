@@ -1167,7 +1167,7 @@ def about_ai():
         text = ratings + "."
         if SETTINGS.overview_model:
             text += (f" Then {who(SETTINGS.overview_model)}, searches the web and writes the overview at the top (marked "
-                     "AI Summary) about the matches the top three come from, on every service and in every competition, "
+                     "AI Summary) about the matches of the days the page shows, on every service and in every competition, "
                      "so it reads the same whatever you choose to see.")
         if SETTINGS.blurbs_model:
             text += (f" For the cards, {who(SETTINGS.blurbs_model)}, searches the web for a blurb on each of the "
@@ -1514,10 +1514,11 @@ def write_facts(path, matches, built_at, today):
         first_window = [m for m in candidates if m.utc < boundary]
         league_candidates.append(dict(league_id=league, competition=LEAGUES[league]["name"],
                                       matches=[entry(m) for m in first_window]))
-    # The overview's fixtures, the matches the page's top three are chosen from (web/app.js's
-    # renderPicks), whatever the visitor's services and competitions: every match with known coverage
-    # in the page's window, today and the three days after it, which the AI rates. later_if_needed
-    # doesn't serve: it stops at 20 fixtures, partway through a busy Saturday morning.
+    # The overview's fixtures, for every visitor whatever their services and competitions: every match
+    # with known coverage in the page's window, today and the three days after it, which the AI rates.
+    # (The page's top three came from the same matches until 9 October 2026; they follow each visitor's
+    # lineup now.) later_if_needed doesn't serve: it stops at 20 fixtures, partway through a busy
+    # Saturday morning.
     frame = near + [m for m in later if m.utc < story.window_end(built_at)]
     by_stature = lambda ms: sorted(ms, key=lambda m: (-m.score, m.utc))
     facts = {

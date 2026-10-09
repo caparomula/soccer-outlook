@@ -56,8 +56,8 @@ ratings mode above, once a day) or "full" (Claude's research, overview and blurb
 day), and `model` and `effort` say who does it. In the ratings design, `overview_model` and
 `overview_effort` add the overview: once the ratings are written, one request with that model's own
 web search (Claude's web search and fetch, OpenAI's web_search, Google's grounding) for a plain
-paragraph about every match with known coverage in the days the page shows (window_end), which its
-top three come from, on any service and in any competition, since every visitor reads it whatever they follow. It is
+paragraph about every match with known coverage in the days the page shows (window_end), on any
+service and in any competition, since every visitor reads it whatever they follow. It is
 published only with a cited page the model's search returned (checked_overview says how), and a
 failure costs the page its overview, never its ratings. `blurbs_model` and `blurbs_effort` add card
 blurbs for the top picks the same way: the BLURB_CANDIDATES best matches in that frame by the page's
@@ -118,7 +118,7 @@ RERATE_HOURS = 24                     # a refresh re-rates fixtures kicking off 
 # The page's window: today and the three days after it, a day changing at 4 am rather than midnight as on the page
 # (web/app.js's WINDOW_DAYS and DAY_START), so Thursday's page shows Thursday to Sunday. Ratings mode rates
 # what kicks off in it and nothing past it, which the page doesn't show; build.py lists the schedule,
-# the top three's matches and its counts by the same window. The script decides this, not the model:
+# the overview's matches and its counts by the same window. The script decides this, not the model:
 # it knows the fixtures, and asking would cost tokens and add a judgment.
 WINDOW_DAYS = 3
 DAY_START_HOUR = 4
@@ -302,7 +302,7 @@ OVERVIEW_HOUSEHOLD = ("watch_on", "available_service_ids", "hidden_by_default", 
 
 def overview_view(facts):
     """The overview's view of the facts: build.py's overview_fixtures (every match with known coverage
-    in the days the page shows, which its top three come from, on any service and in any competition), each
+    in the days the page shows, on any service and in any competition), each
     compactly, in kickoff order. What the page shows the default household (watch_on, its services,
     competitions hidden by default) is left out, and so is build.py's own stature score: the overview
     is for every visitor, whatever they follow, and an unexplained number only invites guessing."""
@@ -613,8 +613,10 @@ def blurb_spans(text, start):
 
 
 def pick_candidates(facts, rankings, count=BLURB_CANDIDATES):
-    """The matches whose blurbs to research: the `count` best in overview_fixtures (the frame the page's
-    top three come from) by the pick score web/app.js gives a visitor who hasn't reordered the leagues:
+    """The matches whose blurbs to research: the `count` best in overview_fixtures (every match with known
+    coverage in the page's window; since 9 October 2026 the page's top three follow each visitor's lineup,
+    so these are the best overall, not one visitor's picks) by the pick score web/app.js gives a visitor
+    who hasn't reordered the leagues:
     interest, the AI rating and the Outlook score in the blend's proportion (either alone when the other
     is missing), mixed with the league's default priority, the page's league order. Ties go by kickoff,
     then ID. A match with neither score can't be ranked and isn't chosen."""

@@ -837,10 +837,6 @@
     return rows.filter(function (r) { return r._b && keep(r) && r._state !== 'post' && (r._k > now || r._b === 'live'); });
   }
   function availableUpcoming(now) { return upcomingIn(now, editorialPasses); }
-  // Known coverage on some service, whatever this viewer's lineup: a listed broadcaster the page maps
-  // to a service, or the competition's usual home. A match nobody is known to carry can't be watched
-  // by anyone, so it is never a pick.
-  function covered(r) { return r._o.some(function (o) { return o.v.length; }) || !!(r._r && r._r.v.length); }
   // The top card answers "what can I watch now, or next?" among the matches that pass the lineup:
   // the best-rated match ESPN reports in progress, or else the soonest confirmed kickoff however
   // far ahead (a time to be set can't be put in order, as in the summary's "Next kickoff"; such a
@@ -1054,30 +1050,29 @@
     return sc ? 'live ' + sc + (clk ? ', ' + clk : '') : timeLabel(r) + dayTag(r, now);
   }
   function ratingDetails(rating) { return 'Popularity ' + rating.popularity + ' · Expected gameplay ' + rating.gameplay + ' · Competitive impact ' + rating.impact; }
-  // The top three show the presumed best matches, so they come from every covered match on every
-  // service and in every competition, whatever the lineup and filters; a pick this viewer can't watch
-  // looks as its schedule row does outside the lineup. The top card and the schedule stay filtered.
+  // The top three are the best matches the viewer can watch: from the same matches as the top card and
+  // the schedule (their services, their enabled leagues, none hidden from the strip), the top card's own
+  // match aside. Until 9 October 2026 they came from every service and competition, for the AI-written
+  // blurbs every visitor would read; with no blurbs, a pick the viewer can't watch was only a tease.
   // They are the best-scored of the page's window, today and the three days after it, which the AI
   // rates each morning; not of the next 24 hours, where on a quiet day (an international break) the few
   // matches took every place whatever their scores, over far better ones the day after. With AI ratings
   // on the page, only rated matches compete: one the ratings missed would be scored by the Outlook score
   // alone, which runs several points higher, and could win on that. Fewer than three in the window
   // make fewer cards.
-  var pickedRows = [];
   function renderPicks(now) {
-    var available = upcomingIn(now, covered).filter(function (r) { return r !== nextRow; });
+    var available = availableUpcoming(now).filter(function (r) { return r !== nextRow; });
     if (available.some(function (r) { return ratingOf(r); })) available = available.filter(function (r) { return ratingOf(r); });
     var chosen = available.sort(byRating).slice(0, 3);
     chosen.sort(function (a, b) { return byTime(a, b) || byRating(a, b); });
-    pickedRows = chosen;
     document.getElementById('picks-section').hidden = !chosen.length;
     picksEl.innerHTML = '';
     // Without ratings the cards are simply the next matches; calling them picks would claim a judgment.
     var rated = chosen.some(function (r) { return pickValue(r) !== null; }), aiRated = chosen.some(function (r) { return ratingOf(r); });
     document.getElementById('picks-h').textContent = !rated ? 'Upcoming' : chosen.length === 3 ? 'Top three' : chosen.length === 2 ? 'Top two' : 'Top pick';
-    document.getElementById('picks-sub').textContent = !rated ? 'In kickoff order · every service and competition · no ratings yet'
-      : 'The best of the next three days by ' + (aiRated ? 'AI rating + Outlook score + league priority' : 'Outlook score + league priority') +
-        ' · every service and competition · in kickoff order';
+    document.getElementById('picks-sub').textContent = !rated ? 'In kickoff order · no ratings yet'
+      : 'The best of the next three days on your services by ' + (aiRated ? 'AI rating + Outlook score + league priority' : 'Outlook score + league priority') +
+        ' · in kickoff order';
     chosen.forEach(function (r) { picksEl.appendChild(r._card.render('pick', now)); });
   }
 
@@ -1132,11 +1127,9 @@
       this.renderPickScore();
       return r;
     }
-    var top = role === 'nextup', off = !onSvc(r);
+    var top = role === 'nextup';
     host = host || document.createElement('article');
-    // Only a pick can be off the lineup; it takes the off-lineup grey and the dimmed look of its row.
-    host.className = (top ? 'nextup' + (r._state === 'in' ? ' nextup--live' : '') : 'pick') + ' svc-' + (off ? 'off' : r._svc) +
-      (off ? ' match--off' : '');
+    host.className = (top ? 'nextup' + (r._state === 'in' ? ' nextup--live' : '') : 'pick') + ' svc-' + r._svc;
     host.dataset.matchRole = role; host.dataset.matchId = r.getAttribute('data-id');
     host._row = r; host._matchCard = this; host.replaceChildren();
     var emblem = r.querySelector('.row__league .lg'), badge = null;
@@ -1225,7 +1218,7 @@
 
   function renderMisses(groups, now) {
     var pool = upcoming(groups).filter(function (r) {
-      return inFocus(r, now) && r._svc === 'none' && !r._unk && r._o.length && r._score >= 85 && !compHidden(r) && pickedRows.indexOf(r) < 0;
+      return inFocus(r, now) && r._svc === 'none' && !r._unk && r._o.length && r._score >= 85 && !compHidden(r);
     }).sort(function (a, c) { return c._score - a._score || a._k - c._k; }).slice(0, 4);
     missesEl.innerHTML = '';
     pool.forEach(function (r) {

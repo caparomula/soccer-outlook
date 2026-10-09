@@ -5,7 +5,7 @@
 #             uses: cents or less per model
 #   research  a researched blurb for each of six featured fixtures, one per competition, with each
 #             provider's own web search: tens of cents per model
-#   overview  one paragraph about the whole slate in the days the top three come from, every competition and
+#   overview  one paragraph about the whole slate in the days the page shows, every competition and
 #             service, with the same search: cents to tens of cents per model
 #
 # Each provider bills its own key, the ANTHROPIC_API_KEY, OPENAI_API_KEY and GEMINI_API_KEY secrets; a
