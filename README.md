@@ -41,3 +41,13 @@ GitHub Actions normally rebuilds the published schedule three times a day. While
 The project requests that search engines do not index the page. Images normally load from ESPN, and fonts load from Google Fonts.
 
 If you find the page useful, you can [buy the owner a coffee](https://www.buymeacoffee.com/caparomula).
+
+## License
+
+The code, documentation and original artwork are available under the [zlib License](LICENSE), copyright © 2026 caparomula. Copying, modification and redistribution are allowed, including commercial use, provided that:
+
+- You do not claim you wrote the original software.
+- You clearly mark altered source versions as modified.
+- You keep the license notice in source distributions.
+
+Credit in product documentation is appreciated but not required. Third-party match data, team and league badges, and fonts are not covered by this license; their owners' terms still apply.
