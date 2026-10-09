@@ -2,7 +2,7 @@
 """Build Soccer Outlook, a soccer schedule filtered by the viewer's US services and leagues.
 
 Fetch fixtures and standings from ESPN, map US broadcasters through rights.toml, and write one
-HTML file with web/page.html, web/styles.css and web/app.js embedded, plus a PNG favicon. The default
+HTML file with web/page.html, web/styles.css, web/live.js and web/app.js embedded, plus a PNG favicon. The default
 fetch covers six Eastern calendar dates: yesterday, today and four days ahead. The browser displays today and
 three later days, with each day starting at 4 am in the viewer's time zone, plus recent results.
 
@@ -16,13 +16,15 @@ and broadcaster listings three times a day. The page warns when its build is ove
 
 Images normally load from ESPN. --embed-images includes them as data URIs, using --logos as a cache;
 it does not make live scores, fonts or story loading work offline. --facts writes input for story.py,
-and --warnings writes coverage issues for maintainers. See docs/development.md for the full workflow.
+--warnings writes coverage issues for maintainers, and --report records source completeness and
+publication status. See docs/development.md for the full workflow.
 
-Usage: python3 build.py --out site/index.html [--days-ahead 4] [--days-back 1] [--warnings FILE]
+Usage: python3 build.py --out site/index.html [--days-ahead 4] [--days-back 1] [--warnings FILE] [--report FILE]
                         [--date YYYY-MM-DD] [--embed-images --logos logos.json] [--fragment] [--workers 6]
 
-The build fails if no fixtures are fetched or more than half the scoreboard requests fail.
-Partial failures appear in the page footer and build log.
+The build fails if no usable scoreboards arrive, more than half fail, or an empty schedule has
+missing sources or unreadable events. A healthy empty slate is valid. Partial failures appear in
+the page footer, build log and JSON report.
 """
 import argparse
 import base64
@@ -45,7 +47,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import providers
-import story      # the page's window (story.window_end), which the daily AI run rates
+import story_state  # shared window and candidate limits; the builder does not import AI generation
 
 ET = ZoneInfo("America/New_York")
 ESPN = "https://site.api.espn.com/apis/site/v2/sports/soccer/{league}/scoreboard?dates={day}&limit=200"
@@ -117,9 +119,9 @@ LEAGUES = {
 RIGHTS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "rights.toml")
 OWNER = ["hbo", "fox", "para", "espn", "apple", "usa", "prime", "netflix", "disney"]
 # Teams whose matches are shown by default even in a competition that is off by default (LEAGUES'
-# default_off), as ESPN names them: switching women's friendlies off by default hid the USWNT
+# default_off), identified by ESPN's stable team IDs: switching women's friendlies off hid the USWNT
 # against the world champions. A viewer who switches the competition off still hides them.
-FEATURED_TEAMS = ("United States",)
+FEATURED_TEAMS = {"660", "2765"}   # United States men and women
 STALE_AFTER_DAYS = 180      # an entry in rights.toml not checked for this long is reported
 LAPSE_NOTICE_DAYS = 30      # a usual home is reported this long before its season ends
 TODAY = datetime.now(ET).date()   # the build's Eastern date; main() sets it, --date included
@@ -132,7 +134,7 @@ class RightsError(ValueError):
 @dataclass(frozen=True)
 class UsualHome:
     channel: str         # carries every match not listed yet; "" when the rights go club by club only
-    by_home: dict        # home club, as ESPN names it -> channel, for competitions sold club by club
+    by_home: dict        # ESPN home team ID -> channel, for competitions sold club by club
     season: str
     until: date          # the claims lapse after this day
 
@@ -297,8 +299,11 @@ def load_rights(path, leagues):
         if {"usual", "by_home_team", "season", "until"} & set(e):
             by_home = e.get("by_home_team", {})
             if not isinstance(by_home, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in by_home.items()):
-                problems.append(f"{where}: by_home_team must map club names to channel names")
+                problems.append(f"{where}: by_home_team must map ESPN team IDs to channel names")
                 by_home = {}
+            for team_id in by_home:
+                if not re.fullmatch(r"[1-9][0-9]*", team_id):
+                    problems.append(f"{where}: by_home_team key {team_id!r} must be a numeric ESPN team ID")
             ch = text(where, e, "usual", required=not by_home)
             season, until = text(where, e, "season"), day(where, e, "until")
             for label, what in [(ch, "usual")] + [(c, f"by_home_team.{club!r}") for club, c in by_home.items()]:
@@ -471,20 +476,118 @@ def load_settings(path, channels):
 SETTINGS = load_settings(SETTINGS_PATH, {o["label"] for o in OUTLETS.values()})
 
 
+# ESPN team IDs, checked against its team catalogs on 2026-10-09. Values are labels for maintainers;
+# scoring looks up IDs only, so alternate spellings and renamed teams keep the same treatment.
+# Men and women have distinct IDs even when their display names are identical.
 MARQUEE_CLUBS = {
-    "Arsenal", "Chelsea", "Liverpool", "Manchester City", "Manchester United", "Tottenham Hotspur",
-    "Newcastle United", "Real Madrid", "Barcelona", "Atlético Madrid", "Bayern Munich",
-    "Borussia Dortmund", "Bayer Leverkusen", "Paris Saint-Germain", "Marseille", "Juventus",
-    "Internazionale", "Inter Milan", "AC Milan", "Napoli", "AS Roma", "Roma", "Ajax Amsterdam", "Ajax", "PSV Eindhoven",
-    "PSV", "Feyenoord", "Benfica", "FC Porto", "Porto", "Sporting CP", "Celtic", "Rangers",
-    "Inter Miami CF", "LAFC", "LA Galaxy", "Club América", "Guadalajara", "Cruz Azul", "Al Nassr",
-    "Al Hilal", "Al Ittihad", "Flamengo", "Palmeiras", "Boca Juniors", "River Plate",
-    "Orlando Pride", "Kansas City Current", "Washington Spirit", "Gotham FC",
+    "103": "AC Milan",
+    "104": "AS Roma",
+    "139": "Ajax Amsterdam",
+    "929": "Al Hilal",
+    "2276": "Al Ittihad",
+    "817": "Al Nassr",
+    "227": "América",
+    "359": "Arsenal",
+    "19973": "Arsenal",
+    "1068": "Atlético Madrid",
+    "83": "Barcelona",
+    "20091": "Barcelona",
+    "131": "Bayer Leverkusen",
+    "132": "Bayern Munich",
+    "20103": "Bayern Munich",
+    "1929": "Benfica",
+    "20830": "Benfica",
+    "5": "Boca Juniors",
+    "124": "Borussia Dortmund",
+    "256": "Celtic",
+    "363": "Chelsea",
+    "19970": "Chelsea",
+    "218": "Cruz Azul",
+    "437": "FC Porto",
+    "142": "Feyenoord Rotterdam",
+    "819": "Flamengo",
+    "15364": "Gotham FC",
+    "219": "Guadalajara",
+    "20232": "Inter Miami CF",
+    "110": "Internazionale",
+    "131635": "Internazionale",
+    "111": "Juventus",
+    "20092": "Juventus",
+    "20907": "Kansas City Current",
+    "187": "LA Galaxy",
+    "18966": "LAFC",
+    "364": "Liverpool",
+    "19971": "Liverpool",
+    "382": "Manchester City",
+    "19257": "Manchester City",
+    "360": "Manchester United",
+    "20061": "Manchester United",
+    "176": "Marseille",
+    "114": "Napoli",
+    "361": "Newcastle United",
+    "18206": "Orlando Pride",
+    "148": "PSV Eindhoven",
+    "2029": "Palmeiras",
+    "160": "Paris Saint-Germain",
+    "19258": "Paris Saint-Germain",
+    "257": "Rangers",
+    "86": "Real Madrid",
+    "21128": "Real Madrid",
+    "16": "River Plate",
+    "21685": "Roma",
+    "2250": "Sporting CP",
+    "367": "Tottenham Hotspur",
+    "20062": "Tottenham Hotspur",
+    "15365": "Washington Spirit",
 }
 MARQUEE_NATIONS = {
-    "United States", "Mexico", "England", "Spain", "France", "Germany", "Italy", "Brazil", "Argentina",
-    "Portugal", "Netherlands", "Belgium", "Croatia", "Canada", "Uruguay", "Colombia", "Japan",
-    "Morocco", "Denmark", "Switzerland", "Norway", "Scotland", "Sweden", "Australia", "South Korea",
+    "202": "Argentina",
+    "2750": "Argentina",
+    "628": "Australia",
+    "2751": "Australia",
+    "459": "Belgium",
+    "18736": "Belgium",
+    "205": "Brazil",
+    "2752": "Brazil",
+    "206": "Canada",
+    "2753": "Canada",
+    "208": "Colombia",
+    "11337": "Colombia",
+    "477": "Croatia",
+    "479": "Denmark",
+    "2896": "Denmark",
+    "448": "England",
+    "5159": "England",
+    "478": "France",
+    "2755": "France",
+    "481": "Germany",
+    "2756": "Germany",
+    "162": "Italy",
+    "2792": "Italy",
+    "627": "Japan",
+    "2758": "Japan",
+    "203": "Mexico",
+    "2812": "Mexico",
+    "2869": "Morocco",
+    "18221": "Morocco",
+    "449": "Netherlands",
+    "7151": "Netherlands",
+    "464": "Norway",
+    "2762": "Norway",
+    "482": "Portugal",
+    "9531": "Portugal",
+    "580": "Scotland",
+    "451": "South Korea",
+    "17639": "South Korea",
+    "164": "Spain",
+    "17640": "Spain",
+    "466": "Sweden",
+    "2764": "Sweden",
+    "475": "Switzerland",
+    "17641": "Switzerland",
+    "660": "United States",
+    "2765": "United States",
+    "212": "Uruguay",
 }
 NATIONAL_LEAGUES = {"uefa.nations", "fifa.friendly", "fifa.friendly.w", "concacaf.nations.league", "caf.nations"}
 TIER_BASE = {1: 100, 2: 60, 3: 30}
@@ -630,16 +733,16 @@ def map_outlet(name, league):
     return Outlet(label=o["label"], via=via, free=o["free"], es=o["es"])
 
 
-def usual_home(league, home=""):
+def usual_home(league, home_id=""):
     """The match's usual home as an Outlet while the season lasts; None once it has lapsed.
 
-    For a competition sold club by club (Liga MX), the home club decides, and a club the table
-    doesn't name gets no claim rather than a guess."""
+    For a competition sold club by club (Liga MX), the home team's ESPN ID decides. Display-name
+    changes do not change its rights; an unknown ID gets no claim rather than a guess."""
     r = RIGHTS.leagues.get(league)
     u = r.usual if r else None
     if not u or TODAY > u.until:
         return None
-    channel = u.by_home.get(home) or u.channel
+    channel = u.by_home.get(str(home_id)) or u.channel
     if not channel:
         return None
     o = OUTLETS[channel.lower()]
@@ -703,9 +806,45 @@ def dicts(items):
     return [x for x in items if isinstance(x, dict)] if isinstance(items, list) else []
 
 
-def fetch_scoreboards(days, workers):
+@dataclass
+class BuildQuality:
+    """Source outcomes, kept separately from fixture volume: an empty healthy slate is valid."""
+    sources: list = field(default_factory=list)
+    skipped_events: list = field(default_factory=list)
+    excluded_events: int = 0
+
+    def skip(self, league, event_id, reason, day=None):
+        entry = dict(league=league, id=str(event_id) if event_id is not None else None, reason=str(reason))
+        if day is not None:
+            entry["date"] = day.isoformat()
+        self.skipped_events.append(entry)
+
+    def report(self, fixtures):
+        failed = [{k: v for k, v in source.items() if k != "ok"} for source in self.sources if not source["ok"]]
+        requested, successful = len(self.sources), sum(source["ok"] for source in self.sources)
+        reasons = []
+        if not successful:
+            reasons.append("No usable scoreboard responses.")
+        elif len(failed) > requested / 2:
+            reasons.append(f"More than half of the scoreboard requests failed ({len(failed)}/{requested}).")
+        if not fixtures and (failed or self.skipped_events):
+            reasons.append("An empty schedule cannot be trusted while sources or events are missing.")
+        return dict(version=1, publishable=not reasons, complete=not failed and not self.skipped_events,
+                    fixtures=fixtures, sources=dict(requested=requested, successful=successful, failed=failed),
+                    skipped_events=list(self.skipped_events), excluded_events=self.excluded_events, reasons=reasons)
+
+
+def write_build_report(path, report):
+    if path:
+        output = Path(path)
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def fetch_scoreboards(days, workers, quality=None):
     """Returns ({league: {event_id: event}}, {league: logo url}, [failed (league, day)])."""
     jobs = [(lg, day) for lg in LEAGUES for day in days]
+    quality = quality if quality is not None else BuildQuality()
 
     def one(job):
         lg, day = job
@@ -722,12 +861,19 @@ def fetch_scoreboards(days, workers):
     failed = []
     with cf.ThreadPoolExecutor(workers) as ex:
         for lg, day, data in ex.map(one, jobs):
-            if not isinstance(data, dict):
+            # A 200 response with an error object is not a successful empty schedule.
+            if not isinstance(data, dict) or not isinstance(data.get("events"), list):
                 failed.append((lg, day))
+                quality.sources.append(dict(league=lg, date=day.isoformat(), ok=False,
+                                            reason="Request failed or invalid JSON." if data is None else "Scoreboard has no events list."))
                 continue
-            for ev in dicts(data.get("events")):
-                if ev.get("id") is not None:
-                    merged[lg][ev["id"]] = ev
+            quality.sources.append(dict(league=lg, date=day.isoformat(), ok=True))
+            for ev in data["events"]:
+                if not isinstance(ev, dict) or not isinstance(ev.get("id"), (str, int)) or isinstance(ev.get("id"), bool) or not str(ev["id"]).strip():
+                    quality.skip(lg, ev.get("id") if isinstance(ev, dict) else None, "Event has no usable ID.", day)
+                    continue
+                event_id = str(ev["id"])
+                merged[lg][event_id] = dict(ev, id=event_id)
             league_info = dicts(data.get("leagues"))
             for lo in dicts(league_info[0].get("logos")) if league_info else []:
                 if "dark" not in (lo.get("rel") or []) and lo.get("href") and lg not in logos:
@@ -768,7 +914,7 @@ def fetch_standings(leagues, workers):
                 continue
             try:
                 table = standings_of(data)
-            except (AttributeError, KeyError, TypeError, ValueError) as e:
+            except (AttributeError, KeyError, TypeError, ValueError, IndexError, OverflowError) as e:
                 # A table ESPN sends in an unexpected shape costs that table, never the build.
                 print(f"skip standings {lg}: {e!r}", file=sys.stderr)
                 continue
@@ -791,7 +937,7 @@ def standings_of(data):
             t = e.get("team") if isinstance(e.get("team"), dict) else {}
             try:
                 rank = int(float(_stat(e, "rank") or 0))
-            except ValueError:
+            except (ValueError, OverflowError):
                 rank = 0
             logo = next((lo["href"] for lo in dicts(t.get("logos")) if lo.get("href")), "")
             row = dict(id=str(t.get("id") or ""), name=t.get("displayName") or "", logo=logo,
@@ -808,19 +954,23 @@ def standings_of(data):
 STANDINGS = {}
 
 
-def interpret_all(merged):
+def interpret_all(merged, quality=None):
     """The matches in the merged scoreboards. An event in a shape interpret() doesn't expect costs
     that event, named on stderr, never the build."""
     matches = []
+    quality = quality if quality is not None else BuildQuality()
     for lg, events in merged.items():
         for ev in events.values():
             try:
                 m = interpret(lg, ev)
-            except (AttributeError, KeyError, ValueError, TypeError) as e:
+            except (AttributeError, KeyError, ValueError, TypeError, IndexError, OverflowError) as e:
                 print(f"skip {lg} {ev.get('id')}: {e!r}", file=sys.stderr)
+                quality.skip(lg, ev.get("id"), str(e))
                 continue
             if m:
                 matches.append(m)
+            else:
+                quality.excluded_events += 1
     return matches
 
 
@@ -870,7 +1020,7 @@ def called_off(state, status):
 
 
 def featured(m):
-    return m.home.name in FEATURED_TEAMS or m.away.name in FEATURED_TEAMS
+    return m.home.id in FEATURED_TEAMS or m.away.id in FEATURED_TEAMS
 
 
 def shown_by_default(m):
@@ -879,7 +1029,10 @@ def shown_by_default(m):
 
 
 def interpret(league, ev):
-    comp = ev["competitions"][0]
+    competitions = dicts(ev.get("competitions"))
+    if not competitions:
+        raise ValueError("Event has no usable competition.")
+    comp = competitions[0]
     info = LEAGUES[league]
     season_slug = (ev.get("season") or {}).get("slug") or ""
     group = (comp.get("group") or {}).get("name") or ""
@@ -892,7 +1045,7 @@ def interpret(league, ev):
 
     teams = {}
     table = (STANDINGS.get(league) or {}).get("by_team") or {}
-    for c in comp["competitors"]:
+    for c in dicts(comp.get("competitors")):
         t = c["team"]
         url = t.get("logo") or ""
         team = Team(name=t.get("displayName") or t.get("name") or "?", abbr=(t.get("abbreviation") or "")[:4],
@@ -923,11 +1076,13 @@ def interpret(league, ev):
         teams[c["homeAway"]] = team
     home, away = teams.get("home"), teams.get("away")
     if not home or not away:
-        return None
+        raise ValueError("Event is missing a home or away team.")
 
     st = comp.get("status") or ev.get("status") or {}
     stype = st.get("type") or {}
     state = stype.get("state") or "pre"
+    if state not in ("pre", "in", "post"):
+        raise ValueError("Event has an unrecognized match state.")
     status = ""
     if state == "in":
         status = st.get("displayClock") or stype.get("shortDetail") or "Live"
@@ -952,7 +1107,9 @@ def interpret(league, ev):
 
     # Broadcasters listed by ESPN for the US market, English first.
     listed = []
-    for g in comp.get("geoBroadcasts") or []:
+    for g in dicts(comp.get("geoBroadcasts")):
+        if str(g.get("region") or "us").lower() != "us":
+            continue
         if (g.get("market") or {}).get("type", "National") != "National":
             continue
         name = ((g.get("media") or {}).get("shortName") or "").strip()
@@ -960,7 +1117,7 @@ def interpret(league, ev):
             listed.append((name, g.get("lang") or "en"))
     outlets = [map_outlet(name, league) for name, _ in listed]
     outlets.sort(key=lambda o: o.es)
-    rule = None if outlets else usual_home(league, home.name)
+    rule = None if outlets else usual_home(league, home.id)
     hint = league_hint(league) if not outlets and not rule else ""
     service, basis, outlet = evaluate(outlets, rule, set(OWNER))
 
@@ -988,7 +1145,7 @@ def interpret(league, ev):
     except (TypeError, ValueError):
         attendance = 0
     link = ""
-    for l in ev.get("links") or []:
+    for l in dicts(ev.get("links")):
         # The page opens this link; anything but an http(s) URL from the feed is ignored.
         if isinstance(l.get("href"), str) and re.match(r"https?://", l["href"]):
             link = l["href"]
@@ -998,17 +1155,20 @@ def interpret(league, ev):
     if league == "uefa.nations":
         m = re.match(r"Group ([A-D])", group)
         score = {"A": 100, "B": 55, "C": 30, "D": 20}.get(m.group(1), 40) if m else 40
-    names = {home.name, away.name}
+    team_ids = {home.id, away.id}
     if league in NATIONAL_LEAGUES:
-        score += 30 * len(names & MARQUEE_NATIONS)
-        if "United States" in names:
+        score += 30 * len(team_ids & MARQUEE_NATIONS.keys())
+        if team_ids & FEATURED_TEAMS:
             score += 45
     else:
-        score += 25 * len(names & MARQUEE_CLUBS)
+        score += 25 * len(team_ids & MARQUEE_CLUBS.keys())
     if called_off(state, status):
         score = 0
 
-    return Match(id=ev["id"], utc=datetime.fromisoformat(ev["date"].replace("Z", "+00:00")),
+    kickoff = datetime.fromisoformat(ev["date"].replace("Z", "+00:00"))
+    if kickoff.tzinfo is None:
+        raise ValueError("Kickoff is missing its time zone.")
+    return Match(id=ev["id"], utc=kickoff.astimezone(timezone.utc),
                  time_valid=bool(comp.get("timeValid", True)), league=league, comp=info["name"], stage=stage,
                  note=note, home=home, away=away, venue=venue, state=state, status=status, outlets=outlets,
                  rule=rule, hint=hint, service=service, basis=basis, outlet=outlet, score=score,
@@ -1149,9 +1309,10 @@ def about_ai():
         def who(model):
             maker = providers.PROVIDER_NAMES[providers.MODELS[model]]
             return f"{model}, {'an' if maker[0] in 'AEIOU' else 'a'} {maker} AI model"
-        ratings = (f"Once a day, early in the morning, {who(SETTINGS.model)}, rates every match the page shows, from "
+        ratings = (f"Each morning, {who(SETTINGS.model)}, is asked to rate the matches the page shows, from "
                    "today through the third day after it, for popularity (25%), expected gameplay (35%) and competitive "
-                   "impact (40%), from ESPN's table, form and stage and without seeing the Outlook score. Its ratings are "
+                   "impact (40%), from ESPN's table, form and stage and without seeing the Outlook score. Later rebuilds "
+                   "fill missing or newly listed ratings while keeping the day's accepted ratings. Its ratings are "
                    "editorial judgments, not predicted results")
         if not SETTINGS.overview_model and not SETTINGS.blurbs_model:
             return ratings + ", and the page shows no AI-written text."
@@ -1179,8 +1340,8 @@ def about_ai():
 
 
 def story_candidates():
-    """How many top matches get a researched blurb (story.py's BLURB_CANDIDATES), for the footer."""
-    return story.BLURB_CANDIDATES
+    """How many top matches get a researched blurb, shared with the generation settings."""
+    return story_state.BLURB_CANDIDATES
 
 
 def about_scores():
@@ -1309,10 +1470,17 @@ def team_html(t, cache, score_html):
 
 
 def gcal_link(m):
+    # The placeholder date on an unconfirmed fixture is not a kickoff to put in a calendar.
+    if not m.time_valid:
+        return ""
     start = m.utc.strftime("%Y%m%dT%H%M%SZ")
     end = (m.utc + timedelta(hours=2)).strftime("%Y%m%dT%H%M%SZ")
-    where = SERVICES.get(m.service, "") if m.service else ""
-    details = f"{m.comp}. " + (f"On {where}" + (f" ({m.outlet})" if m.outlet and m.outlet != where else "") + "." if where else "Check your services.")
+    # Calendar links are static, while the viewing route changes with each visitor's lineup.
+    # Name the listed channels, not the owner's service, and preserve uncertainty for usual homes.
+    channels = ", ".join(dict.fromkeys(outlet.label for outlet in m.outlets))
+    coverage = (f"Listed channels: {channels}." if channels else
+                f"Usually on {m.rule.label}; match listing not confirmed." if m.rule else "Check the broadcaster listing.")
+    details = f"{m.comp}. {coverage}"
     q = urllib.parse.urlencode({"action": "TEMPLATE", "text": f"{m.home.name} v {m.away.name}", "dates": f"{start}/{end}",
                                 "details": details, "location": m.venue})
     return "https://calendar.google.com/calendar/render?" + q
@@ -1354,7 +1522,7 @@ def detail_html(m, cache):
     links = []
     if m.link:
         links.append(f'<a href="{esc(m.link)}" target="_blank" rel="noopener">ESPN match page</a>')
-    if m.state == "pre":
+    if m.state == "pre" and m.time_valid:
         links.append(f'<a href="{esc(gcal_link(m))}" target="_blank" rel="noopener" title="Add to Google Calendar">Add to calendar</a>')
     if m.league in STANDINGS:
         links.append(f'<a href="#tables" class="detail__table" data-lg="{esc(m.league)}">League table</a>')
@@ -1422,9 +1590,9 @@ def colors_html(home, away):
 
 def tables_html(matches, cache, built_at):
     """Collapsed league tables for the leagues that play this week and publish standings, with the teams
-    that play in the page's window (story.window_end: today and the three days after it) shaded."""
+    that play in the page's window (today and the three days after it) shaded."""
     out = []
-    soon = story.window_end(built_at)
+    soon = story_state.window_end(built_at)
     for lg, info in LEAGUES.items():
         st = STANDINGS.get(lg)
         if not st or not any(m.league == lg for m in matches):
@@ -1510,7 +1678,7 @@ def write_facts(path, matches, built_at, today):
     # (The page's top three came from the same matches until 9 October 2026; they follow each visitor's
     # lineup now.) later_if_needed doesn't serve: it stops at 20 fixtures, partway through a busy
     # Saturday morning.
-    frame = near + [m for m in later if m.utc < story.window_end(built_at)]
+    frame = near + [m for m in later if m.utc < story_state.window_end(built_at)]
     by_stature = lambda ms: sorted(ms, key=lambda m: (-m.score, m.utc))
     facts = {
         "date": today.isoformat(),
@@ -1545,7 +1713,7 @@ def write_facts(path, matches, built_at, today):
         json.dump(facts, f, ensure_ascii=False, indent=1)
 
 
-def build_page(matches, cache, built_at, failed, today):
+def build_page(matches, cache, built_at, failed, today, skipped=()):
     matches.sort(key=lambda m: (m.utc, -m.score, m.comp, m.home.name))
     # Static fallback: rows grouped by Eastern day, headed as the page script heads its days (Today and
     # Tomorrow with the full date in grey, a later day by its weekday with the rest of its date in grey).
@@ -1560,11 +1728,13 @@ def build_page(matches, cache, built_at, failed, today):
         static_sections.append(
             f'<section class="bucket" data-static="1"><h3 class="bucket__h"><span>{esc(title)}</span><span class="when">{esc(when)}</span>'
             f'<span class="bucket__count"></span></h3><ol class="rows">{"".join(row_html(m, cache) for m in ms)}</ol></section>')
+    if not matches:
+        static_sections.append('<p class="empty">No matches are scheduled in the fetched date range.</p>')
 
     # What the page counts before its script runs (the script recounts by the viewer's clock): the
     # window's matches, today and the three days after it.
     focus = [m for m in matches if m.state != "post" and shown_by_default(m)
-             and built_at - timedelta(minutes=125) <= m.utc < story.window_end(built_at)]
+             and built_at - timedelta(minutes=125) <= m.utc < story_state.window_end(built_at)]
 
     have_buttons = {k: (
         f'<button type="button" class="fpill svc-{k}" data-kind="have" data-key="{k}" aria-pressed="{"true" if k in OWNER else "false"}">'
@@ -1606,7 +1776,11 @@ def build_page(matches, cache, built_at, failed, today):
     failed_note = ""
     if failed:
         bad = sorted({LEAGUES[lg]["name"] for lg, _ in failed})
-        failed_note = f"<p>ESPN did not answer for {esc(', '.join(bad))} on at least one day of this build, so those fixtures may be missing.</p>"
+        failed_note = f"<p>ESPN did not return a usable schedule for {esc(', '.join(bad))} on at least one day of this build, so those fixtures may be missing.</p>"
+    if skipped:
+        bad = sorted({LEAGUES[entry["league"]]["name"] for entry in skipped})
+        failed_note += (f"<p>{len(skipped)} unreadable fixture record{'s' if len(skipped) != 1 else ''} from "
+                        f"{esc(', '.join(bad))} could not be included. Other fixtures remain available.</p>")
     built_et = built_at.astimezone(ET)
     page = (TEMPLATE
             .replace("@@LOGO_CSS@@", logo_css)
@@ -1617,7 +1791,7 @@ def build_page(matches, cache, built_at, failed, today):
             .replace("@@ABOUT_AI@@", esc(about_ai()))
             .replace("@@ABOUT_SCORES@@", esc(about_scores()))
             .replace("@@BUILT_ISO@@", built_at.strftime("%Y-%m-%dT%H:%M:%SZ"))
-            .replace("@@INCOMPLETE@@", "1" if failed else "0")
+            .replace("@@INCOMPLETE@@", "1" if failed or skipped else "0")
             .replace("@@BUILT_ET@@", esc(built_et.strftime("%a %b ") + str(built_et.day) + built_et.strftime(", %I:%M %p ET").replace(" 0", " ")))
             .replace("@@N_ON@@", str(n_on))
             .replace("@@HAVE_PILLS@@", have_pills).replace("@@COMP_PILLS@@", comp_pills)
@@ -1656,7 +1830,8 @@ def as_document(fragment):
 WEB_DIR = Path(__file__).resolve().parent / "web"
 TEMPLATE = (WEB_DIR.joinpath("page.html").read_text(encoding="utf-8")
             .replace("@@STYLES@@", WEB_DIR.joinpath("styles.css").read_text(encoding="utf-8"))
-            .replace("@@SCRIPT@@", WEB_DIR.joinpath("app.js").read_text(encoding="utf-8")))
+            .replace("@@SCRIPT@@", "\n".join(WEB_DIR.joinpath(name).read_text(encoding="utf-8")
+                                            for name in ("live.js", "app.js"))))
 
 
 # ----------------------------------------------------------------------------------------------
@@ -1688,11 +1863,10 @@ def audit(matches):
             lines.append(f"{name}: its usual home ({home_of}, {u.season}) lapses in {left} day{'' if left == 1 else 's'}, "
                          f"on {u.until}. Confirm next season's home in rights.toml (leagues.{lg}).")
         if u.by_home:
-            # A club the table doesn't name (promoted, renamed by ESPN) gets no claim; say which.
-            missing = sorted({m.home.name for m in matches if m.league == lg} - set(u.by_home))
-            for club in missing:
-                lines.append(f"{name}: home club {club!r} has no usual home in rights.toml (leagues.{lg}.by_home_team), "
-                             f"so its home matches claim none. Add it under the name ESPN uses.")
+            missing = sorted({(m.home.id, m.home.name) for m in matches if m.league == lg and m.home.id not in u.by_home})
+            for team_id, club in missing:
+                lines.append(f"{name}: home club {club!r} (ESPN ID {team_id or 'missing'}) has no usual home in rights.toml "
+                             f"(leagues.{lg}.by_home_team), so its home matches claim none. Add its ESPN team ID.")
         if not u.channel:
             continue
         listed = [m for m in matches if m.league == lg and m.outlets]
@@ -1714,14 +1888,18 @@ def main():
     ap.add_argument("--logos", default="logos.json", help="image cache for --embed-images, read and updated")
     ap.add_argument("--fragment", action="store_true", help="write the page body only, for hosts that add the document wrapper")
     ap.add_argument("--days-ahead", type=int, default=4, help="days of fixtures to fetch: the page shows today and the "
-                    "three days after it (story.WINDOW_DAYS), and one more covers a page read after midnight before the next build")
+                    "three days after it (story_state.WINDOW_DAYS), and one more covers a page read after midnight before the next build")
     ap.add_argument("--days-back", type=int, default=1)
     ap.add_argument("--date", help="treat this Eastern date as today (testing)")
     ap.add_argument("--no-logos", action="store_true", help="no team or league images at all")
     ap.add_argument("--workers", type=int, default=6)
     ap.add_argument("--facts", help="also write the facts story.py gives the model to this JSON file")
     ap.add_argument("--warnings", help="also write the mapping report to this file, one warning per line (empty when clean)")
+    ap.add_argument("--report", help="write JSON source-completeness and publication status, including on a failed build")
     args = ap.parse_args()
+
+    write_build_report(args.report, dict(version=1, publishable=False, complete=False,
+                                        reasons=["Build did not complete."]))
 
     built_at = datetime.now(timezone.utc)
     today = datetime.strptime(args.date, "%Y-%m-%d").date() if args.date else built_at.astimezone(ET).date()
@@ -1729,13 +1907,16 @@ def main():
     TODAY = today
     days = [today + timedelta(days=i) for i in range(-args.days_back, args.days_ahead + 1)]
 
-    merged, league_logos, failed = fetch_scoreboards(days, args.workers)
+    quality = BuildQuality()
+    merged, league_logos, failed = fetch_scoreboards(days, args.workers, quality)
     LEAGUE_LOGOS.update(league_logos)
     STANDINGS.update(fetch_standings(list(LEAGUES), args.workers))
-    matches = interpret_all(merged)
-    if not matches:
-        print("FAIL no fixtures fetched", file=sys.stderr)
-        return 2
+    matches = interpret_all(merged, quality)
+    report = quality.report(len(matches))
+    if not report["publishable"]:
+        write_build_report(args.report, report)
+        print("FAIL " + " ".join(report["reasons"]), file=sys.stderr)
+        return 3
     warnings = audit(matches)
     for w in warnings:
         # On GitHub Actions a ::warning:: line becomes an annotation on the run's page.
@@ -1747,10 +1928,6 @@ def main():
     if warnings and os.environ.get("GITHUB_STEP_SUMMARY"):
         with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as f:
             f.write("### Broadcaster mapping\n\n" + "".join(f"- {w}\n" for w in warnings) + "\n")
-    if len(failed) > len(LEAGUES) * len(days) // 2:
-        print(f"FAIL {len(failed)} of {len(LEAGUES) * len(days)} scoreboard requests failed", file=sys.stderr)
-        return 3
-
     wanted = missing = 0
     if args.no_logos:
         cache = {}
@@ -1761,17 +1938,17 @@ def main():
     else:
         cache = image_links(matches, league_logos)
 
-    page = build_page(matches, cache, built_at, failed, today)
+    page = build_page(matches, cache, built_at, failed, today, quality.skipped_events)
     trimmed = ""
     if len(page.encode("utf-8")) > PAGE_BUDGET:
         # First without league logos, then also without logos for background leagues.
         slim = {k: v for k, v in cache.items() if not k.startswith("L")}
-        page = build_page(matches, slim, built_at, failed, today)
+        page = build_page(matches, slim, built_at, failed, today, quality.skipped_events)
         trimmed = "league logos"
         if len(page.encode("utf-8")) > PAGE_BUDGET:
             keep = {t.logo_key for m in matches if LEAGUES[m.league]["tier"] < 3 for t in (m.home, m.away)}
             slim = {k: v for k, v in slim.items() if k in keep}
-            page = build_page(matches, slim, built_at, failed, today)
+            page = build_page(matches, slim, built_at, failed, today, quality.skipped_events)
             trimmed = "league logos+tier-3 team logos"
     if not args.fragment:
         page = as_document(page)
@@ -1783,10 +1960,11 @@ def main():
         Path(args.out).resolve().with_name("favicon.png").write_bytes(WEB_DIR.joinpath("favicon.png").read_bytes())
     if args.facts:
         write_facts(args.facts, matches, built_at, today)
+    write_build_report(args.report, report)
     n_on = sum(1 for m in matches if m.service)
     image_mode = "none" if args.no_logos else ("embedded" if args.embed_images else "linked")
     print(f"OK matches={len(matches)} on_services={n_on} days={days[0]}..{days[-1]} images={image_mode} logos_new={wanted} logos_missing={missing} tables={len(STANDINGS)} "
-          f"fetch_failures={len(failed)} mapping_warnings={len(warnings)} bytes={len(page.encode('utf-8'))} trimmed={trimmed or 'none'} built={built_at.astimezone(ET).strftime('%Y-%m-%d %H:%M ET')}")
+          f"fetch_failures={len(failed)} skipped_events={len(quality.skipped_events)} mapping_warnings={len(warnings)} bytes={len(page.encode('utf-8'))} trimmed={trimmed or 'none'} built={built_at.astimezone(ET).strftime('%Y-%m-%d %H:%M ET')}")
     return 0
 
 

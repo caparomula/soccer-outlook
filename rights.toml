@@ -287,29 +287,30 @@ checked = 2026-10-06
 season = "2026-27"
 until = 2027-05-31
 hint = "Depends on the home club: TUDN, Univision or ViX for most · Chivas on Telemundo or Peacock · Juárez, Santos and Tijuana on FOX"
-note = """US rights go club by club, by the home team. ESPN lists no Liga MX broadcasters, so these are the only basis. TelevisaUnivision has 14 clubs and streams all their matches on ViX Premium (with TUDN and Univision simulcasts); Telemundo has Chivas, on Telemundo, Universo and Peacock; FOX has Juárez, Santos and Tijuana. Club names are ESPN's."""
+note = """US rights go club by club, by the home team. ESPN lists no Liga MX broadcasters, so these are the only basis. TelevisaUnivision has 14 clubs and streams all their matches on ViX Premium (with TUDN and Univision simulcasts); Telemundo has Chivas, on Telemundo, Universo and Peacock; FOX has Juárez, Santos and Tijuana. Clubs use ESPN team IDs so display-name changes do not affect coverage."""
 source = "https://worldsoccertalk.com/liga-mx-tv-schedule/ and https://www.nbcuniversal.com/article/telemundo-signs-multi-year-multi-platform-rights-agreement-exclusive-home-chivas-us"
 checked = 2026-10-06
 
+# ESPN team IDs from /apis/site/v2/sports/soccer/mex.1/teams, checked 2026-10-09.
 [leagues."mex.1".by_home_team]
-"América"              = "ViX"
-"Atlante"              = "ViX"
-"Atlas"                = "ViX"
-"Atlético de San Luis" = "ViX"
-"Cruz Azul"            = "ViX"
-"León"                 = "ViX"
-"Monterrey"            = "ViX"
-"Necaxa"               = "ViX"
-"Pachuca"              = "ViX"
-"Puebla"               = "ViX"
-"Pumas UNAM"           = "ViX"
-"Querétaro"            = "ViX"
-"Tigres UANL"          = "ViX"
-"Toluca"               = "ViX"
-"Guadalajara"          = "Peacock"
-"FC Juárez"            = "FOX Sports networks"
-"Santos"               = "FOX Sports networks"
-"Tijuana"              = "FOX Sports networks"
+"227"    = "ViX"                  # América
+"226"    = "ViX"                  # Atlante
+"216"    = "ViX"                  # Atlas
+"15720"  = "ViX"                  # Atlético de San Luis
+"218"    = "ViX"                  # Cruz Azul
+"228"    = "ViX"                  # León
+"220"    = "ViX"                  # Monterrey
+"229"    = "ViX"                  # Necaxa
+"234"    = "ViX"                  # Pachuca
+"231"    = "ViX"                  # Puebla
+"233"    = "ViX"                  # Pumas UNAM
+"222"    = "ViX"                  # Querétaro
+"232"    = "ViX"                  # Tigres UANL
+"223"    = "ViX"                  # Toluca
+"219"    = "Peacock"              # Guadalajara
+"17851"  = "FOX Sports networks"  # FC Juárez
+"225"    = "FOX Sports networks"  # Santos
+"10125"  = "FOX Sports networks"  # Tijuana
 
 [leagues."usa.nwsl"]
 hint = "CBS or Paramount+, ESPN, Prime Video, ION, Roku or NWSL+"

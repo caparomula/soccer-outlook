@@ -2,7 +2,8 @@
 # build.py validates these settings; malformed settings stop the build.
 # A push to main rebuilds the page. Changing the AI configuration can also trigger a paid AI run.
 
-# AI ratings run once a day in the scheduled workflow. enabled=false disables AI requests,
+# AI ratings are generated daily; later scheduled runs fill missing ratings or optional text.
+# Accepted same-day ratings are reused. enabled=false disables AI requests,
 # ratings and text. The page then recommends matches using the Outlook score and league priority.
 #
 # design="ratings" asks for scores from the supplied fixture facts, without research or prose.

@@ -520,7 +520,7 @@ class Network(unittest.TestCase):
 
     def test_a_timeout_is_not_retried(self):
         Server.script[:] = ["slow"]
-        with self.assertRaises(OSError):            # socket.timeout and URLError are both OSErrors
+        with self.assertRaises(providers.AmbiguousRequestError):
             providers.post_json(self.base + "/v1", {}, {}, timeout=0.3)
         self.assertEqual(len(Server.hits), 1)
 
@@ -888,6 +888,81 @@ class EveryProvider(unittest.TestCase):
         self.assertAlmostEqual(overviews["gemini-3.8-flash"]["cost_usd"], 3000 * 0.75e-6 + 700 * 3.75e-6 + 2 * 0.014)
         self.assertAlmostEqual(results["spent_usd"], sum(r["cost_usd"] for r in results["ratings"] + results["research"]["runs"]
                                                          + results["overview"]["runs"]))
+
+
+class ComparisonRecovery(unittest.TestCase):
+    def test_comparison_reuses_the_shared_claude_client(self):
+        clients, expected = {}, object()
+        with patch.object(story, "claude_client", return_value=expected) as create:
+            self.assertIs(compare.anthropic_client(clients), expected)
+            self.assertIs(compare.anthropic_client(clients), expected)
+        create.assert_called_once_with()
+
+    def test_interrupted_ratings_preserve_known_usage_without_claiming_complete_cost(self):
+        first = [{"match_id": "1", "popularity": 50, "gameplay": 60, "impact": 70}]
+        for answers, known in (([TimeoutError("no reply")], 0),
+                               ([first, providers.AmbiguousRequestError("reply lost")], 0.00015)):
+            with self.subTest(answers=answers):
+                result, calls = RatingsRequests().run_with(*answers)
+                self.assertFalse(result["cost_complete"])
+                self.assertEqual(result["unknown_requests"], 1)
+                self.assertAlmostEqual(result["cost_usd"], known)
+                self.assertEqual(len(calls), len(answers))
+                self.assertIn("known + unknown charges", compare.cost_text(result))
+        refused, _ = RatingsRequests().run_with(providers.ProviderError("HTTP 400: rejected"))
+        self.assertTrue(refused["cost_complete"])
+        self.assertEqual(refused["unknown_requests"], 0)
+
+    def test_interrupted_research_and_overviews_have_unknown_cost(self):
+        with patch.object(providers, "request", side_effect=TimeoutError("no reply")) as request:
+            research, _ = compare.run_research(LUNA, HEADER, FIXTURES, {"openai": "test"}, {})
+            overview, _ = compare.run_overview(LUNA, HEADER, {"fixtures": FIXTURES}, {"openai": "test"}, {})
+        self.assertEqual(request.call_count, 2)
+        for result in (research, overview):
+            self.assertEqual(result["status"], "error")
+            self.assertFalse(result["cost_complete"])
+            self.assertEqual(result["unknown_requests"], 1)
+            self.assertIn("unknown charges", compare.cost_text(result))
+
+    def test_unknown_spending_stops_every_remaining_paid_task(self):
+        configs = "openai:gpt-6-luna:low google:gemini-3.8-flash:low"
+        facts = dict(FACTS, overview_fixtures=OVERVIEW_FACTS["overview_fixtures"])
+        for first_job in ("ratings", "research", "overview"):
+            with self.subTest(first_job=first_job), tempfile.TemporaryDirectory() as tmp:
+                tmp = Path(tmp)
+                (tmp / "facts.json").write_text(json.dumps(facts))
+                (tmp / "page.html").write_text(page(dict(a=50, b=40, c=30, d=20, e=10)))
+                output = io.StringIO()
+                with patch.dict(os.environ, {"OPENAI_API_KEY": "test", "GEMINI_API_KEY": "test"}, clear=True), \
+                        patch.object(providers, "request", side_effect=TimeoutError("usage unavailable")) as request, \
+                        patch.object(compare, "log"), redirect_stdout(output):
+                    code = compare.main(["--facts", str(tmp / "facts.json"), "--page", str(tmp / "page.html"),
+                                         "--out", str(tmp / "results.json"), "--budget", "100",
+                                         "--ratings", configs if first_job == "ratings" else "none",
+                                         "--research", configs if first_job != "overview" else "none",
+                                         "--overview", configs])
+                result = json.loads((tmp / "results.json").read_text())
+                self.assertEqual(code, 0)
+                request.assert_called_once()
+                self.assertFalse(result["cost_complete"])
+                self.assertEqual(result["unknown_requests"], 1)
+                self.assertEqual(result["spent_usd"], 0)
+                self.assertTrue(result["skipped"])
+                self.assertTrue(all("unknown charges" in skipped["why"] for skipped in result["skipped"]))
+                self.assertIn("total charges are unknown", output.getvalue())
+                self.assertIn("known + unknown charges", output.getvalue())
+                self.assertNotIn("Spent $0.00", output.getvalue())
+
+    def test_published_reference_uses_its_actual_model_metadata(self):
+        published = {"requested_model": "gpt-6.1-sol", "model": "gpt-6.1-sol-2026-09-01",
+                     "kind": "ratings", "effort": "low", "rankings": {}}
+        result = {"config": "openai:gpt-6-luna:low", "provider": "openai", "model": "gpt-6-luna",
+                  "effort": "low", "status": "error", "total": 2, "rated": 0, "cost_usd": 0}
+        text = "\n".join(compare.ratings_section([result], {}, published, {}, 72))
+        self.assertIn("gpt-6.1-sol at low, ratings design", text)
+        self.assertNotIn("Claude Opus", text)
+        self.assertNotIn("thinks like Claude", text)
+        self.assertIn("model not recorded", compare.published_label({}))
 
 
 class Estimates(unittest.TestCase):

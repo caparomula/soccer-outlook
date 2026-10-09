@@ -26,6 +26,7 @@ Useful build options:
 | --- | --- |
 | `--facts work/facts.json` | Save the fixture and team data used by `story.py`. This does not call an AI model. |
 | `--warnings work/mapping-report.txt` | Save broadcast-mapping warnings; the file is empty when the report is clean. |
+| `--report work/build-report.json` | Save source-health and fixture counts used to decide whether the build can be published. |
 | `--date YYYY-MM-DD` | Choose the Eastern date used to fetch fixtures and evaluate rights. It does not change the build timestamp or the browser's clock. |
 | `--days-back N --days-ahead N` | Change the dates fetched. This does not change the browser's display window. |
 | `--no-logos` | Build without team or league images. |
@@ -43,9 +44,11 @@ For a browser preview at a chosen local time, append a fragment such as `#at-202
 | [`settings.toml`](../settings.toml) | AI configuration, score weights and golden-dot thresholds. |
 | [`web/page.html`](../web/page.html) | Page structure. |
 | [`web/styles.css`](../web/styles.css) | Layout, themes and responsive styles. |
-| [`web/app.js`](../web/app.js) | Filters, saved preferences, match cards, scoring in the browser, details overlays and live updates. |
+| [`web/app.js`](../web/app.js) | Filters, saved preferences, match cards, scoring in the browser, details overlays and applying live updates. |
+| [`web/live.js`](../web/live.js) | Live-score requests, catch-up checks, timeouts and retry scheduling. |
 | [`web/favicon.svg`](../web/favicon.svg), [`web/favicon.png`](../web/favicon.png) | Editable soccer-ball artwork and its 64 × 64 PNG browser icon. |
 | [`story.py`](../story.py) | Generate, validate and reuse optional AI ratings and text. |
+| [`story_state.py`](../story_state.py) | Pure rules for the ratings window, missing ratings and reusable results. |
 | [`providers.py`](../providers.py) | Supported models, provider requests, configuration validation and price estimates. |
 | [`tests/`](../tests/) | Unit tests and the browser test harness. |
 | [`.github/workflows/`](../.github/workflows/) | Automated builds, browser checks and optional AI comparisons. |
@@ -63,20 +66,21 @@ Run the unit tests from the repository root:
 python3 -m unittest -v
 ```
 
-They cover rights and settings validation, ESPN parsing, scoring, rendering, provider responses and AI reuse/failure behavior. Tests use fixtures and mocked requests; they do not spend API credits. Most rendering and scoring tests use fixed settings so changing a valid production weight does not change their expected results. Separate tests validate the real configuration files.
+They cover rights and settings validation, ESPN parsing, source-health publication checks, scoring, rendering, provider responses and AI reuse/failure behavior. Tests use fixtures and mocked requests; they do not spend API credits. Small sanitized ESPN examples in [`tests/fixtures/`](../tests/fixtures/) preserve real IDs and feed shapes alongside the synthetic cases. Most rendering and scoring tests use fixed settings so changing a valid production weight does not change their expected results. Separate tests validate the real configuration files.
 
 For browser checks, create a virtual environment and install the test dependencies:
 
 ```sh
 python3 -m venv .venv
 .venv/bin/python -m pip install -r tests/requirements-browser.txt
-.venv/bin/python -m playwright install chromium
+.venv/bin/python -m playwright install chromium webkit
 .venv/bin/python -m tests.browser
+.venv/bin/python -m tests.browser --browser webkit --smoke
 ```
 
-On Linux, missing system libraries can be installed with `.venv/bin/python -m playwright install --with-deps chromium`. The harness uses Playwright's Chromium by default; set `BROWSER_EXECUTABLE` to an existing browser executable only when you intend to override it.
+On Linux, missing system libraries can be installed with `.venv/bin/python -m playwright install --with-deps chromium webkit`. This may require administrator access. The harness uses Playwright's Chromium by default; set `BROWSER_EXECUTABLE` to an existing compatible browser executable only when you intend to override it.
 
-Browser tests use a synthetic schedule, a fixed clock and local responses for ESPN and AI data. They check filters, persistence, rankings, live transitions, details dialogs, keyboard navigation and responsive layouts. Screenshots go to `work/browser/`; pass `--artifacts PATH` to choose another directory. External fonts are replaced with consistent fallback fonts. These tests cover Chromium, not Safari or Firefox, and do not verify ESPN's current network availability or the accuracy of real AI output.
+Browser tests use a synthetic schedule, a fixed clock and local responses for ESPN and AI data. They check filters, persistence, rankings, live transitions, returning from background tabs, details dialogs, keyboard navigation and responsive layouts. Screenshots go to `work/browser/`; pass `--artifacts PATH` to choose another directory. External fonts are replaced with consistent fallback fonts. CI runs the full suite in Chromium and a focused smoke suite in WebKit, Safari's browser engine. WebKit coverage does not replace testing Safari itself on Apple devices. These tests do not verify ESPN's current network availability or the accuracy of real AI output.
 
 For a refactor that should preserve output exactly:
 
@@ -127,7 +131,7 @@ Use `.venv/bin/python` instead of `python3` when the model needs the SDK install
 
 | Mode | Behavior |
 | --- | --- |
-| `daily` | Generate once for the facts' date and current AI configuration; reuse a matching result from that day. Used by scheduled builds. |
+| `daily` | Generate for the facts' date and current AI configuration. In the ratings design, retain accepted same-day ratings, add missing or newly in-window fixtures, and retry missing optional text. In the full design, reuse a matching result from that day. Used by scheduled builds. |
 | `keep` | Copy the previous result without an API request, even if it is from an earlier date. If the previous result uses a different AI design, model or effort, generate with the new configuration instead. Used for ordinary code pushes. This is also the script's default mode. |
 | `refresh` | In the full design, update today's research and re-rate fixtures within 24 hours or missing a rating/blurb. Without today's result, start a full run. In the ratings design, generate fresh ratings. |
 | `full` | In the full design, research and rate from scratch. In the ratings design, generate fresh ratings. |
@@ -135,6 +139,8 @@ Use `.venv/bin/python` instead of `python3` when the model needs the SDK install
 | `ratings` | Request scores only. Optional overview/blurbs configured for the ratings design run afterwards. |
 
 The settings take precedence over the mode's research design. `--ignore-switch` bypasses the `[ai]` table for comparison runs; it can therefore call an API even when production AI is disabled. Normal builds should not use it.
+
+The workflow also uses two preparation options that make no API calls: `--fallback-only` saves a compatible, fresh same-day result before setup, and `--needs-sdk` prints `anthropic` only when the planned work may need that SDK. Both take the same facts, previous result and mode arguments as generation.
 
 Changing the configured model, effort, design or optional text models triggers new generation on the next build when the previous story records a different configuration. Changing scoring weights alone does not require a new AI call. The workflow also detects a published page with AI disabled, so turning AI back on requests the day's result.
 
@@ -144,47 +150,52 @@ AI-off runs write nothing, rather than deleting an existing output file. The dep
 
 The browser fetches AI data every ten minutes while visible. It rejects results older than 30 hours or past their explicit `focus_until` horizon, currently 24 hours after the facts were built. Copying an old result with `keep` does not renew that horizon.
 
+Validated ratings are saved atomically before optional text generation. Each text task then enriches a copy, so its failure cannot discard the ratings. A later `daily` run can retry missing text without requesting the accepted ratings again. Explicit `refresh`, `full` and `ratings` runs still request fresh ratings in the ratings design.
+
 ### What validation guarantees
 
-Ratings must contain valid scores for known fixture IDs. Missing ratings get one further request for the missing fixtures; the full design also retries missing card blurbs. Full-design research can request a repair for missing overview or league text. These retries improve coverage but do not guarantee that every match or league receives text. Valid partial results can still be published.
+Ratings must contain valid scores for known fixture IDs. An incomplete response gets one further request for missing fixtures; the full design also retries missing card blurbs. An ambiguous timeout or connection failure is not automatically resubmitted in that run, because the provider may already have completed and billed the work. Full-design research can request a repair for missing overview or league text. These retries improve coverage but do not guarantee that every match or league receives text. Valid partial results can still be published.
 
 Researched text must cite sources returned by the model's tools. Full-design league and match context may instead use supplied ESPN facts, explicitly labelled as such. Ratings-design optional overview and blurbs require searched sources; known dead links are removed. A site's refusal to answer automated requests is treated differently from a confirmed dead link. Source checks establish provenance, not that every sentence correctly summarizes its source.
 
 ## Automated builds and publishing
 
-[`Refresh outlook`](../.github/workflows/refresh.yml) runs at **08:50, 16:50 and 22:50 UTC** each day. That is 4:50 a.m., 12:50 p.m. and 6:50 p.m. during Eastern daylight time, an hour earlier during Eastern standard time. GitHub can delay scheduled runs.
+[`Refresh outlook`](../.github/workflows/refresh.yml) runs at **09:50, 16:50 and 22:50 UTC** each day. That is 5:50 a.m., 12:50 p.m. and 6:50 p.m. during Eastern daylight time, or 4:50 a.m., 11:50 a.m. and 5:50 p.m. during standard time. The morning run stays after the 4 a.m. day boundary in both seasons. GitHub can delay scheduled runs.
 
 The workflow also runs on relevant changes to `main`, and can be started from **Actions → Refresh outlook → Run workflow**. Its manual `storylines` choice selects `refresh`, `full` or `keep`; the configured AI design still applies. Documentation-only changes do not trigger this workflow.
 
 Each run:
 
 1. Runs unit and browser checks.
-2. Builds the HTML, AI facts and mapping report.
-3. Rejects a page smaller than 200,000 bytes or with fewer than 50 match rows.
+2. Builds the HTML, AI facts, mapping report and source-health report.
+3. Checks source health and verifies that the page's match count agrees with the report and that the document is complete. A genuinely small or empty schedule can pass.
 4. Generates or reuses optional AI data. Scheduled runs use `daily`; ordinary pushes use `keep`, with the configuration-change exceptions above.
 5. Replaces the `gh-pages` branch with a single commit containing the generated site.
 6. Opens, updates or closes the broadcast-mapping issue as needed.
+7. Retains generated files and reports in a `generated-site` Actions artifact for 14 days, including any files available after a failed run.
 
 GitHub Pages serves the `gh-pages` branch. When configuring a fork, set Pages to **Deploy from a branch**, choose **gh-pages**, and use the root directory after the first successful publish. The workflow requests `contents: write` and `issues: write`; no separate deployment token is configured beyond GitHub's supplied token.
 
-A failing unit test, browser assertion, invalid configuration or incomplete build stops publication and leaves the existing site in place. The builder also refuses a run with no fixtures or failures from more than half the scoreboard requests. Smaller gaps can publish and are disclosed on the page.
+A failing unit test, browser assertion, invalid configuration or unusable source data stops publication and leaves the existing site in place. The builder rejects runs with no successful scoreboard responses or failures from more than half the requested scoreboards. It also rejects an empty schedule when failed sources or unreadable events could explain the emptiness. Successful responses containing no events are valid. Smaller gaps can publish and are disclosed on the page and in the source-health report.
 
-There are two intentional exceptions: if Chromium cannot be installed or started, the refresh workflow publishes with a warning; and AI generation or mapping-issue failures do not block the schedule. The separate [`Browser checks`](../.github/workflows/browser.yml) workflow runs on relevant pushes and pull requests and saves screenshots even when checks fail. It does not have the refresh workflow's browser-setup bypass.
+There are two intentional exceptions: if Chromium cannot be installed or started, the refresh workflow publishes with a warning; and AI generation or mapping-issue failures do not block the schedule. Before AI setup, it saves a compatible, fresh result from the same day as a fallback. The Anthropic SDK is installed only if the planned work needs it. The separate [`Browser checks`](../.github/workflows/browser.yml) workflow runs unit tests, Chromium checks and WebKit smoke checks on relevant pushes and pull requests, including changes to AI and maintenance scripts. It saves screenshots even when checks fail and does not have the refresh workflow's browser-setup bypass.
+
+The `generated-site` artifact includes the HTML, favicon, available AI output, source facts, warnings, health report and usage report. Download it from a workflow run to inspect the exact inputs and outputs behind a page. To restore an earlier page, use that artifact's `site/` contents in a new `gh-pages` commit, add `.nojekyll`, and push the branch; the next scheduled build will replace it. Check the source commit and build time before restoring, since old fixtures and ratings will still expire normally.
 
 ### Costs and comparison workflows
 
-AI generation reports token use, elapsed time and estimated cost in the Actions summary. `--usage-out PATH` saves a machine-readable report. Prices come from `providers.py` and are estimates, not invoices; provider search charges may be incomplete when an API does not report them.
+AI generation reports token use, elapsed time and estimated cost in the Actions summary. `--usage-out PATH` saves a machine-readable report. Prices come from `providers.py` and are estimates, not invoices; provider search charges may be incomplete when an API does not report them. Interrupted requests can have unknown usage: `unknown_requests` records those requests and `cost_complete: false` marks an incomplete cost estimate.
 
 Two manually invoked workflows compare models without publishing a page:
 
 - [`Compare storyline models`](../.github/workflows/compare-storylines.yml) compares Claude configurations using either the full design or scores only. Each listed configuration makes paid requests; there is no dollar-budget input.
-- [`Compare AI providers`](../.github/workflows/compare-providers.yml) compares ratings, researched blurbs and overviews across providers. Enter `none` for a task to skip it. Its budget stops a task from starting when estimated total spending would exceed the limit; it is not a provider-enforced spending cap. Results appear in the summary and a JSON artifact.
+- [`Compare AI providers`](../.github/workflows/compare-providers.yml) compares ratings, researched blurbs and overviews across providers. Enter `none` for a task to skip it. Its budget stops a task from starting when estimated total spending would exceed the limit. An ambiguous failure marks the cost incomplete and stops remaining paid tasks, since the provider may already have charged for the interrupted request. This is not a provider-enforced spending cap. Results appear in the summary and a JSON artifact.
 
 Use the run reports to judge cost on the current slate. Fixture counts, output lengths, retries and enabled research steps all affect spending.
 
 ## Maintain broadcast mappings
 
-[`rights.toml`](../rights.toml) is the source for channel aliases, service carriage, simulcasts and usual coverage. A usual home is a fallback when ESPN has not listed channels; it is not a confirmed match listing. Club-specific rights belong in `by_home_team`, and uncertain coverage belongs in a hint rather than a service claim.
+[`rights.toml`](../rights.toml) is the source for channel aliases, service carriage, simulcasts and usual coverage. A usual home is a fallback when ESPN has not listed channels; it is not a confirmed match listing. Club-specific rights belong in `by_home_team`, keyed by quoted ESPN team IDs; comments name the clubs for maintainers. Use the home competitor's `team.id` from ESPN rather than its display name, which can change. Uncertain coverage belongs in a hint rather than a service claim.
 
 To update a mapping:
 
@@ -207,7 +218,7 @@ After publication, [the mapping script](../.github/scripts/mapping-issue.sh) mai
 | A local `story.py` run does nothing | Its default mode is `keep`. Use `daily` or another generation mode, and supply `--previous` if reuse is wanted. |
 | A card has no blurb | Optional text may be disabled, the match may not be one of the six researched candidates, or its text may have failed validation. Cards show match facts in its place. |
 | Published page has not changed | Check **Refresh outlook** and then the Pages deployment. A failed build preserves the prior site; documentation-only commits do not rebuild it. |
-| Browser checks cannot start | Install Playwright's Chromium and its system dependencies, or deliberately set `BROWSER_EXECUTABLE`. Exit code 77 means Chromium could not start, not that the assertions passed. |
+| Browser checks cannot start | Install the selected Playwright browser and its system dependencies, or deliberately set `BROWSER_EXECUTABLE`. Exit code 77 means the browser could not start, not that the assertions passed. |
 | A fixture is missing | Check enabled services and leagues, the displayed date window, known coverage and the page's data details for incomplete ESPN requests. |
 
 Return to the [project overview](../README.md).

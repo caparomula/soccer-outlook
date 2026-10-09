@@ -25,7 +25,7 @@ on:
         type: string
         default: "claude-opus-5-5:high claude-opus-5-5:medium claude-sonnet-5-5:high claude-sonnet-5-5:medium"
       mode:
-        description: "full: research, blurbs and ratings, as the page uses now; ratings: Claude's three scores only (Haiku 5.5 allowed)"
+        description: "full: researched overview, blurbs and ratings; ratings: Claude's three scores only (Haiku 5.5 allowed)"
         type: choice
         options: [full, ratings]
         default: full
@@ -43,6 +43,9 @@ jobs:
     timeout-minutes: 75
     steps:
       - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
 
       - name: Build today's facts
         run: python3 build.py --out work/page.html --facts work/facts.json
@@ -53,8 +56,12 @@ jobs:
           CONFIGS: ${{ inputs.configs }}
           MODE: ${{ inputs.mode || 'full' }}
         run: |
-          python3 -m venv .venv
-          .venv/bin/pip install --quiet "anthropic>=1.11,<2"
+          comparison_python=python3
+          if [ -n "$ANTHROPIC_API_KEY" ]; then
+            python3 -m venv .venv
+            timeout 180 .venv/bin/pip install --quiet "anthropic>=1.11,<2"
+            comparison_python=.venv/bin/python
+          fi
           mkdir -p work/compare
           for config in $CONFIGS; do
             model="${config%%:*}"
@@ -62,7 +69,7 @@ jobs:
             label=$(printf '%s-%s' "$model" "$effort" | tr -c 'A-Za-z0-9._-' '_')
             echo "::group::${model} at ${effort}"
             # One run at a time, so they don't compete for rate limits; a failed one doesn't stop the rest.
-            timeout 15m .venv/bin/python story.py --facts work/facts.json --mode "$MODE" --model "$model" --effort "$effort" --ignore-switch \
+            timeout 15m "$comparison_python" story.py --facts work/facts.json --mode "$MODE" --model "$model" --effort "$effort" --ignore-switch \
               --out "work/compare/${label}.json" --usage-out "work/compare/${label}.usage.json" || true
             echo "::endgroup::"
           done
@@ -72,3 +79,12 @@ jobs:
           # To the run's page, and to its log, which the API can read where it can't read the page.
           python3 .github/scripts/compare-storylines.py work/facts.json work/compare work/page.html work/published-story.json \
             | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Keep comparison results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: storyline-comparison
+          path: work/compare/*.json
+          if-no-files-found: ignore
+          retention-days: 14

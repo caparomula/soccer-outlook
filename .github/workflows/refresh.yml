@@ -1,38 +1,22 @@
-# Rebuilds the page from ESPN's public data, adds the day's storylines, and publishes to GitHub Pages.
+# Builds the schedule from ESPN and publishes it to the gh-pages branch.
+# AI configuration lives in settings.toml. Scheduled runs use daily reuse: compatible ratings
+# are kept, newly listed fixtures receive ratings, and missing optional text can be retried.
+# Ordinary code pushes keep the published result unless the configured AI setup changed.
+# API keys are repository secrets; the schedule still publishes when AI is unavailable.
 #
-# Pages serves the gh-pages branch. Each run replaces that branch with a single commit holding the
-# new page, so the branch never accumulates history, and the daily push keeps the repository active
-# (GitHub disables scheduled workflows in public repositories after 60 days without activity).
+# Tests and the builder's source report gate publication. A healthy quiet or empty schedule is
+# valid. Generated pages, facts and reports are retained as artifacts for 14 days, including on
+# failed runs, because gh-pages is replaced with a single commit on each successful publication.
+# Broadcast mapping warnings maintain one issue labelled "mapping" after publication.
 #
-# The AI's part (story.py) is chosen in settings.toml's [ai] table: whether there is one, its design
-# and which model does it, at what effort. The ratings design (gpt-6.1-sol since 8 October 2026)
-# rates matches for today and the three following days once a day, about $0.06 a run (an overview and blurbs for
-# the top picks can be added, each by a model that searches the web, but are off); the full design has
-# Claude research and write the overview and blurbs too, about $1.80. Either way the day's run is the first
-# scheduled build of the day (normally the early-morning one; if it fails or GitHub never starts it,
-# the next one), and the midday and evening builds, which still refresh fixtures, channels and scores,
-# keep it. A build after a code push republishes the current story without calling anything, unless
-# the push changed the [ai] choice: then the published story was written by another model or design,
-# and the push writes the day's with the new one at once. A manual run chooses. Each provider needs its
-# key as a repository secret (ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY); without the one the
-# model needs, or if the call fails, the page is published with the day's earlier story, or none.
-# settings.toml's [ai] enabled switches the AI off and on: off, story.py calls nothing and writes
-# nothing, so the page is published without AI text or ratings; the push that switches it back on
-# finds the live page built with AI off and writes the day's at once, instead of at the next morning build.
-#
-# Which services carry which channels, and where each competition usually lives, is in rights.toml.
-# The unit tests (rights data, storyline checks, rendering) and the browser checks run before the
-# build, so a contradictory edit or a broken page script keeps the last good page up (and GitHub
-# emails about the failed run). Each build also reports what it couldn't map or vouch for, and
-# keeps one issue labelled "mapping" open while that report has anything in it.
-#
-# Schedules are in UTC and GitHub may start them late when it is busy. The three runs land at about
-# 4:50 am, 12:50 pm and 6:50 pm Eastern daylight time, an hour earlier in standard time.
+# Schedules use UTC and GitHub may start them late. The runs land at 5:50 am, 12:50 pm and
+# 6:50 pm Eastern daylight time, an hour earlier in standard time. The morning run remains
+# after the page's 4 am day boundary in both offsets.
 name: Refresh outlook
 
 on:
   schedule:
-    - cron: "50 8 * * *"
+    - cron: "50 9 * * *"
     - cron: "50 16 * * *"
     - cron: "50 22 * * *"
   workflow_dispatch:
@@ -44,7 +28,7 @@ on:
         default: refresh
   push:
     branches: [main]
-    paths: ["build.py", "story.py", "providers.py", "settings.toml", "rights.toml", "web/**", "tests/**", ".github/workflows/refresh.yml", ".github/scripts/**"]
+    paths: ["**/*.py", "settings.toml", "rights.toml", "web/**", "tests/**", ".github/workflows/**", ".github/scripts/**"]
 
 permissions:
   contents: write
@@ -60,6 +44,9 @@ jobs:
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
 
       - name: Unit tests
         run: python3 -m unittest -v
@@ -93,19 +80,14 @@ jobs:
         with:
           name: browser-screenshots
           path: work/browser/*.png
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: Build the page
-        run: python3 build.py --out site/index.html --facts work/facts.json --warnings work/mapping-report.txt
+        run: python3 build.py --out site/index.html --facts work/facts.json --warnings work/mapping-report.txt --report work/build-report.json
 
       - name: Check the page
-        run: |
-          size=$(stat -c %s site/index.html)
-          rows=$(grep -o '<li class="row ' site/index.html | wc -l)
-          echo "page ${size} bytes, ${rows} matches"
-          if [ "$size" -lt 200000 ] || [ "$rows" -lt 50 ]; then
-            echo "::error::The page looks incomplete (${size} bytes, ${rows} matches); keeping the published one."
-            exit 1
-          fi
+        run: python3 .github/scripts/check-build.py --page site/index.html --report work/build-report.json
 
       - name: Write the AI ratings and storylines
         continue-on-error: true
@@ -117,8 +99,6 @@ jobs:
           EVENT: ${{ github.event_name }}
           WANT: ${{ inputs.storylines }}
         run: |
-          python3 -m venv .venv
-          .venv/bin/pip install --quiet "anthropic>=1.11,<2"
           site_url="https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}"
           previous=()
           if curl -fsS --max-time 30 "${site_url}/story.json" -o work/previous-story.json; then
@@ -135,7 +115,18 @@ jobs:
                fi ;;
           esac
           echo "storyline mode: ${mode}"
-          .venv/bin/python story.py --facts work/facts.json --out site/story.json "${previous[@]}" --mode "$mode"
+          # Save a compatible, fresh result before setup or generation: even a timeout leaves it
+          # publishable. These planning operations make no API requests and need no SDK.
+          story_args=(--facts work/facts.json --out site/story.json "${previous[@]}" --mode "$mode")
+          python3 story.py "${story_args[@]}" --fallback-only
+          sdk=$(python3 story.py "${story_args[@]}" --needs-sdk)
+          story_python=python3
+          if [ "$sdk" = anthropic ]; then
+            python3 -m venv .venv
+            timeout 180 .venv/bin/pip install --quiet "anthropic>=1.11,<2"
+            story_python=.venv/bin/python
+          fi
+          "$story_python" story.py "${story_args[@]}" --usage-out work/usage.json
 
       - name: Publish to gh-pages
         env:
@@ -156,3 +147,19 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           MENTION: ${{ github.repository_owner }}
         run: .github/scripts/mapping-issue.sh work/mapping-report.txt
+
+      - name: Keep the generated site and source reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-site
+          path: |
+            site/index.html
+            site/favicon.png
+            site/story.json
+            work/facts.json
+            work/mapping-report.txt
+            work/build-report.json
+            work/usage.json
+          if-no-files-found: ignore
+          retention-days: 14

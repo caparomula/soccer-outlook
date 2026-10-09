@@ -4,6 +4,7 @@ Expected values are worked out by hand from settings.toml's documented arithmeti
 code under test: each test says how its number arises.
 """
 from dataclasses import replace
+from fnmatch import fnmatchcase
 from datetime import datetime, timezone
 import json
 from pathlib import Path
@@ -101,8 +102,11 @@ cable = ["NBC"]
         # the build must include it, and every module the build and story.py import.
         workflow = (Path(build.__file__).parent / ".github" / "workflows" / "refresh.yml").read_text()
         paths = re.search(r"push:\s*\n\s*branches: \[main\]\s*\n\s*paths: \[([^\]]*)\]", workflow).group(1)
+        patterns = re.findall(r'"([^"]+)"', paths)
         for name in ("settings.toml", "build.py", "story.py", "providers.py", "rights.toml"):
-            self.assertIn(f'"{name}"', paths)
+            # GitHub's **/ also matches zero directories, unlike Python's fnmatch.
+            self.assertTrue(any(fnmatchcase(name, pattern) or (pattern.startswith("**/") and fnmatchcase(name, pattern[3:]))
+                                for pattern in patterns), name)
 
     def test_fixture_settings_match_the_documented_first_values(self):
         self.assertEqual(SETTINGS.blend, {"ai": 50, "outlook": 50, "interest": 80, "league_priority": 20})
@@ -227,7 +231,7 @@ class PageScoring(unittest.TestCase):
         blend = json.loads(re.search(r'<script type="application/json" id="scoring">([^<]*)</script>', on).group(1))
         self.assertEqual(blend, {"blend": {"ai": 50, "outlook": 50, "interest": 80, "league_priority": 20}, "dots": [35, 45, 55, 68]})
         self.assertIn("one to five golden dots: two from 35, three from 45, four from 55 and five from 68 out of 100", self.footer(on))
-        self.assertIn("gpt-6.1-sol, an OpenAI AI model, rates every match the page shows, from today through the third day after it", self.footer(on))
+        self.assertIn("gpt-6.1-sol, an OpenAI AI model, is asked to rate the matches the page shows, from today through the third day after it", self.footer(on))
         self.assertIn("the page shows no AI-written text", self.footer(on))
         self.assertNotIn("Claude", self.footer(on))
         self.assertIn("50% the AI rating and 50% the Outlook score", self.footer(on))
@@ -245,9 +249,9 @@ class PageScoring(unittest.TestCase):
         self.assertIn("written by Claude, Anthropic&#x27;s AI model (claude-opus-5-5)", full)
         self.assertIn("a sourced blurb for every rated match", full)
         haiku = self.footer(render_page(build, model="claude-haiku-5-5"))
-        self.assertIn("claude-haiku-5-5, an Anthropic AI model, rates every match", haiku)
+        self.assertIn("claude-haiku-5-5, an Anthropic AI model, is asked to rate the matches", haiku)
         gemini = self.footer(render_page(build, model="gemini-3.1-flash-lite"))
-        self.assertIn("gemini-3.1-flash-lite, a Google AI model, rates every match", gemini)
+        self.assertIn("gemini-3.1-flash-lite, a Google AI model, is asked to rate the matches", gemini)
 
     def test_the_ai_table_names_a_model_that_can_do_its_design(self):
         base = FIXTURE_SETTINGS

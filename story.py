@@ -18,7 +18,7 @@ separate fact-check of the text. The browser chooses and filters eligible text a
 
 Modes describe when to generate or reuse output:
   keep     reuse previous output; a changed AI configuration can trigger generation instead
-  daily    reuse matching output for today's Eastern date, otherwise generate it
+  daily    reuse today's output; add missing ratings and retry missing optional text
   auto     ratings design: same as daily; full design: reuse recent output, otherwise refresh
   full     generate afresh using the configured design
   refresh  update using the configured design; without matching current output, start afresh
@@ -34,22 +34,26 @@ Usage: python3 story.py --facts work/facts.json --out site/story.json [--previou
                         [--usage-out FILE] [--ignore-switch]
 """
 import argparse
+import copy
 import http.client
 import json
 import os
 import re
 import sys
 import time
+import tempfile
 import tomllib
 import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, time as clock_time, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from functools import partial
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from zoneinfo import ZoneInfo
 
 import providers
+from story_state import (BLURB_CANDIDATES, DAY_START_HOUR, MIN_GAP_HOURS, WINDOW_DAYS, choose_mode, missing_ratings,
+                         rating_window, still_fresh, story_age_hours, window_end)
 
 ET = ZoneInfo("America/New_York")
 SETTINGS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "settings.toml")
@@ -75,10 +79,7 @@ RERATE_HOURS = 24                     # a refresh re-rates fixtures kicking off 
 # what kicks off in it and nothing past it, which the page doesn't show; build.py lists the schedule,
 # the overview's matches and its counts by the same window. The script decides this, not the model:
 # it knows the fixtures, and asking would cost tokens and add a judgment.
-WINDOW_DAYS = 3
-DAY_START_HOUR = 4
 SCORES_CHUNK = 200                    # ratings mode: about 25 output tokens a fixture, so one request covers a window
-MIN_GAP_HOURS = 3                     # auto mode keeps a story this fresh rather than paying again
 LIMITS = {"blurb": 260, "league": 450, "item": 520, "lede": 450, "note": 320}
 FACTS_TITLE = "ESPN table and form"
 WEIGHTS = (("popularity", .25), ("gameplay", .35), ("impact", .40))
@@ -527,7 +528,6 @@ def checked_overview(reply, resolve=None, check=None, workers=8):
 
 
 # ---- the ratings design's blurbs for the top picks ------------------------------------------------
-BLURB_CANDIDATES = 6      # the top three, and room for a viewer's league priority or top card to change them
 DEFAULT_BLEND = {"ai": 70, "outlook": 30, "interest": 95, "league_priority": 5}    # settings.toml's, should the facts lack it
 
 
@@ -1156,7 +1156,7 @@ def write_ratings(rate, facts, wanted, context, seen, links, totals, scores_only
     order = [mid for mid in candidates if mid in wanted]
     header = (f"It is {clock(facts['built_at'])} on {facts.get('weekday', '')}, {facts.get('date', '')}, US Eastern time."
               if facts.get("built_at") else "")
-    ratings, pending, served = {}, order, None
+    ratings, pending, served, uncertain = {}, order, None, set()
     for attempt in (1, 2):
         size = SCORES_CHUNK if scores_only else RATING_CHUNK
         chunks = [pending[i:i + size] for i in range(0, len(pending), size)]
@@ -1168,6 +1168,10 @@ def write_ratings(rate, facts, wanted, context, seen, links, totals, scores_only
                     raw, usage, stop, by = future.result()
                 except Exception as e:     # a failed chunk is asked again; its fixtures are not lost
                     log(f"rating request failed: {type(e).__name__}: {e}")
+                    if providers.ambiguous_failure(e):
+                        uncertain.update(chunk)
+                        totals["unknown_requests"] = totals.get("unknown_requests", 0) + 1
+                        log("not retrying this request: it may already have been billed; its usage is unknown")
                     continue
                 add_usage(totals, usage)
                 served = by or served
@@ -1176,7 +1180,7 @@ def write_ratings(rate, facts, wanted, context, seen, links, totals, scores_only
                 for mid, rating in clean_rankings(raw, set(chunk), seen, links).items():
                     if mid not in ratings or ("blurb" in rating and "blurb" not in ratings[mid]):
                         ratings[mid] = rating
-        pending = [mid for mid in order if mid not in ratings or not (scores_only or "blurb" in ratings[mid])]
+        pending = [mid for mid in order if mid not in uncertain and (mid not in ratings or not (scores_only or "blurb" in ratings[mid]))]
         missing = "a rating" if scores_only else "a rating or a blurb"
         if not pending or attempt == 2:
             break
@@ -1369,50 +1373,37 @@ def write_news(client, facts, model, effort, mode, previous, totals, links, seen
     return story, served
 
 
-def window_end(built):
-    """The end of the page's window for a build at `built` (an aware datetime): 4 am Eastern after the
-    third day following the build's day, where a day starts at 4 am. A build at 5 am on Thursday, or at
-    2 am on Friday (still Thursday's late night), ends at 4 am on Monday."""
-    day = (built.astimezone(ET) - timedelta(hours=DAY_START_HOUR)).date()
-    return datetime.combine(day + timedelta(days=WINDOW_DAYS + 1), clock_time(DAY_START_HOUR), tzinfo=ET)
-
-
-def rating_window(facts):
-    """Ratings mode's fixtures: those kicking off before window_end of the build. Returns (fixtures,
-    hours from the build to that end). A kickoff that can't be read is kept, as a refresh keeps it due:
-    better rated than lost."""
-    built = datetime.fromisoformat(facts["built_at"].replace("Z", "+00:00"))
-    end = window_end(built)
-
-    def before(m):
-        try:
-            return datetime.fromisoformat(m["kickoff_utc"].replace("Z", "+00:00")) < end
-        except (KeyError, AttributeError, ValueError):
-            return True
-    return [m for m in facts.get("ranking_candidates", []) if before(m)], round((end - built).total_seconds() / 3600, 1)
-
-
 def claude_client():
     import anthropic   # imported here so reuse, no-key and other-provider paths work without the package
-    return anthropic.Anthropic(max_retries=3)
+    # The SDK retries connection failures too; those can have completed and been billed. Keep
+    # retry decisions in our bounded job loop, where ambiguous failures are never resubmitted.
+    return anthropic.Anthropic(max_retries=0)
 
 
 def write_story(facts, model, effort, mode, previous, totals):
     """Runs the research, then the ratings, and returns (story dict or None, served model), adding the
     usage of every request to `totals` as it goes, so a run that fails partway still reports what it
     spent. In a refresh the ratings of fixtures more than RERATE_HOURS away are kept from earlier today.
-    Ratings mode runs on any model in providers.MODELS; the research is Claude's."""
+    Ratings mode runs on any model in providers.MODELS; the research is Claude's. When previous
+    ratings are supplied for a daily top-up, only missing fixtures in the current window are rated."""
     links = fixture_links(facts)
     if mode == "ratings":
         # Three scores per fixture and nothing else: no research, no overview or blurbs, no web search.
         provider = providers.MODELS.get(model, "anthropic")
-        rate = (partial(rate_chunk, claude_client(), model, effort) if provider == "anthropic"
-                else partial(api_rate_chunk, model, effort, os.environ.get(providers.KEY_NAMES[provider], "")))
         window, hours = rating_window(facts)
-        log(f"rating {len(window)} fixtures kicking off within {hours} hours with {model}")
-        rankings, served = write_ratings(rate, facts, [m["id"] for m in window], [], {}, links, totals, scores_only=True)
-        story = {"lede_items": [], "notes": {}, "league_blurbs": [], "league_order": [], "_dropped": 0, "rankings": rankings,
-                 "ranking_coverage": {"rated": len(rankings), "total": len(window), "carried": 0}, "window_hours": hours}
+        rankings = earlier_ratings(previous, {m["id"] for m in window}) if previous else {}
+        wanted = [m["id"] for m in window if m["id"] not in rankings]
+        log(f"rating {len(wanted)} fixtures kicking off within {hours} hours with {model}; keeping {len(rankings)} earlier ratings")
+        carried, served = len(rankings), model
+        if wanted:
+            rate = (partial(rate_chunk, claude_client(), model, effort) if provider == "anthropic"
+                    else partial(api_rate_chunk, model, effort, os.environ.get(providers.KEY_NAMES[provider], "")))
+            fresh, served = write_ratings(rate, facts, wanted, [], {}, links, totals, scores_only=True)
+            rankings.update(fresh)
+        story = copy.deepcopy(previous) if previous else {"lede_items": [], "notes": {}, "league_blurbs": [], "league_order": []}
+        story.update(_dropped=0, rankings=rankings,
+                     ranking_coverage={"rated": len(rankings), "total": len(window), "carried": carried},
+                     window_hours=hours, rating_window_until=window_end(datetime.fromisoformat(facts["built_at"].replace("Z", "+00:00"))).isoformat())
         return (story if rankings else None), served or model
     client = claude_client()
     seen = earlier_sources(previous) if mode == "refresh" and previous else {}
@@ -1420,6 +1411,8 @@ def write_story(facts, model, effort, mode, previous, totals):
         news, served = write_news(client, facts, model, effort, mode, previous, totals, links, seen)
     except Exception as e:     # the ratings can still be written
         log(f"research request failed: {type(e).__name__}: {e}")
+        if providers.ambiguous_failure(e):
+            totals["unknown_requests"] = totals.get("unknown_requests", 0) + 1
         news, served = None, model
     story = {"headline": "", "headline_segments": [], "lede": "", "lede_items": [], "sources": [], "notes": {},
              "later_reason": "", "league_blurbs": [], "league_order": [], "_dropped": 0,
@@ -1483,6 +1476,8 @@ def report_cost(totals, served, model, effort, mode, seconds):
     line = (f"Storylines ({mode}): {served} at {effort} effort; input {totals['in']:,} tokens fresh, "
             f"{totals['cache_write']:,} cache-written, {totals['cache_read']:,} cache-read; output {totals['out']:,} "
             f"tokens{reasoning}; {totals['searches']} searches, {totals['fetches']} page reads; {seconds:.0f}s; {priced}")
+    if totals.get("unknown_requests"):
+        line += f"; known usage only: {totals['unknown_requests']} interrupted request(s) may have additional charges"
     log(line)
     summary(line)
     return cost
@@ -1495,7 +1490,7 @@ def add_overview(story, facts, model, effort, request=overview_request):
     provider = providers.MODELS[model]
     key_name = providers.KEY_NAMES[provider]
     account = {"model": model, "effort": effort, "served": None, "published": False, "why": "", "usage": {}, "cost_usd": None,
-               "seconds": 0.0, "sources": 0}
+               "seconds": 0.0, "sources": 0, "cost_complete": True}
     story.update(overview_model=model, overview_effort=effort)
     if not overview_view(facts)["fixtures"]:
         account["why"] = "no match with known coverage in the days the page shows"
@@ -1509,6 +1504,7 @@ def add_overview(story, facts, model, effort, request=overview_request):
             overview, account["why"] = checked_overview(reply)
         except Exception as e:     # the overview is extra: its failure must not cost the page its ratings
             overview, account["why"] = None, f"the request failed: {type(e).__name__}: {e}"[:400]
+            account["cost_complete"] = not providers.ambiguous_failure(e)
         account["seconds"] = round(time.monotonic() - started, 1)
         priced_as = account["served"] if account["served"] in providers.MODELS else model
         account["cost_usd"] = providers.cost(priced_as, {k: account["usage"].get(k, 0) for k in REPLY_USAGE_KEYS})
@@ -1520,6 +1516,8 @@ def add_overview(story, facts, model, effort, request=overview_request):
              f"{u.get('out', 0):,}; {account['seconds']:.0f}s; about ${account['cost_usd']:.4f}" if account["cost_usd"] is not None else "")
     line = (f"Overview: {account['served'] or model} at {effort}{spent}; "
             + (f"published with {account['sources']} source(s)" if account["published"] else f"not published: {account['why']}"))
+    if not account["cost_complete"]:
+        line += "; usage and additional charges are unknown"
     log(line)
     summary(line)
     return account
@@ -1531,9 +1529,9 @@ def add_blurbs(story, facts, model, effort, request=blurb_request):
     what happened and what it cost. Returns the run's account for --usage-out. A failure costs the page
     its blurbs, never its ratings."""
     key_name = providers.KEY_NAMES[providers.MODELS[model]]
-    candidates = pick_candidates(facts, story.get("rankings") or {})
+    candidates = [m for m in pick_candidates(facts, story.get("rankings") or {}) if not has_blurb(story, m["id"])]
     account = {"model": model, "effort": effort, "served": None, "asked": [m["id"] for m in candidates], "written": 0,
-               "why": "", "usage": {}, "cost_usd": None, "seconds": 0.0}
+               "why": "", "usage": {}, "cost_usd": None, "seconds": 0.0, "cost_complete": True}
     story.update(blurbs_model=model, blurbs_effort=effort)
     if not candidates:
         account["why"] = "no rated match with known coverage in the days the page shows"
@@ -1547,21 +1545,46 @@ def add_blurbs(story, facts, model, effort, request=blurb_request):
             blurbs, account["why"] = checked_blurbs(reply, set(account["asked"]))
         except Exception as e:     # the blurbs are extra: their failure must not cost the page its ratings
             blurbs, account["why"] = {}, f"the request failed: {type(e).__name__}: {e}"[:400]
+            account["cost_complete"] = not providers.ambiguous_failure(e)
         account["seconds"] = round(time.monotonic() - started, 1)
         priced_as = account["served"] if account["served"] in providers.MODELS else model
         account["cost_usd"] = providers.cost(priced_as, {k: account["usage"].get(k, 0) for k in REPLY_USAGE_KEYS})
         for mid, b in blurbs.items():
-            story["rankings"][mid].update(b)
+            if mid in story["rankings"]:
+                story["rankings"][mid].update(b)
+            else:
+                # Candidate selection can use an Outlook score when AI omitted the rating. Keep
+                # researched text independently; the browser already reads fixture notes.
+                story.setdefault("notes", {})[mid] = {"note": b["blurb"], "sources": b["sources"]}
         account["written"] = len(blurbs)
-        story["match_blurb_coverage"] = {"written": sum("blurb" in r for r in story["rankings"].values()), "total": len(story["rankings"])}
+        known = set(story["rankings"]) | set(story.get("notes") or {})
+        story["match_blurb_coverage"] = {"written": sum(has_blurb(story, mid) for mid in known), "total": len(known)}
     u = account["usage"]
     spent = (f"; {u.get('searches', 0) + u.get('opens', 0)} searches recorded, input {u.get('in', 0):,} tokens, output "
              f"{u.get('out', 0):,}; {account['seconds']:.0f}s; about ${account['cost_usd']:.4f}" if account["cost_usd"] is not None else "")
     line = (f"Blurbs: {account['served'] or model} at {effort}{spent}; {account['written']} of {len(candidates)} top picks"
             + (f" ({account['why']})" if account["why"] else ""))
+    if not account["cost_complete"]:
+        line += "; usage and additional charges are unknown"
     log(line)
     summary(line)
     return account
+
+
+def has_blurb(story, mid):
+    rating = (story.get("rankings") or {}).get(mid) or {}
+    note = (story.get("notes") or {}).get(mid) or {}
+    return bool((rating.get("blurb") and rating.get("sources")) or (note.get("note") and note.get("sources")))
+
+
+def pending_text(story, facts, config):
+    """Retry only missing optional work; successful text never needs a second paid request."""
+    jobs = []
+    if config and config.get("overview_model") and overview_view(facts)["fixtures"] and not story.get("overview"):
+        jobs.append("overview")
+    if config and config.get("blurbs_model") and any(not has_blurb(story, m["id"]) for m in pick_candidates(facts, story.get("rankings") or {})):
+        jobs.append("blurbs")
+    return jobs
 
 
 def ai_settings(path):
@@ -1599,48 +1622,17 @@ def load_previous(path):
 
 
 def save(path, story):
-    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(story, f, ensure_ascii=False, indent=1)
-
-
-def story_age_hours(story, now):
+    folder = os.path.dirname(os.path.abspath(path))
+    os.makedirs(folder, exist_ok=True)
+    temporary = None
     try:
-        written = datetime.fromisoformat(story["generated_at"].replace("Z", "+00:00"))
-    except (KeyError, AttributeError, TypeError, ValueError):
-        return None
-    return (now - written).total_seconds() / 3600
-
-
-def choose_mode(requested, todays, now, design="full", switched=False):
-    """The mode to run. keep republishes the published story, unless `switched`: settings.toml names a
-    different design, model or effort than wrote it, so this run (the push that switched) writes.
-    The full design: daily writes the day's story once (full without a story for today, else keep);
-    auto also refreshes it (keep while under MIN_GAP_HOURS old, else refresh); a refresh without a
-    story for today runs as full. The ratings design: every mode that writes rates, and daily and auto
-    rate once a day."""
-    if requested == "keep":
-        if switched:
-            return ("ratings" if design == "ratings" else "full"), "settings.toml names another design or model than the published story's"
-        return "keep", ""
-    if design == "ratings":
-        if requested in ("daily", "auto"):
-            return ("keep", "today's ratings are written; they are written once a day") if todays \
-                else ("ratings", "no ratings for today yet")
-        return "ratings", ("" if requested == "ratings" else f"the ratings design rates when asked for {requested}")
-    if requested == "daily":
-        return ("keep", "today's storylines are written; they are written once a day") if todays \
-            else ("full", "no storylines for today yet")
-    if requested == "auto":
-        age = story_age_hours(todays, now) if todays else None
-        if age is None:
-            return "full", "no storylines for today yet"
-        if age < MIN_GAP_HOURS:
-            return "keep", f"today's storylines are {age * 60:.0f} minutes old"
-        return "refresh", f"today's storylines are {age:.1f} hours old"
-    if requested == "refresh" and not todays:
-        return "full", "no storylines for today yet, so this refresh writes them from scratch"
-    return requested, ""
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=folder, delete=False) as f:
+            temporary = f.name
+            json.dump(story, f, ensure_ascii=False, indent=1)
+        os.replace(temporary, path)
+    finally:
+        if temporary and os.path.exists(temporary):
+            os.unlink(temporary)
 
 
 def main():
@@ -1655,6 +1647,9 @@ def main():
     ap.add_argument("--settings", default=SETTINGS_PATH, help="the settings file with the [ai] table (default: settings.toml)")
     ap.add_argument("--ignore-switch", action="store_true",
                     help="ignore settings.toml's [ai] table, for measuring configurations: --mode, --model and --effort decide")
+    preparation = ap.add_mutually_exclusive_group()
+    preparation.add_argument("--needs-sdk", action="store_true", help="print anthropic only if this run may call Claude; make no calls or writes")
+    preparation.add_argument("--fallback-only", action="store_true", help="save a matching, same-day, fresh previous result without API calls")
     args = ap.parse_args()
 
     # Before anything that writes: with AI off even the published story must not be carried forward.
@@ -1662,7 +1657,8 @@ def main():
     if not args.ignore_switch and not (config and config["enabled"]):
         why = "AI is switched off in settings.toml" if config else "settings.toml's [ai] table can't be read"
         log(f"{why}: no storylines and no API calls")
-        summary(f"Storylines: none; {why}.")
+        if not (args.needs_sdk or args.fallback_only):
+            summary(f"Storylines: none; {why}.")
         return 0
 
     with open(args.facts, encoding="utf-8") as f:
@@ -1673,10 +1669,26 @@ def main():
               else None)
     switched = bool(config and previous and not current(previous))
 
+    if args.fallback_only:
+        if todays and still_fresh(todays, datetime.now(timezone.utc)):
+            save(args.out, todays)
+        return 0
+
     mode, why = choose_mode(args.mode, todays, datetime.now(timezone.utc), config["design"] if config else "full", switched)
+    top_up = bool(todays and config and config["design"] == "ratings" and args.mode in ("daily", "auto"))
+    text_only = False
+    if top_up:
+        missing = missing_ratings(facts, todays)
+        jobs = pending_text(todays, facts, config)
+        if missing:
+            mode, why = "ratings", f"adding {len(missing)} missing ratings; keeping the day's accepted ratings"
+        elif jobs:
+            mode, text_only, why = "ratings", True, "retrying missing optional text; keeping the day's ratings"
     if why:
         log(f"mode {mode}: {why}")
     if mode == "keep":
+        if args.needs_sdk:
+            return 0
         kept = previous if args.mode == "keep" else todays
         if kept:
             save(args.out, kept)
@@ -1696,53 +1708,99 @@ def main():
         log(f"effort {effort!r} isn't one {model} takes ({', '.join(providers.EFFORTS[provider])}); using {DEFAULT_EFFORT[mode]}")
         effort = DEFAULT_EFFORT[mode]
     key_name = providers.KEY_NAMES[provider]
-    if not os.environ.get(key_name):
-        if todays:
-            save(args.out, todays)
-        log(f"no {key_name}; " + ("reused today's storylines" if todays else "no storylines this run"))
-        summary(f"Storylines: skipped, no {key_name} secret.")
+    if args.needs_sdk:
+        called = [model] if not text_only and os.environ.get(key_name) else []
+        if mode == "ratings" and config and (called or todays):
+            candidate_story = todays if top_up else {}
+            jobs = pending_text(candidate_story, facts, config)
+            if called and facts.get("overview_fixtures") and config.get("blurbs_model"):
+                # New scores can change the researched candidates, including on a top-up. Plan
+                # for their provider before those ratings exist.
+                jobs = list(dict.fromkeys(jobs + ["blurbs"]))
+            for job in jobs:
+                job_model = config[f"{job}_model"]
+                if os.environ.get(providers.KEY_NAMES[providers.MODELS[job_model]]):
+                    called.append(job_model)
+        if any(providers.MODELS[m] == "anthropic" for m in called):
+            print("anthropic")
         return 0
+    if not text_only and not os.environ.get(key_name):
+        if top_up and pending_text(todays, facts, config):
+            log(f"no {key_name}; keeping ratings and retrying optional text independently")
+            text_only = True
+        else:
+            if todays:
+                save(args.out, todays)
+            log(f"no {key_name}; " + ("reused today's storylines" if todays else "no storylines this run"))
+            summary(f"Storylines: skipped, no {key_name} secret.")
+            return 0
 
     started = time.monotonic()
     totals = {"in": 0, "cache_write": 0, "cache_read": 0, "out": 0, "searches": 0, "fetches": 0, "prompt_max": 0}
     try:
-        story, served = write_story(facts, model, effort, mode, todays, totals)
+        if text_only:
+            story, served = copy.deepcopy(todays), todays.get("model") or model
+        else:
+            reusable = todays if mode != "ratings" or top_up else None
+            story, served = write_story(facts, model, effort, mode, reusable, totals)
     except Exception as e:     # any failure here must leave the page publishable
         log(f"storyline request failed: {type(e).__name__}: {e}")
+        if providers.ambiguous_failure(e):
+            totals["unknown_requests"] = totals.get("unknown_requests", 0) + 1
         story, served = None, model
     seconds = time.monotonic() - started
     cost = report_cost(totals, served, model, effort, mode, seconds) if any(totals.values()) else None
     published = bool(story)
     overview = blurbs = None
-    if published and mode == "ratings" and config and config.get("overview_model"):
-        overview = add_overview(story, facts, config["overview_model"], config["overview_effort"])
-    if published and mode == "ratings" and config and config.get("blurbs_model"):
-        blurbs = add_blurbs(story, facts, config["blurbs_model"], config["blurbs_effort"])
+    dropped = story.pop("_dropped", 0) if story else None
+    if published:
+        if not text_only:
+            story.update(version=1, date=facts["date"], model=served, requested_model=model, effort=effort, kind=mode,
+                         services=facts.get("owner_service_ids") or [], focus_until=facts.get("focus_until"),
+                         generated_at=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
+        if mode == "ratings" and config:
+            for job in ("overview", "blurbs"):
+                if config.get(f"{job}_model"):
+                    story.update({f"{job}_model": config[f"{job}_model"], f"{job}_effort": config[f"{job}_effort"]})
+        # Publish the usable ratings first. A research timeout, process kill, or malformed optional
+        # enrichment can never discard this work or a previous deployment fallback.
+        save(args.out, story)
+        if mode == "ratings" and config:
+            for job in pending_text(story, facts, config):
+                candidate = copy.deepcopy(story)
+                try:
+                    account = (add_overview if job == "overview" else add_blurbs)(
+                        candidate, facts, config[f"{job}_model"], config[f"{job}_effort"])
+                    save(args.out, candidate)
+                    story = candidate
+                except Exception as e:
+                    log(f"optional {job} failed; saved ratings retained: {type(e).__name__}: {e}")
+                    account = {"published": False, "why": str(e)[:400], "cost_complete": not providers.ambiguous_failure(e)}
+                if job == "overview":
+                    overview = account
+                else:
+                    blurbs = account
+    elif todays:
+        save(args.out, todays)
+        log("kept today's earlier storylines")
+
     if args.usage_out:
         coverage = (story or {}).get("ranking_coverage", {})
         save(args.usage_out, {"mode": mode, "model": model, "served": served, "provider": provider, "effort": effort,
                               "budget": {"searches": BUDGETS[mode][0], "page_reads": BUDGETS[mode][1]}, "usage": totals,
                               "cost_usd": round(cost, 4) if cost is not None else None, "seconds": round(seconds, 1),
-                              "published": published, "notes": len(story["notes"]) if story else 0,
+                              "cost_complete": not totals.get("unknown_requests") and all(a is None or a.get("cost_complete", True) for a in (overview, blurbs)),
+                              "published": published, "notes": len(story.get("notes", {})) if story else 0,
                               "forecast": bool(story and story.get("forecast")),
                               "rated": coverage.get("rated", 0), "carried": coverage.get("carried", 0),
-                              "dropped": story["_dropped"] if story else None, "overview": overview, "blurbs": blurbs})
+                              "dropped": dropped, "overview": overview, "blurbs": blurbs})
     if published:
-        story.pop("_dropped", None)
-        # model is who answered (a fallback or a dated snapshot shows here); requested_model is what
-        # settings.toml asked for, which the page names and the next run compares with its settings.
-        story.update(version=1, date=facts["date"], model=served, requested_model=model, effort=effort, kind=mode,
-                     services=facts.get("owner_service_ids") or [], focus_until=facts.get("focus_until"),
-                     generated_at=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
-        save(args.out, story)
-        log(f"wrote {len(story['league_blurbs'])} league blurbs, {len(story['notes'])} notes and "
-            f"{len(story['rankings'])} ratings ({story['ranking_coverage']['carried']} kept from earlier today) in {seconds:.0f}s")
+        log(f"wrote {len(story.get('league_blurbs', []))} league blurbs, {len(story.get('notes', {}))} notes and "
+            f"{len(story['rankings'])} ratings ({story.get('ranking_coverage', {}).get('carried', 0)} kept from earlier today) in {seconds:.0f}s")
         return 0
-    if todays:
-        save(args.out, todays)
-        log("kept today's earlier storylines")
     summary("Storylines: none written this run; see the log.")
     return 0
+
 
 
 if __name__ == "__main__":

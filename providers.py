@@ -15,6 +15,7 @@ when it was checked. A request is tried again after a 429 or 5xx, twice, and nev
 a dropped connection, which the provider may have done and billed.
 """
 import copy
+import http.client
 import json
 import sys
 import time
@@ -130,6 +131,19 @@ class ProviderError(Exception):
     """A request the provider refused or failed, with its status and message; never the request's headers."""
 
 
+class AmbiguousRequestError(ProviderError):
+    """The request may have completed and been billed, but its usage was not received."""
+
+
+def ambiguous_failure(error):
+    """Transport failures must not be repaired by submitting the same paid job again."""
+    if isinstance(error, urllib.error.HTTPError):
+        return False  # An HTTP status is a received response, including retryable 429/5xx statuses.
+    return (isinstance(error, (AmbiguousRequestError, TimeoutError, ConnectionError,
+                               urllib.error.URLError, http.client.HTTPException))
+            or type(error).__name__ in ("APIConnectionError", "APITimeoutError"))
+
+
 def error_detail(body):
     try:
         data = json.loads(body.decode("utf-8", "replace"))
@@ -157,6 +171,8 @@ def post_json(url, body, headers, timeout=REQUEST_TIMEOUT, attempts=3):
                 time.sleep(2 ** attempt)
                 continue
             raise ProviderError(f"HTTP {e.code}: {detail}") from None
+        except (urllib.error.URLError, OSError, http.client.HTTPException, ValueError) as e:
+            raise AmbiguousRequestError(f"{type(e).__name__}: response unavailable; usage and charges are unknown") from None
 
 
 @dataclass

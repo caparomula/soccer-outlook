@@ -22,15 +22,17 @@ the page publishes now and with the page's own Outlook score. For research and t
 URL cited is checked twice: whether the provider's own search returned it in that response (one it did not
 return was recalled or made up, and story.py would never show it) and whether it loads now.
 
-A conflict of interest: Claude wrote this comparison of Claude with its competitors. So nothing here
-scores the writing: the report lists every blurb, and the results file feeds a review page that
-hides which model wrote what. Agreement is measured against the other providers' consensus as well
-as against the Claude ratings the page publishes now, which favour a model that thinks like Claude.
+Nothing here scores the writing: the report lists every blurb, and the results file feeds a review
+page that hides which model wrote what. Agreement is measured against the other providers'
+consensus and the page's published ratings. A reference can favour models similar to its author;
+agreement is not a measure of accuracy.
 
-Spending is capped. Calls run one at a time, cheapest first, and a task starts only while the amount
+Calls run one at a time, cheapest first, and a task starts only while the known amount
 spent plus a generous estimate of that task stays within --budget. A provider whose key is missing
 is skipped. OpenAI and Google requests are tried again after a 429 or 5xx, twice, and never after a
-timeout, which may have been billed; Claude's follow the Anthropic SDK's retries, as story.py's do.
+timeout, which may have been billed. Claude uses story.py's client with automatic retries disabled.
+If a request's charges are unknown, all remaining paid tasks are skipped. The budget is an estimate,
+not a provider-enforced cap.
 
 Usage: compare-providers.py --facts FACTS --page PAGE [--published STORY] --ratings CONFIGS
                             --research CONFIGS [--overview CONFIGS] [--fixtures IDS] [--budget USD]
@@ -155,12 +157,14 @@ class Budget:
 
     def __init__(self, cap):
         self.cap, self.spent = cap, 0.0
+        self.unknown_requests = 0
 
     def allows(self, amount):
-        return self.spent + amount <= self.cap + 1e-12
+        return not self.unknown_requests and self.spent + amount <= self.cap + 1e-12
 
-    def charge(self, amount):
+    def charge(self, amount, unknown_requests=0):
         self.spent += amount or 0.0
+        self.unknown_requests += unknown_requests
 
 
 def anthropic_research(client, cfg, system, prompt, key="blurbs"):
@@ -181,8 +185,7 @@ def rate_once(cfg, header, fixtures, keys, clients):
 
 def anthropic_client(clients):
     if "anthropic" not in clients:
-        import anthropic   # here, so the other providers and the tests run without the package
-        clients["anthropic"] = anthropic.Anthropic(max_retries=2)
+        clients["anthropic"] = story.claude_client()
     return clients["anthropic"]
 
 
@@ -191,7 +194,8 @@ def run_ratings(cfg, header, fixtures, keys, clients):
     without a valid rating. A failed request ends the task, keeping what was rated and spent before it."""
     by_id = {f["id"]: f for f in fixtures}
     result = {"config": f"{cfg.provider}:{cfg.model}:{cfg.effort}", "provider": cfg.provider, "model": cfg.model,
-              "effort": cfg.effort, "served": None, "total": len(by_id), "requests": 0, "stops": [], "usage": {}}
+              "effort": cfg.effort, "served": None, "total": len(by_id), "requests": 0, "stops": [], "usage": {},
+              "cost_complete": True, "unknown_requests": 0}
     ratings, pending, started = {}, list(by_id), time.monotonic()
     try:
         for _ in (1, 2):
@@ -208,6 +212,8 @@ def run_ratings(cfg, header, fixtures, keys, clients):
             log(f"{cfg.name}: asking again for {len(pending)} fixture(s) without a valid rating")
     except Exception as e:     # a failure costs this configuration the rest of its task, not the comparison
         result["error"] = f"{type(e).__name__}: {e}"[:600]
+        if providers.ambiguous_failure(e):
+            result.update(cost_complete=False, unknown_requests=1)
     result["status"] = "ok" if ratings else "error" if "error" in result else "empty"
     result["seconds"] = round(time.monotonic() - started, 1)
     result["rated"] = len(ratings)
@@ -276,7 +282,8 @@ def searched(cfg, system, prompt, key, keys, clients, read):
     `read` takes the reply and gives (status, fields for the result). A failure is the result's error,
     with what was spent before it. Returns (result, reply), the reply None if no answer came."""
     result = {"config": f"{cfg.provider}:{cfg.model}:{cfg.effort}", "provider": cfg.provider, "model": cfg.model,
-              "effort": cfg.effort, "served": None, "usage": {}, "queries": []}
+              "effort": cfg.effort, "served": None, "usage": {}, "queries": [],
+              "cost_complete": True, "unknown_requests": 0}
     started, reply = time.monotonic(), None
     try:
         if cfg.provider == "anthropic":
@@ -295,6 +302,8 @@ def searched(cfg, system, prompt, key, keys, clients, read):
         result.update(fields, status=status)
     except Exception as e:
         result.update(status="error", error=f"{type(e).__name__}: {e}"[:600])
+        if providers.ambiguous_failure(e):
+            result.update(cost_complete=False, unknown_requests=1)
     result["seconds"] = round(time.monotonic() - started, 1)
     result["cost_usd"] = cost_of(cfg, {k: result["usage"].get(k, 0) for k in USAGE_KEYS})
     return result, reply
@@ -394,6 +403,20 @@ def money(c):
     return "n/a" if c is None else f"${c:.2f}" if c >= 0.10 or c == 0 else f"${c:.4f}"
 
 
+def cost_text(result):
+    known = money(result.get("cost_usd"))
+    return known if result.get("cost_complete", True) else f"{known} known + unknown charges"
+
+
+def published_label(published):
+    if not isinstance(published, dict):
+        return "no published model recorded"
+    model = published.get("requested_model") or published.get("model") or "model not recorded"
+    effort = f" at {published['effort']}" if published.get("effort") else ""
+    design = f", {published['kind']} design" if published.get("kind") else ""
+    return f"{model}{effort}{design}"
+
+
 def cell(text):
     return str(text).replace("|", "\\|").replace("\n", " ")
 
@@ -439,9 +462,9 @@ def ratings_section(results, rows, published, names, hours):
     total = max((r["total"] for r in results), default=0)
     lines = [f"### Ratings: three scores for each of the {total} fixtures kicking off within {hours} hours", "",
              "Spearman's rank correlation (1 = the same order, 0 = unrelated) against the ratings the page publishes now "
-             "(Claude Opus 5.5, with its research), against the mean of the other providers' models, and against the "
+             f"({cell(published_label(published))}), against the mean of the other providers' models, and against the "
              "page's own Outlook score. Agreement is not accuracy: there is no right answer to compare with, and the "
-             "published ratings favour a model that thinks like Claude.", "",
+             "published reference can favour models with similar preferences.", "",
              "| Model | Cost | Time | Rated | vs published (95% interval) | vs other providers | vs Outlook | Top three each day vs published | Notes |",
              "|---|---|---|---|---|---|---|---|---|"]
     for r in results:
@@ -453,7 +476,7 @@ def ratings_section(results, rows, published, names, hours):
             notes = f"served by {r['served']}. {notes}".strip()
         if r.get("requests", 0) > 1:
             notes = f"{r['requests']} requests. {notes}".strip()
-        lines.append(f"| {cell(r['model'])} at {r['effort']} | {money(r.get('cost_usd'))} | {r.get('seconds', '?')}s "
+        lines.append(f"| {cell(r['model'])} at {r['effort']} | {cost_text(r)} | {r.get('seconds', '?')}s "
                      f"| {r['rated']}/{r['total']} | {rho_text(storylines.spearman(scores, reference), True) if ok and reference else 'n/a'} "
                      f"| {rho_text(storylines.spearman(scores, others)) if ok and others else 'n/a'} "
                      f"| {rho_text(storylines.spearman(scores, outlook)) if ok and outlook else 'n/a'} "
@@ -492,7 +515,7 @@ def research_section(research, fixtures, names):
             notes.append(f"{native} more cited by the provider's own annotations")
         if any(b["links_in_text"] for b in blurbs):
             notes.append("links in the blurb text")
-        lines.append(f"| {cell(r['model'])} at {r['effort']} | {money(r.get('cost_usd'))} | {r.get('seconds', '?')}s | {searches} "
+        lines.append(f"| {cell(r['model'])} at {r['effort']} | {cost_text(r)} | {r.get('seconds', '?')}s | {searches} "
                      f"| {len(written)}/{count} | {sum(b['length'] > BLURB_LIMIT for b in written)} | {len(listed)} "
                      f"| {sum(s['returned'] for s in listed)} | {state('live')} | {state('dead')} | {state('blocked', 'unreachable')} "
                      f"| {cell('; '.join(n for n in notes if n))} |")
@@ -541,7 +564,7 @@ def overview_section(overview):
             notes.append(f"{native} more cited by the provider's own annotations")
         if o and o["links_in_text"]:
             notes.append("links in the text")
-        lines.append(f"| {cell(r['model'])} at {r['effort']} | {money(r.get('cost_usd'))} | {r.get('seconds', '?')}s "
+        lines.append(f"| {cell(r['model'])} at {r['effort']} | {cost_text(r)} | {r.get('seconds', '?')}s "
                      f"| {u.get('searches', 0) + u.get('opens', 0)} | {o['length'] if o else 0} | {'yes' if o and o['length'] > limit else ''} "
                      f"| {len(listed)} | {sum(s['returned'] for s in listed)} | {state('live')} | {state('dead')} "
                      f"| {state('blocked', 'unreachable')} | {cell('; '.join(n for n in notes if n))} |")
@@ -561,10 +584,15 @@ def overview_section(overview):
 def report(results, facts, rows, published):
     names = {m["id"]: f"{m['home']['name'].strip()} v {m['away']['name'].strip()}" for m in facts.get("ranking_candidates", [])}
     lines = [f"## Provider comparison for {facts.get('weekday', '')} {facts.get('date', '')}", "",
-             "Written by Claude, comparing Claude with other providers, so it measures and does not judge: cost at list "
+             "This comparison measures cost at list "
              "prices from each API's own usage report, time, agreement, and whether cited pages came from the provider's "
-             "own search and load now. The writing is for a person to judge, blind.", "",
-             f"Spent {money(results['spent_usd'])} of the {money(results['budget_usd'])} budget."]
+             "own search and load now. The writing is for a person to judge without seeing the model names.", ""]
+    if results.get("cost_complete", True):
+        lines.append(f"Spent {money(results['spent_usd'])} of the {money(results['budget_usd'])} budget.")
+    else:
+        lines.append(f"Known spending: {money(results['spent_usd'])}; total charges are unknown for "
+                     f"{results['unknown_requests']} interrupted request(s). Remaining paid tasks were stopped; "
+                     f"the {money(results['budget_usd'])} budget cannot be verified.")
     skipped = results.get("skipped") or []
     if skipped:
         lines.append("Skipped: " + "; ".join(f"{s['config']} ({s['why']})" for s in skipped) + ".")
@@ -623,6 +651,7 @@ def main(argv=None):
 
     def admit(cfg, task, prompt_chars):
         why = (f"no {KEYS[cfg.provider]}" if not keys[cfg.provider] else
+               "an earlier request has unknown charges; remaining paid tasks are stopped" if budget.unknown_requests else
                None if budget.allows(estimate(cfg, task, prompt_chars)) else
                f"its estimate of {money(estimate(cfg, task, prompt_chars))} would pass the budget")
         if why:
@@ -635,8 +664,8 @@ def main(argv=None):
         if admit(cfg, "ratings", ratings_chars):
             log(f"ratings: {cfg.name} on {len(rating_fixtures)} fixtures")
             result = run_ratings(cfg, header, rating_fixtures, keys, clients)
-            budget.charge(result["cost_usd"])
-            log(f"  {result['status']}: {result['rated']} rated, {money(result['cost_usd'])}, {result['seconds']}s {result.get('error', '')}")
+            budget.charge(result["cost_usd"], result.get("unknown_requests", 0))
+            log(f"  {result['status']}: {result['rated']} rated, {cost_text(result)}, {result['seconds']}s {result.get('error', '')}")
             results["ratings"].append(result)
     research_chars = len(RESEARCH_SYSTEM) + len(research_prompt(header, chosen))
     replies = []
@@ -644,8 +673,8 @@ def main(argv=None):
         if chosen and admit(cfg, "research", research_chars):
             log(f"research: {cfg.name} on {len(chosen)} fixtures")
             result, reply = run_research(cfg, header, chosen, keys, clients)
-            budget.charge(result["cost_usd"])
-            log(f"  {result['status']}: {len(result['blurbs'])} blurbs, {money(result['cost_usd'])}, {result['seconds']}s {result.get('error', '')}")
+            budget.charge(result["cost_usd"], result.get("unknown_requests", 0))
+            log(f"  {result['status']}: {len(result['blurbs'])} blurbs, {cost_text(result)}, {result['seconds']}s {result.get('error', '')}")
             results["research"]["runs"].append(result)
             replies.append(reply)
     view = overview_view(facts)
@@ -654,13 +683,15 @@ def main(argv=None):
         if view["fixtures"] and admit(cfg, "overview", overview_chars):
             log(f"overview: {cfg.name} on {len(view['fixtures'])} fixtures")
             result, reply = run_overview(cfg, header, view, keys, clients)
-            budget.charge(result["cost_usd"])
-            log(f"  {result['status']}: {(result['overview'] or {}).get('length', 0)} characters, {money(result['cost_usd'])}, "
+            budget.charge(result["cost_usd"], result.get("unknown_requests", 0))
+            log(f"  {result['status']}: {(result['overview'] or {}).get('length', 0)} characters, {cost_text(result)}, "
                 f"{result['seconds']}s {result.get('error', '')}")
             results["overview"]["runs"].append(result)
             replies.append(reply)
     settle_sources(results["research"]["runs"] + results["overview"]["runs"], replies)
     results["spent_usd"] = budget.spent
+    results["unknown_requests"] = budget.unknown_requests
+    results["cost_complete"] = not budget.unknown_requests
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
     with open(args.out, "w", encoding="utf-8") as f:
         json.dump(results, f, ensure_ascii=False, indent=1)

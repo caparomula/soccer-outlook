@@ -52,6 +52,9 @@ jobs:
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
 
       - name: Build today's facts
         run: python3 build.py --out work/page.html --facts work/facts.json
@@ -68,8 +71,12 @@ jobs:
           BUDGET: ${{ inputs.budget }}
         run: |
           set -o pipefail
-          python3 -m venv .venv
-          .venv/bin/pip install --quiet "anthropic>=1.11,<2"
+          comparison_python=python3
+          if [ -n "$ANTHROPIC_API_KEY" ] && printf '%s\n' "$RATINGS" "$RESEARCH" "$OVERVIEW" | grep -Eq '(^|[[:space:]])anthropic:'; then
+            python3 -m venv .venv
+            timeout 180 .venv/bin/pip install --quiet "anthropic>=1.11,<2"
+            comparison_python=.venv/bin/python
+          fi
           # The ratings the page publishes now: the reference for agreement, and for choosing featured fixtures.
           published=()
           if curl -fsS --max-time 30 "https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}/story.json" \
@@ -77,7 +84,7 @@ jobs:
             published=(--published work/published-story.json)
           fi
           # To the run's page, and to its log, which the API can read where it can't read the page.
-          .venv/bin/python .github/scripts/compare-providers.py --facts work/facts.json --page work/page.html "${published[@]}" \
+          "$comparison_python" .github/scripts/compare-providers.py --facts work/facts.json --page work/page.html "${published[@]}" \
             --ratings "$RATINGS" --research "$RESEARCH" --overview "$OVERVIEW" --fixtures "$FIXTURES" --budget "$BUDGET" \
             --out work/providers/results.json | tee -a "$GITHUB_STEP_SUMMARY"
 
@@ -91,3 +98,4 @@ jobs:
           name: provider-comparison
           path: work/providers/results.json
           if-no-files-found: ignore
+          retention-days: 14

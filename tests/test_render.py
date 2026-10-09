@@ -31,6 +31,7 @@ class Rendering(unittest.TestCase):
             with self.subTest(fragment=fragment):
                 page = render_page(build, fragment=fragment)
                 self.assertIn((root / "web/styles.css").read_text(encoding="utf-8"), page)
+                self.assertIn((root / "web/live.js").read_text(encoding="utf-8"), page)
                 self.assertIn((root / "web/app.js").read_text(encoding="utf-8"), page)
                 self.assertNotRegex(page, r"@@[A-Z_]+@@")
                 eyebrow = re.search(r'id="eyebrow">([^<]*)<', page)
@@ -155,10 +156,10 @@ class Markup(unittest.TestCase):
     reader can use, and the US national teams shown by default."""
 
     @staticmethod
-    def event(links=(), home="United States"):
+    def event(links=(), home="United States", home_id="660"):
         return {"id": "9", "date": "2026-10-10T18:30:00Z", "links": list(links),
                 "competitions": [{"competitors": [
-                    {"homeAway": "home", "team": {"displayName": home, "id": "660", "abbreviation": "USA"}},
+                    {"homeAway": "home", "team": {"displayName": home, "id": home_id, "abbreviation": "USA"}},
                     {"homeAway": "away", "team": {"displayName": "Spain", "id": "164", "abbreviation": "ESP"}}],
                     "status": {"type": {"state": "pre", "shortDetail": "Sat"}}}]}
 
@@ -196,7 +197,7 @@ class Markup(unittest.TestCase):
     def test_us_national_teams_are_shown_by_default_in_an_off_competition(self):
         self.assertTrue(build.LEAGUES["fifa.friendly.w"].get("default_off"))
         usa = build.interpret("fifa.friendly.w", self.event())
-        other = build.interpret("fifa.friendly.w", self.event(home="India"))
+        other = build.interpret("fifa.friendly.w", self.event(home="India", home_id="20885"))
         self.assertEqual((build.featured(usa), build.shown_by_default(usa)), (True, True))
         self.assertEqual((build.featured(other), build.shown_by_default(other)), (False, False))
         fixtures = [("usa", "2026-10-07T23:00:00+00:00", "pre", "HBO Max", "fifa.friendly.w"),
@@ -204,7 +205,8 @@ class Markup(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             facts_path = Path(tmp) / "facts.json"
             page = render_page(build, fixtures=fixtures, facts_path=facts_path,
-                               team_names={"usa": ("United States", "Spain"), "india": ("India", "Russia")})
+                               team_names={"usa": ("United States", "Spain"), "india": ("India", "Russia")},
+                               team_ids={"usa": ("2765", "17640"), "india": ("20885", "2763")})
             facts = json.loads(facts_path.read_text())
         rows = {attrs["data-id"]: attrs for tag, attrs in Tags(page).tags if tag == "li" and "data-id" in attrs}
         self.assertEqual(rows["usa"].get("data-featured"), "1")

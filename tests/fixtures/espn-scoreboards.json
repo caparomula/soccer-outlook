@@ -1,0 +1,298 @@
+{
+  "captured_on": "2026-10-09",
+  "scoreboards": [
+    {
+      "league": "eng.1",
+      "source": "https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1/scoreboard?dates=20261010&limit=200",
+      "data": {
+        "events": [
+          {
+            "id": "401879268",
+            "date": "2026-10-10T11:30Z",
+            "name": "Leeds United at Arsenal",
+            "season": {
+              "year": 2026,
+              "type": 14308,
+              "slug": "2026-27-english-premier-league"
+            },
+            "status": {
+              "clock": 0.0,
+              "displayClock": "0'",
+              "type": {
+                "id": "1",
+                "name": "STATUS_SCHEDULED",
+                "state": "pre",
+                "completed": false,
+                "description": "Scheduled",
+                "detail": "Sat, October 10th at 7:30 AM EDT",
+                "shortDetail": "Scheduled"
+              }
+            },
+            "links": [
+              {
+                "rel": [
+                  "summary",
+                  "desktop",
+                  "event"
+                ],
+                "href": "https://www.espn.com/soccer/match/_/gameId/401879268/leeds-united-arsenal",
+                "text": "Summary"
+              }
+            ],
+            "competitions": [
+              {
+                "id": "401879268",
+                "date": "2026-10-10T11:30Z",
+                "timeValid": true,
+                "status": {
+                  "clock": 0.0,
+                  "displayClock": "0'",
+                  "type": {
+                    "id": "1",
+                    "name": "STATUS_SCHEDULED",
+                    "state": "pre",
+                    "completed": false,
+                    "description": "Scheduled",
+                    "detail": "Sat, October 10th at 7:30 AM EDT",
+                    "shortDetail": "Scheduled"
+                  }
+                },
+                "venue": {
+                  "id": "2267",
+                  "fullName": "Emirates Stadium",
+                  "address": {
+                    "city": "London",
+                    "country": "England"
+                  }
+                },
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "USA Net"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  },
+                  {
+                    "type": {
+                      "id": "4",
+                      "shortName": "STREAMING"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "Universo"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "notes": [],
+                "competitors": [
+                  {
+                    "id": "359",
+                    "homeAway": "home",
+                    "score": "0",
+                    "form": "LWWWW",
+                    "records": [
+                      {
+                        "name": "All Splits",
+                        "type": "total",
+                        "summary": "4-0-1",
+                        "abbreviation": "Total"
+                      }
+                    ],
+                    "team": {
+                      "id": "359",
+                      "abbreviation": "ARS",
+                      "displayName": "Arsenal",
+                      "name": "Arsenal",
+                      "color": "e20520",
+                      "alternateColor": "003399",
+                      "logo": "https://a.espncdn.com/i/teamlogos/soccer/500/359.png"
+                    }
+                  },
+                  {
+                    "id": "357",
+                    "homeAway": "away",
+                    "score": "0",
+                    "form": "DWLDD",
+                    "records": [
+                      {
+                        "name": "All Splits",
+                        "type": "total",
+                        "summary": "2-3-0",
+                        "abbreviation": "Total"
+                      }
+                    ],
+                    "team": {
+                      "id": "357",
+                      "abbreviation": "LEE",
+                      "displayName": "Leeds United",
+                      "name": "Leeds United",
+                      "color": "ffffff",
+                      "alternateColor": "FFCD00",
+                      "logo": "https://a.espncdn.com/i/teamlogos/soccer/500/357.png"
+                    }
+                  }
+                ],
+                "odds": [
+                  {
+                    "provider": {
+                      "name": "DraftKings"
+                    },
+                    "drawOdds": {
+                      "moneyLine": 400
+                    },
+                    "overUnder": 2.5
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "league": "mex.1",
+      "source": "https://site.api.espn.com/apis/site/v2/sports/soccer/mex.1/scoreboard?dates=20261010&limit=200",
+      "data": {
+        "events": [
+          {
+            "id": "401876950",
+            "date": "2026-10-11T03:10Z",
+            "name": "Monterrey at América",
+            "season": {
+              "year": 2026,
+              "type": 14277,
+              "slug": "torneo-apertura"
+            },
+            "status": {
+              "clock": 0.0,
+              "displayClock": "0'",
+              "type": {
+                "id": "1",
+                "name": "STATUS_SCHEDULED",
+                "state": "pre",
+                "completed": false,
+                "description": "Scheduled",
+                "detail": "Sat, October 10th at 11:10 PM EDT",
+                "shortDetail": "Scheduled"
+              }
+            },
+            "links": [
+              {
+                "rel": [
+                  "summary",
+                  "desktop",
+                  "event"
+                ],
+                "href": "https://www.espn.com/soccer/match/_/gameId/401876950/monterrey-america",
+                "text": "Summary"
+              }
+            ],
+            "competitions": [
+              {
+                "id": "401876950",
+                "date": "2026-10-11T03:10Z",
+                "timeValid": true,
+                "status": {
+                  "clock": 0.0,
+                  "displayClock": "0'",
+                  "type": {
+                    "id": "1",
+                    "name": "STATUS_SCHEDULED",
+                    "state": "pre",
+                    "completed": false,
+                    "description": "Scheduled",
+                    "detail": "Sat, October 10th at 11:10 PM EDT",
+                    "shortDetail": "Scheduled"
+                  }
+                },
+                "venue": {
+                  "id": "1672",
+                  "fullName": "Estadio Banorte",
+                  "address": {
+                    "city": "Mexico City",
+                    "country": "Mexico"
+                  }
+                },
+                "geoBroadcasts": [],
+                "notes": [],
+                "competitors": [
+                  {
+                    "id": "227",
+                    "homeAway": "home",
+                    "score": "0",
+                    "form": "WDLLL",
+                    "records": [
+                      {
+                        "name": "All Splits",
+                        "type": "total",
+                        "summary": "6-2-1",
+                        "abbreviation": "Total"
+                      }
+                    ],
+                    "team": {
+                      "id": "227",
+                      "abbreviation": "AME",
+                      "displayName": "América",
+                      "name": "América",
+                      "color": "ffff91",
+                      "alternateColor": "001C58",
+                      "logo": "https://a.espncdn.com/i/teamlogos/soccer/500/227.png"
+                    }
+                  },
+                  {
+                    "id": "220",
+                    "homeAway": "away",
+                    "score": "0",
+                    "form": "LWDLW",
+                    "records": [
+                      {
+                        "name": "All Splits",
+                        "type": "total",
+                        "summary": "4-1-4",
+                        "abbreviation": "Total"
+                      }
+                    ],
+                    "team": {
+                      "id": "220",
+                      "abbreviation": "MTY",
+                      "displayName": "Monterrey",
+                      "name": "Monterrey",
+                      "color": "001C58",
+                      "alternateColor": "ffffff",
+                      "logo": "https://a.espncdn.com/i/teamlogos/soccer/500/220.png"
+                    }
+                  }
+                ],
+                "odds": [
+                  {
+                    "provider": {
+                      "name": "DraftKings"
+                    },
+                    "drawOdds": {
+                      "moneyLine": 250
+                    },
+                    "overUnder": 2.5
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

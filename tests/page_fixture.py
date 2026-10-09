@@ -71,7 +71,7 @@ class FixedDatetime(datetime):
 
 
 def render_page(builder, *, fragment=False, fixtures=None, failed=(), facts_path=None, team_names=None, league_logos=False,
-                tbd=(), ai=True, stature=None, odds=None, design=None, model=None):
+                tbd=(), ai=True, stature=None, odds=None, design=None, model=None, team_ids=None):
     """Exercise the real renderer with fixed time, rights, teams, scores, a table and settings.
 
     Fixtures named in `tbd` have a kickoff time to be set (ESPN's timeValid false); their kickoff
@@ -105,14 +105,15 @@ def render_page(builder, *, fragment=False, fixtures=None, failed=(), facts_path
             match_id, kickoff, state, channel = fixture[:4]
             league = fixture[4] if len(fixture) > 4 else "eng.1"
             home_name, away_name = (team_names or {}).get(match_id, ("Arsenal", "Chelsea"))
-            home = builder.Team(home_name, "ARS", "", "", id="1", color="ef0107",
+            home_id, away_id = (team_ids or {}).get(match_id, ("1", "2"))
+            home = builder.Team(home_name, "ARS", "", "", id=home_id, color="ef0107",
                                 score="2" if state == "post" else "0", form="WWDLW",
                                 rank=1, pts="18", size=2, record="6-0-2", leader="A. Player", leader_goals="6")
-            away = builder.Team(away_name, "CHE", "", "", id="2", color="034694",
+            away = builder.Team(away_name, "CHE", "", "", id=away_id, color="034694",
                                 score="1" if state == "post" else "0", form="WLWDW",
                                 rank=2, pts="15", size=2)
             outlets = [builder.map_outlet(channel, league)] if channel else []
-            rule = builder.usual_home(league, home.name) if not outlets else None
+            rule = builder.usual_home(league, home.id) if not outlets else None
             service, basis, outlet = builder.evaluate(outlets, rule, set(builder.OWNER))
             matches.append(builder.Match(
                 id=match_id, utc=datetime.fromisoformat(kickoff), time_valid=match_id not in tbd,
@@ -123,7 +124,7 @@ def render_page(builder, *, fragment=False, fixtures=None, failed=(), facts_path
                 outlet=outlet, score=(stature or {}).get(match_id, 150),
                 **(dict(zip(("draw", "goal_line"), (odds or {}).get(match_id, (None, None)))) if scored else {})))
         table = [dict(id=t.id, name=t.name, rank=t.rank, pts=t.pts, logo="",
-                      gp="8", rec="6-0-2", gd="+10") for t in (home, away)]
+                      gp="8", rec="6-0-2", gd="+10") for t in (matches[-1].home, matches[-1].away)] if matches else []
         builder.STANDINGS["eng.1"] = {"tables": [("", table)]}
         if facts_path is not None:
             builder.write_facts(facts_path, matches, BUILT_AT, TODAY)

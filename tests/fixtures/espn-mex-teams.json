@@ -1,0 +1,96 @@
+{
+  "captured_on": "2026-10-09",
+  "source": "https://site.api.espn.com/apis/site/v2/sports/soccer/mex.1/teams?limit=1000",
+  "teams": [
+    {
+      "id": "227",
+      "name": "América",
+      "abbreviation": "AME"
+    },
+    {
+      "id": "226",
+      "name": "Atlante",
+      "abbreviation": "ATL"
+    },
+    {
+      "id": "216",
+      "name": "Atlas",
+      "abbreviation": "ATS"
+    },
+    {
+      "id": "15720",
+      "name": "Atlético de San Luis",
+      "abbreviation": "ASL"
+    },
+    {
+      "id": "218",
+      "name": "Cruz Azul",
+      "abbreviation": "CAZ"
+    },
+    {
+      "id": "17851",
+      "name": "FC Juárez",
+      "abbreviation": "JUA"
+    },
+    {
+      "id": "219",
+      "name": "Guadalajara",
+      "abbreviation": "GDL"
+    },
+    {
+      "id": "228",
+      "name": "León",
+      "abbreviation": "LEO"
+    },
+    {
+      "id": "220",
+      "name": "Monterrey",
+      "abbreviation": "MTY"
+    },
+    {
+      "id": "229",
+      "name": "Necaxa",
+      "abbreviation": "NCX"
+    },
+    {
+      "id": "234",
+      "name": "Pachuca",
+      "abbreviation": "PAC"
+    },
+    {
+      "id": "231",
+      "name": "Puebla",
+      "abbreviation": "PUE"
+    },
+    {
+      "id": "233",
+      "name": "Pumas UNAM",
+      "abbreviation": "UNAM"
+    },
+    {
+      "id": "222",
+      "name": "Querétaro",
+      "abbreviation": "QRO"
+    },
+    {
+      "id": "225",
+      "name": "Santos",
+      "abbreviation": "SAN"
+    },
+    {
+      "id": "232",
+      "name": "Tigres UANL",
+      "abbreviation": "UANL"
+    },
+    {
+      "id": "10125",
+      "name": "Tijuana",
+      "abbreviation": "TIJ"
+    },
+    {
+      "id": "223",
+      "name": "Toluca",
+      "abbreviation": "TOL"
+    }
+  ]
+}

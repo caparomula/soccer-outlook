@@ -2,29 +2,50 @@ name: Browser checks
 
 on:
   pull_request:
-    paths: ["build.py", "providers.py", "settings.toml", "rights.toml", "web/**", "tests/**", ".github/workflows/browser.yml"]
+    paths: ["**/*.py", "settings.toml", "rights.toml", "web/**", "tests/**", ".github/workflows/**", ".github/scripts/**"]
   push:
     branches: [main]
-    paths: ["build.py", "providers.py", "settings.toml", "rights.toml", "web/**", "tests/**", ".github/workflows/browser.yml"]
+    paths: ["**/*.py", "settings.toml", "rights.toml", "web/**", "tests/**", ".github/workflows/**", ".github/scripts/**"]
 
 permissions:
   contents: read
 
 jobs:
-  browser:
+  unit:
+    name: Unit tests
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: python -m unittest -v
+
+  browser:
+    name: Browser checks (${{ matrix.browser }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - browser: chromium
+            args: ""
+          - browser: webkit
+            args: "--smoke"
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - run: python -m pip install -r tests/requirements-browser.txt
-      - run: python -m playwright install --with-deps chromium
-      - run: python -m unittest -v
-      - run: python -m tests.browser
+      - run: python -m playwright install --with-deps "${{ matrix.browser }}"
+      - run: python -m tests.browser --browser "${{ matrix.browser }}" ${{ matrix.args }} --artifacts "work/browser-${{ matrix.browser }}"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: browser-screenshots
-          path: work/browser/*.png
+          name: browser-screenshots-${{ matrix.browser }}
+          path: work/browser-${{ matrix.browser }}/*.png
+          if-no-files-found: ignore
+          retention-days: 14

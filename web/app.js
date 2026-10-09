@@ -8,7 +8,6 @@
   var app = document.getElementById('app');
   var body = document.getElementById('outlook-body');
   var rows = Array.prototype.slice.call(document.querySelectorAll('li.row'));
-  if (!rows.length) return;
   var ROW_BY_ID = Object.create(null);
   rows.forEach(function (r) { ROW_BY_ID[r.getAttribute('data-id')] = r; });
   var controls = document.getElementById('controls');
@@ -1557,37 +1556,7 @@
     if (!document.hidden && Date.now() - storyAskedAt >= STORY_EVERY_MS) loadStory();
   }
 
-  // ---- live scores: ESPN's scoreboard, read by the browser while matches are on -----------------
-  // Check unfinished matches from 15 minutes before kickoff until four hours afterwards, about
-  // once a minute while the tab is visible. A match not checked in this tab also gets one catch-up
-  // check within 30 hours of kickoff. Finished matches and hidden competitions are skipped.
-  // Requests are grouped by competition and Eastern date. Each times out after eight seconds;
-  // failures preserve the last displayed scores. When an entire poll fails, retries back off
-  // to at most ten minutes apart. These requests update scores, not fixtures or broadcasters.
-  var LIVE = { base: 'https://site.api.espn.com/apis/site/v2/sports/soccer/', everyMs: 60000, timeoutMs: 8000,
-               leadMs: 15 * 60000, tailMs: 4 * 3600000, lookbackMs: 30 * 3600000,
-               busy: false, startedAt: 0, okAt: 0, fails: 0, nextAt: 0 };
-  (function () {   // a test server on this machine may stand in for ESPN: ?scoresbase=http://localhost:8000/espn/
-    var m = /[?&]scoresbase=([^&#]+)/.exec(location.search), b = m ? decodeURIComponent(m[1]) : '';
-    if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname) && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?\//.test(b)) LIVE.base = b;
-  })();
-  function liveDue(r, now) {
-    if (!r._tv || r._state === 'post' || compHidden(r) || now < r._k - LIVE.leadMs) return false;
-    if (now < r._k + LIVE.tailMs) return true;
-    return !r._asked && now < r._k + LIVE.lookbackMs;
-  }
-  // Resolves with the parsed body, or rejects on an HTTP error, a network error or the timeout,
-  // whichever comes first; the timeout covers the body as well as the headers.
-  function getJson(url) {
-    return new Promise(function (resolve, reject) {
-      var ctl = window.AbortController ? new AbortController() : null, done = false;
-      function finish(fn, v) { if (done) return; done = true; clearTimeout(timer); fn(v); }
-      var timer = setTimeout(function () { if (ctl) ctl.abort(); finish(reject, new Error('timeout')); }, LIVE.timeoutMs);
-      fetch(url, { cache: 'no-store', credentials: 'omit', signal: ctl ? ctl.signal : undefined })
-        .then(function (res) { if (!res.ok) throw new Error('HTTP ' + res.status); return res.json(); })
-        .then(function (j) { finish(resolve, j); }, function (e) { finish(reject, e); });
-    });
-  }
+  // ---- live scores: row presentation; transport and polling live in web/live.js ---------------
   // The same reading of ESPN's status as build.py's interpret().
   function liveStatus(st) {
     var t = (st && st.type) || {}, desc = (t.description || '').toLowerCase();
@@ -1662,12 +1631,12 @@
     g = r.querySelector('.row__goals');
     if ((g ? g.textContent : '') !== beforeGoals) changed.goals = true;
   }
-  function showLiveNote() {
+  function showLiveNote(state) {
     var el = document.getElementById('livenote');
-    if (!LIVE.okAt && !LIVE.fails) return;
-    var t = LIVE.okAt ? splitTime(new Date(LIVE.okAt)) : null, when = t ? t.t + ' ' + t.ap : '';
-    el.textContent = !LIVE.fails ? 'Scores update live from ESPN while matches are on; last checked at ' + when + '.'
-      : LIVE.okAt ? 'Scores update live from ESPN while matches are on; last checked at ' + when + ', and the latest check didn’t get through, so it will try again shortly.'
+    if (!state.okAt && !state.fails) return;
+    var t = state.okAt ? splitTime(new Date(state.okAt)) : null, when = t ? t.t + ' ' + t.ap : '';
+    el.textContent = !state.fails ? 'Scores update live from ESPN while matches are on; last checked at ' + when + '.'
+      : state.okAt ? 'Scores update live from ESPN while matches are on; last checked at ' + when + ', and the latest check didn’t get through, so it will try again shortly.'
       : 'Couldn’t reach ESPN for live scores just now, so scores are as of the last rebuild; it will try again shortly.';
     el.hidden = false;
   }
@@ -1683,40 +1652,22 @@
     watchIcons();
     missesEl.querySelectorAll('.miss').forEach(function (d) { var t = d.querySelector('.miss__time'); if (d._row && t) t.textContent = missTime(d._row, now); });
   }
-  function pollLive() {
-    if (!window.fetch || !window.Promise || LIVE.busy || document.hidden) return;
-    if (Date.now() < LIVE.nextAt || Date.now() - LIVE.startedAt < 20000) return;
-    var now = nowMs(), groups = {}, keys = [];
-    rows.forEach(function (r) {
-      if (!liveDue(r, now)) return;
-      var key = r._lg + '/' + etYmd(r._k);
-      if (!groups[key]) { groups[key] = []; keys.push(key); }
-      groups[key].push(r);
-    });
-    if (!keys.length) return;
-    LIVE.busy = true; LIVE.startedAt = Date.now();
-    var changed = { state: false, score: false, clock: false }, ok = 0;
-    Promise.all(keys.map(function (key) {
-      var lg = key.split('/')[0], day = key.split('/')[1];
-      return getJson(LIVE.base + encodeURIComponent(lg) + '/scoreboard?dates=' + day + '&limit=200').then(function (data) {
-        ok++;
-        var byId = {};
-        ((data && data.events) || []).forEach(function (ev) { if (ev && ev.id != null) byId[String(ev.id)] = ev; });
-        groups[key].forEach(function (r) {
-          var first = !r._asked, ev = byId[r.getAttribute('data-id')];
-          r._asked = true;
-          try { if (ev) applyEvent(r, ev, first, changed); } catch (e) {}
-        });
-      }).catch(function () {});
-    })).then(function () {
-      LIVE.busy = false;
-      if (ok) { LIVE.okAt = Date.now(); LIVE.fails = 0; LIVE.nextAt = 0; }
-      else { LIVE.fails++; LIVE.nextAt = Date.now() + Math.min(LIVE.everyMs * Math.pow(2, LIVE.fails), 10 * 60000) - 2000; }
-      showLiveNote();
+  var liveScores = window.SoccerOutlookLive.create({
+    now: nowMs,
+    dateKey: etYmd,
+    matches: function () {
+      return rows.map(function (r) {
+        return { id: r.getAttribute('data-id'), league: r._lg, kickoff: r._k,
+                 eligible: r._tv && r._state !== 'post' && !compHidden(r) };
+      });
+    },
+    applyEvent: function (id, event, first, changed) { applyEvent(ROW_BY_ID[id], event, first, changed); },
+    completed: function (state, changed) {
+      showLiveNote(state);
       if (changed.state || changed.score) render(true);
       else if (changed.clock || changed.goals) { render(false); refreshLiveText(); }
-    });
-  }
+    }
+  });
 
   evaluateAll();
   applyFilterUI();
@@ -1724,8 +1675,8 @@
   checkStale();
   loadStory();
   window.addEventListener('hashchange', function () { render(true); checkStory(); });
-  setTimeout(pollLive, 0);
+  setTimeout(liveScores.poll, 0);
   setInterval(function () { render(false); checkStale(); checkStory(); }, 60000);
-  setInterval(pollLive, LIVE.everyMs);
-  document.addEventListener('visibilitychange', function () { if (!document.hidden) { render(false); checkStale(); checkStory(); pollLive(); } });
+  setInterval(liveScores.poll, liveScores.everyMs);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) { render(false); checkStale(); checkStory(); liveScores.poll(); } });
 })();

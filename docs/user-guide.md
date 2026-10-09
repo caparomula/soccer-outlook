@@ -73,11 +73,11 @@ League emblems identify competitions; badges beside team names identify the team
 
 Hover over **Details** for a floating preview. Click, tap or press Enter to open a dialog. Close it with **Close**, Escape, or a click outside it. Neither view expands the schedule row.
 
-Details can include season records, leading scorers, venue information and links, depending on what ESPN supplies. Featured cards without a blurb show these facts and links directly. **Add to calendar** opens a Google Calendar event draft; **League table** opens the page's standings. The schedule remains usable when an optional fact or image is missing.
+Details can include season records, leading scorers, venue information and links, depending on what ESPN supplies. Featured cards without a blurb show these facts and links directly. **Add to calendar** opens a Google Calendar event draft for a confirmed kickoff; it is unavailable while the time is TBD. The event names the broadcast outlet rather than assuming which subscription you use. **League table** opens the page's standings. The schedule remains usable when an optional fact or image is missing.
 
 ## Freshness and missing matches
 
-The schedule normally rebuilds three times a day. Live scores are checked roughly once a minute while the tab is visible and a match is near kickoff or in progress. If a request fails, the last displayed score remains until a later successful check. A live-score update does not fetch new fixtures or broadcaster assignments; those need a page rebuild and reload.
+The schedule normally rebuilds three times a day. Live scores are checked roughly once a minute while the tab is visible and a match is near kickoff or in progress. Returning to a tab also checks unfinished matches that kicked off within the past 30 hours, so a score seen earlier can catch up to the final result. If a request fails, the last displayed score remains until a later successful check. A live-score update does not fetch new fixtures or broadcaster assignments; those need a page rebuild and reload.
 
 Open **Schedule and data details** in the footer for the build time, latest score check, coverage counts and any incomplete-data notice. The page warns when its build is more than 30 hours old.
 

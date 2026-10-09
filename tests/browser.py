@@ -1,4 +1,4 @@
-"""Offline Chromium checks; run with python3 -m tests.browser --help."""
+"""Offline browser checks; run with python3 -m tests.browser --help."""
 import argparse
 from copy import deepcopy
 from datetime import timedelta
@@ -31,6 +31,8 @@ class QuietHandler(SimpleHTTPRequestHandler):
 
 
 class BrowserChecks(unittest.TestCase):
+    engine = "chromium"
+
     @contextmanager
     def page(self, target, *, width=1280, theme="light", at="20261007-1300", html=None, story=None, touch=False, locale="en-US"):
         context = self.browser.new_context(
@@ -438,7 +440,10 @@ class BrowserChecks(unittest.TestCase):
         html = render_page(build, fixtures=[(lg, '2026-10-07T18:00:00+00:00', 'pre', 'ESPN+', lg) for lg in leagues], league_logos=True)
         for width in (1280, 390):
             with self.subTest(width=width), self.page('after', width=width, html=html, touch=width <= 600) as (page, _):
-                touch = width <= 600
+                # Playwright exposes continuous native touch input only through Chromium's CDP.
+                # WebKit exercises the same pointer-capture drag at both widths with a mouse;
+                # its native touch taps are covered by the Details-dialog check.
+                touch = width <= 600 and self.engine == "chromium"
                 page.locator('#btn-menu').click()
 
                 def alphabetical(kind):
@@ -568,6 +573,79 @@ class BrowserChecks(unittest.TestCase):
                 self.assertEqual(self.bucket(page, "upcoming"), "Earlier today")
                 expect(page.locator("#schedule-summary")).to_contain_text("1 live · 4 upcoming")
                 self.assertGreaterEqual(feed["requests"], 2)
+
+    @staticmethod
+    def background_for(page, milliseconds):
+        # Stop pinning the fixture's local-time perspective, then model a hidden/sleeping tab.
+        # fast_forward runs missed intervals once, as a browser does after waking up.
+        page.evaluate("""() => {
+            history.replaceState(null, '', location.pathname + location.search);
+            window.__hidden = true;
+            Object.defineProperty(document, 'hidden', {configurable: true, get: () => window.__hidden});
+            document.dispatchEvent(new Event('visibilitychange'));
+        }""")
+        page.clock.fast_forward(milliseconds)
+
+    @staticmethod
+    def foreground(page):
+        page.evaluate("window.__hidden = false; document.dispatchEvent(new Event('visibilitychange'))")
+
+    def test_returning_after_the_live_window_catches_up_to_the_final_score(self):
+        html = render_page(build, fixtures=[("upcoming", "2026-10-07T16:30:00+00:00", "in", "ESPN+")])
+        with self.page("after", html=html) as (page, feed):
+            feed["data"] = scoreboard("in")
+            page.clock.run_for(60000)
+            row = page.locator('li.row[data-id="upcoming"]')
+            expect(row.locator(".row__status")).to_have_text("63'")
+            self.background_for(page, 5 * 3600000)
+            before = feed["requests"]
+            feed["data"] = scoreboard("post")
+            self.foreground(page)
+            expect(row).to_have_attribute("data-state", "post")
+            expect(row.locator(".row__status")).to_have_text("FT")
+            self.assertEqual(feed["requests"], before + 1)
+            page.clock.fast_forward(10 * 60000)
+            self.assertEqual(feed["requests"], before + 1, "A finished match needs no more polls")
+
+    def test_catchup_retries_failures_with_backoff_then_stops_after_a_success(self):
+        html = render_page(build, fixtures=[("upcoming", "2026-10-07T16:30:00+00:00", "in", "ESPN+")])
+        with self.page("after", html=html) as (page, feed):
+            feed["data"] = scoreboard("in")
+            page.clock.run_for(60000)
+            expect(page.locator('li.row[data-id="upcoming"] .row__status')).to_have_text("63'")
+            self.background_for(page, 5 * 3600000)
+            before = feed["requests"]
+            feed["fail"] = True
+            self.foreground(page)
+            expect(page.locator("#livenote")).to_contain_text("latest check didn’t get through")
+            self.assertEqual(feed["requests"], before + 1)
+            # Returning again and the next minute's timer must both respect the retry deadline.
+            self.foreground(page)
+            page.clock.run_for(60000)
+            self.assertEqual(feed["requests"], before + 1)
+            feed["fail"] = False
+            page.clock.run_for(60000)
+            expect(page.locator("#livenote")).not_to_contain_text("latest check didn’t get through")
+            self.assertEqual(feed["requests"], before + 2)
+            # ESPN still says in progress. One successful catch-up, not endless polling, is enough.
+            page.clock.fast_forward(10 * 60000)
+            self.foreground(page)
+            page.clock.run_for(60000)
+            self.assertEqual(feed["requests"], before + 2)
+
+    def test_an_empty_schedule_still_has_working_filters_and_an_empty_state(self):
+        with self.page("after", html=render_page(build, fixtures=[])) as (page, feed):
+            expect(page.locator("#outlook-body .empty")).to_contain_text("No matches")
+            expect(page.locator("#tally-n")).to_have_text("0")
+            expect(page.locator("#nextup-section")).to_be_hidden()
+            expect(page.locator("#picks-section")).to_be_hidden()
+            page.locator("#btn-menu").click()
+            expect(page.locator("#drawer")).to_be_visible()
+            page.locator("#btn-clear").click()
+            expect(page.locator("#filter-sum")).to_contain_text("0 services")
+            page.locator("#btn-reset").click()
+            expect(page.locator("#filter-sum")).to_contain_text("9 services")
+            self.assertEqual(feed["requests"], 0)
 
     def test_failed_scoreboard_preserves_scores(self):
         for target in self.targets:
@@ -1883,7 +1961,8 @@ class BrowserChecks(unittest.TestCase):
         fixtures = [("usa", "2026-10-07T23:00:00+00:00", "pre", "HBO Max", "fifa.friendly.w"),
                     ("india", "2026-10-07T23:30:00+00:00", "pre", "HBO Max", "fifa.friendly.w")]
         names = {"usa": ("United States", "Spain"), "india": ("India", "Russia")}
-        with self.page("after", html=render_page(build, fixtures=fixtures, team_names=names)) as (page, _):
+        ids = {"usa": ("2765", "17640"), "india": ("20885", "2763")}
+        with self.page("after", html=render_page(build, fixtures=fixtures, team_names=names, team_ids=ids)) as (page, _):
             usa, india = page.locator('li.row[data-id="usa"]'), page.locator('li.row[data-id="india"]')
             expect(usa).to_be_visible()
             expect(india).to_be_hidden()
@@ -2067,15 +2146,31 @@ class BrowserChecks(unittest.TestCase):
             expect(page.locator("#story")).to_be_hidden()
 
 
-# Exit status when Chromium can't start: the checks didn't run, which says nothing about the page.
+# Exit status when the browser cannot start: the checks did not run, which says nothing about the page.
 # 77 is automake's "skipped"; Python and argparse already use 1 and 2 for their own errors.
 NOT_RUN = 77
+
+# A compact cross-engine pass through the interactions most sensitive to browser behavior.
+# Chromium still runs every check by default; WebKit smoke is an additional compatibility check.
+SMOKE_TESTS = (
+    "test_lineup_persists_and_resets",
+    "test_filter_groups_drag_between_areas_sort_persist_and_accept_empty_drops",
+    "test_details_hover_preview_is_stable_hoverable_and_dismissible",
+    "test_details_dialog_mouse_touch_keyboard_and_focus_without_reflow",
+    "test_enabled_leagues_move_repeatedly_from_the_keyboard_and_set_the_priority",
+    "test_returning_after_the_live_window_catches_up_to_the_final_score",
+    "test_catchup_retries_failures_with_backoff_then_stops_after_a_success",
+    "test_an_empty_schedule_still_has_working_filters_and_an_empty_state",
+)
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--baseline-build", type=Path,
                         help="original build.py, beside its rights.toml (and web/ if applicable)")
+    parser.add_argument("--browser", choices=("chromium", "webkit"), default="chromium",
+                        help="browser engine (default: chromium)")
+    parser.add_argument("--smoke", action="store_true", help="run the compact compatibility checks")
     parser.add_argument("--artifacts", type=Path, default=Path("work/browser"))
     args = parser.parse_args()
     pages = {"after": render_page(build)}
@@ -2098,19 +2193,23 @@ def main():
         thread = Thread(target=server.serve_forever, daemon=True)
         thread.start()
         try:
-            # Playwright's own Chromium, the version it was built against, unless BROWSER_EXECUTABLE names
-            # another. A runner's system Chromium (GitHub's images put one on PATH) changes from week to week.
+            # The Chromium override is useful on runners with an existing system browser. WebKit
+            # always uses Playwright's build; a Chromium executable cannot stand in for that engine.
             try:
-                browser = playwright.chromium.launch(executable_path=os.environ.get("BROWSER_EXECUTABLE") or None)
+                launch = {"executable_path": os.environ.get("BROWSER_EXECUTABLE") or None} if args.browser == "chromium" else {}
+                browser = getattr(playwright, args.browser).launch(**launch)
             except Exception as e:
-                print(f"Chromium could not start: {e}", file=sys.stderr)
+                print(f"{args.browser.capitalize()} could not start: {e}", file=sys.stderr)
                 return NOT_RUN
             try:
                 BrowserChecks.browser = browser
+                BrowserChecks.engine = args.browser
                 BrowserChecks.base = f"http://127.0.0.1:{server.server_port}"
                 BrowserChecks.targets = list(pages)
                 BrowserChecks.artifacts = args.artifacts.resolve()
-                result = unittest.TextTestRunner(verbosity=2).run(unittest.defaultTestLoader.loadTestsFromTestCase(BrowserChecks))
+                suite = (unittest.TestSuite(BrowserChecks(name) for name in SMOKE_TESTS) if args.smoke
+                         else unittest.defaultTestLoader.loadTestsFromTestCase(BrowserChecks))
+                result = unittest.TextTestRunner(verbosity=2).run(suite)
             finally:
                 browser.close()
         finally:
