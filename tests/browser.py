@@ -2086,7 +2086,8 @@ class BrowserChecks(unittest.TestCase):
                              "(57.5). AI rating by gpt-6.1-sol: Popularity 60 · Expected gameplay 60 · Competitive impact 60. "
                              "Outlook score 57.5: occasion 100 · evenly matched no data · stakes 0 · TV 0 · goals expected no data.")
             expect(page.locator("footer")).to_contain_text("50% the AI rating and 50% the Outlook score")
-            expect(page.locator("footer")).to_contain_text("gpt-6.1-sol, an OpenAI AI model, rates every match")
+            expect(page.locator("footer")).to_contain_text("gpt-6.1-sol, an OpenAI AI model, is asked to rate the matches")
+            expect(page.locator("footer")).to_contain_text("Later rebuilds fill missing or newly listed ratings")
 
     def test_malformed_story_does_not_stop_filters_or_scores(self):
         story = self.overview_story(sources="not a list")
