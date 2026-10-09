@@ -27,6 +27,7 @@ Useful build options:
 | `--facts work/facts.json` | Save the fixture and team data used by `story.py`. This does not call an AI model. |
 | `--warnings work/mapping-report.txt` | Save broadcast-mapping warnings; the file is empty when the report is clean. |
 | `--report work/build-report.json` | Save source-health and fixture counts used to decide whether the build can be published. |
+| `--site-url https://example.com/soccer/` | Set the public directory URL used by the canonical link, sharing metadata and sitemap. Defaults to the published Soccer Outlook URL. |
 | `--date YYYY-MM-DD` | Choose the Eastern date used to fetch fixtures and evaluate rights. It does not change the build timestamp or the browser's clock. |
 | `--days-back N --days-ahead N` | Change the dates fetched. This does not change the browser's display window. |
 | `--no-logos` | Build without team or league images. |
@@ -56,7 +57,11 @@ For a browser preview at a chosen local time, append a fragment such as `#at-202
 
 The generator inlines the HTML, CSS and JavaScript assets into the page. Rebuild after editing them. Full builds copy `web/favicon.png` beside the HTML; the PNG works in browsers that do not support SVG favicons. If the SVG artwork changes, re-export the PNG at 64 × 64 with a transparent background. Fragment builds leave the icon to the host page.
 
-Deployment consists of `index.html`, `favicon.png`, optional `story.json` and a `.nojekyll` file; there is no application server or JavaScript bundler. Generated files in `site/` and test artifacts in `work/` are ignored by Git.
+Deployment consists of `index.html`, `favicon.png`, `sitemap.xml`, optional `story.json` and a `.nojekyll` file; there is no application server or JavaScript bundler. Generated files in `site/` and test artifacts in `work/` are ignored by Git.
+
+Full pages allow search indexing and include a descriptive title, summary, canonical URL and sharing metadata in the document head. Each build writes a one-page sitemap beside the HTML, dated with the schedule rebuild time. Fragment builds leave search metadata and discovery files to the host. The workflow supplies the repository's GitHub Pages URL; for a custom domain, set its `SITE_URL` accordingly. Use `--site-url` for other public deployments so their canonical links point to the correct site.
+
+Indexing and search placement are decided by search engines. The owner can submit the public URL and `sitemap.xml` through Google Search Console after verifying ownership. A `robots.txt` file only controls crawling when served at the domain root; a file under `/soccer-outlook/` would not do so. The current domain has no blocking robots rules.
 
 ## Test changes
 
@@ -180,7 +185,7 @@ A failing unit test, browser assertion, invalid configuration or unusable source
 
 There are two intentional exceptions: if Chromium cannot be installed or started, the refresh workflow publishes with a warning; and AI generation or mapping-issue failures do not block the schedule. Before AI setup, it saves a compatible, fresh result from the same day as a fallback. The Anthropic SDK is installed only if the planned work needs it. The separate [`Browser checks`](../.github/workflows/browser.yml) workflow runs unit tests, Chromium checks and WebKit smoke checks on relevant pushes and pull requests, including changes to AI and maintenance scripts. It saves screenshots even when checks fail and does not have the refresh workflow's browser-setup bypass.
 
-The `generated-site` artifact includes the HTML, favicon, available AI output, source facts, warnings, health report and usage report. Download it from a workflow run to inspect the exact inputs and outputs behind a page. To restore an earlier page, use that artifact's `site/` contents in a new `gh-pages` commit, add `.nojekyll`, and push the branch; the next scheduled build will replace it. Check the source commit and build time before restoring, since old fixtures and ratings will still expire normally.
+The `generated-site` artifact includes the HTML, favicon, sitemap, available AI output, source facts, warnings, health report and usage report. Download it from a workflow run to inspect the exact inputs and outputs behind a page. To restore an earlier page, use that artifact's `site/` contents in a new `gh-pages` commit, add `.nojekyll`, and push the branch; the next scheduled build will replace it. Check the source commit and build time before restoring, since old fixtures and ratings will still expire normally.
 
 ### Costs and comparison workflows
 

@@ -38,7 +38,7 @@ Page structure, styles and browser behavior live in [web/](web/). Rebuild after 
 
 GitHub Actions normally rebuilds the published schedule three times a day. While the page is open, the browser also checks live scores about once a minute. Broadcast listings can change; **usually** means an established rights arrangement rather than a confirmed listing for that match. Check the broadcaster's app before kickoff.
 
-The project requests that search engines do not index the page. Images normally load from ESPN, and fonts load from Google Fonts.
+The site allows search indexing and publishes a [sitemap](https://caparomula.github.io/soccer-outlook/sitemap.xml) to help search engines discover it. Images normally load from ESPN, and fonts load from Google Fonts.
 
 If you find the page useful, you can [buy the owner a coffee](https://www.buymeacoffee.com/caparomula).
 

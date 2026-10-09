@@ -84,7 +84,9 @@ jobs:
           retention-days: 14
 
       - name: Build the page
-        run: python3 build.py --out site/index.html --facts work/facts.json --warnings work/mapping-report.txt --report work/build-report.json
+        env:
+          SITE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+        run: python3 build.py --out site/index.html --site-url "$SITE_URL" --facts work/facts.json --warnings work/mapping-report.txt --report work/build-report.json
 
       - name: Check the page
         run: python3 .github/scripts/check-build.py --page site/index.html --report work/build-report.json
@@ -156,6 +158,7 @@ jobs:
           path: |
             site/index.html
             site/favicon.png
+            site/sitemap.xml
             site/story.json
             work/facts.json
             work/mapping-report.txt

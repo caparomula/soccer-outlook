@@ -1804,12 +1804,36 @@ def build_page(matches, cache, built_at, failed, today, skipped=()):
     return page
 
 
+SITE_URL = "https://caparomula.github.io/soccer-outlook/"
+SITE_TITLE = "Soccer Outlook — Soccer TV & Streaming Schedule"
+SITE_DESCRIPTION = ("Find soccer matches on US TV and streaming services today and over the next three days. "
+                    "Filter by your services and leagues, check kickoff times, and follow live scores.")
+
+
+def public_site_url(value):
+    """A public directory URL shared by canonical metadata and the sitemap."""
+    parsed = urllib.parse.urlsplit(value)
+    if (parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password
+            or parsed.query or parsed.fragment or any(c.isspace() for c in value)):
+        raise ValueError("site URL must be an absolute HTTPS URL without credentials, query or fragment")
+    return value.rstrip("/") + "/"
+
+
 DOCUMENT_HEAD = """<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="robots" content="noindex,nofollow">
+<title>@@SITE_TITLE@@</title>
+<meta name="description" content="@@SITE_DESCRIPTION@@">
+<link rel="canonical" href="@@SITE_URL@@">
+<link rel="sitemap" type="application/xml" href="@@SITE_URL@@sitemap.xml">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Soccer Outlook">
+<meta property="og:title" content="@@SITE_TITLE@@">
+<meta property="og:description" content="@@SITE_DESCRIPTION@@">
+<meta property="og:url" content="@@SITE_URL@@">
+<meta name="twitter:card" content="summary">
 <meta name="color-scheme" content="light dark">
 <link rel="icon" type="image/png" sizes="64x64" href="favicon.png">
 <style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}*,*::before,*::after{box-sizing:inherit}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
@@ -1818,10 +1842,24 @@ DOCUMENT_HEAD = """<!doctype html>
 """
 
 
-def as_document(fragment):
+def as_document(fragment, site_url=SITE_URL):
     """Wraps the page fragment in a complete HTML document, with the small reset the fragment
     expects: safe-area padding, no body margin, and [hidden] that wins over component display rules."""
-    return DOCUMENT_HEAD + fragment + "\n</body>\n</html>\n"
+    # Embedded fragments retain their original title for hosts; full pages own their head metadata.
+    fragment = re.sub(r"\A<title>[^<]*</title>\s*", "", fragment, count=1)
+    head = (DOCUMENT_HEAD.replace("@@SITE_TITLE@@", esc(SITE_TITLE))
+            .replace("@@SITE_DESCRIPTION@@", esc(SITE_DESCRIPTION))
+            .replace("@@SITE_URL@@", esc(public_site_url(site_url))))
+    return head + fragment + "\n</body>\n</html>\n"
+
+
+def sitemap(site_url, built_at):
+    """The public schedule is one indexable page; filters do not create separate URLs."""
+    modified = built_at.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return ('<?xml version="1.0" encoding="UTF-8"?>\n'
+            '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+            f'  <url><loc>{esc(public_site_url(site_url))}</loc><lastmod>{modified}</lastmod></url>\n'
+            '</urlset>\n')
 
 
 # ----------------------------------------------------------------------------------------------
@@ -1884,6 +1922,8 @@ def audit(matches):
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--out", default="site/index.html")
+    ap.add_argument("--site-url", type=public_site_url, default=SITE_URL,
+                    help="public HTTPS directory URL for search metadata and sitemap (set for forks or custom domains)")
     ap.add_argument("--embed-images", action="store_true", help="embed images as data URIs instead of linking ESPN's server")
     ap.add_argument("--logos", default="logos.json", help="image cache for --embed-images, read and updated")
     ap.add_argument("--fragment", action="store_true", help="write the page body only, for hosts that add the document wrapper")
@@ -1951,13 +1991,14 @@ def main():
             page = build_page(matches, slim, built_at, failed, today, quality.skipped_events)
             trimmed = "league logos+tier-3 team logos"
     if not args.fragment:
-        page = as_document(page)
+        page = as_document(page, args.site_url)
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
     with open(args.out, "w", encoding="utf-8") as f:
         f.write(page)
     if not args.fragment:
         # A separate PNG supports Safari versions without SVG/data-URI favicons.
         Path(args.out).resolve().with_name("favicon.png").write_bytes(WEB_DIR.joinpath("favicon.png").read_bytes())
+        Path(args.out).resolve().with_name("sitemap.xml").write_text(sitemap(args.site_url, built_at), encoding="utf-8")
     if args.facts:
         write_facts(args.facts, matches, built_at, today)
     write_build_report(args.report, report)
