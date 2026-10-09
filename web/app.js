@@ -190,23 +190,6 @@
     preferred.concat(base).forEach(function (id) { if (base.indexOf(id) >= 0 && order.indexOf(id) < 0) order.push(id); });
     return order;
   }
-  function renderLeagueOrder() {
-    renderFilterGroups();
-    var list = document.getElementById('league-order'), order = leagueOrder();
-    if (list.getAttribute('data-order') === order.join(',')) return;
-    list.setAttribute('data-order', order.join(',')); list.innerHTML = '';
-    order.forEach(function (id, i) {
-      var li = document.createElement('li'); li.setAttribute('data-league', id);
-      var name = document.createElement('span'); name.className = 'league-priority__name'; name.textContent = (i + 1) + '. ' + leagueNames[id]; li.appendChild(name);
-      [-1, 1].forEach(function (direction) {
-        var b = document.createElement('button'); b.type = 'button'; b.className = 'fbtn';
-        b.setAttribute('data-move-league', id); b.setAttribute('data-direction', direction);
-        b.setAttribute('aria-label', 'Move ' + leagueNames[id] + (direction < 0 ? ' up' : ' down'));
-        b.textContent = direction < 0 ? '↑' : '↓'; b.disabled = direction < 0 ? i === 0 : i === order.length - 1; li.appendChild(b);
-      });
-      list.appendChild(li);
-    });
-  }
   function filterEnabled(kind, id) { return kind === 'have' ? !!HAVE[id] : followed(id); }
   function setFilterEnabled(kind, id, enabled) {
     if (kind === 'have') { if (enabled) HAVE[id] = true; else delete HAVE[id]; }
@@ -239,9 +222,6 @@
         host.parentNode.querySelector('.filter-area__empty').hidden = pills.length > 0;
       });
     });
-  }
-  function saveLeagueOrder(order) {
-    storedPriority = order; write(LS.priority, order); applyFilterUI(); render(true);
   }
   // Touch starts at the grip so the panel can still scroll. Both groups accept drops even
   // when empty; only enabled groups have a user-defined order.
@@ -378,7 +358,7 @@
     return parts.join(', ');
   }
   function applyFilterUI() {
-    renderLeagueOrder();
+    renderFilterGroups();
     drawer.hidden = !drawerOpen; btnMenu.setAttribute('aria-expanded', String(drawerOpen));
     document.getElementById('filter-sum').textContent = filterSummary();
     drawer.querySelectorAll('.fpill').forEach(function (b) {
@@ -578,20 +558,6 @@
       try { [LS.leagues, LS.compOff, LS.paused, LS.have, LS.priority, LS.services].forEach(function (k) { localStorage.removeItem(k); }); } catch (e) {}
       evaluateAll();
     }
-    else if (b.hasAttribute('data-move-league')) {
-      var order = leagueOrder(), index = order.indexOf(b.getAttribute('data-move-league')), direction = Number(b.getAttribute('data-direction'));
-      var target = index + direction;
-      if (index < 0 || target < 0 || target >= order.length) return;
-      order.splice(target, 0, order.splice(index, 1)[0]);
-      var focusLeague = b.getAttribute('data-move-league');
-      saveLeagueOrder(order);
-      // Stay on the button that was pressed, so pressing it again moves the league further; at the
-      // end of the list, where it is disabled, take the other one.
-      var moved = document.querySelector('#league-order [data-league="' + focusLeague + '"]');
-      var same = moved.querySelector('[data-direction="' + direction + '"]');
-      (same && !same.disabled ? same : moved.querySelector('button:not(:disabled)')).focus({ preventScroll: true });
-      return;
-    }
     else if (b.id === 'btn-clear' || b.id === 'btn-select-services') {
       HAVE = {};
       if (b.id === 'btn-select-services') SERVICES.order.forEach(function (k) { HAVE[k] = true; });
@@ -696,7 +662,7 @@
   }
   function draw(force) {
     var now = nowMs();
-    renderLeagueOrder();
+    renderFilterGroups();
     var groups = {}; ORDER.forEach(function (b) { groups[b] = []; });
     var sig = Object.keys(HAVE).join(',') + '|' + Object.keys(compOff).join(',') + '|' + JSON.stringify(compChoice) + '|';
     var all = {}; ORDER.forEach(function (b) { all[b] = []; });
@@ -1573,7 +1539,7 @@
       var refs = referencedRows(item), id = refs.length === 1 && refs[0].getAttribute('data-id');
       if (id && !STORY.single[id]) STORY.single[id] = item;
     });
-    renderLeagueOrder();
+    renderFilterGroups();
     render(true);
   }
   // Takes the story down: the section, the notes under the rows, and (at the next render) the notes

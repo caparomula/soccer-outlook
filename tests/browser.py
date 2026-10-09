@@ -1318,8 +1318,9 @@ class BrowserChecks(unittest.TestCase):
                 self.assertTrue(page.locator('#comp-pills .lg').evaluate_all(
                     "els => els.every(el => getComputedStyle(el).backgroundImage !== 'none')"))
                 self.assertLessEqual(page.locator('#drawer').evaluate('el => el.scrollWidth - el.clientWidth'), 1)
-                page.locator('.league-priority > summary').click()
-                page.get_by_role('button', name='Move La Liga up', exact=True).click()
+                # La Liga up the enabled list from the keyboard: the order there is the league priority.
+                page.locator('#comp-enabled [data-key="esp.1"]').focus()
+                page.keyboard.press('Alt+ArrowUp')
                 expect(page.locator('#drawer')).to_be_visible()
                 expect(page.locator('#picks .pick:not([data-match-id="unconfirmed-live"])').first).to_have_attribute('data-match-id', 'esp')
                 self.assertEqual(page.locator('#comp-pills .fpill').first.get_attribute('data-key'), 'esp.1')
@@ -1413,8 +1414,8 @@ class BrowserChecks(unittest.TestCase):
                 # It follows the visitor's league priority.
                 before = float(row('esp').get_attribute('aria-label').split(' ')[2])
                 page.locator('#btn-menu').click()
-                page.locator('.league-priority > summary').click()
-                page.get_by_role('button', name='Move La Liga up', exact=True).click()
+                page.locator('#comp-enabled [data-key="esp.1"]').focus()
+                page.keyboard.press('Alt+ArrowUp')
                 page.locator('#btn-filters-close').click()
                 self.assertGreater(float(row('esp').get_attribute('aria-label').split(' ')[2]), before)
                 self.assertEqual(row('esp').get_attribute('aria-label').split(' ')[2], card_number('esp'))
@@ -1830,18 +1831,35 @@ class BrowserChecks(unittest.TestCase):
             page.clock.run_for(400)
             expect(preview).to_be_hidden()
 
-    def test_league_priority_buttons_move_a_league_repeatedly_from_the_keyboard(self):
-        with self.page("after") as (page, _):
+    def test_enabled_leagues_move_repeatedly_from_the_keyboard_and_set_the_priority(self):
+        # The league priority is the order of the enabled leagues; there is no separate list of every league
+        # (until 9 October 2026 there was, which also listed leagues neither enabled nor disabled).
+        fixtures = [(lg, "2026-10-07T18:00:00+00:00", "pre", "ESPN+", lg) for lg in ("eng.1", "esp.1", "ita.1", "fra.1")]
+        with self.page("after", html=render_page(build, fixtures=fixtures)) as (page, _):
             page.locator("#btn-menu").click()
-            page.locator(".league-priority > summary").click()
-            first = page.locator("#league-order li").first
-            league = first.get_attribute("data-league")
-            name = page.evaluate("id => JSON.parse(document.getElementById('service-meta').textContent).leagues[id]", league)
-            page.get_by_role("button", name=f"Move {name} down", exact=True).focus()
-            page.keyboard.press("Enter")
-            page.keyboard.press("Enter")
-            expect(page.locator("#league-order li").nth(2)).to_have_attribute("data-league", league)
-            self.assertEqual(page.evaluate("document.activeElement.getAttribute('aria-label')"), f"Move {name} down")
+            expect(page.locator("#league-order, .league-priority")).to_have_count(0)
+            enabled = lambda: page.locator("#comp-enabled .fpill").evaluate_all("els => els.map(e => e.dataset.key)")
+            self.assertEqual(enabled(), [k for k in build.LEAGUES if k in ("eng.1", "esp.1", "ita.1")])
+            first = enabled()[0]
+            pill = page.locator(f'#comp-enabled [data-key="{first}"]')
+            pill.focus()
+            page.keyboard.press("Alt+ArrowDown")
+            page.keyboard.press("Alt+ArrowDown")
+            self.assertEqual(enabled()[2], first)
+            expect(pill).to_be_focused()
+            # The bar's strip, the saved order and the pick score's league share follow it.
+            self.assertEqual(self.strip_ids(page), enabled())
+            saved = page.evaluate("JSON.parse(localStorage.getItem('ssg4-league-order'))")
+            self.assertEqual([k for k in saved if k in enabled()], enabled())
+            expect(page.locator("#priority-hint")).to_contain_text("The order of your enabled leagues is your league priority.")
+            # A disabled league keeps its place: enabled again, it returns there.
+            page.locator(f'#comp-enabled [data-key="{enabled()[1]}"]').click()
+            second = page.locator("#comp-disabled .fpill").evaluate_all("els => els.map(e => e.dataset.key)")
+            back = [k for k in second if k != "fra.1"][0]
+            before = enabled()
+            page.locator(f'#comp-disabled [data-key="{back}"]').click()
+            self.assertEqual(enabled()[1], back)
+            self.assertEqual([k for k in enabled() if k != back], before)
 
     def test_malformed_saved_settings_fall_back_to_defaults(self):
         with self.page("after") as (page, _):
