@@ -8,7 +8,7 @@
 # together (list fewer to spend less). The run summary shows each one's cost, time, searches and
 # notes, then its overview, league paragraphs, notes and ratings with the sites they cite.
 #
-# With mode "ratings", each configuration writes only Claude's three scores for the next three days
+# With mode "ratings", each configuration writes only Claude's three scores for today and the three following days
 # (story.py's ratings mode: no research, no blurbs, no web search), and the summary measures how far
 # the configurations agree with each other, with the ratings published now and with the page's own
 # Outlook score. That costs cents: on 8 October about 130 fixtures, estimated at under a cent on

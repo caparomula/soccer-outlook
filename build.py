@@ -1,32 +1,28 @@
 #!/usr/bin/env python3
-"""Builds Soccer Outlook: a one-page, week-long soccer schedule that says which matches are on a
-viewer's streaming services.
+"""Build Soccer Outlook, a soccer schedule filtered by the viewer's US services and leagues.
 
-Data comes from ESPN's public scoreboard and standings APIs, one scoreboard request per league per
-day (the API rejects date ranges for soccer). Each match's listed US broadcasters are mapped to
-streaming services through rights.toml, which also names each competition's usual US home for when
-ESPN has not listed broadcasters yet (common more than a few days out); the page marks that basis
-as "usually" rather than "listed". Every fact in rights.toml carries its source and check date, the
-build refuses a file that contradicts itself, and each build reports what it couldn't map or vouch
-for (--warnings). The page carries every outlet's service mapping, so the viewer's own lineup,
-chosen in the page and kept in that browser, decides what counts as available; OWNER is the
-default lineup.
+Fetch fixtures and standings from ESPN, map US broadcasters through rights.toml, and write one
+HTML file with web/page.html, web/styles.css and web/app.js embedded. The default fetch covers
+six Eastern calendar dates: yesterday, today and four days ahead. The browser displays today and
+three later days, with each day starting at 4 am in the viewer's time zone, plus recent results.
 
-The page's own script re-buckets the matches by the viewer's clock ("Live now", "This morning",
-"This afternoon", "This evening", "Tonight", "Tomorrow", "Later this week") and refreshes that
-view every minute. A GitHub Actions job (.github/workflows/refresh.yml) runs this script several
-times a day and publishes the result to GitHub Pages; the page warns when it is more than 30 hours
-old.
+rights.toml supplies listed-channel mappings and established usual coverage when ESPN has not
+posted a broadcaster. Usual coverage is labelled "usually". OWNER and LEAGUES define defaults;
+browser preferences decide which matches a viewer sees. settings.toml configures AI and scoring.
+This script calculates the Outlook score but makes no AI calls; story.py writes optional story.json.
 
-By default the page links team and league images from ESPN's image server, which keeps it small.
---embed-images embeds them as data URIs instead (a page that must work with no network access),
-cached in --logos between runs and trimmed to PAGE_BUDGET when the page runs large.
+The browser checks live scores while relevant matches are on. GitHub Actions rebuilds the fixtures
+and broadcaster listings three times a day. The page warns when its build is over 30 hours old.
+
+Images normally load from ESPN. --embed-images includes them as data URIs, using --logos as a cache;
+it does not make live scores, fonts or story loading work offline. --facts writes input for story.py,
+and --warnings writes coverage issues for maintainers. See docs/development.md for the full workflow.
 
 Usage: python3 build.py --out site/index.html [--days-ahead 4] [--days-back 1] [--warnings FILE]
                         [--date YYYY-MM-DD] [--embed-images --logos logos.json] [--fragment] [--workers 6]
 
-Exit status is non-zero when no fixtures could be fetched at all, or when more than half of the
-scoreboard requests failed; partial failures are listed in the page footer and the summary line.
+The build fails if no fixtures are fetched or more than half the scoreboard requests fail.
+Partial failures appear in the page footer and build log.
 """
 import argparse
 import base64
@@ -68,15 +64,10 @@ LIVE_MINUTES = 125
 # built without images). Where each one is shown in the US (its usual home, or a hint) is in
 # rights.toml.
 #
-# The order is the default league priority (the page's league strip, the panel's enabled leagues
-# and the pick score's league share follow it until a viewer reorders them): US popularity, as
-# researched on 8 October 2026, by the typical US audience for one match, English and Spanish
-# together where both were reported (a listings page compares one match with another). The
-# Champions League leads on that measure (1.7M a match on CBS in 2025-26, against 1.2M for the
-# Premier League on NBC's broadcast network and about 0.5M for Liga MX on TelevisaUnivision);
-# Liga MX leads Nielsen's 2025 total viewing and the Premier League leads in English week to week,
-# so the first three are close. Below about tenth place few US audiences are published, and the
-# order is inferred from the network, its reach and the rights fee. README has the sources.
+# Insertion order sets the default league priority used by the strip, filter panel and pick score.
+# It is an editorial preference for a US audience, informed by audience reporting reviewed on
+# 8 October 2026. Those figures are not directly comparable across competitions; docs/scoring.md
+# preserves the sources, limitations and full order. Visitors can save their own order.
 # ----------------------------------------------------------------------------------------------
 LEAGUES = {
     "uefa.champions": dict(name="Champions League", short="UCL", tier=1),
@@ -983,7 +974,7 @@ def interpret(league, ev):
                       who.get("shortName") or who.get("displayName") or "", kind))
     heads = dicts(comp.get("headlines"))
     recap = (heads[0].get("description") or "") if heads else ""
-    # DraftKings' prices, which ESPN's scoreboard carries for most league matches: the draw price says
+    # The first odds entry in ESPN's scoreboard: the draw price says
     # how evenly matched the market sees the teams, the total how many goals it expects. They feed
     # the Outlook score only; the page never shows a price.
     draw = goal_line = None
@@ -1200,7 +1191,7 @@ def about_scores():
     b = SETTINGS.blend
     pick = shares({"interest": b["interest"], "league_priority": b["league_priority"]})
     text = ("The page's own Outlook score rates every match from ESPN's data alone, by the same arithmetic for each: "
-            f"{listed}. The betting market's view comes from DraftKings' prices in ESPN's feed; the page shows no prices. ")
+            f"{listed}. Betting-market inputs come from the odds in ESPN's feed; the page shows no prices. ")
     d = [f"{t:g}" for t in SETTINGS.dots]
     dots = (f" Each match shows its pick score as one to five golden dots: two from {d[0]}, three from {d[1]}, four from "
             f"{d[2]} and five from {d[3]} out of 100.")

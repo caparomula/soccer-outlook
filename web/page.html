@@ -20,7 +20,7 @@
         <p class="filter-area__empty" hidden>Drop broadcasters here to disable them.</p>
       </div>
     </div>
-    <p class="drawer__hint">Tap the services you have and every match is judged against them. The default is the page owner's lineup; your choice stays in this browser. Fubo means its Pro plan; a cable, YouTube TV or Hulu + Live TV package counts as the live-TV bundle.</p>
+    <p class="drawer__hint">Select the services you have. Your choices are saved in this browser. Fubo means its Pro plan; cable, YouTube TV and Hulu + Live TV use the live-TV bundle option.</p>
     <p class="drawer__hint">Enabled order chooses your preferred broadcaster when more than one carries a match.</p>
     <div class="drawer__group-head"><h3 class="controls__lbl" id="comp-h">Leagues &amp; competitions</h3><span class="drawer__links"><button type="button" class="link" id="btn-select-leagues" aria-label="Select all leagues">Select all</button><button type="button" class="link" id="btn-clear-leagues" aria-label="Clear all leagues">Clear all</button></span></div>
     <div class="filter-groups" id="comp-pills" role="group" aria-labelledby="comp-h">
@@ -34,7 +34,7 @@
       </div>
     </div>
     <p class="drawer__hint">Drag pills between areas, or tap to enable or disable. Drag enabled pills to set their order; with a keyboard, use Alt + ↑ or ↓. On touchscreens, drag the dotted handle. Your choices are saved in this browser.</p>
-    <p class="drawer__hint" id="priority-hint">The order of your enabled leagues is your league priority. @@PRIORITY_HINT@@ A league you disable keeps its place for when you enable it again. Enabled leagues also sit in the bar at the top of the page, in this order: tap one there to hide its matches for now, and again to show them, without disabling it. A league hidden there is marked here.</p>
+    <p class="drawer__hint" id="priority-hint">Higher leagues get more preference. @@PRIORITY_HINT@@ Disabling a league preserves its place. Tap its emblem in the top bar to hide or show its matches without disabling it; that choice is saved too.</p>
     <div class="drawer__foot"><button type="button" class="link" id="btn-reset">Reset to defaults</button><button type="button" class="fbtn" id="btn-filters-close">Done</button></div>
   </div>
   <header class="hdr">
@@ -102,9 +102,14 @@
       <p class="fresh" id="fresh">Fixtures and broadcasters from ESPN as of @@BUILT_ET@@. Rebuilt early morning, midday and evening. Times shown in Eastern.</p>
       <p class="fresh" id="livenote" hidden></p>
     </details>
-    <p>A colored pill means the broadcaster is inside one of the services you have selected; a grey pill is one you don't have; a dashed pill marks the league's usual home when ESPN has not listed the channel yet, which is normal more than a few days out. Fox One includes FOX, FS1, FS2, Big Ten Network and Fox Deportes but not Fox Soccer Plus. ESPN Unlimited includes every ESPN network, ESPN on ABC and ESPN+. TNT and TBS matches stream on HBO Max; CBS matches stream on Paramount+ Premium. Fubo's Pro plan has FOX, FS1, FS2, ESPN, ESPN2, ABC, CBS, CBS Sports Network, NBC, USA Network, Telemundo and beIN Sports, but not TNT, TBS, Univision or TUDN; ESPNU and Universo need its Elite plan, and ESPN Deportes, Fox Deportes and Fox Soccer Plus its International Sports Plus add-on. Most Bundesliga matches stream free on Fandango, with about 30 a season on USA Network; Peacock doesn't carry USA Network's or NBCSN's Premier League matches. Assignments can move on the day, so a glance at the app before kickoff is still worth it.</p>
+    <p>A colored broadcaster pill means a selected service carries that channel. Grey means it is outside your lineup. A dashed pill marked <strong>usually</strong> means established league coverage; ESPN has not confirmed the match listing. Package tiers and assignments can vary, so check the broadcaster's app before kickoff.</p>
+    <p>Team form squares show wins in green, draws in grey and losses in red. The two bars beneath a featured card are the teams' colors. For filters, saved preferences and match details, see the <a href="https://github.com/caparomula/soccer-outlook/blob/main/docs/user-guide.md">user guide</a>.</p>
     @@FAILED@@
-    <p>Fixtures, scores, broadcasters and logos from ESPN's public scoreboard; while matches are on, your browser checks the scores there once a minute. Rights notes from Fox Sports, CBS Sports, ESPN and World Soccer Talk. Built by <a href="https://github.com/caparomula/soccer-outlook">a small open generator</a> on GitHub. @@ABOUT_AI@@ @@ABOUT_SCORES@@ The top card shows the highest-scoring available match ESPN confirms is in progress; when none is, it counts down to the next kickoff on your services and competitions (a match whose time is still to be set can't be placed, so it waits among the picks). Up to three other matches are highlighted: the best-scored of the days the page shows, today and the three after it, which the AI rates (among the rated matches, when there are AI ratings), on your services and competitions, shown in kickoff order; the top card's match isn't repeated among them. Pick scores rank interest; they don't predict results. The schedule has a section a day, and a day changes at 4 am rather than midnight, so a match in the small hours is listed with the evening you'd watch it. Schedule and data details retain match counts, coverage and the next kickoff for your selection.</p>
+    <p>Fixtures, scores, broadcasters, standings and images come from ESPN. While relevant matches are on, the browser checks scores about once a minute. US coverage mappings and their sources are maintained in <a href="https://github.com/caparomula/soccer-outlook/blob/main/rights.toml">rights.toml</a>. <a href="https://github.com/caparomula/soccer-outlook">Source code and development guide</a>.</p>
+    <p>@@ABOUT_AI@@</p>
+    <p>@@ABOUT_SCORES@@ Pick scores rank interest; they do not predict results. See <a href="https://github.com/caparomula/soccer-outlook/blob/main/docs/scoring.md">how recommendations work</a> for the formula and default league order.</p>
+    <p><strong>Live now</strong> shows the highest-scoring available match ESPN confirms is in progress. Otherwise, <strong>Next up</strong> counts down to the earliest confirmed kickoff within the displayed days. <strong>Top three</strong> selects up to three other matches on your services and competitions by score, then shows them in kickoff order. When any remaining candidate has an AI rating, only rated candidates compete for those places.</p>
+    <p>The schedule covers today and the three days after it. Each day starts at 4 am in your time zone so late matches stay with their evening. Open <strong>Schedule and data details</strong> above for the last build time, live-score checks and coverage summary.</p>
   </footer>
 </div>
 

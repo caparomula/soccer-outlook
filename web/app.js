@@ -1357,7 +1357,7 @@
     else el.hidden = true;
   }
 
-  // ---- storylines: story.json, written by story.py at each rebuild, published beside the page ----
+  // ---- optional AI data: story.json, generated or reused by story.py beside the page -----------
   // Tagged stories carry the build's 24-hour horizon, so crossing midnight does not discard
   // still-relevant phrases. Legacy stories retain their calendar-day check for match notes only.
   // An open tab checks freshness each minute and fetches updates every ten minutes.
@@ -1558,14 +1558,12 @@
   }
 
   // ---- live scores: ESPN's scoreboard, read by the browser while matches are on -----------------
-  // The page is rebuilt three times a day, so a match that kicks off between rebuilds would show no
-  // score until the next one. From 15 minutes before a kickoff until ESPN calls the match over, the
-  // page asks ESPN's public scoreboard (which allows any origin) for that competition's day, once a
-  // minute while the tab is visible, and updates the rows in place. A match that finished since the
-  // rebuild is asked about once, so "Earlier today" carries its result; competitions the viewer has
-  // switched off are not asked about. The requests start after the page has drawn, each is abandoned
-  // after 8 seconds, and any failure leaves the page as built; repeated failures back off to one try
-  // in ten minutes.
+  // Check unfinished matches from 15 minutes before kickoff until four hours afterwards, about
+  // once a minute while the tab is visible. A match not checked in this tab also gets one catch-up
+  // check within 30 hours of kickoff. Finished matches and hidden competitions are skipped.
+  // Requests are grouped by competition and Eastern date. Each times out after eight seconds;
+  // failures preserve the last displayed scores. When an entire poll fails, retries back off
+  // to at most ten minutes apart. These requests update scores, not fixtures or broadcasters.
   var LIVE = { base: 'https://site.api.espn.com/apis/site/v2/sports/soccer/', everyMs: 60000, timeoutMs: 8000,
                leadMs: 15 * 60000, tailMs: 4 * 3600000, lookbackMs: 30 * 3600000,
                busy: false, startedAt: 0, okAt: 0, fails: 0, nextAt: 0 };

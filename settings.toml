@@ -1,49 +1,21 @@
-# Soccer Outlook settings: whether an AI model takes part and which one, and how the page scores matches.
-#
-# A commit to main rebuilds the page, so a change here, even one made in GitHub's web editor, is live
-# within a few minutes. Each build checks this file and refuses to publish if it is malformed, listing
-# every problem it finds; `python3 -m unittest -v` runs the same checks before you push.
+# Soccer Outlook configuration. See docs/development.md and docs/scoring.md.
+# build.py validates these settings; malformed settings stop the build.
+# A push to main rebuilds the page. Changing the AI configuration can also trigger a paid AI run.
 
-
-# ---- AI ------------------------------------------------------------------------------------------
-# The AI's part of the page, done once a day by story.py, early in the morning.
+# AI ratings run once a day in the scheduled workflow. enabled=false disables AI requests,
+# ratings and text. The page then recommends matches using the Outlook score and league priority.
 #
-#   enabled  false: nothing calls an AI model; the page shows no AI-written text and no AI rating,
-#            and picks matches by the Outlook score and league priority.
-#   design   "ratings": the model rates every match the page shows, today and the three days after
-#            it, for popularity, expected gameplay and competitive impact, and writes nothing. Cents
-#            a day.
-#            "full": Claude researches the day with web search and writes the overview (AI Summary),
-#            league context and a sourced blurb for every match, and rates them. About $1.80 a day.
-#   model    who does it: claude-haiku-5-5, claude-sonnet-5-5 or claude-opus-5-5 (Anthropic),
-#            gpt-6-luna, gpt-6.1-sol or gpt-5.5 (OpenAI), gemini-3.1-flash-lite, gemini-3.8-flash or
-#            gemini-3.1-pro-preview (Google). The full design needs claude-opus-5-5 or claude-sonnet-5-5.
-#            Each provider needs its key as a repository secret: ANTHROPIC_API_KEY, OPENAI_API_KEY or
-#            GEMINI_API_KEY. The Compare AI providers workflow measures the candidates on today's
-#            fixtures; on 8 October 2026 gpt-6.1-sol's ratings cost $0.06 a run.
-#   effort   how hard the model thinks: low or medium suit ratings. Claude takes low, medium, high,
-#            xhigh or max; OpenAI none, minimal, low, medium, high, xhigh or max; Google minimal, low,
-#            medium or high.
-#   overview_model, overview_effort
-#            the ratings design only, and optional (leave both out for no overview): once the ratings
-#            are written, this model searches the web and writes the overview at the top of the page,
-#            one plain paragraph about every match with known coverage in the time frame the top
-#            three come from, on every service and in every competition, so it reads the same for
-#            every visitor. It is published only with a page its own search returned. Any model above
-#            that can search: claude-sonnet-5-5 or claude-opus-5-5, any OpenAI model, gemini-3.8-flash
-#            or gemini-3.1-pro-preview. In a blind test on 8 October 2026 gemini-3.1-pro-preview's
-#            overview was graded best, for about $0.05 to $0.08 a day (plus its searches).
-#   blurbs_model, blurbs_effort
-#            likewise for the cards: this model searches the web for a blurb on each of the six
-#            best-scored matches in that time frame (the top three, and room for a visitor's league
-#            priority to change them), each published only with a page its own search returned. In
-#            the same test gpt-6.1-sol's blurbs were graded best, for about $0.13 a day.
+# design="ratings" asks for scores from the supplied fixture facts, without research or prose.
+# design="full" adds researched news and match blurbs, and requires a supported Claude research
+# model. Supported models and effort levels are listed in providers.py.
 #
-#            Both are off since 8 October 2026: the page uses the ratings alone and shows no AI-written
-#            text. To turn either back on, remove the # before its two lines below.
+# Add the selected provider's key as a repository secret: OPENAI_API_KEY, ANTHROPIC_API_KEY or
+# GEMINI_API_KEY. A missing key may retain today's earlier output; use enabled=false to turn AI off.
 #
-# The commit that changes any of these rebuilds the page and writes that day's ratings (and overview)
-# or storylines with the new choice at once (one paid run), rather than at the next morning's build.
+# In the ratings design, uncomment either optional model/effort pair to add a researched overview
+# or blurbs for six top-ranked fixtures. These are additional paid requests. The optional overview
+# covers all services and competitions and is the same for every visitor. Optional blurbs cover
+# only the researched candidates, so not every visitor's selected card will have one.
 
 [ai]
 enabled = true
@@ -55,27 +27,11 @@ effort = "low"
 # blurbs_model = "gpt-6.1-sol"
 # blurbs_effort = "medium"
 
-
-# ---- Pick score ----------------------------------------------------------------------------------
-# A match's interest is the AI rating and the Outlook score in proportion to `ai` and `outlook`;
-# with AI off, or for a match without an AI rating, it is the Outlook score alone. The pick
-# score, which chooses the top card's live match and the top three, is that interest and the
-# visitor's league priority in proportion to `interest` and `league_priority`. Every score runs from
-# 0 to 100, and each pair of weights needs at least one above 0.
-#
-# League priority spreads over the whole 0 to 100 range, in two clusters (the big leagues near the top,
-# the rest near the bottom), while interest mostly sits between 40 and 65, so a small weight goes a long
-# way: on 8 October 2026, at 20 it moved pick scores as much as interest's 80 did. At 5 it is a
-# tiebreaker: about a fifth of interest's sway, and moving a league from last to first lifts its
-# matches by 5 points.
-#
-# The AI rating leads interest at 70 to 30. On 8 October 2026 nine models from three providers rated
-# the same matches and agreed with one another at 0.89 to 0.98 (Spearman), but with the Outlook score
-# only at 0.27 to 0.46, so the AI's order hardly depends on which model gives it. The Outlook score is
-# partly a default: its TV part had no broadcaster to go on for 97 of 156 matches. It keeps 30 because
-# it sees what the AI doesn't, the betting market: the AI rated lopsided matches between big clubs
-# higher (its rating fell as the market's draw chance rose, at -0.37), and the Outlook score rewards
-# even ones. At 70 to 30 the AI moves pick scores about twice as much as the Outlook score does.
+# Both pairs are relative weights, normalized by their sum. Each pair must include a positive value.
+# First blend the AI rating with the Outlook score to get match interest. Without a rating, use the
+# Outlook score alone. Then blend interest with the viewer's league priority to get the pick score.
+# League priority runs evenly from 100 to 0 over the full league list, including disabled leagues.
+# At the defaults, moving a league from last to first adds up to five points to its matches.
 
 [blend]
 ai = 70
@@ -83,40 +39,24 @@ outlook = 30
 interest = 95
 league_priority = 5
 
-
-# ---- Dots ----------------------------------------------------------------------------------------
-# Every match shows its pick score as one to five tiny golden dots: one below the first threshold, and
-# one more from each. The bands are narrow in the middle, where most scores sit, and wide at the ends:
-# on 8 October 2026 these gave 13% of the rated matches one dot, 34% two, 33% three, 20% four and 1%
-# five (Liverpool v Manchester City and Real Madrid v Villarreal). They are fixed scores, not shares of
-# the day's matches, so a dot means the same every week and a big weekend shows more five-dot matches
-# than a quiet one. Four rising scores, from above 0 to 100.
+# Four strictly increasing score thresholds, above 0 and at most 100.
+# Below the first threshold shows one golden dot; reaching each threshold adds another dot.
+# These are fixed scores, not percentiles of the day's matches.
 
 [dots]
 thresholds = [35, 45, 55, 68]
 
-
-# ---- Outlook score -------------------------------------------------------------------------------
-# The page's own interest score, from ESPN's data alone: the same facts and the same arithmetic for
-# every match, and nothing an AI wrote (the AI doesn't see it either, so each can check the other).
-# Five parts, each from 0 to 1, combine in proportion to `weights`:
+# The Outlook score uses ESPN data and no AI. Each component ranges from 0 to 1:
+# stature: competition tier and prominent teams, divided by stature_full and capped at 1.
+# close: implied draw probability, scaled from draw_from (0) to draw_to (1).
+# stakes: table positions, including bottom-of-table meetings scaled by bottom; known knockout
+#         stages use the longest matching keyword in knockout instead.
+# tv: a listed broadcast network (1), cable channel (0.5), or neither (0).
+# goals: the total-goals line, scaled from goals_from (0) to goals_to (1).
 #
-#   stature  the occasion: the competition's tier and any marquee clubs or nations (build.py's
-#            stature score, divided by `stature_full` and capped at 1)
-#   close    how evenly matched, from the betting market's implied chance of a draw: `draw_from` or
-#            less is 0, `draw_to` or more is 1
-#   stakes   the table, from each team's place (1 for first, 0 for last): the lower-placed team's
-#            place, so a meeting near the top counts most; or, when more, `bottom` times the
-#            higher-placed team's distance from the top, so a meeting near the bottom counts too.
-#            A knockout round takes its value from `knockout` instead, by the longest of its words
-#            found in ESPN's stage name ("Semifinals" is a semifinal, not a final).
-#   tv       a broadcast network listed (1), else a cable channel (0.5), else neither (0), from the
-#            channel lists below, which use rights.toml's names
-#   goals    the betting market's goal line: `goals_from` or less is 0, `goals_to` or more is 1
-#
-# A part the data says nothing about (no odds, no table, no broadcaster listed yet) counts as
-# `missing`, so it neither helps nor hurts. The odds are DraftKings' prices from ESPN's scoreboard;
-# they shape this score and are never shown on the page.
+# Missing inputs use missing (0.5 by default) and keep their component's weight. They are not
+# dropped from the calculation. Odds come from the first odds entry in ESPN's scoreboard;
+# they influence the score but are not displayed. Channel names must match rights.toml.
 
 [outlook]
 weights = { stature = 40, close = 25, stakes = 15, tv = 10, goals = 10 }

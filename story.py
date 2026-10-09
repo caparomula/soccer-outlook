@@ -1,82 +1,37 @@
 #!/usr/bin/env python3
-"""Writes the day's match ratings for Soccer Outlook, and in the full design Claude's storylines too.
+"""Generate Soccer Outlook's optional AI ratings and text from build.py --facts output.
 
-build.py --facts supplies the fixtures with known service coverage in the next 24 hours, later
-fallback candidates, each league's nearest window, and every upcoming fixture for the ratings. This
-script makes two kinds of request:
+settings.toml selects whether AI is enabled, the design, model and effort. The default ratings
+design asks for popularity, gameplay and competitive-impact scores, without web search or prose.
+It covers today and three later days, with a 4 am Eastern boundary. Optional overview and card-blurb
+models can add researched text; both are disabled in the current settings.
 
-  research  one request with web search and web fetch. Claude writes a short overview, up to eight
-            match notes, up to three forecast items, one paragraph per league and a league order, all
-            with separately referenced phrases, and returns them through one strict tool call,
-            publish_story. The browser derives team, league and broadcaster tags from the fixture IDs
-            and dims phrases excluded by the visitor's filters.
-  ratings   requests without tools, RATING_CHUNK fixtures each and RATING_WORKERS at a time, that
-            return structured output: popularity, gameplay and impact from 0 to 100 and a card blurb
-            for every fixture.
+The full design uses Claude for sourced news and ratings. Research produces an overview, league
+paragraphs, fixture notes and a league order. Separate bounded requests rate fixtures and write
+card blurbs. A refresh retains accepted work, updates research and re-rates nearby or missing
+fixtures. Incomplete output gets a limited repair attempt; complete coverage is not guaranteed.
 
-Why two kinds. Rating every fixture inside the research request made one tool call of about 40,000
-output tokens: the whole call had to fit under the output cap, which a busier week would pass; any
-gap triggered a repair that regenerated all of it; and a refresh resent and re-rated fixtures days
-away. Now the morning run rates everything once, a refresh re-rates only what kicks off within
-RERATE_HOURS (or has no rating or blurb) and keeps the rest as rated that morning, a repair asks only
-for what is missing, and no single response grows with the slate.
+Research citations must come from pages returned by the model's search or page-reading tools
+(or accepted earlier research during a same-day refresh). Full-design league paragraphs and card
+blurbs may instead use supplied ESPN facts, labelled as such. A recognized citation is not a
+separate fact-check of the text. The browser chooses and filters eligible text and ratings.
 
-Sources. The page shows what Claude writes, so every claim has to be traceable. A source counts only
-if this run's searches or page reads returned it (or a run earlier today did and the story cited it).
-The overview, forecast items and notes need at least one such page. League paragraphs and card blurbs
-may instead rest on the facts ESPN supplied (table, form, stage); the model then cites nothing and the
-script attaches ESPN's page for the fixtures the text names, marked "facts", which the page labels as
-ESPN's table and form rather than as reporting. An ESPN page counts only for the fixtures an item
-names. A URL the run did not read is never shown, and text that cites only such URLs is dropped
-rather than relabelled as resting on facts.
+Modes describe when to generate or reuse output:
+  keep     reuse previous output; a changed AI configuration can trigger generation instead
+  daily    reuse matching output for today's Eastern date, otherwise generate it
+  auto     ratings design: same as daily; full design: reuse recent output, otherwise refresh
+  full     generate afresh using the configured design
+  refresh  update using the configured design; without matching current output, start afresh
+  ratings  request scores only, with optional text tasks if configured
 
-Modes, one per kind of build:
-  full     research the day from scratch and rate every fixture (the first run of the day)
-  refresh  update today's story for the moment: the model gets the earlier story and its sources,
-           searches only for what may have changed (team news, lineups, results), and keeps what still
-           holds, with a smaller search budget. Ratings are redone only for the next RERATE_HOURS.
-           Without a story for today it runs as full.
-  keep     republish the current story unchanged, whatever its date, and never call the API (builds
-           after a code change: the news hasn't changed, and a push should never cost anything)
-  daily    the scheduled builds: full when there is no story for today, otherwise keep, so the day's
-           storylines are written once, by its first scheduled build that succeeds (normally the
-           early-morning one; if that fails or never starts, the next one)
-  auto     full when there is no story for today, keep when today's is less than MIN_GAP_HOURS old
-           (GitHub can start a schedule hours late, right before the next one), otherwise refresh:
-           storylines updated through the day, at the cost of those updates as well
-  ratings  three scores per fixture and nothing else: no research, overview or blurbs, and no web
-           search; one structured request for the fixtures in the page's window (window_end: today and
-           the three days after it, as the page shows them). Any model in providers.MODELS
-           can run it: Claude through the anthropic SDK, OpenAI's and Google's models through their
-           own structured output, with the same system prompt, fixtures and schema
-On failure, a refresh keeps today's earlier news, and ratings are still attempted.
+--ignore-switch bypasses settings.toml's AI choices for comparison runs. Otherwise enabled=false
+makes no AI calls and writes no output. Missing credentials or a failed request may retain usable
+same-day output; deleting a key is not a reliable way to hide AI content. Normal generation failures
+are logged without blocking schedule publication. See docs/development.md for setup and deployment.
 
-settings.toml's [ai] table decides: `enabled` is the owner's switch, `design` is "ratings" (the
-ratings mode above, once a day) or "full" (Claude's research, overview and blurbs as well, once a
-day), and `model` and `effort` say who does it. In the ratings design, `overview_model` and
-`overview_effort` add the overview: once the ratings are written, one request with that model's own
-web search (Claude's web search and fetch, OpenAI's web_search, Google's grounding) for a plain
-paragraph about every match with known coverage in the days the page shows (window_end), on any
-service and in any competition, since every visitor reads it whatever they follow. It is
-published only with a cited page the model's search returned (checked_overview says how), and a
-failure costs the page its overview, never its ratings. `blurbs_model` and `blurbs_effort` add card
-blurbs for the top picks the same way: the BLURB_CANDIDATES best matches in that frame by the page's
-own pick score, one request with that model's web search, and each blurb kept only with a cited page
-its search returned. In the ratings design every mode that writes rates,
-and daily and auto rate once a day. A story written by another design, model or effort than the
-settings name now doesn't count as today's, and even keep writes when the published one is such a
-story: the push that changes the settings puts the change on the page at once. Off (or unreadable,
-to be safe), the script makes no API call and writes nothing, not even the story already published,
-so the next publish takes the AI's text and ratings off the page. --ignore-switch ignores the table,
-for measuring configurations (compare-storylines.yml): --mode, --model and --effort then decide.
---usage-out writes the run's tokens, searches, cost and time as JSON. Without the model's provider's
-key (ANTHROPIC_API_KEY, OPENAI_API_KEY or GEMINI_API_KEY) the script reuses today's previous story if
-there is one and otherwise writes nothing, so the page simply shows no AI ratings. It exits 0 unless
-its arguments are wrong: a failed story must never block the schedule from being published.
-
-Usage: python story.py --facts work/facts.json --out site/story.json [--previous old-story.json]
-                       [--mode daily|auto|full|refresh|keep|ratings] [--model ID] [--effort LEVEL] [--usage-out FILE]
-                       [--settings settings.toml] [--ignore-switch]
+Usage: python3 story.py --facts work/facts.json --out site/story.json [--previous old-story.json]
+                        [--mode full|refresh|keep|daily|auto|ratings] [--model ID] [--effort LEVEL]
+                        [--usage-out FILE] [--ignore-switch]
 """
 import argparse
 import http.client

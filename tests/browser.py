@@ -1840,7 +1840,7 @@ class BrowserChecks(unittest.TestCase):
             self.assertEqual(self.strip_ids(page), enabled())
             saved = page.evaluate("JSON.parse(localStorage.getItem('ssg4-league-order'))")
             self.assertEqual([k for k in saved if k in enabled()], enabled())
-            expect(page.locator("#priority-hint")).to_contain_text("The order of your enabled leagues is your league priority.")
+            expect(page.locator("#priority-hint")).to_contain_text("Higher leagues get more preference.")
             # A disabled league keeps its place: enabled again, it returns there.
             page.locator(f'#comp-enabled [data-key="{enabled()[1]}"]').click()
             second = page.locator("#comp-disabled .fpill").evaluate_all("els => els.map(e => e.dataset.key)")

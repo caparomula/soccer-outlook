@@ -1,7 +1,7 @@
 # Asks Claude and OpenAI's and Google's models to do the page's AI jobs on today's fixtures and lays the
 # answers side by side, publishing nothing (.github/scripts/compare-providers.py says how):
 #
-#   ratings   the three scores per fixture for the next three days, the design story.py's ratings mode
+#   ratings   the three scores per fixture for today and the three following days, the design story.py's ratings mode
 #             uses: cents or less per model
 #   research  a researched blurb for each of six featured fixtures, one per competition, with each
 #             provider's own web search: tens of cents per model
