@@ -44,13 +44,16 @@ For a browser preview at a chosen local time, append a fragment such as `#at-202
 | [`web/page.html`](../web/page.html) | Page structure. |
 | [`web/styles.css`](../web/styles.css) | Layout, themes and responsive styles. |
 | [`web/app.js`](../web/app.js) | Filters, saved preferences, match cards, scoring in the browser, details overlays and live updates. |
+| [`web/favicon.svg`](../web/favicon.svg), [`web/favicon.png`](../web/favicon.png) | Editable soccer-ball artwork and its 64 × 64 PNG browser icon. |
 | [`story.py`](../story.py) | Generate, validate and reuse optional AI ratings and text. |
 | [`providers.py`](../providers.py) | Supported models, provider requests, configuration validation and price estimates. |
 | [`tests/`](../tests/) | Unit tests and the browser test harness. |
 | [`.github/workflows/`](../.github/workflows/) | Automated builds, browser checks and optional AI comparisons. |
 | [`.github/scripts/`](../.github/scripts/) | Mapping-issue maintenance and AI comparison reports. |
 
-The generator inlines the three `web/` assets into the HTML. Rebuild after editing them. Deployment consists of `index.html`, optional `story.json` and a `.nojekyll` file; there is no application server or JavaScript bundler. Generated files in `site/` and test artifacts in `work/` are ignored by Git.
+The generator inlines the HTML, CSS and JavaScript assets into the page. Rebuild after editing them. Full builds copy `web/favicon.png` beside the HTML; the PNG works in browsers that do not support SVG favicons. If the SVG artwork changes, re-export the PNG at 64 × 64 with a transparent background. Fragment builds leave the icon to the host page.
+
+Deployment consists of `index.html`, `favicon.png`, optional `story.json` and a `.nojekyll` file; there is no application server or JavaScript bundler. Generated files in `site/` and test artifacts in `work/` are ignored by Git.
 
 ## Test changes
 

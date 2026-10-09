@@ -2,8 +2,8 @@
 """Build Soccer Outlook, a soccer schedule filtered by the viewer's US services and leagues.
 
 Fetch fixtures and standings from ESPN, map US broadcasters through rights.toml, and write one
-HTML file with web/page.html, web/styles.css and web/app.js embedded. The default fetch covers
-six Eastern calendar dates: yesterday, today and four days ahead. The browser displays today and
+HTML file with web/page.html, web/styles.css and web/app.js embedded, plus a PNG favicon. The default
+fetch covers six Eastern calendar dates: yesterday, today and four days ahead. The browser displays today and
 three later days, with each day starting at 4 am in the viewer's time zone, plus recent results.
 
 rights.toml supplies listed-channel mappings and established usual coverage when ESPN has not
@@ -1637,7 +1637,7 @@ DOCUMENT_HEAD = """<!doctype html>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="color-scheme" content="light dark">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='15' fill='%2315744a'/%3E%3Cpath d='M16 9l6 4.4-2.3 7h-7.4L10 13.4z' fill='%23fff'/%3E%3C/svg%3E">
+<link rel="icon" type="image/png" sizes="64x64" href="favicon.png">
 <style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}*,*::before,*::after{box-sizing:inherit}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
 </head>
 <body>
@@ -1778,6 +1778,9 @@ def main():
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
     with open(args.out, "w", encoding="utf-8") as f:
         f.write(page)
+    if not args.fragment:
+        # A separate PNG supports Safari versions without SVG/data-URI favicons.
+        Path(args.out).resolve().with_name("favicon.png").write_bytes(WEB_DIR.joinpath("favicon.png").read_bytes())
     if args.facts:
         write_facts(args.facts, matches, built_at, today)
     n_on = sum(1 for m in matches if m.service)
