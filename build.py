@@ -1211,6 +1211,26 @@ def cdn_url(url, px, crop=False):
     return f"https://a.espncdn.com/combiner/i?img={urllib.parse.quote(path, safe='/')}&w={px}&h={px}" + ("&scale=crop" if crop else "")
 
 
+def league_artwork(league):
+    """Compact official artwork where ESPN supplies a wide or outdated logo.
+
+    Keep the source and provenance in web/logos/README.md. Inline this small asset
+    in both image modes so fragments and published pages use the same rendition.
+    """
+    filename = {
+        "uefa.champions": "champions-league.svg",
+        "mex.1": "liga-mx.png",
+        "eng.1": "premier-league.png",
+        "concacaf.champions": "concacaf-champions-cup.svg",
+        "concacaf.nations.league": "concacaf-nations-league.png",
+    }.get(league)
+    if not filename:
+        return ""
+    raw = (WEB_DIR / "logos" / filename).read_bytes()
+    media_type = "image/svg+xml" if filename.endswith(".svg") else "image/png"
+    return f"data:{media_type};base64," + base64.b64encode(raw).decode()
+
+
 def image_links(matches, league_logos):
     """{image key: URL} for every image the page can show, for pages that link images instead of
     embedding them. A browser fetches a CSS background only for elements it renders, so rows hidden
@@ -1221,7 +1241,7 @@ def image_links(matches, league_logos):
             if t.logo_key:
                 links[t.logo_key] = cdn_url(t.logo_url, 96)
     for lg, url in league_logos.items():
-        links[logo_key(url)] = cdn_url(url, 64)
+        links[logo_key(url)] = league_artwork(lg) or cdn_url(url, 64)
     for st in STANDINGS.values():
         for _, rows in st["tables"]:
             for r in rows:
@@ -1239,7 +1259,11 @@ def fetch_logos(matches, cache, workers, league_logos):
                 wanted[t.logo_key] = t.logo_url
     for lg, url in league_logos.items():
         k = logo_key(url)
-        if k not in cache and any(m.league == lg for m in matches):
+        artwork = league_artwork(lg)
+        if artwork:
+            # Replace previously cached ESPN wordmarks as well as uncached ones.
+            cache[k] = artwork
+        elif k not in cache and any(m.league == lg for m in matches):
             wanted[k] = url
 
     def one(item):
@@ -1554,7 +1578,8 @@ def detail_html(m, cache):
 def league_logo_html(league, cache):
     url = LEAGUE_LOGOS.get(league, "")
     key = logo_key(url) if url else ""
-    return f'<i class="lg l-{key}" aria-hidden="true"></i>' if key and key in cache else ""
+    monochrome = " lg--monochrome" if league == "uefa.champions" else ""
+    return f'<i class="lg l-{key}{monochrome}" aria-hidden="true"></i>' if key and key in cache else ""
 
 
 def row_html(m, cache):

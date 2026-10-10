@@ -50,6 +50,7 @@ For a browser preview at a chosen local time, append a fragment such as `#at-202
 | [`web/app.js`](../web/app.js) | Filters, saved preferences, match cards, scoring in the browser, details overlays and applying live updates. |
 | [`web/live.js`](../web/live.js) | Live-score requests, catch-up checks, timeouts and retry scheduling. |
 | [`web/favicon.svg`](../web/favicon.svg), [`web/favicon.png`](../web/favicon.png) | Editable soccer-ball artwork and its 64 × 64 PNG browser icon. |
+| [`web/logos/`](../web/logos/README.md) | Compact official league artwork used instead of unsuitable ESPN wordmarks, with source attribution. |
 | [`story.py`](../story.py) | Generate, validate and reuse optional AI ratings and text. |
 | [`story_state.py`](../story_state.py) | Pure rules for the ratings window, missing ratings and reusable results. |
 | [`providers.py`](../providers.py) | Supported models, provider requests, configuration validation and price estimates. |
