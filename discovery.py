@@ -120,7 +120,13 @@ def _match_html(builder, match, coverage):
         status = f'<p class="match-status">{esc(" · ".join(part for part in (label, scores) if part))}</p>'
     note = f'<p class="match-note">{esc(match.note)}</p>' if match.note else ""
     source = _safe_link(match.link)
-    source_html = f'<a class="match-source" href="{esc(source, quote=True)}">ESPN match details</a>' if source else ""
+    links = [f'<a class="match-source" href="{esc(source, quote=True)}">ESPN match details</a>'] if source else []
+    broadcast_url = _safe_link(match.broadcast_url or match.broadcast_check_url)
+    provider = match.broadcast_source or match.broadcast_check_source
+    if broadcast_url and provider:
+        label = f"{provider} broadcast listing" if match.broadcast_source else f"{provider} schedule"
+        links.append(f'<a class="match-source" href="{esc(broadcast_url, quote=True)}">{esc(label)}</a>')
+    source_html = " · ".join(links)
     return (f'<li class="match" data-match-id="{esc(str(match.id), quote=True)}">'
             f'<div class="match-time">{time_html}</div><div class="match-info">'
             f'<h3>{esc(teams)}</h3><p class="match-meta">{esc(meta)}</p>{status}{note}'
@@ -215,7 +221,7 @@ def pages(builder, matches, cache, built_at, site_url, failed=(), skipped=(), he
 <section class="viewing-guide"><h2>How to watch {escape(route.label) if route.league else "soccer on Paramount+"} in the US</h2>{guidance}
 <p>Broadcasters and kickoff times can change. Check your provider for availability and subscription requirements.</p></section>
 </main>
-<footer><p>Fixtures and broadcaster listings from ESPN. Refreshed three times a day.</p>
+<footer><p>Fixtures from ESPN; viewing information from ESPN and public broadcaster schedules. Refreshed three times a day.</p>
 <p><a href="{escape(base, quote=True)}">All leagues and services</a> · <a href="https://github.com/caparomula/soccer-outlook">About this open-source project</a></p></footer>
 </div>
 </body>

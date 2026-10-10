@@ -8,7 +8,8 @@ fetch covers six Eastern calendar dates: yesterday, today and four days ahead. T
 three later days, with each day starting at 4 am in the viewer's time zone, plus recent results.
 
 rights.toml supplies listed-channel mappings and established usual coverage when ESPN has not
-posted a broadcaster. Usual coverage is labelled "usually". OWNER and LEAGUES define defaults;
+posted a broadcaster. Public broadcaster schedules are checked before using the "usually"
+fallback; confirmed sources are linked in the match's Details. OWNER and LEAGUES define defaults;
 browser preferences decide which matches a viewer sees. settings.toml configures AI and scoring.
 This script calculates the Outlook score but makes no AI calls; story.py writes optional story.json.
 
@@ -50,6 +51,7 @@ from zoneinfo import ZoneInfo
 import providers
 import story_state  # shared window and candidate limits; the builder does not import AI generation
 import discovery
+import broadcast_listings
 
 ET = ZoneInfo("America/New_York")
 ESPN = "https://site.api.espn.com/apis/site/v2/sports/soccer/{league}/scoreboard?dates={day}&limit=200"
@@ -639,7 +641,7 @@ class Match:
     venue: str
     state: str          # pre | in | post
     status: str         # e.g. FT, HT, 63', Canceled
-    outlets: list       # Outlets ESPN lists for the US market, English first
+    outlets: list       # Listed US outlets, from ESPN or a verified broadcaster listing
     rule: object        # the league's usual home as an Outlet when nothing is listed, else None
     hint: str           # where the league lives when it is on none of the services, else ""
     service: str        # the page owner's view: SERVICES key or "" when not available
@@ -652,6 +654,12 @@ class Match:
     link: str = ""          # ESPN's match page
     draw: object = None     # the betting market's implied chance of a draw, 0-1, when ESPN carries odds
     goal_line: object = None  # the market's over/under goal line, when ESPN carries odds
+    broadcast_source: str = ""  # supplemental listing provider; ESPN is the default
+    broadcast_url: str = ""     # the provider's public match listing, when supplemented
+    broadcast_check: str = ""   # confirmed | unlisted | unavailable | not_checked
+    broadcast_check_source: str = ""
+    broadcast_check_url: str = ""
+    broadcast_checked_at: str = ""
 
 
 def implied_chance(moneyline):
@@ -1353,7 +1361,7 @@ def about_scores():
     listed = parts[0] if len(parts) == 1 else ", ".join(parts[:-1]) + " and " + parts[-1]
     b = SETTINGS.blend
     pick = shares({"interest": b["interest"], "league_priority": b["league_priority"]})
-    text = ("The page's own Outlook score rates every match from ESPN's data alone, by the same arithmetic for each: "
+    text = ("The page's own Outlook score rates every match from fixture and broadcast data, by the same arithmetic for each: "
             f"{listed}. Betting-market inputs come from the odds in ESPN's feed; the page shows no prices. ")
     d = [f"{t:g}" for t in SETTINGS.dots]
     dots = (f" Each match shows its pick score as one to five golden dots: two from {d[0]}, three from {d[1]}, four from "
@@ -1522,6 +1530,16 @@ def detail_html(m, cache):
         facts.append(esc(m.stage))
     recap = f'<p class="detail__recap">{esc(m.recap)}</p>' if m.recap else ""
     links = []
+    broadcast_note = ""
+    if m.broadcast_source and m.broadcast_url:
+        links.append(f'<a href="{esc(m.broadcast_url)}" target="_blank" rel="noopener">{esc(m.broadcast_source)} broadcast listing</a>')
+    elif m.broadcast_check_source and m.broadcast_check_url:
+        links.append(f'<a href="{esc(m.broadcast_check_url)}" target="_blank" rel="noopener">{esc(m.broadcast_check_source)} schedule</a>')
+        outcome = {"unlisted": "No matching confirmed broadcast listing was found at the last build.",
+                   "unavailable": "The broadcaster listing could not be verified automatically at the last build.",
+                   "not_checked": "The broadcaster listing has not been verified for this fixture."}.get(m.broadcast_check, "")
+        if outcome:
+            broadcast_note = f'<p class="detail__broadcast">{outcome} Coverage shown is the usual arrangement.</p>'
     if m.link:
         links.append(f'<a href="{esc(m.link)}" target="_blank" rel="noopener">ESPN match page</a>')
     if m.state == "pre" and m.time_valid:
@@ -1530,7 +1548,7 @@ def detail_html(m, cache):
         links.append(f'<a href="#tables" class="detail__table" data-lg="{esc(m.league)}">League table</a>')
     venue_p = f'<p class="detail__venue">{" &middot; ".join(facts)}</p>' if facts else ""
     links_p = f'<p class="detail__links">{" ".join(links)}</p>' if links else ""
-    return f'<div class="row__detail" hidden><div class="detail__grid">{"".join(cols)}</div>{venue_p}{recap}{links_p}</div>'
+    return f'<div class="row__detail" hidden><div class="detail__grid">{"".join(cols)}</div>{venue_p}{recap}{broadcast_note}{links_p}</div>'
 
 
 def league_logo_html(league, cache):
@@ -1649,6 +1667,8 @@ def write_facts(path, matches, built_at, today):
             home=team_facts(m.home), away=team_facts(m.away),
             watch_on=(SERVICES[m.service] + ("" if m.outlet == SERVICES[m.service] else f" ({m.outlet})") + (", usual home, channel not posted yet" if m.basis == "rule" else "")) if m.service else "",
             broadcasters=[o.label for o in m.outlets],
+            broadcast_source=m.broadcast_source, broadcast_source_url=m.broadcast_url,
+            broadcast_check=m.broadcast_check, broadcast_checked_at=m.broadcast_checked_at,
             stature=m.score).items() if v not in ("", [], None)}
 
     def result(m):
@@ -1994,6 +2014,14 @@ def main():
         write_build_report(args.report, report)
         print("FAIL " + " ".join(report["reasons"]), file=sys.stderr)
         return 3
+    # Direct broadcaster schedules can fill gaps in ESPN's listings. Optional lookup
+    # failures preserve the rights fallback and are explained in the match's Details.
+    checks = broadcast_listings.enrich(sys.modules[__name__], matches,
+                                      lambda url: curl_bytes(url, timeout=15, attempts=1), built_at)
+    report["broadcast_checks"] = checks
+    for channel, check in checks.items():
+        print(f"{channel} listings: {check['confirmed']} confirmed, {check['unmatched']} unconfirmed, "
+              f"{check['failed']} failed lookup(s).")
     warnings = audit(matches)
     for w in warnings:
         # On GitHub Actions a ::warning:: line becomes an annotation on the run's page.

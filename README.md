@@ -10,7 +10,7 @@ The page shows **today and the next three days**. Choose your services and leagu
 - **Top three:** up to three other recommended matches, selected by interest and shown in kickoff order.
 - **Daily schedule:** kickoff times, broadcasters, team form, standings and match details. A day changes at 4 am in your time zone so late games stay with their evening.
 
-ESPN supplies fixtures and live scores. The project maps US broadcast coverage in [rights.toml](rights.toml). Its recommendations combine an AI rating, an Outlook score calculated from ESPN data, and your league preferences. The current configuration uses OpenAI's `gpt-6.1-sol` for daily ratings; **AI overviews and match blurbs are turned off**.
+ESPN supplies fixtures and live scores. When a match only has usual coverage, the builder checks the broadcaster's public schedule for a match-specific listing. Confirmed listings replace the uncertainty label; **Details** links to the source or explains why coverage remains unconfirmed. The project maps US broadcast coverage in [rights.toml](rights.toml). Its recommendations combine an AI rating, an Outlook score calculated from fixture and broadcast data, and your league preferences. The current configuration uses OpenAI's `gpt-6.1-sol` for daily ratings; **AI overviews and match blurbs are turned off**.
 
 ## Guides
 

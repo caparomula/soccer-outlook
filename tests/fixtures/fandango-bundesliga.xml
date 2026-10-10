@@ -1,0 +1,45 @@
+<note type="uxPage">
+  <hasAdImage>true</hasAdImage>
+  <hasBackgroundImage>true</hasBackgroundImage>
+  <label>Bundesliga</label>
+  <rows type="uxRowList">
+    <moreAbove>false</moreAbove>
+    <moreBelow>false</moreBelow>
+    <totalCount>1</totalCount>
+    <uxRow type="uxRow">
+      <elements type="uxElementList">
+        <moreAbove>false</moreAbove>
+        <moreBelow>false</moreBelow>
+        <totalCount>2</totalCount>
+        <uxElement type="uxElement">
+          <assetId>5222160</assetId>
+          <description>streamType=live | playbackId=256 | startTime=2026-10-11T13:30:00Z | summary=Said El Mala and FC Koln take on Joe Scally and Borussia Monchengladbach.  | genre=Sports | eventType=match</description>
+          <elementSubType>program</elementSubType>
+          <elementType>content</elementType>
+          <label>FC Köln vs. Borussia Mönchengladbach</label>
+          <uxElementId>5222160</uxElementId>
+        </uxElement>
+        <uxElement type="uxElement">
+          <assetId>5220489</assetId>
+          <description>streamType=live | playbackId=257 | startTime=2026-10-11T15:30:00Z | summary=Sport-Club Freiburg hosts FC Schalke at the Europa-Park Stadion in Breisgau, Germany.  | genre=Sports | eventType=match</description>
+          <elementSubType>program</elementSubType>
+          <elementType>content</elementType>
+          <label>Sport-Club Freiburg v. FC Schalke 04</label>
+          <uxElementId>5220489</uxElementId>
+        </uxElement>
+      </elements>
+      <hasBackgroundImage>false</hasBackgroundImage>
+      <hasLabelLogo>false</hasLabelLogo>
+      <hasSubLabelLogo>false</hasSubLabelLogo>
+      <isPersonal>false</isPersonal>
+      <label>Live &amp; Upcoming Bundesliga Matches</label>
+      <rowType>placard</rowType>
+      <trackingId>27372</trackingId>
+      <uxRowId>27372</uxRowId>
+    </uxRow>
+  </rows>
+  <uxPageId>405</uxPageId>
+  <zoom type="zoomData">
+    <requestId>0242ac110003-1a0dad36002</requestId>
+  </zoom>
+</note>

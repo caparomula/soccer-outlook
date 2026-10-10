@@ -91,6 +91,16 @@ class PublicSchedules(unittest.TestCase):
         self.assertNotIn("via CBS Sports Network", page)
         self.assertIn("Premium plan", page)
 
+    def test_supplemental_listing_links_to_its_broadcaster(self):
+        match = fixture(league="sco.1", channel="Paramount+", broadcast_source="Paramount+",
+                        broadcast_url="https://www.paramountplus.com/sports/")
+        page = self.pages([match])["paramount-plus/"]
+        self.assertIn(match.link, Markup(page).hrefs)
+        self.assertIn(match.broadcast_url, Markup(page).hrefs)
+        self.assertIn("Paramount+ broadcast listing", page)
+        match.broadcast_url = "javascript:alert(1)"
+        self.assertNotIn("javascript:", self.pages([match])["paramount-plus/"])
+
     def test_paramount_cbs_sports_network_simulcast_depends_on_competition(self):
         matches = [fixture("serie", league="ita.1", channel="CBS Sports Network"),
                    fixture("nwsl", league="usa.nwsl", channel="CBS Sports Network"),

@@ -46,7 +46,7 @@
     r._lg = r.getAttribute('data-lg');
     r._score = parseInt(r.getAttribute('data-score'), 10) || 0;
     var outlook = parseFloat(r.getAttribute('data-outlook'));
-    r._outlook = isFinite(outlook) ? outlook : null;   // the page's own score, from ESPN's data alone
+    r._outlook = isFinite(outlook) ? outlook : null;   // the page's own score, from fixture and broadcast data
     r._state = r.getAttribute('data-state');
     r._featured = r.getAttribute('data-featured') === '1';
     try { r._o = JSON.parse(r.getAttribute('data-o') || '[]'); } catch (e) { r._o = []; }

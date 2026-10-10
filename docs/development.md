@@ -6,7 +6,7 @@ For how the page works, see the [user guide](user-guide.md). For the ranking for
 
 ## Run it locally
 
-The schedule builder needs **Python 3.11 or newer**, `curl`, and network access to ESPN. It uses Python's standard library; no API key or Python package installation is needed to build the schedule or run unit tests.
+The schedule builder needs **Python 3.11 or newer**, `curl`, and network access to ESPN. It also requests public broadcaster schedules to verify usual coverage; an unavailable broadcaster source leaves that coverage unconfirmed. It uses Python's standard library; no API key or Python package installation is needed to build the schedule or run unit tests.
 
 From the repository root:
 
@@ -42,6 +42,7 @@ For a browser preview at a chosen local time, append a fragment such as `#at-202
 | --- | --- |
 | [`build.py`](../build.py) | Fetch and interpret ESPN data, validate configuration, calculate the Outlook score and generate HTML. Also defines tracked leagues, default services and featured teams. |
 | [`discovery.py`](../discovery.py) | Generate public league and service schedule pages, their links, and search-discovery metadata. |
+| [`broadcast_listings.py`](../broadcast_listings.py) and the provider `*_listings.py` modules | Check public broadcaster schedules for usual-coverage fixtures, apply confirmed listings, and retain source/check results. |
 | [`rights.toml`](../rights.toml) | Broadcaster aliases, services, simulcasts and each competition's usual coverage, with sources and check dates. |
 | [`settings.toml`](../settings.toml) | AI configuration, score weights and golden-dot thresholds. |
 | [`web/page.html`](../web/page.html) | Page structure. |
@@ -169,6 +170,12 @@ Ratings must contain valid scores for known fixture IDs. An incomplete response 
 Researched text must cite sources returned by the model's tools. Full-design league and match context may instead use supplied ESPN facts, explicitly labelled as such. Ratings-design optional overview and blurbs require searched sources; known dead links are removed. A site's refusal to answer automated requests is treated differently from a confirmed dead link. Source checks establish provenance, not that every sentence correctly summarizes its source.
 
 ## Automated builds and publishing
+
+Before rendering, the builder checks the public schedules behind every configured usual-coverage route: FOX Sports, ESPN+, Paramount+, ViX, Peacock, Apple TV, Fandango and beIN Sports Connect. It fetches only providers needed by the current fixtures, reuses each provider's page where possible, and checks independent providers in parallel. These are public schedule requests, with no AI calls or broadcaster account credentials.
+
+Adapters require match-specific evidence: competition, both teams, a dated kickoff or narrowly matched live-broadcast start, and an explicit channel or service. Replays and general league rights do not confirm a live listing. Some providers start their broadcast a few minutes before the match; this never changes ESPN's kickoff time. Existing ESPN listings take precedence. Missing, conflicting, changed-format or unreachable supplemental data leaves the usual coverage intact, with a source link and explanation in Details. A provider failure does not make the ESPN fixture feed unusable.
+
+`build-report.json` records `broadcast_checks` by usual channel, including request, confirmation and failure counts and per-match source URLs/status. Confirmed source URLs are also included in the match facts supplied to optional AI generation. Check those records before changing an adapter: an empty or unavailable provider page must not be treated as a confirmed listing. Parser tests use small recorded or synthetic responses and make no live requests.
 
 [`Refresh outlook`](../.github/workflows/refresh.yml) runs at **09:50, 16:50 and 22:50 UTC** each day. That is 5:50 a.m., 12:50 p.m. and 6:50 p.m. during Eastern daylight time, or 4:50 a.m., 11:50 a.m. and 5:50 p.m. during standard time. The morning run stays after the 4 a.m. day boundary in both seasons. GitHub can delay scheduled runs.
 

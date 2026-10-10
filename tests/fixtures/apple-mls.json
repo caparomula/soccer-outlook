@@ -1,0 +1,34 @@
+{
+  "data": [
+    {
+      "intent": {
+        "id": "tvs.sbd.7000",
+        "storefront": "us",
+        "language": null,
+        "$kind": "ChannelPageIntent"
+      },
+      "data": {
+        "canonicalURL": "https://tv.apple.com/us/channel/mls/tvs.sbd.7000",
+        "shelves": [
+          {
+            "$type": "sportsCardLockup",
+            "items": [
+              {
+                "$kind": "SportingEventLockup",
+                "id": "umc.cse.fv8ipegpdq3cufrbsj0ulm8x",
+                "ariaLabel": "New England Revolution vs. Seattle Sounders FC",
+                "contextAction": {
+                  "url": "https://tv.apple.com/us/sporting-event/new-england-revolution-vs-seattle-sounders-fc/umc.cse.fv8ipegpdq3cufrbsj0ulm8x?ctx_brand=tvs.sbd.7000"
+                },
+                "broadcastState": "upcoming",
+                "badge": {
+                  "isoDatetime": "2026-10-10T23:30:00.000Z"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -287,7 +287,7 @@ checked = 2026-10-06
 season = "2026-27"
 until = 2027-05-31
 hint = "Depends on the home club: TUDN, Univision or ViX for most · Chivas on Telemundo or Peacock · Juárez, Santos and Tijuana on FOX"
-note = """US rights go club by club, by the home team. ESPN lists no Liga MX broadcasters, so these are the only basis. TelevisaUnivision has 14 clubs and streams all their matches on ViX Premium (with TUDN and Univision simulcasts); Telemundo has Chivas, on Telemundo, Universo and Peacock; FOX has Juárez, Santos and Tijuana. Clubs use ESPN team IDs so display-name changes do not affect coverage."""
+note = """US rights go club by club, by the home team. ESPN often leaves Liga MX broadcasters unlisted. The builder checks public FOX, ViX and Peacock listings for fixtures with usual coverage there; these club rights remain the fallback when a listing cannot be confirmed. TelevisaUnivision has 14 clubs and streams all their matches on ViX Premium (with TUDN and Univision simulcasts); Telemundo has Chivas, on Telemundo, Universo and Peacock; FOX has Juárez, Santos and Tijuana. Clubs use ESPN team IDs so display-name changes do not affect coverage."""
 source = "https://worldsoccertalk.com/liga-mx-tv-schedule/ and https://www.nbcuniversal.com/article/telemundo-signs-multi-year-multi-platform-rights-agreement-exclusive-home-chivas-us"
 checked = 2026-10-06
 

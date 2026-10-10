@@ -47,7 +47,7 @@ The AI does not receive the Outlook score or its betting inputs. The two assessm
 
 ## Outlook score
 
-This is a calculation from ESPN's data in [build.py](../build.py). Each component runs from 0 to 1; their weighted mean is multiplied by 100 and rounded to one decimal.
+This is a calculation from fixture and broadcast data in [build.py](../build.py). ESPN supplies the fixture data; confirmed broadcaster listings can supplement its coverage information. Each component runs from 0 to 1; their weighted mean is multiplied by 100 and rounded to one decimal.
 
 | Component | Default weight | Calculation with the current settings |
 | --- | ---: | --- |
