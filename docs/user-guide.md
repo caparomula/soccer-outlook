@@ -25,6 +25,12 @@ Hiding keeps the league in the strip and remembers the choice for your next visi
 
 With a keyboard, Tab enters the strip; arrow keys, Home and End move between leagues, and Enter or Space toggles the focused league. If ESPN has no emblem for a league, the strip shows a short name instead.
 
+### Focus on one league
+
+Press and hold a league emblem to show only that league, still using your selected broadcasters. Tap or hold the same emblem again to restore your previous selection. You can also choose **Undo** or press **Escape**. Pressing another emblem switches the solo view to that league.
+
+With a keyboard, **Shift + Enter** or **Shift + Space** starts or ends the solo view. Your saved selections and hidden leagues stay intact, even if the solo league was previously hidden. Reloading the page or changing your league or broadcaster selections in **Lineup** ends the solo view; simply opening Lineup or reordering visible leagues does not.
+
 ### Saved preferences and defaults
 
 Services, league selections, ordering and hidden leagues are saved in this browser's local storage. They do not synchronize between devices or browsers. Clearing site data removes them; private browsing may discard them when the session ends.

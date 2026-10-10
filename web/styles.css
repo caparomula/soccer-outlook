@@ -437,7 +437,7 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
 .strip__list.fade-l { -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(to left, #000 calc(100% - 28px), transparent); }
 .strip__list.fade-l.fade-r { -webkit-mask-image: linear-gradient(to right, transparent, #000 28px, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(to right, transparent, #000 28px, #000 calc(100% - 28px), transparent); }
 .strip__lg { appearance: none; flex: none; position: relative; display: inline-grid; place-items: center; width: 34px; height: 34px; padding: 0; border-radius: 50%; cursor: pointer; }
-.strip__lg { border: 1px solid var(--line-strong); background: var(--card); color: var(--fg); }
+.strip__lg { border: 1px solid var(--line-strong); background: var(--card); color: var(--fg); -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; }
 .strip__mark { display: grid; place-items: center; }
 .strip__lg .lg { display: block; width: 22px; height: 22px; margin: 0; }
 .strip__code { font: 700 10px/1 var(--body); letter-spacing: 0.02em; }
@@ -445,6 +445,7 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
 .strip__lg[aria-pressed="false"] .strip__mark { opacity: 0.35; filter: grayscale(1); }
 .strip__lg[aria-pressed="false"]::after { content: ""; position: absolute; left: 7px; right: 7px; top: calc(50% - 1px); height: 2px; border-radius: 1px; background: var(--muted); transform: rotate(-45deg); }
 .strip__lg:hover { border-color: var(--fg); }
+.strip__lg--solo { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
 .strip__lg:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 /* After a tap in the strip, a note says what changed and offers the way back, at the foot of the
    window: above the page, below the panel. */

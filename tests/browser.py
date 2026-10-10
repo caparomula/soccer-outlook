@@ -1583,6 +1583,154 @@ class BrowserChecks(unittest.TestCase):
     def strip_ids(page):
         return page.locator("#league-strip-list .strip__lg").evaluate_all("els => els.map(e => e.dataset.league)")
 
+    @contextmanager
+    def hold_strip_icon(self, page, league, *, touch=False):
+        """Hold the actual pointer down, including the browser's click on release."""
+        icon = page.locator(f'#league-strip-list [data-league="{league}"]')
+        icon.scroll_into_view_if_needed()
+        box = icon.bounding_box()
+        x, y = box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
+        session = page.context.new_cdp_session(page) if touch else None
+        if session:
+            session.send("Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": [{"x": x, "y": y}]})
+        else:
+            page.mouse.move(x, y)
+            page.mouse.down()
+        try:
+            yield x, y
+        finally:
+            if session:
+                session.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
+                session.detach()
+            else:
+                page.mouse.up()
+            page.clock.run_for(1)
+
+    def test_league_strip_long_press_solos_and_restores_without_saving(self):
+        fixtures = [(league, "2026-10-07T18:00:00+00:00", "pre", "ESPN+", league)
+                    for league in ("eng.1", "esp.1", "ita.1")]
+        html = render_page(build, fixtures=fixtures, league_logos=True)
+        for width in (1280, 390):
+            with self.subTest(width=width), self.page("after", width=width, html=html, touch=width <= 600) as (page, _):
+                touch = width <= 600 and self.engine == "chromium"
+                lg = lambda key: page.locator(f'#league-strip-list [data-league="{key}"]')
+                saved = lambda: page.evaluate("Object.fromEntries(Object.entries(localStorage))")
+
+                def shown(*leagues):
+                    for league in ("eng.1", "esp.1", "ita.1"):
+                        expect(lg(league)).to_have_attribute("aria-pressed", "true" if league in leagues else "false")
+                        expect(page.locator(f'li.row[data-id="{league}"]')).to_be_visible(visible=league in leagues)
+                    expect(page.locator("#tally-n")).to_have_text(str(len(leagues)))
+
+                # A normal tap remains a saved pause. A solo must preserve that exact prior state.
+                lg("esp.1").tap() if touch else lg("esp.1").click()
+                shown("eng.1", "ita.1")
+                preferences = saved()
+                with self.hold_strip_icon(page, "ita.1", touch=touch):
+                    page.clock.run_for(700)
+                    shown("ita.1")
+                shown("ita.1")  # the release's click must not immediately undo the long press
+                self.assertEqual(saved(), preferences)
+                lg("ita.1").tap() if touch else lg("ita.1").click()
+                shown("eng.1", "ita.1")  # the very next short press does undo it
+                self.assertEqual(saved(), preferences)
+
+                # Even a currently paused league can be soloed; another long press restores its pause.
+                with self.hold_strip_icon(page, "esp.1", touch=touch):
+                    page.clock.run_for(700)
+                shown("esp.1")
+                with self.hold_strip_icon(page, "esp.1", touch=touch):
+                    page.clock.run_for(700)
+                shown("eng.1", "ita.1")
+                self.assertEqual(saved(), preferences)
+
+                # Solo is temporary: reopening the page returns to the saved selection, not the solo.
+                with self.hold_strip_icon(page, "eng.1", touch=touch):
+                    page.clock.run_for(700)
+                shown("eng.1")
+                page.reload()
+                shown("eng.1", "ita.1")
+                self.assertEqual(saved(), preferences)
+
+    def test_league_strip_keyboard_solo_restores_and_preserves_focus(self):
+        fixtures = [(league, "2026-10-07T18:00:00+00:00", "pre", "ESPN+", league)
+                    for league in ("eng.1", "esp.1", "ita.1")]
+        with self.page("after", html=render_page(build, fixtures=fixtures)) as (page, _):
+            lg = lambda key: page.locator(f'#league-strip-list [data-league="{key}"]')
+            lg("esp.1").click()
+            lg("ita.1").focus()
+            page.keyboard.press("Shift+Enter")
+            expect(page.locator('#league-strip-list [aria-pressed="true"]')).to_have_count(1)
+            expect(lg("ita.1")).to_have_attribute("aria-pressed", "true")
+            expect(lg("ita.1")).to_be_focused()
+            page.keyboard.press("Shift+Space")
+            expect(page.locator('#league-strip-list [aria-pressed="true"]')).to_have_count(2)
+            expect(lg("esp.1")).to_have_attribute("aria-pressed", "false")
+            expect(lg("ita.1")).to_have_attribute("aria-pressed", "true")
+            expect(lg("ita.1")).to_be_focused()
+            self.assertEqual(page.evaluate("JSON.parse(localStorage.getItem('ssg1-league-paused'))"), ["esp.1"])
+
+    def test_league_strip_solo_switches_target_and_hides_featured_exceptions(self):
+        fixtures = [("pl", "2026-10-07T18:00:00+00:00", "pre", "ESPN+", "eng.1"),
+                    ("liga", "2026-10-07T19:00:00+00:00", "pre", "ESPN+", "esp.1"),
+                    ("usa", "2026-10-07T20:00:00+00:00", "pre", "ESPN+", "fifa.friendly.w")]
+        html = render_page(build, fixtures=fixtures, team_ids={"usa": ("2765", "99")},
+                           team_names={"usa": ("United States", "Spain")})
+        with self.page("after", html=html) as (page, _):
+            lg = lambda key: page.locator(f'#league-strip-list [data-league="{key}"]')
+            expect(page.locator('li.row:visible')).to_have_count(3)
+            expect(lg("fifa.friendly.w")).to_have_count(0)  # US women are a default featured-team exception
+            with self.hold_strip_icon(page, "eng.1"):
+                page.clock.run_for(700)
+            expect(page.locator('li.row:visible')).to_have_count(1)
+            expect(page.locator('li.row[data-id="pl"]')).to_be_visible()
+            expect(page.locator('li.row[data-id="usa"]')).to_be_hidden()
+            lg("esp.1").click()
+            expect(page.locator('li.row:visible')).to_have_count(1)
+            expect(page.locator('li.row[data-id="liga"]')).to_be_visible()
+            page.keyboard.press("Escape")
+            expect(page.locator('li.row:visible')).to_have_count(3)
+            self.assertIsNone(page.evaluate("localStorage.getItem('ssg1-league-paused')"))
+
+            with self.hold_strip_icon(page, "eng.1"):
+                page.clock.run_for(700)
+            page.clock.run_for(5000)
+            expect(page.locator("#strip-undo")).to_be_visible()  # solo's undo stays available
+            page.locator("#strip-undo").click()
+            expect(page.locator('li.row:visible')).to_have_count(3)
+            with self.hold_strip_icon(page, "eng.1"):
+                page.clock.run_for(700)
+            page.locator("#btn-menu").click()
+            page.locator('#comp-enabled [data-key="esp.1"]').click()
+            page.locator("#btn-filters-close").click()
+            expect(page.locator('li.row:visible')).to_have_count(2)
+            expect(page.locator('li.row[data-id="usa"]')).to_be_visible()
+            expect(lg("esp.1")).to_have_count(0)
+
+    def test_league_strip_movement_scroll_and_pointer_cancel_do_not_solo(self):
+        for interruption in ("movement", "scroll", "pointercancel"):
+            with self.subTest(interruption=interruption), self.page("after", html=self.long_day()) as (page, _):
+                lg = page.locator('#league-strip-list [data-league="esp.1"]')
+                with self.hold_strip_icon(page, "esp.1") as (x, y):
+                    page.clock.run_for(200)
+                    if interruption == "movement":
+                        page.mouse.move(x + 80, y, steps=4)
+                    elif interruption == "scroll":
+                        # Native scroll events are delivered at a rendering opportunity, outside the
+                        # fake timer queue. Wait for one before fast-forwarding the long-press timer.
+                        page.evaluate("""() => {
+                            window.__stripScrollSeen = false;
+                            window.addEventListener('scroll', () => { window.__stripScrollSeen = true; }, {once: true});
+                            window.scrollBy(0, 80);
+                        }""")
+                        page.wait_for_function("window.__stripScrollSeen", timeout=5000)
+                    else:
+                        lg.dispatch_event("pointercancel", {"pointerId": 1, "pointerType": "mouse"})
+                    page.clock.run_for(700)
+                    expect(page.locator('#league-strip-list [aria-pressed="true"]')).to_have_count(2)
+                expect(page.locator('#league-strip-list [aria-pressed="true"]')).to_have_count(2)
+                self.assertIsNone(page.evaluate("localStorage.getItem('ssg1-league-paused')"))
+
     def test_league_strip_hides_and_shows_followed_leagues_and_remembers(self):
         fixtures = [("pl", "2026-10-07T18:00:00+00:00", "pre", "ESPN+", "eng.1"),
                     ("liga", "2026-10-07T19:00:00+00:00", "pre", "ESPN+", "esp.1"),
@@ -2156,6 +2304,7 @@ NOT_RUN = 77
 SMOKE_TESTS = (
     "test_lineup_persists_and_resets",
     "test_filter_groups_drag_between_areas_sort_persist_and_accept_empty_drops",
+    "test_league_strip_long_press_solos_and_restores_without_saving",
     "test_details_hover_preview_is_stable_hoverable_and_dismissible",
     "test_details_dialog_mouse_touch_keyboard_and_focus_without_reflow",
     "test_enabled_leagues_move_repeatedly_from_the_keyboard_and_set_the_priority",

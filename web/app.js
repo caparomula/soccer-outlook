@@ -145,17 +145,19 @@
   // followed, and still paused on the next visit until the viewer taps it again. Its matches are
   // hidden when it isn't followed or is paused. Following or unfollowing a league clears its pause, so
   // a league added back in the panel comes back shown.
-  var paused = {};
+  var paused = {}, soloLeague = '';
   (function () {
     var saved = read(LS.paused);
     (Array.isArray(saved) ? saved : []).forEach(function (k) { if (typeof k === 'string') paused[k] = true; });
   })();
   function followed(id) { return hasChoice(id) ? compChoice[id] : !DEFAULT_OFF[id]; }
+  // Solo is a temporary view over the saved selection, including its paused leagues.
+  function hiddenByStrip(id) { return soloLeague ? id !== soloLeague : !!paused[id]; }
   function applyCompChoices() {
     compOff = {};
     drawer.querySelectorAll('[data-kind="comp"]').forEach(function (b) {
       var k = b.getAttribute('data-key');
-      if (!followed(k) || paused[k]) compOff[k] = true;
+      if (!followed(k) || hiddenByStrip(k)) compOff[k] = true;
     });
   }
   function saveCompChoices() {
@@ -168,7 +170,10 @@
   applyCompChoices();
   // A match of a team build.py features (the US national teams) shows while its competition is off
   // by default; a viewer who switches the competition off, or pauses it, hides it too.
-  function compHidden(r) { return !!compOff[r._lg] && (!r._featured || hasChoice(r._lg) || !!paused[r._lg]); }
+  function compHidden(r) {
+    if (soloLeague) return r._lg !== soloLeague;
+    return !!compOff[r._lg] && (!r._featured || hasChoice(r._lg) || !!paused[r._lg]);
+  }
   var storedPriority = read(LS.priority);
   var storedServiceOrder = read(LS.services);
   var leagueNames = SERVICES.leagues || {};
@@ -191,8 +196,10 @@
   }
   function filterEnabled(kind, id) { return kind === 'have' ? !!HAVE[id] : followed(id); }
   function setFilterEnabled(kind, id, enabled) {
+    // Reordering within an enabled group needn't end solo; changing the selection does.
+    if (filterEnabled(kind, id) !== enabled || (kind === 'comp' && paused[id])) clearStripView();
     if (kind === 'have') { if (enabled) HAVE[id] = true; else delete HAVE[id]; }
-    else { compChoice[id] = !!enabled; delete paused[id]; if (enabled) delete compOff[id]; else compOff[id] = true; }
+    else { compChoice[id] = !!enabled; delete paused[id]; applyCompChoices(); }
   }
   function persistFilters(kind) {
     if (kind === 'have') { storedHave = Object.keys(HAVE); write(LS.have, storedHave); evaluateAll(); }
@@ -368,7 +375,7 @@
       // An enabled league paused from the strip says so, in words for every reader.
       var tag = b.querySelector('.fpill__tag');
       if (!tag) { tag = document.createElement('span'); tag.className = 'fpill__tag'; tag.textContent = 'hidden for now'; b.appendChild(tag); }
-      tag.hidden = !(on && paused[k]); b.classList.toggle('fpill--paused', !tag.hidden);
+      tag.hidden = !(on && hiddenByStrip(k)); b.classList.toggle('fpill--paused', !tag.hidden);
     });
     renderStrip();
   }
@@ -448,7 +455,8 @@
   // emblem for shows its short code): a tap pauses one, hiding its matches for now without unfollowing
   // it, and another shows them again, with a note that offers the way back. It is one tab stop, a
   // toolbar the arrow keys move along. Leagues are followed, unfollowed and ordered in the Lineup
-  // panel; with none followed there is no strip.
+  // panel; with none followed there is no strip. A hold (or Shift+Enter/Space) solos a league until
+  // it is pressed again. Solo never writes preferences; an ordinary tap otherwise still pauses.
   var strip = document.getElementById('league-strip'), stripList = document.getElementById('league-strip-list');
   var stripFocus = '', stripShape = '';
   function renderStrip() {
@@ -461,6 +469,7 @@
       ids.forEach(function (id) {
         var b = document.createElement('button'); b.type = 'button'; b.className = 'strip__lg';
         b.setAttribute('data-league', id); b.setAttribute('aria-label', leagueNames[id]); b.title = leagueNames[id];
+        b.setAttribute('aria-describedby', 'strip-help'); b.setAttribute('aria-keyshortcuts', 'Shift+Enter Shift+Space');
         var mark = document.createElement('span'); mark.className = 'strip__mark'; mark.setAttribute('aria-hidden', 'true');
         var emblem = pills[id].querySelector('.lg');
         if (emblem) mark.appendChild(emblem.cloneNode(true));
@@ -472,7 +481,8 @@
     if (ids.indexOf(stripFocus) < 0) stripFocus = ids[0] || '';
     Array.from(stripList.children).forEach(function (b) {
       var id = b.getAttribute('data-league');
-      b.setAttribute('aria-pressed', paused[id] ? 'false' : 'true');
+      b.setAttribute('aria-pressed', hiddenByStrip(id) ? 'false' : 'true');
+      b.classList.toggle('strip__lg--solo', id === soloLeague);
       b.tabIndex = id === stripFocus ? 0 : -1;
     });
     strip.hidden = !ids.length;
@@ -490,15 +500,69 @@
   var stripStatus = document.getElementById('strip-status'), note = document.getElementById('strip-note');
   var noteText = document.getElementById('strip-note-txt'), noteTimer = 0, noteUndo = null;
   function hideNote() { clearTimeout(noteTimer); note.hidden = true; noteUndo = null; }
+  function clearStripView() {
+    soloLeague = ''; applyCompChoices(); hideNote();
+  }
+  function setSolo(id) {
+    hideNote(); soloLeague = soloLeague === id ? '' : id; stripFocus = id;
+    applyCompChoices(); applyFilterUI(); render(true);
+    var text = soloLeague ? 'Only ' + leagueNames[id] + ' · press again to restore' : 'Previous league selection restored';
+    stripStatus.textContent = text;
+    if (soloLeague) { noteText.textContent = text; note.hidden = false; noteUndo = { id: id, solo: true }; }
+  }
   function setPaused(id, hide) {
     if (hide) paused[id] = true; else delete paused[id];
     applyCompChoices(); saveCompChoices(); applyFilterUI(); render(true);
   }
   if (strip) {
+    var stripPress = null, stripIgnoreClick = null, stripKey = '';
+    function cancelStripPress() {
+      if (!stripPress) return;
+      clearTimeout(stripPress.timer);
+      // A canceled drag/scroll must not turn into a short tap on release either. A fresh pointerdown
+      // clears this guard, so it can never eat the user's next tap if no compatibility click arrives.
+      stripIgnoreClick = stripPress.button; stripPress = null;
+    }
+    stripList.addEventListener('pointerdown', function (ev) {
+      cancelStripPress(); stripIgnoreClick = null;
+      var b = ev.target.closest('.strip__lg');
+      if (!b || !ev.isPrimary || ev.button !== 0) return;
+      var press = { button: b, pointerId: ev.pointerId, x: ev.clientX, y: ev.clientY };
+      stripPress = press;
+      press.timer = setTimeout(function () {
+        if (stripPress !== press || !b.isConnected) return;
+        stripIgnoreClick = b;
+        setSolo(b.getAttribute('data-league'));
+      }, 600);
+      // Leave default pointer handling intact: touch scrolling must still work.
+    });
+    document.addEventListener('pointermove', function (ev) {
+      if (stripPress && ev.pointerId === stripPress.pointerId &&
+          Math.hypot(ev.clientX - stripPress.x, ev.clientY - stripPress.y) > 8) cancelStripPress();
+    }, { passive: true });
+    document.addEventListener('pointerup', function (ev) {
+      if (!stripPress || ev.pointerId !== stripPress.pointerId) return;
+      clearTimeout(stripPress.timer); stripPress = null;
+    });
+    ['pointercancel', 'lostpointercapture'].forEach(function (type) {
+      document.addEventListener(type, function (ev) {
+        if (stripPress && ev.pointerId === stripPress.pointerId) cancelStripPress();
+      });
+    });
+    stripList.addEventListener('pointerout', function (ev) {
+      if (stripPress && ev.pointerType === 'mouse' && !stripPress.button.contains(ev.relatedTarget)) cancelStripPress();
+    });
+    stripList.addEventListener('contextmenu', function (ev) { if (ev.target.closest('.strip__lg')) ev.preventDefault(); });
+    // Capture includes the strip's own horizontal scrolling as well as page/ancestor scrolling.
+    document.addEventListener('scroll', cancelStripPress, { capture: true, passive: true });
+    window.addEventListener('blur', cancelStripPress);
+    document.addEventListener('visibilitychange', function () { if (document.hidden) cancelStripPress(); });
     stripList.addEventListener('scroll', fadeStrip, { passive: true });
     stripList.addEventListener('click', function (ev) {
       var b = ev.target.closest('.strip__lg'); if (!b) return;
+      if (ev.detail && stripIgnoreClick === b) { stripIgnoreClick = null; ev.preventDefault(); return; }
       var id = b.getAttribute('data-league'), hide = !paused[id];
+      if (soloLeague) { setSolo(id); return; }
       stripFocus = id; setPaused(id, hide);
       var text = leagueNames[id] + (hide ? ' hidden' : ' shown');
       stripStatus.textContent = text; noteText.textContent = text; note.hidden = false;
@@ -508,17 +572,28 @@
     document.getElementById('strip-undo').addEventListener('click', function () {
       var undo = noteUndo; hideNote();
       if (!undo || !followed(undo.id)) return;
-      setPaused(undo.id, undo.hide);
-      stripStatus.textContent = leagueNames[undo.id] + (undo.hide ? ' hidden' : ' shown');
+      if (undo.solo) setSolo(undo.id);
+      else {
+        setPaused(undo.id, undo.hide);
+        stripStatus.textContent = leagueNames[undo.id] + (undo.hide ? ' hidden' : ' shown');
+      }
       var b = stripList.querySelector('[data-league="' + undo.id + '"]'); if (b) b.focus({ preventScroll: true });
     });
     stripList.addEventListener('keydown', function (ev) {
       var buttons = Array.from(stripList.children), i = buttons.indexOf(document.activeElement);
+      if (i >= 0 && ev.shiftKey && (ev.key === 'Enter' || ev.key === ' ')) {
+        ev.preventDefault(); cancelStripPress(); stripKey = ev.key;
+        if (!ev.repeat) setSolo(buttons[i].getAttribute('data-league'));
+        return;
+      }
       var j = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: buttons.length - 1 }[ev.key];
       if (i < 0 || j === undefined) return;
       ev.preventDefault();
       j = Math.max(0, Math.min(buttons.length - 1, j));
       buttons[i].tabIndex = -1; buttons[j].tabIndex = 0; stripFocus = buttons[j].getAttribute('data-league'); buttons[j].focus();
+    });
+    stripList.addEventListener('keyup', function (ev) {
+      if (ev.key === stripKey) { ev.preventDefault(); stripKey = ''; }
     });
   }
   fitBar();
@@ -544,13 +619,16 @@
     if (drawerOpen && path.indexOf(drawer) < 0 && path.indexOf(btnMenu) < 0) setDrawer(false, false);
   });
   document.addEventListener('keydown', function (ev) {
-    if (drawerOpen && (ev.key === 'Escape' || ev.key === 'Esc')) { ev.preventDefault(); setDrawer(false, true); }
+    if (ev.key !== 'Escape' && ev.key !== 'Esc') return;
+    if (drawerOpen) { ev.preventDefault(); setDrawer(false, true); }
+    else if (soloLeague && !document.querySelector('dialog[open]')) { ev.preventDefault(); setSolo(soloLeague); }
   });
   app.addEventListener('click', function (ev) {
     var b = ev.target.closest('button'); if (!b || !(b.closest('#controls') || b.closest('#drawer') || b === btnMenu)) return;
     if (b.hasAttribute('data-kind') && suppressFilterClick) { ev.preventDefault(); return; }
     if (b === btnMenu || b.id === 'btn-filters-close') { setDrawer(b === btnMenu ? !drawerOpen : false, b.id === 'btn-filters-close'); return; }
     if (b.id === 'btn-reset') {
+      clearStripView();
       HAVE = {}; SERVICES.owner.forEach(function (k) { HAVE[k] = true; }); storedHave = null;
       compChoice = {}; paused = {}; applyCompChoices();
       storedPriority = null; storedServiceOrder = null;
@@ -558,11 +636,13 @@
       evaluateAll();
     }
     else if (b.id === 'btn-clear' || b.id === 'btn-select-services') {
+      clearStripView();
       HAVE = {};
       if (b.id === 'btn-select-services') SERVICES.order.forEach(function (k) { HAVE[k] = true; });
       storedHave = Object.keys(HAVE); write(LS.have, storedHave); evaluateAll();
     }
     else if (b.id === 'btn-clear-leagues' || b.id === 'btn-select-leagues') {
+      clearStripView();
       drawer.querySelectorAll('[data-kind="comp"]').forEach(function (x) { compChoice[x.getAttribute('data-key')] = b.id === 'btn-select-leagues'; });
       paused = {}; applyCompChoices(); saveCompChoices();
     }
@@ -663,7 +743,7 @@
     var now = nowMs();
     renderFilterGroups();
     var groups = {}; ORDER.forEach(function (b) { groups[b] = []; });
-    var sig = Object.keys(HAVE).join(',') + '|' + Object.keys(compOff).join(',') + '|' + JSON.stringify(compChoice) + '|';
+    var sig = Object.keys(HAVE).join(',') + '|' + Object.keys(compOff).join(',') + '|' + JSON.stringify(compChoice) + '|' + soloLeague + '|';
     var all = {}; ORDER.forEach(function (b) { all[b] = []; });
     rows.forEach(function (r) {
       var b = bucketOf(r, now);
@@ -709,7 +789,7 @@
     return result;
   }
   function rebuild(groups, all, now) {
-    var context = Object.keys(HAVE).join(',') + '|' + Object.keys(compOff).join(',');
+    var context = Object.keys(HAVE).join(',') + '|' + Object.keys(compOff).join(',') + '|' + soloLeague;
     if (context !== foldContext) { foldContext = context; foldChoices = {}; }
     var frag = document.createDocumentFragment();
     var anyUpcoming = false;
