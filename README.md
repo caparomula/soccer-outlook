@@ -6,6 +6,8 @@ A soccer schedule that helps you choose what to watch on your US streaming servi
 
 The page shows **today and the next three days**. Choose your services and leagues in **Lineup**; the schedule and featured matches follow those choices. Preferences stay in your browser, with no account required.
 
+Choose subscriptions and channels you can actually watch. FOX One's paid subscription and individual FOX channels have separate filters, so a TV-provider login is not treated as full FOX One access. The [user guide](docs/user-guide.md#fox-one-and-tv-provider-access) explains the choices.
+
 - **Live now / Next up:** the highest-scoring available live match, or the next scheduled kickoff.
 - **Top three:** up to three other recommended matches, selected by interest and shown in kickoff order.
 - **Daily schedule:** kickoff times, broadcasters, team form, standings and match details. A day changes at 4 am in your time zone so late games stay with their evening.

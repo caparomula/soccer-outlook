@@ -121,7 +121,8 @@ LEAGUES = {
 # they pick their own in the page; the choice stays in that viewer's browser.
 # ----------------------------------------------------------------------------------------------
 RIGHTS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "rights.toml")
-OWNER = ["hbo", "fox", "para", "espn", "apple", "usa", "prime", "netflix", "disney"]
+# The owner's FOX app uses a TV-provider login; no FOX channels are assumed without confirmation.
+OWNER = ["hbo", "para", "espn", "apple", "usa", "prime", "netflix", "disney"]
 # Teams whose matches are shown by default even in a competition that is off by default (LEAGUES'
 # default_off), identified by ESPN's stable team IDs: switching women's friendlies off hid the USWNT
 # against the world champions. A viewer who switches the competition off still hides them.

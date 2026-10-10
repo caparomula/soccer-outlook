@@ -42,6 +42,7 @@
 "Big Ten Network"           = { espn = ["BTN"] }
 "Fox Soccer Plus"           = { espn = ["FSP"] }
 "Fox Sports app"            = {}
+"FOX One"                   = {}
 "Paramount+"                = {}
 "CBS"                       = { free = true }
 "CBS Sports Network"        = { espn = ["CBSSN"] }
@@ -87,7 +88,8 @@
 # ---- Services ----------------------------------------------------------------------------------
 # What a viewer can say they have, in the order the page prefers when a match is on several of
 # them. `channels` is everything the service carries, by the names above. The id is used in the
-# page's markup and colors, and in viewers' saved lineups, so it never changes.
+# page's markup and colors, and in viewers' saved lineups, so it stays stable. A retired id is never
+# reused for a different entitlement: the ambiguous old `fox` selection is not a paid subscription.
 
 [services.hbo]
 name = "HBO Max"
@@ -95,12 +97,49 @@ channels = ["HBO Max", "TNT", "TBS", "truTV"]
 source = "TNT Sports' soccer streams on HBO Max (research for the first build of the page)"
 checked = 2026-10-03
 
-[services.fox]
-name = "Fox One"
-channels = ["FOX", "FS1", "FS2", "Fox Deportes", "Big Ten Network", "FOX Sports networks"]
-note = "Not Fox Soccer Plus. \"FOX Sports networks\" stands for a match that may be on FS1, FS2, Fox Deportes or Fox One itself."
-source = "https://www.foxsports.com/stories/nfl/fox-one-launches-today-stream-fox-live-news-sports-entertainment-shows"
-checked = 2026-10-03
+[services.foxone]
+name = "FOX One (paid subscription)"
+channels = ["FOX One", "FOX", "FS1", "FS2", "Fox Deportes", "Big Ten Network", "FOX Sports networks"]
+note = "The full paid FOX One subscription, not merely the app or a TV-provider login. Provider access depends on the channels in that package; select those channels separately. Fox Soccer Plus is not included. \"FOX Sports networks\" means a match's precise FOX channel is not yet listed."
+source = "https://www.fox.com/foxone/"
+checked = 2026-10-10
+
+# A TV-provider login does not establish access to every FOX network. Each option below means the
+# viewer has confirmed that exact channel in their package; none grants unspecified FOX coverage.
+[services.foxlocal]
+name = "FOX"
+channels = ["FOX"]
+note = "Select only if your TV package includes FOX; this does not include FS1, FS2 or other FOX channels."
+source = "https://www.fox.com/foxone/"
+checked = 2026-10-10
+
+[services.fs1]
+name = "FS1"
+channels = ["FS1"]
+note = "Select only if your TV package includes FS1."
+source = "https://www.fox.com/foxone/"
+checked = 2026-10-10
+
+[services.fs2]
+name = "FS2"
+channels = ["FS2"]
+note = "Select only if your TV package includes FS2; an FS1 entitlement does not include FS2."
+source = "https://www.fox.com/foxone/"
+checked = 2026-10-10
+
+[services.foxdeportes]
+name = "Fox Deportes"
+channels = ["Fox Deportes"]
+note = "Select only if your TV package includes FOX Deportes."
+source = "https://www.fox.com/foxone/"
+checked = 2026-10-10
+
+[services.btn]
+name = "Big Ten Network"
+channels = ["Big Ten Network"]
+note = "Select only if your TV package includes Big Ten Network."
+source = "https://www.fox.com/foxone/"
+checked = 2026-10-10
 
 [services.para]
 name = "Paramount+"
@@ -202,12 +241,12 @@ checked = 2026-10-03
 
 [services.cable]
 name = "Cable or live-TV bundle"
-channels = ["ESPN", "ESPN2", "ESPNU", "ESPNEWS", "ESPN Deportes", "ACC Network", "SEC Network", "ABC", "FS1", "FS2", "FOX",
-            "Fox Deportes", "Big Ten Network", "CBS", "CBS Sports Network", "USA Network", "NBC", "NBCSN", "CNBC", "Telemundo",
+channels = ["ESPN", "ESPN2", "ESPNU", "ESPNEWS", "ESPN Deportes", "ACC Network", "SEC Network", "ABC",
+            "CBS", "CBS Sports Network", "USA Network", "NBC", "NBCSN", "CNBC", "Telemundo",
             "Universo", "TNT", "TBS", "truTV", "ION", "The CW", "TUDN", "Univision", "UniMás"]
-note = "A cable package, YouTube TV or Hulu + Live TV. Premium sports channels (beIN Sports, Fox Soccer Plus) are not assumed."
-source = "Typical cable and live-TV bundles (research for the first build of the page)"
-checked = 2026-10-03
+note = "A cable package, YouTube TV or Hulu + Live TV. FOX, FS1, FS2, FOX Deportes and Big Ten Network must be selected separately to match the viewer's package. Premium sports channels (beIN Sports, Fox Soccer Plus) are not assumed."
+source = "Typical cable and live-TV bundles (research for the first build of the page); FOX provider access varies by package: https://www.fox.com/foxone/"
+checked = 2026-10-10
 
 [services.ota]
 name = "Local channels (antenna)"
@@ -353,7 +392,7 @@ source = "ESPN listings, Sept 1 to Oct 16 2026: all 18 listed matches on Paramou
 checked = 2026-10-06
 
 [leagues."uefa.nations"]
-hint = "FOX Sports shows about 46 matches, on FOX, FS1, FS2, Fox Soccer Plus or Tubi · FS1 and FS2 are in Fox One and Fubo"
+hint = "FOX Sports shows about 46 matches, on FOX, FS1, FS2, Fox Soccer Plus or Tubi · FS1 and FS2 are in the paid FOX One subscription and Fubo Pro; other TV packages vary"
 source = "https://www.foxsports.com/stories/presspass/europes-top-national-teams-biggest-stars-compete-fox-sports-presents-uefa-nations-league-2026-27"
 checked = 2026-10-06
 

@@ -50,8 +50,12 @@ class FOXListings(unittest.TestCase):
         self.assertEqual(game.broadcast_url,
                          "https://www.foxsports.com/soccer/liga-mx-fc-juarez-vs-tijuana-oct-10-2026-game-boxscore-878141")
         self.assertEqual(report["per_match"][game.id], {"status": "confirmed", "url": game.broadcast_url})
-        self.assertEqual(build.evaluate(game.outlets, game.rule, {"fox"}), ("fox", "listed", "FS2"))
+        self.assertEqual(build.evaluate(game.outlets, game.rule, {"foxone"}), ("foxone", "listed", "FS2"))
+        self.assertEqual(build.evaluate(game.outlets, game.rule, {"fs2"}), ("fs2", "listed", "FS2"))
         self.assertEqual(build.evaluate(game.outlets, game.rule, {"fubo"}), ("fubo", "listed", "FS2"))
+        for services in ({"fox"}, {"fs1"}, {"foxlocal"}, {"foxdeportes"}, {"btn"}, {"cable"}, set(build.OWNER)):
+            with self.subTest(services=services):
+                self.assertEqual(build.evaluate(game.outlets, game.rule, services), ("", "none", ""))
 
     def test_absent_or_unsupported_event_channel_is_not_replaced_by_footer_networks(self):
         for channel in ("", "FOX Sports networks", "TUDN", "FS2 or FS1", ["FS2"], None):

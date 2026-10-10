@@ -17,6 +17,18 @@ The two orders have different purposes:
 
 The schedule includes matches with a listed broadcaster or an established usual home on a selected service. Matches with no known route through your services are omitted. The **Elsewhere in the next 24 hours** section can show notable matches on other services, with listed broadcasters and your competition filters still applied.
 
+### FOX One and TV-provider access
+
+Choose **FOX One (paid subscription)** for a separate FOX One subscription. Having the app on an Apple TV, or signing in through a TV provider, does not establish access to every FOX channel.
+
+For a provider login, select the channels your package actually includes: **FOX**, **FS1**, **FS2**, **FOX Deportes** and **Big Ten Network**. They are independent choices: FS1 does not unlock a match listed on FS2. A listing that only says “FOX Sports networks” cannot establish access through an individual channel until the broadcaster confirms which channel carries it.
+
+The generic **Cable or live-TV bundle** option leaves FOX channels to these separate choices. **Fubo** still includes its documented Pro-plan channels, and **Local channels (antenna)** includes broadcast FOX. See [FOX One's subscription information](https://www.fox.com/foxone/) and [Verizon's package-specific Fios lineups](https://www.verizon.com/home/fios-tv/channel-lineup/). A provider name alone is not enough to identify your package or diagnose a playback error.
+
+Channel access describes the broadcast, not a guarantee that every device or app can play it. [FOX notes that some TV programming is unavailable in its apps because of licensing restrictions](https://help.fox.com/s/article/Why-don-t-I-see-a-program-in-the-FOX-Sports-App-that-s-airing-on-one-of-the-FOX-Sports-or-FOX-Entertainment-channels-I-receive-on-my-TV). If the app is your only way to watch and a channel is unavailable there, leave that channel off.
+
+The older, ambiguous **Fox One** selection is cleared when you first load the updated page. All other saved choices stay intact. Select the paid subscription or your available channels once; the page then remembers those choices normally.
+
 ### Quickly hide a league
 
 The bar shows emblems for your enabled leagues. Tap one to hide that league's matches; tap it again to show them. A hidden league's emblem is dimmed and slashed, and a short notice offers **Undo**. The strip scrolls sideways if it does not fit.
@@ -39,7 +51,7 @@ Until you reset, a league you have explicitly enabled or disabled keeps that cho
 
 **Reset to defaults** restores the default services and league selections, clears hidden leagues, and resets both orders.
 
-The default services are HBO Max, Fox One, Paramount+, ESPN Unlimited, Apple TV, USA Network, Prime Video, Netflix and Disney+.
+The default services are HBO Max, Paramount+, ESPN Unlimited, Apple TV, USA Network, Prime Video, Netflix and Disney+. FOX access is off by default until you select a subscription or channel.
 
 All tracked competitions are enabled by default except Women's friendly, USL Championship, USL League One, NWSL, Eredivisie, Ligue 1, Conference League and Europa League. US national-team matches are an exception to a competition's default-off setting. Explicitly disabling or hiding that competition hides those matches too. Leagues without fixtures in the fetched schedule may not appear in the panel.
 

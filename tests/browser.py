@@ -377,8 +377,104 @@ class BrowserChecks(unittest.TestCase):
                 self.assertIsNone(page.evaluate("localStorage.getItem('ssg3-have')"))
                 expect(page.locator('[data-kind="have"][aria-pressed="true"]')).to_have_count(len(build.OWNER))
 
+    def test_fox_channels_require_the_selected_channel_or_a_paid_full_subscription(self):
+        fixtures = [("fs1-first", "2026-10-07T18:00:00+00:00", "pre", "FS1", "eng.1"),
+                    ("fs1-second", "2026-10-07T19:00:00+00:00", "pre", "FS1", "mex.1"),
+                    ("fs2-match", "2026-10-07T20:00:00+00:00", "pre", "FS2", "mex.1")]
+        html = render_page(build, fixtures=fixtures)
+        with self.page("after", html=html) as (page, _):
+            row = lambda key: page.locator(f'li.row[data-id="{key}"]')
+            service = lambda key: page.locator(f'[data-kind="have"][data-key="{key}"]')
+            tally, nextup = page.locator("#tally-n"), page.locator("#nextup")
+
+            # No FOX channel or paid subscription is assumed in the site's defaults.
+            expect(page.locator('li.row:visible')).to_have_count(0)
+            expect(nextup).to_be_hidden()
+            expect(page.locator("#picks-section")).to_be_hidden()
+            expect(tally).to_have_text("0")
+            page.locator("#btn-menu").click()
+            for key in ("foxone", "foxlocal", "fs1", "fs2", "foxdeportes", "btn"):
+                expect(service(key)).to_have_attribute("aria-pressed", "false")
+            page.locator("#btn-clear").click()
+            service("fs1").click()
+            page.locator("#btn-filters-close").click()
+
+            # Access to FS1 alone must not recommend or count a match listed exclusively on FS2.
+            expect(row("fs1-first")).to_be_visible()
+            expect(row("fs1-second")).to_be_visible()
+            expect(row("fs2-match")).to_be_hidden()
+            expect(tally).to_have_text("2")
+            expect(nextup).to_have_attribute("data-match-id", "fs1-first")
+            expect(page.locator('#picks .pick[data-match-id="fs1-second"]')).to_have_count(1)
+            expect(page.locator('#picks .pick[data-match-id="fs2-match"]')).to_have_count(0)
+
+            page.locator("#btn-menu").click()
+            service("fs2").click()
+            page.locator("#btn-filters-close").click()
+            expect(row("fs2-match")).to_be_visible()
+            expect(row("fs2-match")).to_have_attribute("data-svc", "fs2")
+            expect(tally).to_have_text("3")
+            expect(page.locator('#picks .pick[data-match-id="fs2-match"]')).to_have_count(1)
+            page.locator("#btn-menu").click()
+            service("fs1").click()
+            page.locator("#btn-filters-close").click()
+            expect(tally).to_have_text("1")
+            expect(nextup).to_have_attribute("data-match-id", "fs2-match")
+            expect(row("fs1-first")).to_be_hidden()
+            expect(row("fs1-second")).to_be_hidden()
+
+            # A deliberate choice of the full paid subscription grants both channels and survives reload.
+            page.locator("#btn-menu").click()
+            service("fs2").click()
+            service("foxone").click()
+            page.locator("#btn-filters-close").click()
+            expect(page.locator('li.row:visible')).to_have_count(3)
+            expect(tally).to_have_text("3")
+            page.reload()
+            expect(page.locator('li.row:visible')).to_have_count(3)
+            self.assertEqual(page.evaluate("JSON.parse(localStorage.getItem('ssg3-have'))"), ["foxone"])
+            page.locator("#btn-menu").click()
+            expect(service("foxone")).to_have_attribute("aria-pressed", "true")
+            page.locator("#btn-reset").click()
+            expect(page.locator('li.row:visible')).to_have_count(0)
+            expect(tally).to_have_text("0")
+            expect(service("foxone")).to_have_attribute("aria-pressed", "false")
+            expect(service("fs2")).to_have_attribute("aria-pressed", "false")
+
+    def test_retired_fox_access_migrates_without_changing_other_preferences(self):
+        fixtures = [("english", "2026-10-07T18:00:00+00:00", "pre", "ESPN+", "eng.1"),
+                    ("spanish", "2026-10-07T19:00:00+00:00", "pre", "ESPN+", "esp.1"),
+                    ("mexican", "2026-10-07T20:00:00+00:00", "pre", "FS2", "mex.1")]
+        html = render_page(build, fixtures=fixtures)
+        unrelated = {
+            "ssg5-leagues": json.dumps({"on": ["eng.1", "mex.1"], "off": ["esp.1"]}),
+            "ssg4-league-order": json.dumps(["mex.1", "eng.1", "esp.1"]),
+            "ssg1-league-paused": json.dumps(["eng.1"]),
+            "ssg4-service-order": json.dumps(["espn", "para", "apple"]),
+        }
+        for old, remaining in ((["espn", "fox"], ["espn"]), (["fox"], [])):
+            with self.subTest(old=old), self.page("after", html=html) as (page, _):
+                seed = {**unrelated, "ssg3-have": json.dumps(old)}
+                page.evaluate("entries => Object.entries(entries).forEach(([key, value]) => localStorage.setItem(key, value))", seed)
+                page.reload()
+                expect(page.locator('[data-kind="have"][aria-pressed="true"]')).to_have_count(len(remaining))
+                self.assertEqual(page.evaluate("JSON.parse(localStorage.getItem('ssg3-have'))"), remaining)
+                for key, expected in unrelated.items():
+                    self.assertEqual(page.evaluate("key => localStorage.getItem(key)", key), expected)
+                expect(page.locator('#league-strip-list [data-league="eng.1"]')).to_have_attribute("aria-pressed", "false")
+                self.assertEqual(self.strip_ids(page), ["mex.1", "eng.1"])
+                expect(page.locator('li.row[data-id="mexican"]')).to_be_hidden()
+                page.locator("#btn-menu").click()
+                expect(page.locator("#fox-access-note")).to_be_visible()
+                for key in ("foxone", "foxlocal", "fs1", "fs2", "foxdeportes", "btn"):
+                    expect(page.locator(f'[data-kind="have"][data-key="{key}"]')).to_have_attribute("aria-pressed", "false")
+                # In particular, a saved fox-only lineup becomes an explicit empty lineup, never defaults.
+                page.reload()
+                expect(page.locator('[data-kind="have"][aria-pressed="true"]')).to_have_count(len(remaining))
+                self.assertEqual(page.evaluate("JSON.parse(localStorage.getItem('ssg3-have'))"), remaining)
+
     def test_bulk_filters_are_independent_persist_and_reset_to_owner_defaults(self):
-        enabled_services = {"hbo", "fox", "para", "espn", "apple", "usa", "prime", "netflix", "disney"}
+        enabled_services = {"hbo", "para", "espn", "apple", "usa", "prime", "netflix", "disney"}
         hidden_leagues = {"fifa.friendly.w", "usa.usl.1", "usa.usl.l1", "usa.nwsl",
                           "ned.1", "fra.1", "uefa.europa.conf", "uefa.europa"}
         leagues = ["eng.1", "esp.1", *sorted(hidden_leagues)]
@@ -396,7 +492,7 @@ class BrowserChecks(unittest.TestCase):
                 self.assertEqual(keys(page, "comp", "false"), hidden_leagues)
                 expect(page.locator('li.row:visible')).to_have_count(2)
                 page.locator("#btn-menu").click()
-                expect(page.locator("#filter-sum")).to_have_text("9 services, 8 competitions hidden")
+                expect(page.locator("#filter-sum")).to_have_text("8 services, 8 competitions hidden")
                 self.assertLessEqual(page.evaluate("document.documentElement.scrollWidth"), width)
                 page.locator("#drawer").screenshot(path=str(self.artifacts / f"bulk-filters-{width}.png"))
 
@@ -644,7 +740,7 @@ class BrowserChecks(unittest.TestCase):
             page.locator("#btn-clear").click()
             expect(page.locator("#filter-sum")).to_contain_text("0 services")
             page.locator("#btn-reset").click()
-            expect(page.locator("#filter-sum")).to_contain_text("9 services")
+            expect(page.locator("#filter-sum")).to_contain_text("8 services")
             self.assertEqual(feed["requests"], 0)
 
     def test_failed_scoreboard_preserves_scores(self):
@@ -885,6 +981,7 @@ class BrowserChecks(unittest.TestCase):
                 # Exercise news ranking independently of the owner's league defaults.
                 page.locator("#btn-menu").click()
                 page.get_by_role("button", name="Select all leagues", exact=True).click()
+                page.locator('[data-kind="have"][data-key="fs1"]').click()
                 page.locator("#btn-filters-close").click()
                 lede = page.locator("p#story-lede")
                 expect(lede).to_have_text("MLS match context.")
@@ -903,9 +1000,9 @@ class BrowserChecks(unittest.TestCase):
                 page.locator("#btn-menu").click()
                 page.locator("#btn-clear").click()
                 expect(page.locator("#story")).to_be_hidden()
-                page.locator('[data-kind="have"][data-key="fox"]').click()
+                page.locator('[data-kind="have"][data-key="fs1"]').click()
                 expect(lede).to_have_text("Friday French match context.")
-                page.locator('[data-kind="have"][data-key="fox"]').click()
+                page.locator('[data-kind="have"][data-key="fs1"]').click()
                 page.locator('[data-kind="have"][data-key="espn"]').click()
                 expect(lede).to_have_text("Saturday Italian context.")
                 expect(page.locator("#nextup")).to_have_attribute("data-match-id", "far")

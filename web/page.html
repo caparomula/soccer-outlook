@@ -9,6 +9,7 @@
 <div class="wrap" id="app" data-built="@@BUILT_ISO@@" data-incomplete="@@INCOMPLETE@@" data-ai="@@AI@@">
   <div class="drawer" id="drawer" role="dialog" aria-labelledby="drawer-h" tabindex="-1" hidden>
     <div class="drawer__head"><h2 id="drawer-h">Lineup &amp; filters</h2><span class="drawer__sum" id="filter-sum"></span></div>
+    <p class="drawer__hint" id="fox-access-note" role="status" hidden>Your previous FOX One selection has been cleared. Choose your subscription or the FOX channels you can watch below; your other choices are unchanged.</p>
     <div class="drawer__group-head"><h3 class="controls__lbl" id="have-h">Broadcasters</h3><span class="drawer__links"><button type="button" class="link" id="btn-select-services" aria-label="Select all broadcasters">Select all</button><button type="button" class="link" id="btn-clear" aria-label="Clear all broadcasters">Clear all</button></span></div>
     <div class="filter-groups" id="have-pills" role="group" aria-labelledby="have-h">
       <div class="filter-area" data-filter-kind="have" data-enabled="true" role="group" aria-labelledby="have-enabled-h">
@@ -20,7 +21,8 @@
         <p class="filter-area__empty" hidden>Drop broadcasters here to disable them.</p>
       </div>
     </div>
-    <p class="drawer__hint">Select the services you have. Your choices are saved in this browser. Fubo means its Pro plan; cable, YouTube TV and Hulu + Live TV use the live-TV bundle option.</p>
+    <p class="drawer__hint">Select the subscriptions and channels you can watch. Your choices are saved in this browser. Fubo means its Pro plan. For a cable or live-TV bundle, select your FOX channels separately.</p>
+    <p class="drawer__hint">FOX One (paid subscription) means a separate FOX One subscription. If you sign in through a TV provider, choose only the FOX, FS1, FS2, FOX Deportes and Big Ten Network channels you can watch. Installing the app does not grant access; some TV programs also have app streaming restrictions. <a href="https://www.verizon.com/home/fios-tv/channel-lineup/" target="_blank" rel="noopener">Check a Verizon Fios lineup</a>.</p>
     <p class="drawer__hint">Enabled order chooses your preferred broadcaster when more than one carries a match.</p>
     <div class="drawer__group-head"><h3 class="controls__lbl" id="comp-h">Leagues &amp; competitions</h3><span class="drawer__links"><button type="button" class="link" id="btn-select-leagues" aria-label="Select all leagues">Select all</button><button type="button" class="link" id="btn-clear-leagues" aria-label="Clear all leagues">Clear all</button></span></div>
     <div class="filter-groups" id="comp-pills" role="group" aria-labelledby="comp-h">

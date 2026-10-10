@@ -74,6 +74,49 @@ class Regressions(unittest.TestCase):
             with self.subTest(not_carried=name):
                 self.assertNotIn("fubo", via(name))
 
+    def test_fox_provider_channels_grant_only_the_selected_channel(self):
+        channels = {"foxlocal": "FOX", "fs1": "FS1", "fs2": "FS2",
+                    "foxdeportes": "Fox Deportes", "btn": "Big Ten Network"}
+        for service, selected in channels.items():
+            for channel in [*channels.values(), "FOX One", "Fox Soccer Plus", "Fox Sports app"]:
+                with self.subTest(service=service, channel=channel):
+                    result = build.evaluate([build.map_outlet(channel, "mex.1")], None, {service})
+                    self.assertEqual(result, (service, "listed", selected) if channel == selected
+                                     else ("", "none", ""))
+
+    def test_paid_fox_one_has_full_networks_but_not_fox_soccer_plus(self):
+        for channel in ("FOX One", "FOX", "FS1", "FS2", "Fox Deportes", "Big Ten Network"):
+            with self.subTest(channel=channel):
+                result = build.evaluate([build.map_outlet(channel, "mex.1")], None, {"foxone"})
+                self.assertEqual(result, ("foxone", "listed", channel))
+        self.assertNotIn("foxone", via("Fox Soccer Plus"))
+        self.assertEqual(via("FOX One"), {"foxone"})
+
+    def test_unspecified_fox_coverage_needs_the_full_subscription(self):
+        rule = build.map_outlet("FOX Sports networks", "mex.1")
+        self.assertEqual(build.evaluate([], rule, {"foxone"}),
+                         ("foxone", "rule", "FOX Sports networks"))
+        for service in ("fox", "foxlocal", "fs1", "fs2", "foxdeportes", "btn", "cable", "fubo", "ota"):
+            with self.subTest(service=service):
+                self.assertEqual(build.evaluate([], rule, {service}), ("", "none", ""))
+
+    def test_generic_cable_does_not_assume_fox_channels(self):
+        for channel in ("FOX", "FS1", "FS2", "Fox Deportes", "Big Ten Network", "FOX One"):
+            with self.subTest(channel=channel):
+                self.assertNotIn("cable", via(channel))
+        self.assertIn("cable", via("ESPN"))
+        self.assertIn("cable", via("USA Network"))
+        self.assertIn("ota", via("FOX"))
+        self.assertNotIn("ota", via("FS2"))
+
+    def test_ambiguous_fox_choice_is_retired_and_no_fox_access_is_assumed_by_default(self):
+        self.assertNotIn("fox", build.SERVICES)
+        for channel in ("FOX One", "FOX", "FS1", "FS2", "Fox Deportes", "Big Ten Network"):
+            with self.subTest(channel=channel):
+                outlet = build.map_outlet(channel, "mex.1")
+                self.assertEqual(build.evaluate([outlet], None, {"fox"}), ("", "none", ""))
+                self.assertEqual(build.evaluate([outlet], None, set(build.OWNER)), ("", "none", ""))
+
     def test_fandango_and_nwsl_plus_are_free(self):
         for name in ("Fandango", "NWSL+"):
             with self.subTest(name=name):
@@ -115,7 +158,7 @@ class UnlistedCompetitions(unittest.TestCase):
     def test_liga_mx_goes_by_the_home_club(self):
         self.assertEqual(self.home("mex.1", "227").via, ["vix"])       # América
         self.assertEqual(self.home("mex.1", "219").label, "Peacock") # Guadalajara
-        self.assertEqual(self.home("mex.1", "10125").via, ["fox"])   # Tijuana
+        self.assertEqual(self.home("mex.1", "10125").via, ["foxone"]) # Tijuana
         self.assertEqual(self.home("mex.1", "220").via, ["vix"])     # Monterrey
         self.assertIsNone(self.home("mex.1", "América"))             # a name is not an identity
 

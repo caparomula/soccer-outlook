@@ -6,7 +6,8 @@
   --off-bg: #e9ece7; --off-fg: #6b776f; --pill-bg: #eceee9; --pill-fg: #55625a;
   --dark-icon-filter: brightness(1);
   --monochrome-icon-filter: brightness(0);
-  --svc-hbo: #5e46c9; --svc-fox: #1f5fbf; --svc-para: #0b6f8f; --svc-espn: #c2322a; --svc-apple: #3a3a3a;
+  --svc-hbo: #5e46c9; --svc-foxone: #1f5fbf; --svc-para: #0b6f8f; --svc-espn: #c2322a; --svc-apple: #3a3a3a;
+  --svc-foxlocal: var(--svc-foxone); --svc-fs1: var(--svc-foxone); --svc-fs2: var(--svc-foxone); --svc-foxdeportes: var(--svc-foxone); --svc-btn: var(--svc-foxone);
   --svc-usa: #0e7c86; --svc-prime: #0f7ba8; --svc-netflix: #b3141c; --svc-disney: #1b3f8f; --svc-off: #8a948c;
   --svc-espnplus: #d8573a; --svc-peacock: #a0731a; --svc-vix: #b5367a; --svc-fubo: #d9731c; --svc-fsp: #4a7fd1;
   --svc-bein: #8e5aa8; --svc-fanatiz: #0e8a6a; --svc-dazn: #7a7a1a; --svc-cable: #7a6a4f; --svc-ota: #5f7f3f; --svc-free: #4f8a5f;
@@ -20,7 +21,8 @@
   --off-bg: #1f2823; --off-fg: #93a097; --pill-bg: #222c26; --pill-fg: #aab6ae;
   --dark-icon-filter: contrast(0.5) brightness(1.8) saturate(0.85);
   --monochrome-icon-filter: brightness(1);
-  --svc-hbo: #a391ff; --svc-fox: #6fa3ff; --svc-para: #49bbdb; --svc-espn: #ff7b6f; --svc-apple: #d0d0d0;
+  --svc-hbo: #a391ff; --svc-foxone: #6fa3ff; --svc-para: #49bbdb; --svc-espn: #ff7b6f; --svc-apple: #d0d0d0;
+  --svc-foxlocal: var(--svc-foxone); --svc-fs1: var(--svc-foxone); --svc-fs2: var(--svc-foxone); --svc-foxdeportes: var(--svc-foxone); --svc-btn: var(--svc-foxone);
   --svc-usa: #4cc3cd; --svc-prime: #5cb8e6; --svc-netflix: #ff6b72; --svc-disney: #7da2ff; --svc-off: #7f8b82;
   --svc-espnplus: #ff9a80; --svc-peacock: #e0b35a; --svc-vix: #e986bd; --svc-fubo: #f0a060; --svc-fsp: #8fb4ff;
   --svc-bein: #c39de0; --svc-fanatiz: #5cc9a8; --svc-dazn: #c9c96a; --svc-cable: #c2ad88; --svc-ota: #9fc37a; --svc-free: #8ccf9a;
@@ -31,7 +33,8 @@
   --accent: #3fb87a; --gold: #e8b931; --amber: #e5a24b; --amber-soft: #3a2a12; --warn-bg: #2e2412; --win: #4cc47f; --loss: #ff7b6f; --draw: #5a675e;
   --off-bg: #1f2823; --off-fg: #93a097; --pill-bg: #222c26; --pill-fg: #aab6ae;
   --dark-icon-filter: contrast(0.5) brightness(1.8) saturate(0.85);
-  --svc-hbo: #a391ff; --svc-fox: #6fa3ff; --svc-para: #49bbdb; --svc-espn: #ff7b6f; --svc-apple: #d0d0d0;
+  --svc-hbo: #a391ff; --svc-foxone: #6fa3ff; --svc-para: #49bbdb; --svc-espn: #ff7b6f; --svc-apple: #d0d0d0;
+  --svc-foxlocal: var(--svc-foxone); --svc-fs1: var(--svc-foxone); --svc-fs2: var(--svc-foxone); --svc-foxdeportes: var(--svc-foxone); --svc-btn: var(--svc-foxone);
   --svc-usa: #4cc3cd; --svc-prime: #5cb8e6; --svc-netflix: #ff6b72; --svc-disney: #7da2ff; --svc-off: #7f8b82;
   --svc-espnplus: #ff9a80; --svc-peacock: #e0b35a; --svc-vix: #e986bd; --svc-fubo: #f0a060; --svc-fsp: #8fb4ff;
   --svc-bein: #c39de0; --svc-fanatiz: #5cc9a8; --svc-dazn: #c9c96a; --svc-cable: #c2ad88; --svc-ota: #9fc37a; --svc-free: #8ccf9a;
@@ -44,7 +47,9 @@ h1, h2, h3, h4 { font-family: var(--display); font-weight: 700; letter-spacing: 
 a { color: inherit; }
 .t { font-family: var(--display); font-weight: 700; font-variant-numeric: tabular-nums; }
 .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--svc); flex: none; display: inline-block; }
-.svc-hbo { --svc: var(--svc-hbo); } .svc-fox { --svc: var(--svc-fox); } .svc-para { --svc: var(--svc-para); }
+.svc-hbo { --svc: var(--svc-hbo); } .svc-foxone { --svc: var(--svc-foxone); } .svc-para { --svc: var(--svc-para); }
+.svc-foxlocal { --svc: var(--svc-foxlocal); } .svc-fs1 { --svc: var(--svc-fs1); } .svc-fs2 { --svc: var(--svc-fs2); }
+.svc-foxdeportes { --svc: var(--svc-foxdeportes); } .svc-btn { --svc: var(--svc-btn); }
 .svc-espn { --svc: var(--svc-espn); } .svc-apple { --svc: var(--svc-apple); } .svc-usa { --svc: var(--svc-usa); }
 .svc-prime { --svc: var(--svc-prime); } .svc-netflix { --svc: var(--svc-netflix); } .svc-disney { --svc: var(--svc-disney); }
 .svc-espnplus { --svc: var(--svc-espnplus); } .svc-peacock { --svc: var(--svc-peacock); } .svc-vix { --svc: var(--svc-vix); }

@@ -120,6 +120,15 @@
   var drawerOpen = false;
   var drawer = document.getElementById('drawer'), btnMenu = document.getElementById('btn-menu');
   var storedHave = read(LS.have);
+  // The former "fox" choice conflated app/provider sign-in with a full FOX One subscription.
+  // Do not convert that ambiguous choice into paid access or presume any provider channels.
+  // Keep the rest of the lineup, including an intentionally empty one, and leave other prefs alone.
+  var reviewFoxAccess = Array.isArray(storedHave) && storedHave.indexOf('fox') >= 0;
+  if (Array.isArray(storedHave)) {
+    var validHave = storedHave.filter(function (id) { return typeof id === 'string' && SERVICES.order.indexOf(id) >= 0; });
+    if (validHave.length !== storedHave.length) { storedHave = validHave; write(LS.have, storedHave); }
+  }
+  document.getElementById('fox-access-note').hidden = !reviewFoxAccess;
   var HAVE = {};
   (Array.isArray(storedHave) ? storedHave : SERVICES.owner).forEach(function (k) { if (typeof k === 'string') HAVE[k] = true; });
   // Competitions: the viewer's explicit choices (true on, false off) are kept per league, and a league
