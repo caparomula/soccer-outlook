@@ -1,0 +1,1090 @@
+{
+ "lede_items": [],
+ "notes": {},
+ "league_blurbs": [],
+ "league_order": [],
+ "rankings": {
+  "401900910": {
+   "popularity": 22,
+   "gameplay": 43,
+   "impact": 40,
+   "score": 36.5
+  },
+  "401878775": {
+   "popularity": 72,
+   "gameplay": 60,
+   "impact": 43,
+   "score": 56.2
+  },
+  "401878776": {
+   "popularity": 54,
+   "gameplay": 63,
+   "impact": 45,
+   "score": 53.5
+  },
+  "401879265": {
+   "popularity": 42,
+   "gameplay": 49,
+   "impact": 43,
+   "score": 44.8
+  },
+  "401878772": {
+   "popularity": 50,
+   "gameplay": 59,
+   "impact": 45,
+   "score": 51.1
+  },
+  "401878369": {
+   "popularity": 43,
+   "gameplay": 45,
+   "impact": 49,
+   "score": 46.1
+  },
+  "401880244": {
+   "popularity": 28,
+   "gameplay": 40,
+   "impact": 42,
+   "score": 37.8
+  },
+  "401880243": {
+   "popularity": 29,
+   "gameplay": 47,
+   "impact": 42,
+   "score": 40.5
+  },
+  "401880241": {
+   "popularity": 57,
+   "gameplay": 43,
+   "impact": 44,
+   "score": 46.9
+  },
+  "401880240": {
+   "popularity": 39,
+   "gameplay": 62,
+   "impact": 55,
+   "score": 53.5
+  },
+  "401880239": {
+   "popularity": 25,
+   "gameplay": 38,
+   "impact": 43,
+   "score": 36.8
+  },
+  "401880238": {
+   "popularity": 28,
+   "gameplay": 42,
+   "impact": 41,
+   "score": 38.1
+  },
+  "401880235": {
+   "popularity": 32,
+   "gameplay": 37,
+   "impact": 47,
+   "score": 39.8
+  },
+  "401878373": {
+   "popularity": 24,
+   "gameplay": 40,
+   "impact": 43,
+   "score": 37.2
+  },
+  "401878372": {
+   "popularity": 20,
+   "gameplay": 40,
+   "impact": 42,
+   "score": 35.8
+  },
+  "401878371": {
+   "popularity": 27,
+   "gameplay": 49,
+   "impact": 48,
+   "score": 43.1
+  },
+  "401882856": {
+   "popularity": 58,
+   "gameplay": 63,
+   "impact": 51,
+   "score": 57.0
+  },
+  "401875590": {
+   "popularity": 23,
+   "gameplay": 43,
+   "impact": 39,
+   "score": 36.4
+  },
+  "401900913": {
+   "popularity": 25,
+   "gameplay": 39,
+   "impact": 38,
+   "score": 35.1
+  },
+  "401876446": {
+   "popularity": 36,
+   "gameplay": 47,
+   "impact": 44,
+   "score": 43.0
+  },
+  "401875021": {
+   "popularity": 61,
+   "gameplay": 56,
+   "impact": 46,
+   "score": 53.2
+  },
+  "401878773": {
+   "popularity": 85,
+   "gameplay": 58,
+   "impact": 47,
+   "score": 60.3
+  },
+  "401882853": {
+   "popularity": 83,
+   "gameplay": 58,
+   "impact": 49,
+   "score": 60.6
+  },
+  "401884780": {
+   "popularity": 47,
+   "gameplay": 64,
+   "impact": 40,
+   "score": 50.1
+  },
+  "401875591": {
+   "popularity": 44,
+   "gameplay": 71,
+   "impact": 62,
+   "score": 60.6
+  },
+  "761845": {
+   "popularity": 46,
+   "gameplay": 40,
+   "impact": 32,
+   "score": 38.3
+  },
+  "401885424": {
+   "popularity": 42,
+   "gameplay": 48,
+   "impact": 48,
+   "score": 46.5
+  },
+  "401842287": {
+   "popularity": 14,
+   "gameplay": 25,
+   "impact": 23,
+   "score": 21.5
+  },
+  "401900909": {
+   "popularity": 54,
+   "gameplay": 70,
+   "impact": 59,
+   "score": 61.6
+  },
+  "401875588": {
+   "popularity": 28,
+   "gameplay": 59,
+   "impact": 50,
+   "score": 47.6
+  },
+  "401890785": {
+   "popularity": 78,
+   "gameplay": 83,
+   "impact": 24,
+   "score": 58.1
+  },
+  "761846": {
+   "popularity": 48,
+   "gameplay": 54,
+   "impact": 64,
+   "score": 56.5
+  },
+  "401874754": {
+   "popularity": 51,
+   "gameplay": 55,
+   "impact": 43,
+   "score": 49.2
+  },
+  "401876442": {
+   "popularity": 67,
+   "gameplay": 53,
+   "impact": 42,
+   "score": 52.1
+  },
+  "401876444": {
+   "popularity": 43,
+   "gameplay": 57,
+   "impact": 47,
+   "score": 49.5
+  },
+  "401876448": {
+   "popularity": 24,
+   "gameplay": 46,
+   "impact": 39,
+   "score": 37.7
+  },
+  "401876445": {
+   "popularity": 28,
+   "gameplay": 50,
+   "impact": 44,
+   "score": 42.1
+  },
+  "401841611": {
+   "popularity": 23,
+   "gameplay": 47,
+   "impact": 54,
+   "score": 43.8
+  },
+  "401882848": {
+   "popularity": 86,
+   "gameplay": 70,
+   "impact": 52,
+   "score": 66.8
+  },
+  "401905174": {
+   "popularity": 25,
+   "gameplay": 25,
+   "impact": 12,
+   "score": 19.8
+  },
+  "401875589": {
+   "popularity": 46,
+   "gameplay": 54,
+   "impact": 46,
+   "score": 48.8
+  },
+  "401921576": {
+   "popularity": 49,
+   "gameplay": 49,
+   "impact": 18,
+   "score": 36.6
+  },
+  "401885429": {
+   "popularity": 17,
+   "gameplay": 38,
+   "impact": 42,
+   "score": 34.4
+  },
+  "401885426": {
+   "popularity": 18,
+   "gameplay": 42,
+   "impact": 46,
+   "score": 37.6
+  },
+  "401841610": {
+   "popularity": 26,
+   "gameplay": 38,
+   "impact": 43,
+   "score": 37.0
+  },
+  "401917206": {
+   "popularity": 28,
+   "gameplay": 46,
+   "impact": 16,
+   "score": 29.5
+  },
+  "401914139": {
+   "popularity": 20,
+   "gameplay": 35,
+   "impact": 14,
+   "score": 22.9
+  },
+  "401841262": {
+   "popularity": 37,
+   "gameplay": 43,
+   "impact": 65,
+   "score": 50.3
+  },
+  "401842197": {
+   "popularity": 18,
+   "gameplay": 36,
+   "impact": 43,
+   "score": 34.3
+  },
+  "401842194": {
+   "popularity": 20,
+   "gameplay": 42,
+   "impact": 64,
+   "score": 45.3
+  },
+  "401842286": {
+   "popularity": 29,
+   "gameplay": 52,
+   "impact": 66,
+   "score": 51.9
+  },
+  "401841599": {
+   "popularity": 22,
+   "gameplay": 32,
+   "impact": 41,
+   "score": 33.1
+  },
+  "401876952": {
+   "popularity": 37,
+   "gameplay": 38,
+   "impact": 46,
+   "score": 41.0
+  },
+  "401876955": {
+   "popularity": 35,
+   "gameplay": 47,
+   "impact": 53,
+   "score": 46.4
+  },
+  "401842285": {
+   "popularity": 27,
+   "gameplay": 49,
+   "impact": 64,
+   "score": 49.5
+  },
+  "401842283": {
+   "popularity": 25,
+   "gameplay": 44,
+   "impact": 66,
+   "score": 48.0
+  },
+  "401842282": {
+   "popularity": 20,
+   "gameplay": 39,
+   "impact": 56,
+   "score": 41.0
+  },
+  "401842278": {
+   "popularity": 25,
+   "gameplay": 48,
+   "impact": 64,
+   "score": 48.6
+  },
+  "401842203": {
+   "popularity": 23,
+   "gameplay": 34,
+   "impact": 54,
+   "score": 39.2
+  },
+  "401842207": {
+   "popularity": 18,
+   "gameplay": 39,
+   "impact": 48,
+   "score": 37.4
+  },
+  "761847": {
+   "popularity": 81,
+   "gameplay": 62,
+   "impact": 57,
+   "score": 64.8
+  },
+  "761850": {
+   "popularity": 47,
+   "gameplay": 44,
+   "impact": 51,
+   "score": 47.5
+  },
+  "761852": {
+   "popularity": 45,
+   "gameplay": 63,
+   "impact": 64,
+   "score": 58.9
+  },
+  "761851": {
+   "popularity": 54,
+   "gameplay": 65,
+   "impact": 66,
+   "score": 62.7
+  },
+  "761848": {
+   "popularity": 49,
+   "gameplay": 53,
+   "impact": 62,
+   "score": 55.6
+  },
+  "761849": {
+   "popularity": 47,
+   "gameplay": 55,
+   "impact": 60,
+   "score": 55.0
+  },
+  "761853": {
+   "popularity": 48,
+   "gameplay": 48,
+   "impact": 62,
+   "score": 53.6
+  },
+  "401842196": {
+   "popularity": 15,
+   "gameplay": 31,
+   "impact": 33,
+   "score": 27.8
+  },
+  "401841259": {
+   "popularity": 40,
+   "gameplay": 48,
+   "impact": 50,
+   "score": 46.8
+  },
+  "761856": {
+   "popularity": 45,
+   "gameplay": 55,
+   "impact": 61,
+   "score": 54.9
+  },
+  "761854": {
+   "popularity": 42,
+   "gameplay": 44,
+   "impact": 53,
+   "score": 47.1
+  },
+  "761855": {
+   "popularity": 42,
+   "gameplay": 41,
+   "impact": 45,
+   "score": 42.9
+  },
+  "401841603": {
+   "popularity": 48,
+   "gameplay": 40,
+   "impact": 52,
+   "score": 46.8
+  },
+  "401842199": {
+   "popularity": 15,
+   "gameplay": 39,
+   "impact": 59,
+   "score": 41.0
+  },
+  "401876951": {
+   "popularity": 67,
+   "gameplay": 62,
+   "impact": 63,
+   "score": 63.7
+  },
+  "401842284": {
+   "popularity": 23,
+   "gameplay": 45,
+   "impact": 66,
+   "score": 47.9
+  },
+  "401842281": {
+   "popularity": 23,
+   "gameplay": 35,
+   "impact": 54,
+   "score": 39.6
+  },
+  "761857": {
+   "popularity": 42,
+   "gameplay": 56,
+   "impact": 65,
+   "score": 56.1
+  },
+  "401842280": {
+   "popularity": 23,
+   "gameplay": 40,
+   "impact": 66,
+   "score": 46.2
+  },
+  "401842279": {
+   "popularity": 22,
+   "gameplay": 39,
+   "impact": 64,
+   "score": 44.8
+  },
+  "401842277": {
+   "popularity": 28,
+   "gameplay": 49,
+   "impact": 65,
+   "score": 50.1
+  },
+  "761858": {
+   "popularity": 60,
+   "gameplay": 66,
+   "impact": 69,
+   "score": 65.7
+  },
+  "401842205": {
+   "popularity": 14,
+   "gameplay": 22,
+   "impact": 26,
+   "score": 21.6
+  },
+  "401876950": {
+   "popularity": 74,
+   "gameplay": 64,
+   "impact": 62,
+   "score": 65.7
+  },
+  "401875587": {
+   "popularity": 25,
+   "gameplay": 36,
+   "impact": 44,
+   "score": 36.5
+  },
+  "401874940": {
+   "popularity": 56,
+   "gameplay": 67,
+   "impact": 51,
+   "score": 57.9
+  },
+  "401878370": {
+   "popularity": 43,
+   "gameplay": 44,
+   "impact": 47,
+   "score": 45.0
+  },
+  "401880237": {
+   "popularity": 47,
+   "gameplay": 49,
+   "impact": 46,
+   "score": 47.3
+  },
+  "401882854": {
+   "popularity": 32,
+   "gameplay": 43,
+   "impact": 45,
+   "score": 41.0
+  },
+  "401875586": {
+   "popularity": 19,
+   "gameplay": 35,
+   "impact": 44,
+   "score": 34.6
+  },
+  "401875585": {
+   "popularity": 18,
+   "gameplay": 32,
+   "impact": 44,
+   "score": 33.3
+  },
+  "401925166": {
+   "popularity": 13,
+   "gameplay": 28,
+   "impact": 12,
+   "score": 17.9
+  },
+  "401879266": {
+   "popularity": 49,
+   "gameplay": 56,
+   "impact": 41,
+   "score": 48.2
+  },
+  "401878774": {
+   "popularity": 50,
+   "gameplay": 58,
+   "impact": 43,
+   "score": 50.0
+  },
+  "401874951": {
+   "popularity": 46,
+   "gameplay": 53,
+   "impact": 46,
+   "score": 48.5
+  },
+  "401874776": {
+   "popularity": 35,
+   "gameplay": 43,
+   "impact": 42,
+   "score": 40.6
+  },
+  "401876443": {
+   "popularity": 34,
+   "gameplay": 52,
+   "impact": 39,
+   "score": 42.3
+  },
+  "401878374": {
+   "popularity": 25,
+   "gameplay": 43,
+   "impact": 42,
+   "score": 38.1
+  },
+  "401884774": {
+   "popularity": 43,
+   "gameplay": 49,
+   "impact": 43,
+   "score": 45.1
+  },
+  "401900911": {
+   "popularity": 18,
+   "gameplay": 38,
+   "impact": 37,
+   "score": 32.6
+  },
+  "401882847": {
+   "popularity": 43,
+   "gameplay": 58,
+   "impact": 46,
+   "score": 49.5
+  },
+  "401885422": {
+   "popularity": 18,
+   "gameplay": 30,
+   "impact": 46,
+   "score": 33.4
+  },
+  "401875584": {
+   "popularity": 22,
+   "gameplay": 47,
+   "impact": 42,
+   "score": 38.8
+  },
+  "401876441": {
+   "popularity": 32,
+   "gameplay": 53,
+   "impact": 43,
+   "score": 43.8
+  },
+  "401900914": {
+   "popularity": 18,
+   "gameplay": 28,
+   "impact": 45,
+   "score": 32.3
+  },
+  "401879264": {
+   "popularity": 91,
+   "gameplay": 87,
+   "impact": 62,
+   "score": 78.0
+  },
+  "401884778": {
+   "popularity": 39,
+   "gameplay": 59,
+   "impact": 44,
+   "score": 48.0
+  },
+  "401874789": {
+   "popularity": 65,
+   "gameplay": 62,
+   "impact": 46,
+   "score": 56.4
+  },
+  "401882855": {
+   "popularity": 42,
+   "gameplay": 57,
+   "impact": 49,
+   "score": 50.0
+  },
+  "401885421": {
+   "popularity": 48,
+   "gameplay": 54,
+   "impact": 49,
+   "score": 50.5
+  },
+  "401841601": {
+   "popularity": 30,
+   "gameplay": 35,
+   "impact": 43,
+   "score": 37.0
+  },
+  "401900906": {
+   "popularity": 27,
+   "gameplay": 32,
+   "impact": 44,
+   "score": 35.5
+  },
+  "401874764": {
+   "popularity": 65,
+   "gameplay": 65,
+   "impact": 52,
+   "score": 59.8
+  },
+  "401876440": {
+   "popularity": 43,
+   "gameplay": 36,
+   "impact": 43,
+   "score": 40.5
+  },
+  "401882850": {
+   "popularity": 37,
+   "gameplay": 40,
+   "impact": 47,
+   "score": 42.0
+  },
+  "401841258": {
+   "popularity": 47,
+   "gameplay": 63,
+   "impact": 63,
+   "score": 59.0
+  },
+  "401842209": {
+   "popularity": 19,
+   "gameplay": 45,
+   "impact": 63,
+   "score": 45.7
+  },
+  "401885428": {
+   "popularity": 18,
+   "gameplay": 44,
+   "impact": 41,
+   "score": 36.3
+  },
+  "401841605": {
+   "popularity": 26,
+   "gameplay": 43,
+   "impact": 51,
+   "score": 42.0
+  },
+  "401841602": {
+   "popularity": 32,
+   "gameplay": 56,
+   "impact": 60,
+   "score": 51.6
+  },
+  "401841263": {
+   "popularity": 65,
+   "gameplay": 73,
+   "impact": 78,
+   "score": 73.0
+  },
+  "401841261": {
+   "popularity": 66,
+   "gameplay": 60,
+   "impact": 78,
+   "score": 68.7
+  },
+  "401841267": {
+   "popularity": 54,
+   "gameplay": 45,
+   "impact": 79,
+   "score": 60.9
+  },
+  "401928147": {
+   "popularity": 18,
+   "gameplay": 27,
+   "impact": 12,
+   "score": 18.8
+  },
+  "401841604": {
+   "popularity": 36,
+   "gameplay": 49,
+   "impact": 55,
+   "score": 48.1
+  },
+  "401841266": {
+   "popularity": 32,
+   "gameplay": 55,
+   "impact": 64,
+   "score": 52.9
+  },
+  "761859": {
+   "popularity": 55,
+   "gameplay": 63,
+   "impact": 67,
+   "score": 62.6
+  },
+  "401876948": {
+   "popularity": 34,
+   "gameplay": 46,
+   "impact": 48,
+   "score": 43.8
+  },
+  "401876949": {
+   "popularity": 41,
+   "gameplay": 47,
+   "impact": 49,
+   "score": 46.3
+  },
+  "401841600": {
+   "popularity": 33,
+   "gameplay": 43,
+   "impact": 53,
+   "score": 44.5
+  },
+  "401876947": {
+   "popularity": 64,
+   "gameplay": 57,
+   "impact": 59,
+   "score": 59.5
+  },
+  "401922348": {
+   "popularity": 8,
+   "gameplay": 21,
+   "impact": 10,
+   "score": 13.3
+  },
+  "401915883": {
+   "popularity": 7,
+   "gameplay": 19,
+   "impact": 10,
+   "score": 12.4
+  },
+  "401875005": {
+   "popularity": 44,
+   "gameplay": 44,
+   "impact": 42,
+   "score": 43.2
+  },
+  "401929556": {
+   "popularity": 17,
+   "gameplay": 35,
+   "impact": 13,
+   "score": 21.7
+  },
+  "401874763": {
+   "popularity": 34,
+   "gameplay": 46,
+   "impact": 40,
+   "score": 40.6
+  },
+  "401879267": {
+   "popularity": 54,
+   "gameplay": 53,
+   "impact": 43,
+   "score": 49.2
+  },
+  "401882852": {
+   "popularity": 40,
+   "gameplay": 51,
+   "impact": 46,
+   "score": 46.2
+  },
+  "401841264": {
+   "popularity": 34,
+   "gameplay": 47,
+   "impact": 54,
+   "score": 46.5
+  },
+  "401841606": {
+   "popularity": 33,
+   "gameplay": 58,
+   "impact": 61,
+   "score": 53.0
+  },
+  "401885425": {
+   "popularity": 18,
+   "gameplay": 41,
+   "impact": 38,
+   "score": 34.0
+  },
+  "401902579": {
+   "popularity": 41,
+   "gameplay": 63,
+   "impact": 18,
+   "score": 39.5
+  },
+  "401841608": {
+   "popularity": 27,
+   "gameplay": 46,
+   "impact": 59,
+   "score": 46.5
+  },
+  "401841265": {
+   "popularity": 28,
+   "gameplay": 41,
+   "impact": 61,
+   "score": 45.8
+  },
+  "401841260": {
+   "popularity": 35,
+   "gameplay": 49,
+   "impact": 61,
+   "score": 50.3
+  },
+  "401919989": {
+   "popularity": 16,
+   "gameplay": 30,
+   "impact": 12,
+   "score": 19.3
+  },
+  "401930047": {
+   "popularity": 5,
+   "gameplay": 15,
+   "impact": 10,
+   "score": 10.5
+  },
+  "401902580": {
+   "popularity": 53,
+   "gameplay": 77,
+   "impact": 20,
+   "score": 48.2
+  },
+  "401928751": {
+   "popularity": 7,
+   "gameplay": 20,
+   "impact": 10,
+   "score": 12.8
+  },
+  "401916263": {
+   "popularity": 16,
+   "gameplay": 29,
+   "impact": 12,
+   "score": 18.9
+  },
+  "401915418": {
+   "popularity": 46,
+   "gameplay": 63,
+   "impact": 59,
+   "score": 57.1
+  },
+  "401915436": {
+   "popularity": 25,
+   "gameplay": 39,
+   "impact": 55,
+   "score": 41.9
+  },
+  "401917871": {
+   "popularity": 7,
+   "gameplay": 20,
+   "impact": 10,
+   "score": 12.8
+  },
+  "401928122": {
+   "popularity": 9,
+   "gameplay": 23,
+   "impact": 10,
+   "score": 14.3
+  },
+  "401880231": {
+   "popularity": 27,
+   "gameplay": 45,
+   "impact": 43,
+   "score": 39.7
+  },
+  "401880230": {
+   "popularity": 29,
+   "gameplay": 38,
+   "impact": 44,
+   "score": 38.1
+  },
+  "401880229": {
+   "popularity": 28,
+   "gameplay": 37,
+   "impact": 46,
+   "score": 38.4
+  },
+  "401880228": {
+   "popularity": 30,
+   "gameplay": 51,
+   "impact": 49,
+   "score": 45.0
+  },
+  "401880226": {
+   "popularity": 35,
+   "gameplay": 51,
+   "impact": 47,
+   "score": 45.4
+  },
+  "401880225": {
+   "popularity": 58,
+   "gameplay": 52,
+   "impact": 46,
+   "score": 51.1
+  },
+  "401915412": {
+   "popularity": 85,
+   "gameplay": 71,
+   "impact": 63,
+   "score": 71.3
+  },
+  "401915417": {
+   "popularity": 75,
+   "gameplay": 70,
+   "impact": 59,
+   "score": 66.8
+  },
+  "401915435": {
+   "popularity": 82,
+   "gameplay": 73,
+   "impact": 60,
+   "score": 70.0
+  },
+  "401915413": {
+   "popularity": 62,
+   "gameplay": 62,
+   "impact": 60,
+   "score": 61.2
+  },
+  "401915434": {
+   "popularity": 50,
+   "gameplay": 66,
+   "impact": 60,
+   "score": 59.6
+  },
+  "401915411": {
+   "popularity": 67,
+   "gameplay": 52,
+   "impact": 56,
+   "score": 57.4
+  },
+  "401915410": {
+   "popularity": 57,
+   "gameplay": 60,
+   "impact": 62,
+   "score": 60.0
+  },
+  "401917869": {
+   "popularity": 32,
+   "gameplay": 47,
+   "impact": 16,
+   "score": 30.9
+  },
+  "401880232": {
+   "popularity": 30,
+   "gameplay": 42,
+   "impact": 45,
+   "score": 40.2
+  },
+  "401880227": {
+   "popularity": 32,
+   "gameplay": 59,
+   "impact": 52,
+   "score": 49.5
+  },
+  "401928126": {
+   "popularity": 18,
+   "gameplay": 27,
+   "impact": 12,
+   "score": 18.8
+  },
+  "401917264": {
+   "popularity": 28,
+   "gameplay": 46,
+   "impact": 16,
+   "score": 29.5
+  },
+  "401890784": {
+   "popularity": 78,
+   "gameplay": 83,
+   "impact": 24,
+   "score": 58.1
+  },
+  "401921413": {
+   "popularity": 49,
+   "gameplay": 49,
+   "impact": 18,
+   "score": 36.6
+  },
+  "401914138": {
+   "popularity": 20,
+   "gameplay": 35,
+   "impact": 14,
+   "score": 22.9
+  },
+  "401916245": {
+   "popularity": 42,
+   "gameplay": 53,
+   "impact": 17,
+   "score": 35.8
+  }
+ },
+ "ranking_coverage": {
+  "rated": 176,
+  "total": 176,
+  "carried": 0
+ },
+ "window_hours": 88.4,
+ "rating_window_until": "2026-10-14T04:00:00-04:00",
+ "version": 1,
+ "date": "2026-10-10",
+ "model": "gpt-6.1-sol",
+ "requested_model": "gpt-6.1-sol",
+ "effort": "low",
+ "kind": "ratings",
+ "services": [
+  "hbo",
+  "fox",
+  "para",
+  "espn",
+  "apple",
+  "usa",
+  "prime",
+  "netflix",
+  "disney"
+ ],
+ "focus_until": "2026-10-11T15:36:51.849766+00:00",
+ "generated_at": "2026-10-10T15:37:47Z"
+}
