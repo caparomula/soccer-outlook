@@ -1458,7 +1458,7 @@ def chip_html(m, destinations=None):
         if destinations is None:
             destinations = provider_links(m)
         link = destinations.get(m.service) if m.basis == "listed" else None
-        if link:
+        if link and (not link.get("live_only") or m.state == "in"):
             return (f'<a class="chip{rule} svc-{m.service} chip--link" href="{esc(link["url"])}" '
                     f'data-kind="{esc(link["kind"])}" target="_blank" rel="noopener noreferrer" '
                     f'title="{esc(link["title"])}">{content}</a>')
@@ -1655,9 +1655,8 @@ def provider_links(m):
     """Destinations for each eligible provider, shared by static and interactive chips."""
     links = watch_links.service_links(m)
     for link in links.values():
-        link["title"] = (f'Open YouTube TV and search for {m.home.name} or {m.away.name}. Opens in a new tab.'
-                         if link["kind"] == "service" else
-                         f'{link["label"]}. Opens the match page in a new tab; sign-in may be required.')
+        link["title"] = (f'{link["label"]}: {m.home.name} v {m.away.name}. '
+                         'Opens in a new tab; sign-in may be required.')
     return links
 
 

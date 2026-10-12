@@ -336,7 +336,7 @@
         details.map(function (label) { return '<span class="chip__via">' + escHtml(label) + '</span>'; }).join('');
       var cls = 'chip' + (r._basis === 'rule' ? ' chip--rule' : '') + ' svc-' + r._svc;
       var link = r._basis === 'listed' && r._watch[r._svc];
-      if (link) return '<a class="' + cls + ' chip--link" href="' + escHtml(link.url) + '" data-kind="' + escHtml(link.kind) +
+      if (link && (!link.live_only || r._state === 'in')) return '<a class="' + cls + ' chip--link" href="' + escHtml(link.url) + '" data-kind="' + escHtml(link.kind) +
         '" target="_blank" rel="noopener noreferrer" title="' + escHtml(link.title) + '">' + content + '</a>';
       return '<span class="' + cls + '">' + content + '</span>';
     }
@@ -750,6 +750,10 @@
     var key = { role: host && host.dataset.matchRole, id: host && (host.dataset.matchId || host.getAttribute('data-id')),
                 scope: !host && scope ? scope.id : '', tag: el.tagName, cls: el.className, href: el.getAttribute('href'), text: el.textContent };
     var result = update();
+    // Closed details can retain layout boxes for their children, but cannot focus them.
+    // A match that just finished may have moved into this collapsed results bucket.
+    var folded = host && host.isConnected && host.closest('details:not([open])');
+    if (folded) { folded.querySelector('summary').focus({ preventScroll: true }); return result; }
     if (el.isConnected && el.getClientRects().length) {
       if (document.activeElement !== el) el.focus({ preventScroll: true });
       return result;
@@ -761,7 +765,7 @@
       var twin = Array.from(places[i].querySelectorAll(key.tag)).find(function (c) {
         return c.className === key.cls && c.getAttribute('href') === key.href && c.textContent === key.text && c.getClientRects().length;
       });
-      if (twin) { twin.focus({ preventScroll: true }); break; }
+      if (twin) { twin.focus({ preventScroll: true }); return result; }
     }
     return result;
   }
@@ -1727,6 +1731,12 @@
     r._seen = Date.now();
     if (state !== r._state) {
       r._state = state; r.setAttribute('data-state', state); changed.state = true;
+      var link = r._watch[r._svc], watch = r.querySelector('.row__watch');
+      if (link && link.live_only && watch) {
+        var focused = watch.contains(document.activeElement);
+        watch.innerHTML = chipFor(r);
+        if (focused) r.querySelector('.more').focus({ preventScroll: true });
+      }
       if (off) { r._score = 0; r.setAttribute('data-score', '0'); }
     }
     var els = r.querySelectorAll('.team .score');

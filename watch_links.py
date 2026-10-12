@@ -6,7 +6,9 @@ supported viewing routes explicit. These links open an event page or player; the
 still handles sign-in and playback availability.
 """
 import re
-from urllib.parse import urlsplit
+from pathlib import Path
+import tomllib
+from urllib.parse import parse_qsl, urlsplit
 
 
 UUID = r"[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}"
@@ -31,6 +33,8 @@ DESTINATIONS = {
         "Open on beIN Sports", {"beIN Sports Connect"}, {"bein"}),
 }
 YOUTUBE_TV_SERVICES = {"yttv", "yttvsports", "yttvsportsplus", "yttvspanishplus", "yttvspanish"}
+with Path(__file__).with_name("watch-links.toml").open("rb") as _file:
+    YOUTUBE_TV_LINKS = tomllib.load(_file).get("youtube_tv", {})
 
 
 def match_links(match):
@@ -38,30 +42,49 @@ def match_links(match):
 
     ``via`` is deliberately independent of the visitor's selected filters; the browser
     intersects it with the current selection. Usual-coverage rules, source articles and
-    generic sports hubs never become match links. YouTube TV has no verified public match
-    route here, so its clearly labelled service link opens the app's home instead.
+    generic sports hubs never become match links. Supplied YouTube TV watch URLs are
+    bound to one fixture and channel; they are offered only while that fixture is live.
     """
     links = _verified_match_links(match)
-    youtube = sorted({sid for outlet in match.outlets if outlet.known
-                      for sid in outlet.via if sid in YOUTUBE_TV_SERVICES})
-    if youtube:
-        links.append(dict(url="https://tv.youtube.com/", label="Open YouTube TV", via=youtube, kind="service"))
-    return links
+    return links + _youtube_tv_links(match)
 
 
 def service_links(match):
     """Choose one destination for each eligible provider, independent of saved filters.
 
-    A YouTube TV chip opens YouTube TV, even when its channel also has a verified ESPN
-    player. Other providers use an eligible match destination when one is available.
+    A supplied YouTube TV watch URL takes precedence over a compatible broadcaster
+    player. Without one, an eligible exact match destination can still be used.
     """
     links = {}
     for link in match_links(match):
         for service in link["via"]:
-            preferred = "service" if service in YOUTUBE_TV_SERVICES else "match"
-            if service not in links or link["kind"] == preferred:
-                links[service] = {key: link[key] for key in ("url", "label", "kind")}
+            links[service] = {key: value for key, value in link.items() if key != "via"}
     return links
+
+
+def _youtube_tv_links(match):
+    """Use only a supplied fixture/channel association, never guess a watch ID.
+
+    A /watch/ URL can identify a linear stream rather than an archived event. Keep
+    the association in the page for live updates, but require live state at rendering.
+    """
+    entry = YOUTUBE_TV_LINKS.get(match.id, {})
+    url = entry.get("url", "")
+    if not isinstance(url, str) or len(url) > 1024 or any(c.isspace() or ord(c) < 32 for c in url):
+        return []
+    try:
+        parsed = urlsplit(url)
+        query = parse_qsl(parsed.query, keep_blank_values=True, strict_parsing=True)
+    except ValueError:
+        return []
+    if (parsed.scheme != "https" or parsed.netloc != "tv.youtube.com" or parsed.fragment or
+            not re.fullmatch(r"/watch/[A-Za-z0-9_-]{11}", parsed.path) or
+            (query and (len(query) != 1 or query[0][0] != "vp" or
+                        not re.fullmatch(r"[A-Za-z0-9_+/=-]{1,256}", query[0][1])))):
+        return []
+    via = sorted({sid for outlet in match.outlets if outlet.known and outlet.label == entry.get("channel")
+                  for sid in outlet.via if sid in YOUTUBE_TV_SERVICES})
+    return [dict(url=url, label="Open on YouTube TV", via=via, kind="match", live_only=True)] if via else []
 
 
 def _verified_match_links(match):

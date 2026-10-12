@@ -2,6 +2,7 @@
 import json
 from pathlib import Path
 import unittest
+from unittest.mock import patch
 
 import apple_listings
 import bein_listings
@@ -141,47 +142,80 @@ class MatchLinks(unittest.TestCase):
         self.assertNotIn("foxone", link["via"])
         self.assertEqual([(outlet.label, outlet.via) for outlet in match.outlets], original)
 
-    def test_youtube_tv_has_one_honestly_labelled_service_fallback_for_eligible_plans(self):
-        match = fixture(channel="TUDN")
-        match.outlets.extend([build.map_outlet(channel, match.league) for channel in
-                              ("beIN Sports", "ESPN Deportes", "TUDN")])
-        self.assertEqual(watch_links.match_links(match), [{
-            "url": "https://tv.youtube.com/", "label": "Open YouTube TV", "kind": "service",
-            "via": sorted(watch_links.YOUTUBE_TV_SERVICES),
-        }])
-        for service in watch_links.YOUTUBE_TV_SERVICES:
-            with self.subTest(service=service):
-                match.outlets[0].via = [service]
-                match.outlets = match.outlets[:1]
-                self.assertEqual(watch_links.match_links(match)[0]["via"], [service])
+    def test_youtube_watch_url_keeps_query_and_requires_exact_fixture_channel_and_plan(self):
+        match = fixture("401879267", channel="USA Network")
+        link = watch_links.match_links(match)[0]
+        self.assertEqual(link["url"], "https://tv.youtube.com/watch/Qi_C4zyXBIg?vp=0gEEEgIwAQ%3D%3D")
+        self.assertEqual(link["via"], ["yttv", "yttvsports"])
+        self.assertTrue(link["live_only"])
+        self.assertEqual(link["kind"], "match")
+        # The same teams/channel in another fixture must not inherit this watch ID.
+        self.assertEqual(watch_links.match_links(fixture("another", channel="USA Network")), [])
+        for channel in ("TUDN", "Universo", "Peacock", "Paramount+"):
+            with self.subTest(channel=channel):
+                self.assertEqual(watch_links.match_links(fixture("401879267", channel=channel)), [])
+        match.outlets[0].via = ["yttvspanishplus", "cable"]
+        self.assertEqual(watch_links.match_links(match)[0]["via"], ["yttvspanishplus"])
+        match.outlets[0].via = ["cable"]
+        self.assertEqual(watch_links.match_links(match), [])
 
-    def test_youtube_fallback_requires_confirmed_channel_access(self):
-        match = fixture(channel="TUDN")
+    def test_youtube_url_requires_confirmed_channel_access(self):
+        match = fixture("401879267", channel="USA Network")
         match.outlets[0].known = False
         self.assertEqual(watch_links.match_links(match), [])
         match.outlets[0].known = True
         match.rule, match.outlets = match.outlets[0], []
         self.assertEqual(watch_links.match_links(match), [])
-        self.assertEqual(watch_links.match_links(fixture(channel="Peacock")), [])
 
-    def test_espn_event_and_youtube_service_fallback_remain_distinct_choices(self):
-        links = watch_links.match_links(game("Watch ESPN", "ESPN+", EXAMPLES[1][3]))
-        self.assertEqual([link["kind"] for link in links], ["match", "service"])
-        self.assertEqual(links[0]["url"], EXAMPLES[1][3])
-        self.assertEqual(links[1]["url"], "https://tv.youtube.com/")
-        self.assertEqual(links[1]["via"], ["yttv", "yttvsports"])
+    def test_youtube_url_is_only_clickable_while_live_in_static_markup(self):
+        match = fixture("401879267", channel="USA Network", service="yttv", basis="listed")
+        for state in ("pre", "in", "post"):
+            with self.subTest(state=state):
+                match.state = state
+                # Retain the map so a browser score update can activate/deactivate the link.
+                self.assertTrue(build.provider_links(match)["yttv"]["live_only"])
+                markup = build.chip_html(match)
+                self.assertEqual('<a class="chip' in markup, state == "in")
+                self.assertIn("YouTube TV (main plan)", markup)
 
-    def test_provider_destinations_keep_youtube_tv_in_youtube_and_espn_in_espn(self):
+    def test_youtube_rejects_non_watch_urls_and_unexpected_query_parameters(self):
+        good = "https://tv.youtube.com/watch/Qi_C4zyXBIg?vp=0gEEEgIwAQ%3D%3D"
+        bad = ("https://tv.youtube.com/", good.replace("https:", "http:"),
+               good.replace("tv.youtube.com", "tv.youtube.com.evil.example"),
+               good.replace("tv.youtube.com", "attacker@tv.youtube.com"),
+               good.replace("Qi_C4zyXBIg", "bad"), good + "&redirect=https://evil.example",
+               good + "&vp=abc", good + "#extra", "\n" + good, None)
+        for url in bad:
+            with self.subTest(url=url), patch.dict(watch_links.YOUTUBE_TV_LINKS,
+                    {"fixture": {"url": url, "channel": "USA Network"}}, clear=True):
+                self.assertEqual(watch_links.match_links(fixture("fixture")), [])
+        with patch.dict(watch_links.YOUTUBE_TV_LINKS,
+                {"fixture": {"url": good.split("?")[0], "channel": "USA Network"}}, clear=True):
+            self.assertEqual(watch_links.match_links(fixture("fixture"))[0]["url"], good.split("?")[0])
+
+    def test_no_generic_youtube_homepage_fallback(self):
+        match = fixture(channel="TUDN")
+        match.outlets.extend([build.map_outlet(channel, match.league) for channel in
+                              ("beIN Sports", "ESPN Deportes", "TUDN")])
+        self.assertEqual(watch_links.match_links(match), [])
+        self.assertEqual(watch_links.service_links(match), {})
+
+    def test_eligible_youtube_plans_can_use_an_exact_espn_player(self):
         links = watch_links.service_links(game("Watch ESPN", "ESPN+", EXAMPLES[1][3]))
-        for service in ("yttv", "yttvsports"):
-            self.assertEqual(links[service], {
-                "url": "https://tv.youtube.com/", "label": "Open YouTube TV", "kind": "service"})
-        for service in ("espn", "espnplus"):
+        for service in ("yttv", "yttvsports", "espn", "espnplus"):
             self.assertEqual(links[service], {
                 "url": EXAMPLES[1][3], "label": "Open on ESPN", "kind": "match"})
         self.assertNotIn("para", links)
         self.assertNotIn("cable", links)
         self.assertNotIn("yttvspanishplus", links)
+
+    def test_supplied_youtube_player_takes_precedence_over_espn_player(self):
+        match = fixture("401879267", channel="USA Network", broadcast_source="Watch ESPN",
+                        broadcast_url=EXAMPLES[1][3])
+        match.outlets.append(build.map_outlet("ESPN+", match.league))
+        links = watch_links.service_links(match)
+        self.assertEqual(links["yttv"]["url"], watch_links.YOUTUBE_TV_LINKS["401879267"]["url"])
+        self.assertEqual(links["espn"]["url"], EXAMPLES[1][3])
 
     def test_provider_destinations_use_only_supported_match_routes(self):
         for source, channel, service, url in EXAMPLES:

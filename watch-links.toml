@@ -1,0 +1,9 @@
+# Manually supplied viewing URLs, keyed by ESPN fixture ID. See docs/development.md.
+# Keep the full URL, including vp. Do not reuse a watch ID for another match: YouTube TV
+# can use these URLs for linear streams. These links appear only while the fixture is live.
+
+# Coventry City v Newcastle United, October 12, 2026. Supplied by the site owner
+# for this fixture; USA Network is its listed channel.
+[youtube_tv."401879267"]
+channel = "USA Network"
+url = "https://tv.youtube.com/watch/Qi_C4zyXBIg?vp=0gEEEgIwAQ%3D%3D"

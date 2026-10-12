@@ -2,10 +2,10 @@ name: Browser checks
 
 on:
   pull_request:
-    paths: ["**/*.py", "settings.toml", "rights.toml", "web/**", "tests/**", ".github/workflows/**", ".github/scripts/**"]
+    paths: ["**/*.py", "settings.toml", "rights.toml", "watch-links.toml", "web/**", "tests/**", ".github/workflows/**", ".github/scripts/**"]
   push:
     branches: [main]
-    paths: ["**/*.py", "settings.toml", "rights.toml", "web/**", "tests/**", ".github/workflows/**", ".github/scripts/**"]
+    paths: ["**/*.py", "settings.toml", "rights.toml", "watch-links.toml", "web/**", "tests/**", ".github/workflows/**", ".github/scripts/**"]
 
 permissions:
   contents: read
