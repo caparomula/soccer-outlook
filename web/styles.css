@@ -10,6 +10,7 @@
   --svc-foxlocal: var(--svc-foxone); --svc-fs1: var(--svc-foxone); --svc-fs2: var(--svc-foxone); --svc-foxdeportes: var(--svc-foxone); --svc-btn: var(--svc-foxone);
   --svc-usa: #0e7c86; --svc-prime: #0f7ba8; --svc-netflix: #b3141c; --svc-disney: #1b3f8f; --svc-off: #8a948c;
   --svc-espnplus: #d8573a; --svc-peacock: #a0731a; --svc-vix: #b5367a; --svc-fubo: #d9731c; --svc-fsp: #4a7fd1;
+  --svc-yttv: #bd2634; --svc-yttvsports: var(--svc-yttv); --svc-yttvsportsplus: var(--svc-yttv); --svc-yttvspanishplus: var(--svc-yttv); --svc-yttvspanish: var(--svc-yttv);
   --svc-bein: #8e5aa8; --svc-fanatiz: #0e8a6a; --svc-dazn: #7a7a1a; --svc-cable: #7a6a4f; --svc-ota: #5f7f3f; --svc-free: #4f8a5f;
   --display: "Barlow Condensed", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
   --body: "Source Sans 3", "Segoe UI", Helvetica, Arial, sans-serif;
@@ -25,6 +26,7 @@
   --svc-foxlocal: var(--svc-foxone); --svc-fs1: var(--svc-foxone); --svc-fs2: var(--svc-foxone); --svc-foxdeportes: var(--svc-foxone); --svc-btn: var(--svc-foxone);
   --svc-usa: #4cc3cd; --svc-prime: #5cb8e6; --svc-netflix: #ff6b72; --svc-disney: #7da2ff; --svc-off: #7f8b82;
   --svc-espnplus: #ff9a80; --svc-peacock: #e0b35a; --svc-vix: #e986bd; --svc-fubo: #f0a060; --svc-fsp: #8fb4ff;
+  --svc-yttv: #ff8892; --svc-yttvsports: var(--svc-yttv); --svc-yttvsportsplus: var(--svc-yttv); --svc-yttvspanishplus: var(--svc-yttv); --svc-yttvspanish: var(--svc-yttv);
   --svc-bein: #c39de0; --svc-fanatiz: #5cc9a8; --svc-dazn: #c9c96a; --svc-cable: #c2ad88; --svc-ota: #9fc37a; --svc-free: #8ccf9a;
   color-scheme: dark;
 } }
@@ -37,6 +39,7 @@
   --svc-foxlocal: var(--svc-foxone); --svc-fs1: var(--svc-foxone); --svc-fs2: var(--svc-foxone); --svc-foxdeportes: var(--svc-foxone); --svc-btn: var(--svc-foxone);
   --svc-usa: #4cc3cd; --svc-prime: #5cb8e6; --svc-netflix: #ff6b72; --svc-disney: #7da2ff; --svc-off: #7f8b82;
   --svc-espnplus: #ff9a80; --svc-peacock: #e0b35a; --svc-vix: #e986bd; --svc-fubo: #f0a060; --svc-fsp: #8fb4ff;
+  --svc-yttv: #ff8892; --svc-yttvsports: var(--svc-yttv); --svc-yttvsportsplus: var(--svc-yttv); --svc-yttvspanishplus: var(--svc-yttv); --svc-yttvspanish: var(--svc-yttv);
   --svc-bein: #c39de0; --svc-fanatiz: #5cc9a8; --svc-dazn: #c9c96a; --svc-cable: #c2ad88; --svc-ota: #9fc37a; --svc-free: #8ccf9a;
   color-scheme: dark;
 }
@@ -54,6 +57,8 @@ a { color: inherit; }
 .svc-prime { --svc: var(--svc-prime); } .svc-netflix { --svc: var(--svc-netflix); } .svc-disney { --svc: var(--svc-disney); }
 .svc-espnplus { --svc: var(--svc-espnplus); } .svc-peacock { --svc: var(--svc-peacock); } .svc-vix { --svc: var(--svc-vix); }
 .svc-fubo { --svc: var(--svc-fubo); } .svc-fsp { --svc: var(--svc-fsp); } .svc-bein { --svc: var(--svc-bein); }
+.svc-yttv { --svc: var(--svc-yttv); } .svc-yttvsports { --svc: var(--svc-yttvsports); } .svc-yttvsportsplus { --svc: var(--svc-yttvsportsplus); }
+.svc-yttvspanishplus { --svc: var(--svc-yttvspanishplus); } .svc-yttvspanish { --svc: var(--svc-yttvspanish); }
 .svc-fanatiz { --svc: var(--svc-fanatiz); } .svc-dazn { --svc: var(--svc-dazn); } .svc-cable { --svc: var(--svc-cable); }
 .svc-ota { --svc: var(--svc-ota); } .svc-free { --svc: var(--svc-free); }
 .svc-off, .fpill--none { --svc: var(--svc-off); }

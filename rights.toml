@@ -73,10 +73,13 @@
 "TUDN"                      = { es = true }
 "Univision"                 = { free = true, es = true }
 "UniMás"                    = { espn = ["UniMas"], free = true, es = true }
+"Galavisión"                = { espn = ["Galavision"], es = true }
+"TyC Sports"                = { es = true }
 "ViX"                       = { es = true }
 "Fubo"                      = {}
 "Fubo Sports Network"       = { free = true }
 "beIN Sports"               = {}
+"beIN Sports XTRA"          = {}
 "beIN Sports en Español"    = { es = true }
 "beIN Sports Connect"       = {}
 "FOX Sports networks"       = {}
@@ -214,6 +217,48 @@ returned in June 2026 after a six-month blackout."""
 source = "https://www.cabletv.com/fubotv/channel-lineup (August 2026) and https://www.sportsmediawatch.com/2026/06/nbcuniversal-fubo-reach-distribution-deal/"
 checked = 2026-10-06
 
+# YouTube TV plans and add-ons are separate entitlements. Add-ons list only their extra channels;
+# choosing one never silently enables a main plan. ESPN Unlimited launched on September 1, 2026,
+# including ESPN+ events directly in YouTube TV (older help pages still say "later this fall").
+[services.yttv]
+name = "YouTube TV (main plan)"
+channels = ["FOX", "FS1", "FS2", "Big Ten Network", "ABC", "CBS", "CBS Sports Network", "NBC", "NBCSN", "The CW",
+            "USA Network", "TNT", "TBS", "truTV", "Telemundo", "Univision", "UniMás", "TUDN", "CNBC", "Universo", "Galavisión", "ION",
+            "ESPN+", "ESPN Unlimited", "ESPN", "ESPN2", "ESPNU", "ESPNEWS", "ESPN Deportes", "ACC Network", "SEC Network"]
+note = "The main plan, formerly Base Plan. Includes ESPN Unlimited and ESPN+ events in YouTube TV; using the ESPN app requires account linking. Local affiliates vary by ZIP code. Sports Plus and Spanish Plus are separate add-ons. Channel carriage does not grant subscriptions to FOX One, Peacock, Paramount+ or HBO Max."
+source = "https://support.google.com/youtubetv/answer/16865391?hl=en ; https://www.cabletv.com/youtube-tv/channels ; https://blog.youtube/news-and-events/espn-unlimited-youtube-tv-live-sports/ ; https://support.google.com/youtubetv/answer/18116615?hl=en"
+checked = 2026-10-12
+
+[services.yttvsports]
+name = "YouTube TV Sports Plan"
+channels = ["FOX", "FS1", "FS2", "Big Ten Network", "ABC", "CBS", "CBS Sports Network", "NBC", "NBCSN", "The CW",
+            "USA Network", "TNT", "TBS", "truTV", "Telemundo", "Univision", "UniMás", "TUDN",
+            "ESPN+", "ESPN Unlimited", "ESPN", "ESPN2", "ESPNU", "ESPNEWS", "ESPN Deportes", "ACC Network", "SEC Network"]
+note = "The Sports Plan, not the Sports Plus add-on. Includes ESPN Unlimited and ESPN+ events. Does not include CNBC, Universo, Galavisión or ION from the main plan. Local affiliates vary by ZIP code. Premium sports channels still need their own add-on."
+source = "https://blog.youtube/news-and-events/youtube-tv-plans-launch-pricing/ ; https://www.cabletv.com/youtube-tv/channels ; https://blog.youtube/news-and-events/espn-unlimited-youtube-tv-live-sports/ ; https://support.google.com/youtubetv/answer/18116615?hl=en"
+checked = 2026-10-12
+
+[services.yttvsportsplus]
+name = "YouTube TV Sports Plus"
+channels = ["Fox Soccer Plus", "beIN Sports", "beIN Sports XTRA"]
+note = "A paid add-on to an eligible YouTube TV plan. Select the underlying plan separately. This adds the listed channels, not beIN Sports Connect overflow or beIN Sports en Español."
+source = "https://support.google.com/youtubetv/answer/10057534?hl=en ; https://support.google.com/youtubetv/answer/11489195?hl=en"
+checked = 2026-10-12
+
+[services.yttvspanishplus]
+name = "YouTube TV Spanish Plus"
+channels = ["ESPN Deportes", "Fox Deportes", "beIN Sports en Español", "TyC Sports", "Universo"]
+note = "A paid add-on to an eligible YouTube TV plan. Select the underlying plan separately. The add-on itself does not grant TUDN, Univision, UniMás or Galavisión; the main plan includes those."
+source = "https://support.google.com/youtubetv/answer/12083189?hl=en ; https://www.cabletv.com/youtube-tv/channels/spanish-plus-add-on ; https://support.google.com/youtubetv/answer/11489195?hl=en"
+checked = 2026-10-12
+
+[services.yttvspanish]
+name = "YouTube TV Spanish Plan"
+channels = ["ESPN Deportes", "Fox Deportes", "beIN Sports en Español", "TyC Sports", "Universo", "TUDN", "Univision", "UniMás", "Galavisión"]
+note = "The standalone Spanish Plan, not the Spanish Plus add-on. Does not include Telemundo, the English sports channels or ESPN+ events."
+source = "https://support.google.com/youtubetv/answer/12083189?hl=en ; https://www.cabletv.com/youtube-tv/channels/spanish-plan"
+checked = 2026-10-12
+
 [services.fsp]
 name = "Fox Soccer Plus"
 channels = ["Fox Soccer Plus"]
@@ -244,7 +289,7 @@ name = "Cable or live-TV bundle"
 channels = ["ESPN", "ESPN2", "ESPNU", "ESPNEWS", "ESPN Deportes", "ACC Network", "SEC Network", "ABC",
             "CBS", "CBS Sports Network", "USA Network", "NBC", "NBCSN", "CNBC", "Telemundo",
             "Universo", "TNT", "TBS", "truTV", "ION", "The CW", "TUDN", "Univision", "UniMás"]
-note = "A cable package, YouTube TV or Hulu + Live TV. FOX, FS1, FS2, FOX Deportes and Big Ten Network must be selected separately to match the viewer's package. Premium sports channels (beIN Sports, Fox Soccer Plus) are not assumed."
+note = "A typical cable or live-TV package. Use the dedicated YouTube TV choices for its plans and add-ons. FOX, FS1, FS2, FOX Deportes and Big Ten Network must be selected separately to match a generic bundle's package. Premium sports channels (beIN Sports, Fox Soccer Plus) are not assumed."
 source = "Typical cable and live-TV bundles (research for the first build of the page); FOX provider access varies by package: https://www.fox.com/foxone/"
 checked = 2026-10-10
 

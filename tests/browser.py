@@ -441,6 +441,78 @@ class BrowserChecks(unittest.TestCase):
             expect(service("foxone")).to_have_attribute("aria-pressed", "false")
             expect(service("fs2")).to_have_attribute("aria-pressed", "false")
 
+    def test_youtube_tv_plans_and_addons_only_show_their_included_matches(self):
+        fixtures = [
+            ("yt-fs2", "2026-10-07T18:00:00+00:00", "pre", "FS2", "mex.1"),
+            ("yt-espnplus", "2026-10-07T19:00:00+00:00", "pre", "ESPN+", "esp.1"),
+            ("yt-fsp", "2026-10-07T20:00:00+00:00", "pre", "FSP", "eng.1"),
+            ("yt-bein", "2026-10-07T21:00:00+00:00", "pre", "beIN Sports", "eng.1"),
+            ("yt-foxdeportes", "2026-10-07T22:00:00+00:00", "pre", "Fox Deportes", "mex.1"),
+        ]
+        html = render_page(build, fixtures=fixtures)
+        options = ("yttv", "yttvsports", "yttvsportsplus", "yttvspanishplus", "yttvspanish")
+        base_matches = {"yt-fs2", "yt-espnplus"}
+
+        def check_matches(page, expected):
+            self.assertEqual(set(page.locator("li.row:visible").evaluate_all(
+                "rows => rows.map(row => row.dataset.id)")), expected)
+            expect(page.locator("#tally-n")).to_have_text(str(len(expected)))
+            featured = page.locator("#nextup:visible, #picks .pick").evaluate_all(
+                "cards => cards.map(card => card.dataset.matchId)")
+            self.assertTrue(set(featured).issubset(expected), featured)
+
+        for width in (1280, 390):
+            with self.subTest(width=width), self.page("after", width=width, html=html) as (page, _):
+                service = lambda key: page.locator(f'[data-kind="have"][data-key="{key}"]')
+                # Adding providers must not assume a new subscription for existing visitors.
+                expect(page.locator('[data-kind="have"][aria-pressed="true"]')).to_have_count(8)
+                check_matches(page, {"yt-espnplus"})
+                page.locator("#btn-menu").click()
+                for key in options:
+                    expect(service(key)).to_have_attribute("aria-pressed", "false")
+                self.assertLessEqual(page.evaluate("document.documentElement.scrollWidth"), width)
+                self.assertLessEqual(page.locator("#drawer").evaluate("el => el.scrollWidth - el.clientWidth"), 1)
+                page.locator("#btn-clear").click()
+                service("yttv").click()
+                page.locator("#btn-filters-close").click()
+                check_matches(page, base_matches)
+
+                # Sports Plus is a separate choice: the main plan alone must not grant these games.
+                page.locator("#btn-menu").click()
+                service("yttvsportsplus").click()
+                page.locator("#btn-filters-close").click()
+                check_matches(page, base_matches | {"yt-fsp", "yt-bein"})
+                page.locator("#btn-menu").click()
+                service("yttvspanishplus").click()
+                page.locator("#drawer").evaluate("el => el.scrollTop = 0")
+                page.locator("#drawer").screenshot(path=str(self.artifacts / f"youtube-tv-{width}.png"))
+                page.locator("#btn-filters-close").click()
+                check_matches(page, {fixture[0] for fixture in fixtures})
+                page.reload()
+                check_matches(page, {fixture[0] for fixture in fixtures})
+                self.assertEqual(set(page.evaluate("JSON.parse(localStorage.getItem('ssg3-have'))")),
+                                 {"yttv", "yttvsportsplus", "yttvspanishplus"})
+
+                # A standalone Spanish plan does not silently include the English sports plan.
+                page.locator("#btn-menu").click()
+                page.locator("#btn-clear").click()
+                service("yttvspanish").click()
+                page.locator("#btn-filters-close").click()
+                check_matches(page, {"yt-foxdeportes"})
+
+                page.locator("#btn-menu").click()
+                page.locator("#btn-clear").click()
+                service("yttvsports").click()
+                page.locator("#btn-filters-close").click()
+                check_matches(page, base_matches)
+                page.locator("#btn-menu").click()
+                page.locator("#btn-reset").click()
+                for key in options:
+                    expect(service(key)).to_have_attribute("aria-pressed", "false")
+                expect(page.locator('[data-kind="have"][aria-pressed="true"]')).to_have_count(8)
+                page.locator("#btn-filters-close").click()
+                check_matches(page, {"yt-espnplus"})
+
     def test_retired_fox_access_migrates_without_changing_other_preferences(self):
         fixtures = [("english", "2026-10-07T18:00:00+00:00", "pre", "ESPN+", "eng.1"),
                     ("spanish", "2026-10-07T19:00:00+00:00", "pre", "ESPN+", "esp.1"),

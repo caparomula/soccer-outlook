@@ -23,11 +23,27 @@ Choose **FOX One (paid subscription)** for a separate FOX One subscription. Havi
 
 For TV-provider access, select the channels you can actually watch through the TV service or app you use: **FOX**, **FS1**, **FS2**, **FOX Deportes** and **Big Ten Network**. They are independent choices: FS1 does not unlock a match listed on FS2. A listing that only says “FOX Sports networks” cannot establish access through an individual channel until the broadcaster confirms which channel carries it.
 
-The generic **Cable or live-TV bundle** option leaves FOX channels to these separate choices. **Fubo** still includes its documented Pro-plan channels, and **Local channels (antenna)** includes broadcast FOX. See [FOX One's subscription information](https://www.fox.com/foxone/) and [Verizon's package-specific Fios lineups](https://www.verizon.com/home/fios-tv/channel-lineup/). A provider name alone is not enough to identify your package or diagnose a playback error.
+The generic **Cable or live-TV bundle** option leaves FOX channels to these separate choices. **Fubo** includes its documented Pro-plan channels, the **YouTube TV main and Sports plans** include FOX, FS1, FS2 and Big Ten Network, and **Local channels (antenna)** includes broadcast FOX. These TV packages do not imply a paid FOX One subscription. See [FOX One's subscription information](https://www.fox.com/foxone/) and [Verizon's package-specific Fios lineups](https://www.verizon.com/home/fios-tv/channel-lineup/). A provider name alone is not enough to identify your package or diagnose a playback error.
 
 Channel access describes the broadcast, not a guarantee that every device or app can play it. [FOX notes that some TV programming is unavailable in its apps because of licensing restrictions](https://help.fox.com/s/article/Why-don-t-I-see-a-program-in-the-FOX-Sports-App-that-s-airing-on-one-of-the-FOX-Sports-or-FOX-Entertainment-channels-I-receive-on-my-TV). A Fios lineup can include FS2 without establishing that a particular FS2 match will play in FOX One. If the app is your only way to watch and it denies that match, leave FS2 off until you confirm a usable route; the page cannot check your account's playback authorization.
 
 The older, ambiguous **Fox One** selection is cleared when you first load the updated page. All other saved choices stay intact. Select the paid subscription or your available channels once; the page then remembers those choices normally.
+
+### YouTube TV plans and add-ons
+
+Choose your plan and any add-ons you pay for in **Lineup**, instead of **Cable or live-TV bundle**. Each choice adds only its included channels. For example, select **YouTube TV (main plan)** and **YouTube TV Sports Plus** if you have both. These options start disabled and are saved like your other preferences.
+
+| Choice | Soccer coverage included |
+| --- | --- |
+| **YouTube TV (main plan)** | The former Base Plan: FOX, FS1, FS2, Big Ten Network, ESPN networks and ESPN+, USA Network, NBC/NBCSN, CBS/CBS Sports Network, TNT/TBS/truTV, CNBC, ION, and Spanish channels including TUDN, Univision, UniMás, Telemundo, Universo and Galavisión. |
+| **YouTube TV Sports Plan** | The core sports channels above, including ESPN+, but without the main plan's CNBC, Universo, Galavisión or ION. Sports Plus is a separate purchase. |
+| **YouTube TV Sports Plus** | An add-on with FOX Soccer Plus, beIN Sports and beIN Sports XTRA. Select your underlying plan too. |
+| **YouTube TV Spanish Plus** | An add-on with ESPN Deportes, FOX Deportes, beIN Sports en Español, TyC Sports and Universo. Select your underlying plan too. |
+| **YouTube TV Spanish Plan** | A standalone Spanish subscription: the Spanish Plus channels above, plus TUDN, Univision, UniMás and Galavisión. It does not include Telemundo, English sports channels or ESPN+. |
+
+[ESPN Unlimited is included with the main and Sports plans](https://blog.youtube/news-and-events/espn-unlimited-youtube-tv-live-sports/), so ESPN+ matches are available directly in YouTube TV. To watch through the ESPN app instead, the family manager must [link the accounts](https://support.google.com/youtubetv/answer/18116615?hl=en). Carrying a TV channel does not grant a separate Peacock, Paramount+, HBO Max or FOX One subscription. The beIN add-on choices cover their named channels; they do not assume access to beIN Sports Connect overflow streams.
+
+Local affiliates vary by ZIP code. Check [YouTube TV's current plans and local lineup](https://support.google.com/youtubetv/answer/16865391?hl=en), [Sports Plus channels](https://support.google.com/youtubetv/answer/10057534?hl=en), and [Spanish plan options](https://support.google.com/youtubetv/answer/12083189?hl=en) against your subscription. Free broadcasts listed on **YouTube** belong to **Free apps**, separate from paid YouTube TV.
 
 ### Quickly hide a league
 
