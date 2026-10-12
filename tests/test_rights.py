@@ -109,13 +109,14 @@ class Regressions(unittest.TestCase):
         self.assertIn("ota", via("FOX"))
         self.assertNotIn("ota", via("FS2"))
 
-    def test_ambiguous_fox_choice_is_retired_and_no_fox_access_is_assumed_by_default(self):
+    def test_ambiguous_fox_choice_is_retired_and_default_access_uses_youtube_channels(self):
         self.assertNotIn("fox", build.SERVICES)
         for channel in ("FOX One", "FOX", "FS1", "FS2", "Fox Deportes", "Big Ten Network"):
             with self.subTest(channel=channel):
                 outlet = build.map_outlet(channel, "mex.1")
                 self.assertEqual(build.evaluate([outlet], None, {"fox"}), ("", "none", ""))
-                self.assertEqual(build.evaluate([outlet], None, set(build.OWNER)), ("", "none", ""))
+                expected = ("yttv", "listed", channel) if channel in {"FOX", "FS1", "FS2", "Big Ten Network"} else ("", "none", "")
+                self.assertEqual(build.evaluate([outlet], None, set(build.OWNER)), expected)
 
     def test_fandango_and_nwsl_plus_are_free(self):
         for name in ("Fandango", "NWSL+"):

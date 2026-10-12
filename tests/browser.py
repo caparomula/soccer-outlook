@@ -361,7 +361,7 @@ class BrowserChecks(unittest.TestCase):
         for target in self.targets:
             with self.subTest(target=target), self.page(target) as (page, _):
                 row = page.locator('li.row[data-id="upcoming"]')
-                expect(row).to_have_attribute("data-svc", "espn")
+                expect(row).to_have_attribute("data-svc", "yttv")
                 page.locator("#btn-menu").click()
                 page.locator("#btn-clear").click()
                 expect(row).to_be_hidden()
@@ -387,11 +387,11 @@ class BrowserChecks(unittest.TestCase):
             service = lambda key: page.locator(f'[data-kind="have"][data-key="{key}"]')
             tally, nextup = page.locator("#tally-n"), page.locator("#nextup")
 
-            # No FOX channel or paid subscription is assumed in the site's defaults.
-            expect(page.locator('li.row:visible')).to_have_count(0)
-            expect(nextup).to_be_hidden()
-            expect(page.locator("#picks-section")).to_be_hidden()
-            expect(tally).to_have_text("0")
+            # The default YouTube TV main plan includes both listed FOX channels.
+            expect(page.locator('li.row:visible')).to_have_count(3)
+            expect(nextup).to_have_attribute("data-match-id", "fs1-first")
+            expect(tally).to_have_text("3")
+            expect(row("fs2-match")).to_have_attribute("data-svc", "yttv")
             page.locator("#btn-menu").click()
             for key in ("foxone", "foxlocal", "fs1", "fs2", "foxdeportes", "btn"):
                 expect(service(key)).to_have_attribute("aria-pressed", "false")
@@ -436,8 +436,9 @@ class BrowserChecks(unittest.TestCase):
             page.locator("#btn-menu").click()
             expect(service("foxone")).to_have_attribute("aria-pressed", "true")
             page.locator("#btn-reset").click()
-            expect(page.locator('li.row:visible')).to_have_count(0)
-            expect(tally).to_have_text("0")
+            expect(page.locator('li.row:visible')).to_have_count(3)
+            expect(tally).to_have_text("3")
+            expect(row("fs2-match")).to_have_attribute("data-svc", "yttv")
             expect(service("foxone")).to_have_attribute("aria-pressed", "false")
             expect(service("fs2")).to_have_attribute("aria-pressed", "false")
 
@@ -464,12 +465,12 @@ class BrowserChecks(unittest.TestCase):
         for width in (1280, 390):
             with self.subTest(width=width), self.page("after", width=width, html=html) as (page, _):
                 service = lambda key: page.locator(f'[data-kind="have"][data-key="{key}"]')
-                # Adding providers must not assume a new subscription for existing visitors.
-                expect(page.locator('[data-kind="have"][aria-pressed="true"]')).to_have_count(8)
-                check_matches(page, {"yt-espnplus"})
+                # Defaults include the main plan, without its separately purchased add-ons.
+                expect(page.locator('[data-kind="have"][aria-pressed="true"]')).to_have_count(7)
+                check_matches(page, base_matches)
                 page.locator("#btn-menu").click()
                 for key in options:
-                    expect(service(key)).to_have_attribute("aria-pressed", "false")
+                    expect(service(key)).to_have_attribute("aria-pressed", "true" if key == "yttv" else "false")
                 self.assertLessEqual(page.evaluate("document.documentElement.scrollWidth"), width)
                 self.assertLessEqual(page.locator("#drawer").evaluate("el => el.scrollWidth - el.clientWidth"), 1)
                 page.locator("#btn-clear").click()
@@ -508,10 +509,10 @@ class BrowserChecks(unittest.TestCase):
                 page.locator("#btn-menu").click()
                 page.locator("#btn-reset").click()
                 for key in options:
-                    expect(service(key)).to_have_attribute("aria-pressed", "false")
-                expect(page.locator('[data-kind="have"][aria-pressed="true"]')).to_have_count(8)
+                    expect(service(key)).to_have_attribute("aria-pressed", "true" if key == "yttv" else "false")
+                expect(page.locator('[data-kind="have"][aria-pressed="true"]')).to_have_count(7)
                 page.locator("#btn-filters-close").click()
-                check_matches(page, {"yt-espnplus"})
+                check_matches(page, base_matches)
 
     def test_retired_fox_access_migrates_without_changing_other_preferences(self):
         fixtures = [("english", "2026-10-07T18:00:00+00:00", "pre", "ESPN+", "eng.1"),
@@ -546,7 +547,8 @@ class BrowserChecks(unittest.TestCase):
                 self.assertEqual(page.evaluate("JSON.parse(localStorage.getItem('ssg3-have'))"), remaining)
 
     def test_bulk_filters_are_independent_persist_and_reset_to_owner_defaults(self):
-        enabled_services = {"hbo", "para", "espn", "apple", "usa", "prime", "netflix", "disney"}
+        default_order = ["apple", "yttv", "hbo", "para", "prime", "netflix", "disney"]
+        enabled_services = set(default_order)
         hidden_leagues = {"fifa.friendly.w", "usa.usl.1", "usa.usl.l1", "usa.nwsl",
                           "ned.1", "fra.1", "uefa.europa.conf", "uefa.europa"}
         leagues = ["eng.1", "esp.1", *sorted(hidden_leagues)]
@@ -558,13 +560,18 @@ class BrowserChecks(unittest.TestCase):
             return set(page.locator(f'[data-kind="{kind}"][aria-pressed="{pressed}"]').evaluate_all(
                 "buttons => buttons.map(b => b.dataset.key)"))
 
+        def check_default_order(page):
+            self.assertEqual(page.locator('#have-enabled .fpill').evaluate_all(
+                "buttons => buttons.map(button => button.dataset.key)"), default_order)
+
         for width in (1280, 390):
             with self.subTest(width=width), self.page("after", width=width, html=html) as (page, _):
                 self.assertEqual(keys(page, "have", "true"), enabled_services)
+                check_default_order(page)
                 self.assertEqual(keys(page, "comp", "false"), hidden_leagues)
                 expect(page.locator('li.row:visible')).to_have_count(2)
                 page.locator("#btn-menu").click()
-                expect(page.locator("#filter-sum")).to_have_text("8 services, 8 competitions hidden")
+                expect(page.locator("#filter-sum")).to_have_text("7 services, 8 competitions hidden")
                 self.assertLessEqual(page.evaluate("document.documentElement.scrollWidth"), width)
                 page.locator("#drawer").screenshot(path=str(self.artifacts / f"bulk-filters-{width}.png"))
 
@@ -596,10 +603,12 @@ class BrowserChecks(unittest.TestCase):
                 page.locator("#btn-menu").click()
                 page.get_by_role("button", name="Reset to defaults", exact=True).click()
                 self.assertEqual(keys(page, "have", "true"), enabled_services)
+                check_default_order(page)
                 self.assertEqual(keys(page, "comp", "false"), hidden_leagues)
                 expect(page.locator('li.row:visible')).to_have_count(2)
                 page.reload()
                 self.assertEqual(keys(page, "have", "true"), enabled_services)
+                check_default_order(page)
                 self.assertEqual(keys(page, "comp", "false"), hidden_leagues)
                 expect(page.locator('li.row:visible')).to_have_count(2)
 
@@ -650,14 +659,14 @@ class BrowserChecks(unittest.TestCase):
                 page.locator('#btn-menu').click()
                 self.drag_filter(page, league, '.filter-area[data-filter-kind="have"][data-enabled="false"]', touch=touch)
                 expect(page.locator('#comp-enabled [data-key="eng.1"]')).to_have_count(1)
-                network = '#have-pills [data-key="espn"]'
+                network = '#have-pills [data-key="yttv"]'
                 self.drag_filter(page, network, '.filter-area[data-filter-kind="have"][data-enabled="false"]', touch=touch)
-                expect(page.locator('#have-disabled [data-key="espn"]')).to_have_attribute('aria-pressed', 'false')
+                expect(page.locator('#have-disabled [data-key="yttv"]')).to_have_attribute('aria-pressed', 'false')
                 expect(page.locator('li.row[data-id="eng.1"]')).to_be_hidden()
                 alphabetical('have')
                 page.locator('#btn-clear').click()
                 self.drag_filter(page, network, '.filter-area[data-filter-kind="have"][data-enabled="true"]', touch=touch)
-                expect(page.locator('#have-enabled .fpill')).to_have_attribute('data-key', 'espn')
+                expect(page.locator('#have-enabled .fpill')).to_have_attribute('data-key', 'yttv')
                 expect(page.locator('li.row[data-id="eng.1"]')).to_be_visible()
                 page.locator('#have-disabled [data-key="espnplus"]').click()
                 preferred = page.locator('#have-enabled [data-key="espnplus"]')
@@ -812,7 +821,7 @@ class BrowserChecks(unittest.TestCase):
             page.locator("#btn-clear").click()
             expect(page.locator("#filter-sum")).to_contain_text("0 services")
             page.locator("#btn-reset").click()
-            expect(page.locator("#filter-sum")).to_contain_text("8 services")
+            expect(page.locator("#filter-sum")).to_contain_text("7 services")
             self.assertEqual(feed["requests"], 0)
 
     def test_failed_scoreboard_preserves_scores(self):
@@ -1264,16 +1273,16 @@ class BrowserChecks(unittest.TestCase):
                 page.locator('#match-dialog-close').click()
                 page.clock.run_for(50)
                 page.locator('#btn-menu').click()
-                page.locator('[data-kind="have"][data-key="espn"]').click()
+                page.locator('[data-kind="have"][data-key="yttv"]').click()
                 expect(page.locator('#nextup')).to_have_attribute('data-match-id', 'mls')
                 expect(page.locator('#nextup')).not_to_have_class(re.compile(r'\bnextup--live\b'))
                 expect(page.locator('#nextup-h')).to_have_text('Next up')
                 expect(page.locator('#nextup-status')).to_have_text('Kickoff 3:00 pm')
                 expect(page.locator('#nextup-count')).to_have_text('2h 00m')
-                # The picks follow the lineup too: the ESPN+ matches go with ESPN, and the lineup has nothing else.
+                # The picks follow the lineup too: the ESPN+ matches go with YouTube TV, and the lineup has nothing else.
                 expect(page.locator('#picks-section')).to_be_hidden()
                 expect(page.locator('li.row[data-id="future"]')).to_be_hidden()
-                page.locator('[data-kind="have"][data-key="espn"]').click()
+                page.locator('[data-kind="have"][data-key="yttv"]').click()
                 self.assertEqual(page.locator('#picks .pick').evaluate_all('els => els.map(e => e.dataset.matchId)'), ['mls', 'future', 'fourth'])
                 page.locator('#btn-filters-close').click()
                 expect(page.locator('#nextup')).to_have_attribute('data-match-id', 'live-second')
@@ -1320,9 +1329,9 @@ class BrowserChecks(unittest.TestCase):
                 expect(count).to_have_text("8:00")
                 page.locator('#comp-pills [data-key="usa.nwsl"]').click()
                 expect(card).to_have_attribute("data-match-id", "upcoming")
-                page.locator('[data-kind="have"][data-key="espn"]').click()
+                page.locator('[data-kind="have"][data-key="yttv"]').click()
                 expect(card).to_have_attribute("data-match-id", "apple")
-                page.locator('[data-kind="have"][data-key="espn"]').click()
+                page.locator('[data-kind="have"][data-key="yttv"]').click()
                 page.locator('[data-kind="have"][data-key="peacock"]').click()
                 expect(page.locator('li.row[data-id="elsewhere"]')).to_be_visible()
                 expect(card).to_have_attribute("data-match-id", "elsewhere")

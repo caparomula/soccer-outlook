@@ -118,11 +118,11 @@ LEAGUES = {
 # the date it was checked, because they change with every season's rights deals and carriage
 # disputes. load_rights() reads and checks that file and the tables below are derived from it, so
 # a fact lives in one place. OWNER is the page owner's lineup, the default for every viewer until
-# they pick their own in the page; the choice stays in that viewer's browser.
+# they pick their own in the page; the choice stays in that viewer's browser. Its order is also
+# the default preference when more than one service carries a match.
 # ----------------------------------------------------------------------------------------------
 RIGHTS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "rights.toml")
-# The owner's FOX app uses a TV-provider login; no FOX channels are assumed without confirmation.
-OWNER = ["hbo", "para", "espn", "apple", "usa", "prime", "netflix", "disney"]
+OWNER = ["apple", "yttv", "hbo", "para", "prime", "netflix", "disney"]
 # Teams whose matches are shown by default even in a competition that is off by default (LEAGUES'
 # default_off), identified by ESPN's stable team IDs: switching women's friendlies off hid the USWNT
 # against the world champions. A viewer who switches the competition off still hides them.
@@ -336,10 +336,10 @@ def load_rights(path, leagues):
 
 RIGHTS = load_rights(RIGHTS_PATH, LEAGUES)
 SERVICES = RIGHTS.services
-SERVICE_RANK = list(SERVICES)
 OUTLETS = RIGHTS.outlets
 if set(OWNER) - set(SERVICES):
     raise RightsError(f"OWNER names services rights.toml doesn't define: {sorted(set(OWNER) - set(SERVICES))}")
+SERVICE_RANK = OWNER + [sid for sid in SERVICES if sid not in OWNER]
 
 
 # ----------------------------------------------------------------------------------------------
@@ -1787,7 +1787,7 @@ def build_page(matches, cache, built_at, failed, today, skipped=(), site_url=Non
     have_buttons = {k: (
         f'<button type="button" class="fpill svc-{k}" data-kind="have" data-key="{k}" aria-pressed="{"true" if k in OWNER else "false"}">'
         f'<span class="fpill__grip" aria-hidden="true">⠿</span><i class="dot"></i>{esc(v)}</button>') for k, v in SERVICES.items()}
-    have_pills = "".join(have_buttons[k] for k in SERVICES if k in OWNER)
+    have_pills = "".join(have_buttons[k] for k in OWNER)
     have_off_pills = "".join(have_buttons[k] for k in sorted(SERVICES, key=lambda k: SERVICES[k].casefold()) if k not in OWNER)
     comps = []
     for lg, info in LEAGUES.items():

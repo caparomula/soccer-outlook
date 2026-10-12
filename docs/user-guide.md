@@ -31,7 +31,7 @@ The older, ambiguous **Fox One** selection is cleared when you first load the up
 
 ### YouTube TV plans and add-ons
 
-Choose your plan and any add-ons you pay for in **Lineup**, instead of **Cable or live-TV bundle**. Each choice adds only its included channels. For example, select **YouTube TV (main plan)** and **YouTube TV Sports Plus** if you have both. These options start disabled and are saved like your other preferences.
+Choose your plan and any add-ons you pay for in **Lineup**, instead of **Cable or live-TV bundle**. Each choice adds only its included channels. For example, select **YouTube TV (main plan)** and **YouTube TV Sports Plus** if you have both. The main plan is enabled by default; the other YouTube TV plans and add-ons start disabled. Your selections are saved like your other preferences.
 
 | Choice | Soccer coverage included |
 | --- | --- |
@@ -67,7 +67,7 @@ Until you reset, a league you have explicitly enabled or disabled keeps that cho
 
 **Reset to defaults** restores the default services and league selections, clears hidden leagues, and resets both orders.
 
-The default services are HBO Max, Paramount+, ESPN Unlimited, Apple TV, USA Network, Prime Video, Netflix and Disney+. FOX access is off by default until you select a subscription or channel.
+The default services, in preference order, are Apple TV, YouTube TV (main plan), HBO Max, Paramount+, Prime Video, Netflix and Disney+. YouTube TV includes its main-plan FOX channels, ESPN coverage and USA Network, so those do not need separate selections. Saved personal choices take precedence over these defaults; use **Reset to defaults** to adopt the current lineup and order.
 
 All tracked competitions are enabled by default except Women's friendly, USL Championship, USL League One, NWSL, Eredivisie, Ligue 1, Conference League and Europa League. US national-team matches are an exception to a competition's default-off setting. Explicitly disabling or hiding that competition hides those matches too. Leagues without fixtures in the fetched schedule may not appear in the panel.
 

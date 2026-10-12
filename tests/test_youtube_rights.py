@@ -70,9 +70,9 @@ class YouTubeRights(unittest.TestCase):
         for service in ("yttv", "yttvsports"):
             self.assertEqual(build.evaluate([], rule, {service}), (service, "rule", "ESPN+"))
 
-    def test_new_packages_do_not_change_the_default_lineup(self):
+    def test_default_lineup_selects_only_the_main_youtube_package(self):
         self.assertTrue(YOUTUBE_SERVICES <= set(build.SERVICES))
-        self.assertTrue(YOUTUBE_SERVICES.isdisjoint(build.OWNER))
+        self.assertEqual(YOUTUBE_SERVICES.intersection(build.OWNER), {"yttv"})
 
 
 if __name__ == "__main__":

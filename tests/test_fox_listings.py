@@ -53,7 +53,8 @@ class FOXListings(unittest.TestCase):
         self.assertEqual(build.evaluate(game.outlets, game.rule, {"foxone"}), ("foxone", "listed", "FS2"))
         self.assertEqual(build.evaluate(game.outlets, game.rule, {"fs2"}), ("fs2", "listed", "FS2"))
         self.assertEqual(build.evaluate(game.outlets, game.rule, {"fubo"}), ("fubo", "listed", "FS2"))
-        for services in ({"fox"}, {"fs1"}, {"foxlocal"}, {"foxdeportes"}, {"btn"}, {"cable"}, set(build.OWNER)):
+        self.assertEqual(build.evaluate(game.outlets, game.rule, set(build.OWNER)), ("yttv", "listed", "FS2"))
+        for services in ({"fox"}, {"fs1"}, {"foxlocal"}, {"foxdeportes"}, {"btn"}, {"cable"}):
             with self.subTest(services=services):
                 self.assertEqual(build.evaluate(game.outlets, game.rule, services), ("", "none", ""))
 

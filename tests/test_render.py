@@ -64,7 +64,7 @@ class Window(unittest.TestCase):
                 page = render_page(build, fixtures=[("only", kickoff, "pre", "ESPN+")])
                 expected = "1" if inside else "0"
                 self.assertEqual(re.search(r'id="tally-n">(\d+)<', page).group(1), expected)
-                self.assertEqual(re.search(r'data-svc="espn">.*?data-count>(\d+) in the next three days<', page).group(1), expected)
+                self.assertEqual(re.search(r'data-svc="yttv">.*?data-count>(\d+) in the next three days<', page).group(1), expected)
                 self.assertEqual('<tr class="tbl__playing">' in page, inside)
 
 

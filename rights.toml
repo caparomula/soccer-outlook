@@ -89,9 +89,10 @@
 
 
 # ---- Services ----------------------------------------------------------------------------------
-# What a viewer can say they have, in the order the page prefers when a match is on several of
-# them. `channels` is everything the service carries, by the names above. The id is used in the
-# page's markup and colors, and in viewers' saved lineups, so it stays stable. A retired id is never
+# What a viewer can say they have. The default lineup in build.py sets the preferred order;
+# services outside that lineup follow in the order below. `channels` lists what the service carries,
+# using the names above. The id is used in the page's markup, colors and viewers' saved lineups,
+# so it stays stable. A retired id is never
 # reused for a different entitlement: the ambiguous old `fox` selection is not a paid subscription.
 
 [services.hbo]
