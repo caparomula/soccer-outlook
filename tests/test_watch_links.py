@@ -171,6 +171,30 @@ class MatchLinks(unittest.TestCase):
         self.assertEqual(links[1]["url"], "https://tv.youtube.com/")
         self.assertEqual(links[1]["via"], ["yttv", "yttvsports"])
 
+    def test_provider_destinations_keep_youtube_tv_in_youtube_and_espn_in_espn(self):
+        links = watch_links.service_links(game("Watch ESPN", "ESPN+", EXAMPLES[1][3]))
+        for service in ("yttv", "yttvsports"):
+            self.assertEqual(links[service], {
+                "url": "https://tv.youtube.com/", "label": "Open YouTube TV", "kind": "service"})
+        for service in ("espn", "espnplus"):
+            self.assertEqual(links[service], {
+                "url": EXAMPLES[1][3], "label": "Open on ESPN", "kind": "match"})
+        self.assertNotIn("para", links)
+        self.assertNotIn("cable", links)
+        self.assertNotIn("yttvspanishplus", links)
+
+    def test_provider_destinations_use_only_supported_match_routes(self):
+        for source, channel, service, url in EXAMPLES:
+            with self.subTest(source=source):
+                match = game(source, channel, url)
+                link = watch_links.service_links(match)[service]
+                self.assertEqual(link["url"], url)
+                self.assertEqual(link["kind"], "match")
+                self.assertNotIn("via", link)
+                match.rule, match.outlets = match.outlets[0], []
+                self.assertEqual(watch_links.service_links(match), {})
+        self.assertEqual(watch_links.service_links(fixture(channel="Paramount+")), {})
+
 
 if __name__ == "__main__":
     unittest.main()

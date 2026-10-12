@@ -49,6 +49,21 @@ def match_links(match):
     return links
 
 
+def service_links(match):
+    """Choose one destination for each eligible provider, independent of saved filters.
+
+    A YouTube TV chip opens YouTube TV, even when its channel also has a verified ESPN
+    player. Other providers use an eligible match destination when one is available.
+    """
+    links = {}
+    for link in match_links(match):
+        for service in link["via"]:
+            preferred = "service" if service in YOUTUBE_TV_SERVICES else "match"
+            if service not in links or link["kind"] == preferred:
+                links[service] = {key: link[key] for key in ("url", "label", "kind")}
+    return links
+
+
 def _verified_match_links(match):
     """Keep source evidence separate from supported event-page/player destinations."""
     destination = DESTINATIONS.get(match.broadcast_source)

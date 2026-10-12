@@ -539,7 +539,7 @@ class BrowserChecks(unittest.TestCase):
             # Filtered schedule rows are detached; featured cards must disappear with them.
             expect(page.locator(f'li.row[data-id="{match_id}"]')).to_have_count(0)
             expect(page.locator(f'[data-match-id="{match_id}"]:visible')).to_have_count(0)
-            expect(page.locator('.match-watch__link[href="https://tv.youtube.com/"]:visible')).to_have_count(0)
+            expect(page.locator('a.chip--link[href="https://tv.youtube.com/"]:visible')).to_have_count(0)
             expect(page.locator("#tally-n")).to_have_text("0")
 
         for width in (1280, 390):
@@ -556,11 +556,11 @@ class BrowserChecks(unittest.TestCase):
                 expect(row).to_have_attribute("data-svc", "yttvspanishplus")
                 expect(row.locator(".row__watch .chip")).to_have_text("YouTube TV Spanish Plus")
                 expect(row.locator(".pills > .pill:visible")).to_have_text(["Universo"])
-                expect(row.locator(".match-watch__link")).to_have_text("Open YouTube TV")
-                expect(row.locator(".match-watch__link")).to_have_attribute("href", "https://tv.youtube.com/")
+                expect(row.locator("a.chip--link")).to_have_text("YouTube TV Spanish Plus")
+                expect(row.locator("a.chip--link")).to_have_attribute("href", "https://tv.youtube.com/")
                 expect(page.locator("#nextup")).to_have_attribute("data-match-id", match_id)
                 expect(page.locator("#nextup .chip")).to_contain_text("YouTube TV Spanish Plus")
-                expect(page.locator("#nextup .match-watch__link")).to_be_visible()
+                expect(page.locator("#nextup a.chip--link")).to_be_visible()
                 expect(page.locator("#tally-n")).to_have_text("1")
                 page.locator("#btn-menu").click()
                 page.locator('[data-kind="have"][data-key="yttvspanishplus"]').click()
@@ -571,7 +571,7 @@ class BrowserChecks(unittest.TestCase):
                 expect(row).to_be_visible()
                 expect(row).to_have_attribute("data-svc", "yttvspanish")
                 expect(row.locator(".row__watch")).to_contain_text("YouTube TV Spanish Plan")
-                expect(row.locator(".match-watch__link")).to_be_visible()
+                expect(row.locator("a.chip--link")).to_be_visible()
                 self.assertLessEqual(page.evaluate("document.documentElement.scrollWidth"), width)
 
             with self.subTest(width=width, listing="Paramount+"), self.page(
@@ -584,7 +584,7 @@ class BrowserChecks(unittest.TestCase):
                 choose(page, "para")
                 expect(row).to_be_visible()
                 expect(row.locator(".row__watch")).to_contain_text("Paramount+")
-                expect(row.locator('.match-watch__link[href="https://tv.youtube.com/"]')).to_have_count(0)
+                expect(row.locator('a.chip--link[href="https://tv.youtube.com/"]')).to_have_count(0)
                 expect(page.locator("#tally-n")).to_have_text("1")
 
     def test_tudn_listing_makes_america_monterrey_visible_on_youtube_tv(self):
@@ -748,10 +748,12 @@ class BrowserChecks(unittest.TestCase):
             ("watch-espn", "2026-10-07T18:30:00+00:00", "pre", "ESPN+", "esp.1"),
             ("watch-unlisted", "2026-10-07T19:00:00+00:00", "pre", None, "eng.1"),
             ("watch-vix", "2026-10-07T19:30:00+00:00", "pre", "ViX", "mex.1"),
+            ("watch-no-player", "2026-10-07T20:00:00+00:00", "pre", "Apple TV", "usa.1"),
         ]
         apple_url = "https://tv.apple.com/us/sporting-event/fixture-match/umc.cse.fixture123"
         espn_url = "https://www.espn.com/watch/player/_/id/12345678-1234-1234-1234-123456789abc"
         vix_url = "https://vix.com/live/transmission-matchid-123456"
+        youtube_url = "https://tv.youtube.com/"
         destinations = {
             "watch-live": ("TUDN", "https://www.tudn.com/futbol/liga-mx/fixture-match"),
             "watch-apple": ("Apple TV", apple_url),
@@ -764,12 +766,36 @@ class BrowserChecks(unittest.TestCase):
             for match in matches:
                 if match.id in destinations:
                     match.broadcast_source, match.broadcast_url = destinations[match.id]
+                if match.id == "watch-no-player":
+                    # A second enabled provider has a destination, but the preferred Apple TV
+                    # route does not. Its chip must not open a different service's player.
+                    match.outlets.append(build.map_outlet("TUDN", match.league))
+                    match.service, match.basis, match.outlet = build.evaluate(match.outlets, match.rule, set(build.OWNER))
             return original_build_page(matches, cache, built_at, failed, today)
 
         with patch.object(build, "build_page", side_effect=with_verified_destinations):
             html = render_page(build, fixtures=fixtures)
         for width in (1280, 390):
-            with self.subTest(width=width), self.page("after", html=html, width=width, touch=width < 600) as (page, _):
+            # The owner-default provider chips are genuine links before JavaScript runs.
+            with self.subTest(width=width, javascript=False):
+                context = self.browser.new_context(viewport={"width": width, "height": 900}, java_script_enabled=False)
+                try:
+                    context.route("**/*", lambda route: route.fulfill(content_type="text/css", body=""))
+                    page = context.new_page()
+                    page.set_content(html)
+                    for mid, label, destination in (("live", "YouTube TV (main plan)", youtube_url),
+                                                    ("apple", "Apple TV", apple_url),
+                                                    ("espn", "YouTube TV (main plan)", youtube_url)):
+                        chip = page.locator(f'li.row[data-id="watch-{mid}"] .row__watch a.chip--link')
+                        expect(chip).to_have_text(label)
+                        expect(chip).to_have_attribute("href", destination)
+                    expect(page.locator('li.row[data-id="watch-no-player"] .row__watch span.chip')).to_have_text("Apple TV")
+                    expect(page.locator(".match-watch")).to_have_count(0)
+                finally:
+                    context.close()
+
+            with self.subTest(width=width, javascript=True), self.page(
+                    "after", html=html, width=width, touch=width < 600) as (page, _):
                 row = lambda mid: page.locator(f'li.row[data-id="watch-{mid}"]')
                 service = lambda sid: page.locator(f'[data-kind="have"][data-key="{sid}"]')
                 expect(page.locator("#nextup")).to_have_attribute("data-match-id", "watch-live")
@@ -777,29 +803,36 @@ class BrowserChecks(unittest.TestCase):
                 for mid in ("apple", "espn"):
                     expect(page.locator(f'#picks .pick[data-match-id="watch-{mid}"]')).to_be_visible()
 
-                # The shared match body retains the same destinations in every card shape.
-                # TUDN's listing is evidence of a channel, not a direct streaming player.
+                # All card shapes clone the selected provider chip; no separate Open links
+                # remain underneath. TUDN's source article is not a direct streaming player.
                 for card in page.locator("#nextup, #picks .pick").all():
                     mid = card.get_attribute("data-match-id").removeprefix("watch-")
-                    self.assertEqual(card.locator(".match-watch").inner_html(), row(mid).locator(".match-watch").inner_html())
-                expect(row("live").locator(".match-watch__link")).to_have_count(1)
-                expect(row("live").locator(".match-watch__link")).to_have_text("Open YouTube TV")
-                expect(row("live").locator(".match-watch__link")).to_have_attribute("data-kind", "service")
-                expect(row("unlisted").locator(".match-watch__link")).to_have_count(0)
+                    self.assertEqual(card.locator(".match__watch").inner_html(), row(mid).locator(".row__watch").inner_html())
+                expect(page.locator(".match-watch")).to_have_count(0)
+                expect(page.get_by_role("link", name=re.compile("^Open(?: on)? "))).to_have_count(0)
+                expect(row("live").locator("a.chip--link")).to_have_count(1)
+                expect(row("live").locator("a.chip--link")).to_have_text("YouTube TV (main plan)")
+                expect(row("live").locator("a.chip--link")).to_have_attribute("data-kind", "service")
+                expect(row("unlisted").locator("a.chip--link")).to_have_count(0)
+                expect(row("no-player").locator(".row__watch span.chip")).to_have_text("Apple TV")
+                expect(row("no-player").locator("a.chip--link")).to_have_count(0)
                 expect(row("vix")).to_have_count(0)  # rows outside the lineup are detached
-                expect(page.locator(f'.match-watch__link[href="{vix_url}"]:visible')).to_have_count(0)
+                expect(page.locator(f'a.chip--link[href="{vix_url}"]:visible')).to_have_count(0)
 
-                # Follow actual links by mouse/touch. The context routes every external request
-                # to an offline response, so this checks navigation, not provider playback.
+                # The YouTube TV chip must lead to YouTube TV even when a verified ESPN
+                # event page is also available. Mouse/touch follows native anchors in a new tab.
+                # External responses are offline fixtures; this checks navigation, not playback.
                 source_url = page.url
-                for scope, label, destination in (
-                    (page.locator("#nextup"), "Open YouTube TV", "https://tv.youtube.com/"),
-                    (page.locator('#picks .pick[data-match-id="watch-apple"]'), "Open on Apple TV", apple_url),
-                    (row("espn"), "Open on ESPN", espn_url),
+                for scope, label, destination, kind in (
+                    (page.locator("#nextup"), "YouTube TV (main plan)", youtube_url, "service"),
+                    (page.locator('#picks .pick[data-match-id="watch-apple"]'), "Apple TV", apple_url, "match"),
+                    (row("espn"), "YouTube TV (main plan)", youtube_url, "service"),
                 ):
-                    link = scope.get_by_role("link", name=re.compile("^" + re.escape(label) + r"(?:\s*↗)?$"))
+                    link = scope.get_by_role("link", name=label, exact=True)
                     expect(link).to_have_attribute("target", "_blank")
-                    self.assertIn("noopener", link.get_attribute("rel").split())
+                    expect(link).to_have_attribute("data-kind", kind)
+                    self.assertTrue({"noopener", "noreferrer"}.issubset(link.get_attribute("rel").split()))
+                    self.assertTrue(link.get_attribute("title"))
                     with page.expect_popup() as opened:
                         link.tap() if width < 600 else link.click()
                     popup = opened.value
@@ -809,24 +842,25 @@ class BrowserChecks(unittest.TestCase):
                     self.assertEqual(page.url, source_url)
                 self.full_page_shot(page, f"watch-links-{width}.png")
 
-                # A direct ESPN subscription keeps the ESPN player, but removing YouTube TV
-                # hides its launcher everywhere and changes the live feature to Apple next up.
+                # Changing provider updates the chip and destination together. Direct ESPN
+                # access uses its event player, and removing YouTube TV removes every launcher.
                 page.locator("#btn-menu").click()
                 service("yttv").click()
                 service("espn").click()
                 page.locator("#btn-filters-close").click()
                 expect(page.locator("#nextup")).to_have_attribute("data-match-id", "watch-apple")
                 expect(page.locator("#nextup-h")).to_have_text("Next up")
-                expect(page.locator("#nextup .match-watch__link")).to_have_attribute("href", apple_url)
-                expect(row("espn").locator(f'.match-watch__link[href="{espn_url}"]')).to_be_visible()
-                expect(row("espn").locator('[data-kind="service"]')).to_have_attribute("hidden", "")
+                expect(page.locator("#nextup a.chip--link")).to_have_attribute("href", apple_url)
+                expect(row("espn").locator("a.chip--link")).to_have_text("ESPN Unlimited")
+                expect(row("espn").locator("a.chip--link")).to_have_attribute("href", espn_url)
+                expect(row("espn").locator("a.chip--link")).to_have_attribute("data-kind", "match")
                 expect(row("live")).to_have_count(0)
-                expect(page.locator('.match-watch__link[data-kind="service"]:visible')).to_have_count(0)
+                expect(page.locator('a.chip--link[data-kind="service"]:visible')).to_have_count(0)
                 # ViX also carries TUDN, so add it only after checking the Apple next-up state.
                 page.locator("#btn-menu").click()
                 service("vix").click()
                 page.locator("#btn-filters-close").click()
-                expect(row("vix").locator(f'.match-watch__link[href="{vix_url}"]')).to_be_visible()
+                expect(row("vix").locator(f'a.chip--link[href="{vix_url}"]')).to_be_visible()
                 self.assertLessEqual(page.evaluate("document.documentElement.scrollWidth"), width)
 
                 # Saved preferences also govern links after reload; a retired Everything
@@ -836,9 +870,9 @@ class BrowserChecks(unittest.TestCase):
                 page.locator("#btn-filters-close").click()
                 page.evaluate("localStorage.setItem('ssg2-mode', JSON.stringify('all'))")
                 page.reload()
-                expect(page.locator(".match-watch__link:visible")).to_have_count(0)
+                expect(page.locator("a.chip--link:visible")).to_have_count(0)
                 expect(page.locator("li.row")).to_have_count(0)
-                expect(page.locator("#nextup-section, #picks-section").locator(".match-watch__link:visible")).to_have_count(0)
+                expect(page.locator("#nextup-section, #picks-section").locator("a.chip--link:visible")).to_have_count(0)
 
     def test_retired_fox_access_migrates_without_changing_other_preferences(self):
         fixtures = [("english", "2026-10-07T18:00:00+00:00", "pre", "ESPN+", "eng.1"),
@@ -1855,7 +1889,7 @@ class BrowserChecks(unittest.TestCase):
                 details = page.locator("#outlook li.row:visible button.more")
                 page.evaluate("""() => { const all = [...document.querySelectorAll('#outlook li.row button.more')].filter(el => el.getClientRects().length);
                     window.scrollBy(0, all[12].getBoundingClientRect().top - 20); all[11].focus({ preventScroll: true }); }""")
-                viewing = page.locator("#outlook li.row:visible").nth(11).locator(".match-watch__link:visible")
+                viewing = page.locator("#outlook li.row:visible").nth(11).locator("a.chip--link:visible")
                 expect(viewing).to_have_count(1)
                 page.keyboard.press("Tab")
                 page.clock.run_for(50)

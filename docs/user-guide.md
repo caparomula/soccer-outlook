@@ -113,9 +113,9 @@ The current site uses AI ratings but no AI-written overview or match blurbs. A f
 
 ### Opening a match on a streaming service
 
-Match cards and schedule rows show viewing links for your selected services when a supported destination is available. Some verified broadcaster listings supply an exact match page for Apple TV, ESPN, ViX, Peacock or beIN Sports. **Open on** links take you to those pages in a new tab; you may still need to sign in and select playback.
+Click or tap an underlined service provider chip to open its viewing destination in a new tab. The chip uses a link compatible with the provider it names. Some verified broadcaster listings supply an exact match page for Apple TV, ESPN, ViX, Peacock or beIN Sports; you may still need to sign in and select playback. A chip without a supported destination remains a plain label.
 
-**Open YouTube TV** currently opens YouTube TV itself. [Search there](https://support.google.com/youtubetv/answer/7067974?hl=en) for either team or the listed channel. YouTube TV uses its own program identifiers; Soccer Outlook does not yet have verified links to individual programs. The link appears only when a listed channel is carried by a YouTube TV plan you selected, not for unconfirmed usual coverage.
+Clicking a **YouTube TV** provider chip currently opens YouTube TV itself. [Search there](https://support.google.com/youtubetv/answer/7067974?hl=en) for either team or the listed channel. YouTube TV uses its own program identifiers; Soccer Outlook does not yet have verified links to individual programs. The chip links only when a listed channel is carried by that plan, not for unconfirmed usual coverage.
 
 Links open on the device you are using. Whether they launch an installed app depends on your browser and device; they do not control a separate television. A link does not guarantee playback or replay availability: your service account, package and location still determine access. Matches without a supported viewing link retain their broadcaster information and source links in **Details**.
 

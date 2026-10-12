@@ -51,6 +51,7 @@
     try { r._o = JSON.parse(r.getAttribute('data-o') || '[]'); } catch (e) { r._o = []; }
     r._unk = r._o.some(function (o) { return o.u; });   // a channel the page doesn't recognize
     try { r._r = r.hasAttribute('data-r') ? JSON.parse(r.getAttribute('data-r')) : null; } catch (e) { r._r = null; }
+    try { r._watch = JSON.parse(r.getAttribute('data-watch') || '{}'); } catch (e) { r._watch = {}; }
   });
 
   function read(key) { try { var v = localStorage.getItem(key); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
@@ -331,8 +332,13 @@
       var name = SHORT[r._svc] || SERVICE_NAMES[r._svc] || r._svc, details = [];
       if (r._basis === 'rule') details.push('usually');
       else if (r._o.some(function (o) { return o.l === name && o.f; })) details.push('free');
-      return '<span class="chip' + (r._basis === 'rule' ? ' chip--rule' : '') + ' svc-' + r._svc + '"><i class="dot"></i>' + escHtml(name) +
-        details.map(function (label) { return '<span class="chip__via">' + escHtml(label) + '</span>'; }).join('') + '</span>';
+      var content = '<i class="dot"></i>' + escHtml(name) +
+        details.map(function (label) { return '<span class="chip__via">' + escHtml(label) + '</span>'; }).join('');
+      var cls = 'chip' + (r._basis === 'rule' ? ' chip--rule' : '') + ' svc-' + r._svc;
+      var link = r._basis === 'listed' && r._watch[r._svc];
+      if (link) return '<a class="' + cls + ' chip--link" href="' + escHtml(link.url) + '" data-kind="' + escHtml(link.kind) +
+        '" target="_blank" rel="noopener noreferrer" title="' + escHtml(link.title) + '">' + content + '</a>';
+      return '<span class="' + cls + '">' + content + '</span>';
     }
     if (r._unk) return '<span class="chip chip--no chip--unk">Channel not recognized</span>';
     return r._o.length ? '<span class="chip chip--no">Not in your lineup</span>' : '<span class="chip chip--no chip--unk">Not listed yet</span>';
@@ -366,18 +372,6 @@
       rp.hidden = r._basis === 'rule' && r._r.l === SERVICE_NAMES[r._svc];
     }
     var w = r.querySelector('.row__watch'); if (w) w.innerHTML = chipFor(r);
-    var viewing = r.querySelector('.match-watch');
-    if (viewing) {
-      var links = Array.from(viewing.querySelectorAll('.match-watch__link'));
-      links.forEach(function (link) {
-        var via = JSON.parse(link.dataset.via), service = firstHave(via);
-        link.hidden = !service;
-        link._watchRank = service ? rankOf(service) : 999;
-      });
-      links.sort(function (a, b) { return a._watchRank - b._watchRank; });
-      links.forEach(function (link) { viewing.appendChild(link); });
-      viewing.hidden = !links.some(function (link) { return !link.hidden; });
-    }
   }
   function evaluateAll() { rows.forEach(evaluateRow); }
 

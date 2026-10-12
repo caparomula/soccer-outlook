@@ -326,9 +326,6 @@ html.has-match-dialog, .has-match-dialog body { overflow: hidden; }
 .stage::before, .venue::before { content: "\00b7"; margin-right: 10px; }
 .row__note { margin-top: 5px; font-size: 14px; max-width: 62ch; color: var(--muted); }
 .pills { display: flex; flex-wrap: wrap; gap: 4px 6px; margin-top: 6px; }
-.match-watch { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 6px; font-size: 13px; }
-.match-watch[hidden] { display: none; }
-.match-watch__link { color: var(--accent); padding-block: 4px; text-underline-offset: 3px; }
 .pill { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; letter-spacing: 0.01em; padding: 2px 9px; border-radius: 999px; background: var(--pill-bg); color: var(--pill-fg); white-space: nowrap; line-height: 1.5; }
 .pill[hidden], .pills[hidden] { display: none; }
 .pill .dot { width: 7px; height: 7px; }
@@ -343,6 +340,9 @@ html.has-match-dialog, .has-match-dialog body { overflow: hidden; }
 .row__watch { justify-self: start; min-width: 0; max-width: 100%; padding-top: 4px; }
 .row__watch .chip, .nextup__watch .chip { max-width: 100%; white-space: normal; flex-wrap: wrap; gap: 3px 7px; }
 .chip { display: inline-flex; align-items: center; gap: 7px; font-family: var(--display); font-weight: 600; font-size: 15px; letter-spacing: 0.03em; padding: 5px 11px 5px 9px; border-radius: 999px; border: 1px solid var(--svc); color: var(--svc); white-space: nowrap; }
+.chip--link { text-decoration: underline; text-underline-offset: 3px; }
+.chip--link:hover { background: color-mix(in srgb, var(--svc) 12%, transparent); }
+.chip--link:focus-visible { outline: 2px solid var(--svc); outline-offset: 2px; }
 .chip__via { color: var(--muted); font-weight: 600; }
 .chip__via::before { content: "\00b7"; margin-right: 6px; }
 .chip--rule { border-style: dashed; }

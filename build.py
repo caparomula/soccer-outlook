@@ -1444,7 +1444,7 @@ SHORT = {"cable": "Cable / live TV", "ota": "Antenna", "free": "Free app"}
 UNRECOGNIZED_TITLE = "ESPN lists this channel, but the page doesn't know yet which services carry it"
 
 
-def chip_html(m):
+def chip_html(m, destinations=None):
     if m.service:
         label = SHORT.get(m.service, SERVICES[m.service])
         details = []
@@ -1454,7 +1454,15 @@ def chip_html(m):
             details.append("free")
         via = "".join(f'<span class="chip__via">{esc(detail)}</span>' for detail in details)
         rule = " chip--rule" if m.basis == "rule" else ""
-        return f'<span class="chip{rule} svc-{m.service}"><i class="dot"></i>{esc(label)}{via}</span>'
+        content = f'<i class="dot"></i>{esc(label)}{via}'
+        if destinations is None:
+            destinations = provider_links(m)
+        link = destinations.get(m.service) if m.basis == "listed" else None
+        if link:
+            return (f'<a class="chip{rule} svc-{m.service} chip--link" href="{esc(link["url"])}" '
+                    f'data-kind="{esc(link["kind"])}" target="_blank" rel="noopener noreferrer" '
+                    f'title="{esc(link["title"])}">{content}</a>')
+        return f'<span class="chip{rule} svc-{m.service}">{content}</span>'
     if any(not o.known for o in m.outlets):
         # Possibly on the viewer's services: say what is known rather than "not in your lineup".
         return '<span class="chip chip--no chip--unk">Channel not recognized</span>'
@@ -1621,42 +1629,36 @@ def row_html(m, cache):
     rule_json = json.dumps({"l": m.rule.label, "v": m.rule.via}, ensure_ascii=False) if m.rule else ""
     parts = outlook_parts(m)
     parts_json = json.dumps({k: None if v is None else round(100 * v) for k, v in parts.items()})
-    viewing_links = watch_links_html(m)
+    destinations = provider_links(m)
     return (
         f'<li class="row {avail}" data-id="{esc(m.id)}" data-utc="{m.utc.strftime("%Y-%m-%dT%H:%M:%SZ")}" data-tv="{tv}" '
         f'data-lg="{esc(m.league)}" data-svc="{m.service or "none"}" data-basis="{m.basis}" data-score="{m.score}" '
         f'data-outlook="{outlook_score(parts):g}" data-outlook-parts="{esc(parts_json)}" '
         f'data-state="{m.state}" data-home="{esc(m.home.name)}" data-away="{esc(m.away.name)}" data-comp="{esc(m.comp)}" '
-        f'data-outlet="{esc(m.outlet)}" data-hc="{m.home.color}" data-ac="{m.away.color}" data-o="{esc(outlets_json)}"' + (f' data-r="{esc(rule_json)}"' if rule_json else "") + '>'
+        f'data-outlet="{esc(m.outlet)}" data-hc="{m.home.color}" data-ac="{m.away.color}" data-o="{esc(outlets_json)}"' +
+        (f' data-watch="{esc(json.dumps(destinations, ensure_ascii=False))}"' if destinations else "") +
+        (f' data-r="{esc(rule_json)}"' if rule_json else "") + '>'
         f'<div class="row__time">{league_badge}<div class="row__kickoff">{time_html}<span class="row__et" hidden></span><span class="row__until" hidden></span><span class="row__live" hidden>Live</span>{status}</div></div>'
         f'<div class="row__body">'
         f'<div class="row__teams">{team_html(m.home, cache, score_h)}<span class="vs">v</span>{team_html(m.away, cache, score_a)}</div>'
         f'<div class="row__meta">{"".join(meta)}</div>{goals_html(m)}{note}'
         f'<div class="pills">{pills_html(m)}<button type="button" class="more" aria-haspopup="dialog" aria-controls="match-dialog" '
         f'aria-label="Details: {esc(m.home.name)} v {esc(m.away.name)}">Details</button></div>'
-        f'{viewing_links}{detail_html(m, cache)}'
+        f'{detail_html(m, cache)}'
         f'</div>'
-        f'<div class="row__watch">{chip_html(m)}</div>'
+        f'<div class="row__watch">{chip_html(m, destinations)}</div>'
         f'</li>'
     )
 
 
-def watch_links_html(m):
-    """Keep viewing links in the shared match body, including on small screens."""
-    links = watch_links.match_links(m)
-    if not links:
-        return ""
-    have = set(OWNER)
-    items = []
-    for link in links:
-        hidden = "" if have.intersection(link["via"]) else " hidden"
-        title = (f'Search YouTube TV for {m.home.name} or {m.away.name}. Opens in a new tab.'
-                 if link["kind"] == "service" else 'Opens the match page in a new tab; sign-in may be required.')
-        items.append(f'<a class="match-watch__link" href="{esc(link["url"])}" '
-                     f'data-via="{esc(json.dumps(link["via"]))}" data-kind="{esc(link["kind"])}" '
-                     f'target="_blank" rel="noopener noreferrer" title="{esc(title)}"{hidden}>{esc(link["label"])}</a>')
-    hidden = "" if any(have.intersection(link["via"]) for link in links) else " hidden"
-    return f'<div class="match-watch"{hidden}>{"".join(items)}</div>'
+def provider_links(m):
+    """Destinations for each eligible provider, shared by static and interactive chips."""
+    links = watch_links.service_links(m)
+    for link in links.values():
+        link["title"] = (f'Open YouTube TV and search for {m.home.name} or {m.away.name}. Opens in a new tab.'
+                         if link["kind"] == "service" else
+                         f'{link["label"]}. Opens the match page in a new tab; sign-in may be required.')
+    return links
 
 
 def colors_html(home, away):
