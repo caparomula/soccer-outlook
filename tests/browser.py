@@ -2253,9 +2253,9 @@ class BrowserChecks(unittest.TestCase):
                 expect(lg("esp.1")).to_have_attribute("aria-pressed", "false")
                 expect(row("liga")).to_be_hidden()
                 expect(tally).to_have_text("3")
-                # Pausing gently dims the emblem without a slash or a grayscale filter.
+                # Pausing adds a dashed ring and minus badge while retaining the emblem's colors.
                 look = "el => [getComputedStyle(el).borderTopStyle, getComputedStyle(el, '::after').content, getComputedStyle(el.firstChild).opacity, getComputedStyle(el.firstChild).filter]"
-                self.assertEqual(lg("esp.1").evaluate(look), ["solid", "none", "0.65", "none"])
+                self.assertEqual(lg("esp.1").evaluate(look), ["dashed", '\"\"', "0.55", "none"])
                 self.assertEqual(lg("eng.1").evaluate(look), ["solid", "none", "1", "none"])
                 expect(note).to_be_visible()
                 expect(note).to_contain_text("La Liga hidden")

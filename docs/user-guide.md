@@ -49,7 +49,7 @@ Local affiliates vary by ZIP code. Check [YouTube TV's current plans and local l
 
 ### Quickly hide a league
 
-The bar shows emblems for enabled leagues with matches on your selected services in the displayed schedule, including folded results. It updates when you change services or the schedule's date window changes. A league can remain enabled without appearing in the strip; **Lineup** lists leagues with fixtures in the fetched schedule, even when none match your services or the displayed days. Tap an emblem to hide that league's matches; tap it again to show them. A hidden league's emblem is gently dimmed, keeping its colors, and a short notice offers **Undo**. The strip scrolls sideways if it does not fit.
+The bar shows emblems for enabled leagues with matches on your selected services in the displayed schedule, including folded results. It updates when you change services or the schedule's date window changes. A league can remain enabled without appearing in the strip; **Lineup** lists leagues with fixtures in the fetched schedule, even when none match your services or the displayed days. Tap an emblem to hide that league's matches; tap it again to show them. A hidden league's emblem is dimmed, keeping its colors, with a dashed outline and a small minus badge. Visible leagues have a solid green outline. A short notice offers **Undo**. The strip scrolls sideways if it does not fit.
 
 Hiding keeps the league in the strip while it has matching games and remembers the choice for your next visit. Disabling it in **Lineup** removes it from the strip. If you enable it again, it starts visible.
 
