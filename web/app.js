@@ -327,12 +327,14 @@
 
   function firstHave(via) { var hits = via.filter(function (x) { return HAVE[x]; }); hits.sort(function (a, b) { return rankOf(a) - rankOf(b); }); return hits[0] || ''; }
   function chipFor(r) {
-    if (SHORT[r._svc]) return '<span class="chip svc-' + r._svc + '"><i class="dot"></i>' + escHtml(r._outlet) + '<span class="chip__via">' + SHORT[r._svc] + '</span></span>';
     if (r._svc !== 'none') {
-      var name = SERVICE_NAMES[r._svc] || r._svc;
-      if (r._basis === 'rule') return '<span class="chip chip--rule svc-' + r._svc + '"><i class="dot"></i>' + escHtml(name) + '<span class="chip__via">usually</span></span>';
-      var via = r._outlet && r._outlet !== name ? '<span class="chip__via">' + escHtml(r._outlet) + '</span>' : '';
-      return '<span class="chip svc-' + r._svc + '"><i class="dot"></i>' + escHtml(name) + via + '</span>';
+      var name = SHORT[r._svc] ? r._outlet : SERVICE_NAMES[r._svc] || r._svc, details = [];
+      if (SHORT[r._svc]) details.push(SHORT[r._svc]);
+      else if (r._outlet && r._outlet !== name) details.push(r._outlet);
+      if (r._basis === 'rule') details.push('usually');
+      else if (r._svc !== 'free' && r._o.some(function (o) { return o.l === r._outlet && o.f; })) details.push('free');
+      return '<span class="chip' + (r._basis === 'rule' ? ' chip--rule' : '') + ' svc-' + r._svc + '"><i class="dot"></i>' + escHtml(name) +
+        details.map(function (label) { return '<span class="chip__via">' + escHtml(label) + '</span>'; }).join('') + '</span>';
     }
     if (r._unk) return '<span class="chip chip--no chip--unk">Channel not recognized</span>';
     return r._o.length ? '<span class="chip chip--no">Not in your lineup</span>' : '<span class="chip chip--no chip--unk">Not listed yet</span>';
@@ -356,9 +358,15 @@
       var o = r._o[+p.getAttribute('data-i')]; if (!o) return;
       var sid = firstHave(o.v);
       p.className = 'pill' + (o.u ? ' pill--unk' : sid ? ' pill--mine svc-' + sid : (o.f ? ' pill--free' : ''));
+      // The primary chip already names this outlet. Keep the others as alternate broadcasts;
+      // recalculate both ways when preferences change so the previous primary can reappear.
+      p.hidden = r._basis === 'listed' && o.l === r._outlet;
     });
     var rp = r.querySelector('.pill[data-rule]');
-    if (rp && r._r) { var rs = firstHave(r._r.v); rp.className = 'pill pill--rule' + (rs ? ' svc-' + rs : ' pill--rule-off'); }
+    if (rp && r._r) {
+      var rs = firstHave(r._r.v); rp.className = 'pill pill--rule' + (rs ? ' svc-' + rs : ' pill--rule-off');
+      rp.hidden = r._basis === 'rule';
+    }
     var w = r.querySelector('.row__watch'); if (w) w.innerHTML = chipFor(r);
     var viewing = r.querySelector('.match-watch');
     if (viewing) {
@@ -1306,6 +1314,8 @@
     // A pick is tall and narrow, so its broadcaster goes in the body; the top card has the row's
     // short, wide shape, and its own column for it.
     if (service && !top) content.insertBefore(service, content.querySelector('.pills'));
+    var extras = content.querySelector('.pills');
+    extras.hidden = !Array.from(extras.children).some(function (child) { return !child.hidden; });
     host.appendChild(content);
     if (service && top) host.appendChild(service);
     if (role === 'pick') {

@@ -661,6 +661,77 @@ class BrowserChecks(unittest.TestCase):
                     self.assertEqual(page.evaluate("JSON.parse(localStorage.getItem('ssg3-have'))"), ["yttv"])
                     self.assertLessEqual(page.evaluate("document.documentElement.scrollWidth"), width)
 
+    def test_broadcaster_chips_show_primary_once_and_preserve_other_outlets(self):
+        fixtures = [
+            ("chips-live", "2026-10-07T16:30:00+00:00", "in", "Paramount+", "ita.1"),
+            ("chips-paramount", "2026-10-07T18:00:00+00:00", "pre", "Paramount+", "ita.1"),
+            ("chips-alternatives", "2026-10-07T19:00:00+00:00", "pre", "USA Network", "eng.1"),
+            ("chips-apple", "2026-10-07T20:00:00+00:00", "pre", "Apple TV", "usa.1"),
+        ]
+        original_build_page = build.build_page
+
+        def with_alternative_outlet(matches, cache, built_at, failed, today):
+            for match in matches:
+                if match.id == "chips-alternatives":
+                    match.outlets.append(build.map_outlet("Peacock", match.league))
+                    match.service, match.basis, match.outlet = build.evaluate(match.outlets, match.rule, set(build.OWNER))
+            return original_build_page(matches, cache, built_at, failed, today)
+
+        with patch.object(build, "build_page", side_effect=with_alternative_outlet):
+            html = render_page(build, fixtures=fixtures)
+
+        def assert_channels(host, service, extras, outlet=None):
+            chip = host.locator(".chip:visible")
+            expect(chip).to_have_count(1)
+            expect(chip).to_contain_text(service)
+            if outlet:
+                expect(chip).to_contain_text(outlet)
+            expect(host.locator(".pills > .pill:visible")).to_have_text(extras)
+
+        def assert_all_shapes(page, service="YouTube TV (main plan)", extras=None, outlet="USA Network"):
+            expect(page.locator("#nextup")).to_have_attribute("data-match-id", "chips-live")
+            expect(page.locator("#nextup-h")).to_have_text("Live now")
+            expect(page.locator("#picks .pick")).to_have_count(3)
+            for match_id in ("chips-live", "chips-paramount", "chips-alternatives"):
+                row = page.locator(f'li.row[data-id="{match_id}"]')
+                featured = page.locator(f'[data-match-id="{match_id}"]')
+                for host in (row, featured):
+                    if match_id == "chips-alternatives":
+                        assert_channels(host, service, ["Peacock"] if extras is None else extras, outlet)
+                    else:
+                        assert_channels(host, "Paramount+", [])
+
+        for width in (1280, 390):
+            # The generated schedule should already be clean before JavaScript runs.
+            with self.subTest(width=width, javascript=False):
+                context = self.browser.new_context(viewport={"width": width, "height": 900}, java_script_enabled=False)
+                try:
+                    context.route("**/*", lambda route: route.fulfill(content_type="text/css", body=""))
+                    page = context.new_page()
+                    page.set_content(html)
+                    for match_id in ("chips-live", "chips-paramount"):
+                        assert_channels(page.locator(f'li.row[data-id="{match_id}"]'), "Paramount+", [])
+                    assert_channels(page.locator('li.row[data-id="chips-alternatives"]'),
+                                    "YouTube TV (main plan)", ["Peacock"], "USA Network")
+                finally:
+                    context.close()
+
+            with self.subTest(width=width, javascript=True), self.page(
+                    "after", html=html, width=width, touch=width < 600) as (page, _):
+                assert_all_shapes(page)
+                # Both channels remain listed. Changing services swaps which one is primary,
+                # so the former primary must reappear among the alternatives in every shape.
+                page.locator("#btn-menu").click()
+                page.locator('[data-kind="have"][data-key="peacock"]').click()
+                page.locator('[data-kind="have"][data-key="yttv"]').click()
+                page.locator("#btn-filters-close").click()
+                assert_all_shapes(page, service="Peacock", extras=["USA Network"], outlet=None)
+                page.locator("#btn-menu").click()
+                page.locator('[data-kind="have"][data-key="yttv"]').click()
+                page.locator("#btn-filters-close").click()
+                assert_all_shapes(page)
+                self.assertLessEqual(page.evaluate("document.documentElement.scrollWidth"), width)
+
     def test_watch_links_follow_service_access_in_schedule_and_featured_cards(self):
         fixtures = [
             ("watch-live", "2026-10-07T16:30:00+00:00", "in", "TUDN", "mex.1"),
@@ -1818,19 +1889,19 @@ class BrowserChecks(unittest.TestCase):
                         "els => els.map(e => { const r = e.getBoundingClientRect(); return [r.top, r.bottom]; })")
                     self.assertLess(max(top for top, _ in lines), min(bottom for _, bottom in lines))
                 # The broadcaster: its own 212-pixel column on the right, as in the row; under the match where the
-                # row puts it there; and not at all on a phone, where the colored pill says it.
+                # row puts it there, including on phones so the selected service stays explicit.
                 watch = card.locator(".nextup__watch")
                 if width > 820:
                     chip = watch.bounding_box()
                     self.assertGreaterEqual(chip["x"], body["x"] + body["width"])
                     self.assertAlmostEqual(chip["x"], box["x"] + box["width"] - 1 - 16 - 212, delta=1)
                     self.assertLess(chip["y"], body["y"] + 20)
-                elif width > 600:
+                else:
                     chip = watch.bounding_box()
                     self.assertGreaterEqual(chip["y"], body["y"] + body["height"] - 1)
                     self.assertAlmostEqual(chip["x"], body["x"], delta=1)
-                else:
-                    expect(watch).to_be_hidden()
+                if width <= 600:
+                    expect(watch).to_be_visible()
                     # The score's dots at the head of the narrow column, from its edge, all on one line.
                     dots = page.locator("#nextup-rating i").evaluate_all(
                         "els => els.map(e => { const r = e.getBoundingClientRect(); return [r.left, r.top, r.width]; })")

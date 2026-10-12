@@ -1426,11 +1426,13 @@ def pills_html(m):
         sid = owner_pill_service(o.via)
         cls = "pill" + (f" pill--mine svc-{sid}" if sid else (" pill--free" if o.free else ""))
         free = '<span class="pill__free">free</span>' if o.free else ""
-        parts.append(f'<span class="{cls}" data-i="{i}"><i class="dot"></i>{esc(o.label)}{free}</span>')
+        hidden = ' hidden' if m.service and m.basis == "listed" and o.label == m.outlet else ''
+        parts.append(f'<span class="{cls}" data-i="{i}"{hidden}><i class="dot"></i>{esc(o.label)}{free}</span>')
     if m.rule:
         sid = owner_pill_service(m.rule.via)
         cls = f"pill pill--rule svc-{sid}" if sid else "pill pill--rule pill--rule-off"
-        parts.append(f'<span class="{cls}" data-rule="1"><i class="dot"></i>usually {esc(m.rule.label)}</span>')
+        hidden = ' hidden' if m.service and m.basis == "rule" else ''
+        parts.append(f'<span class="{cls}" data-rule="1"{hidden}><i class="dot"></i>usually {esc(m.rule.label)}</span>')
     if m.hint:
         parts.append(f'<span class="pill pill--hint">{esc(m.hint)}</span>')
     if not parts:
@@ -1443,14 +1445,16 @@ UNRECOGNIZED_TITLE = "ESPN lists this channel, but the page doesn't know yet whi
 
 
 def chip_html(m):
-    if m.service in SHORT:
-        return f'<span class="chip svc-{m.service}"><i class="dot"></i>{esc(m.outlet)}<span class="chip__via">{SHORT[m.service]}</span></span>'
     if m.service:
-        label = SERVICES[m.service]
-        via = "" if m.outlet == label else f'<span class="chip__via">{esc(m.outlet)}</span>'
+        label = m.outlet if m.service in SHORT else SERVICES[m.service]
+        details = [SHORT[m.service]] if m.service in SHORT else ([m.outlet] if m.outlet and m.outlet != label else [])
         if m.basis == "rule":
-            return f'<span class="chip chip--rule svc-{m.service}"><i class="dot"></i>{esc(label)}<span class="chip__via">usually</span></span>'
-        return f'<span class="chip svc-{m.service}"><i class="dot"></i>{esc(label)}{via}</span>'
+            details.append("usually")
+        elif m.service != "free" and any(o.label == m.outlet and o.free for o in m.outlets):
+            details.append("free")
+        via = "".join(f'<span class="chip__via">{esc(detail)}</span>' for detail in details)
+        rule = " chip--rule" if m.basis == "rule" else ""
+        return f'<span class="chip{rule} svc-{m.service}"><i class="dot"></i>{esc(label)}{via}</span>'
     if any(not o.known for o in m.outlets):
         # Possibly on the viewer's services: say what is known rather than "not in your lineup".
         return '<span class="chip chip--no chip--unk">Channel not recognized</span>'

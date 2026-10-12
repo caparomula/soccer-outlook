@@ -133,6 +133,8 @@ Links open on the device you are using. Whether they launch an installed app dep
 
 League emblems identify competitions; badges beside team names identify the teams. Dark emblems and badges receive a contrast adjustment for the dark theme, while already bright images retain their colors.
 
+Each match shows its preferred viewing route once: the selected service and, when different, the channel carrying it. Smaller broadcaster pills show additional channels. Changing your service preferences updates the preferred route and its alternatives.
+
 ### Match details
 
 Hover over **Details** for a floating preview. Click, tap or press Enter to open a dialog. Close it with **Close**, Escape, or a click outside it. Neither view expands the schedule row.
