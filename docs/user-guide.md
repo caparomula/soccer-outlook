@@ -88,10 +88,8 @@ The default leagues, in preference order, are:
 11. FA Cup
 12. Ligue 1
 13. Copa del Rey
-14. Championship (England)
-15. USL Championship
 
-All other tracked competitions start disabled, including national-team competitions. A US national-team match does not bypass that choice. Existing saved selections and orders still apply; choose **Reset to defaults** to adopt this list. Leagues without fixtures in the fetched schedule do not appear in the panel, but their saved choices are kept for when they return.
+All other tracked competitions start disabled, including national-team competitions and lower-division domestic leagues: England's Championship, USL Championship and USL League One. You can enable these in **Lineup**. A US national-team match does not bypass its competition filter. Existing saved selections and orders still apply; choose **Reset to defaults** to adopt this list. Leagues without fixtures in the fetched schedule do not appear in the panel, but their saved choices are kept for when they return.
 
 ## Read the schedule
 

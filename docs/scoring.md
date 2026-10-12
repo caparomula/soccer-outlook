@@ -77,7 +77,7 @@ Here rank starts at 1. The denominator uses the **full league list**, including 
 
 At the default 5% weight, moving a league from last to first adds five pick-score points. This is a small preference boost, not a strict tie breaker: it can change the order of matches with different interest scores.
 
-Without a saved order, the browser uses `LEAGUES` in `build.py`. That configured order applies in both AI designs; an AI response does not override it. The first 15 competitions below are enabled by default. All others start disabled, including national-team competitions; a US national-team match does not bypass that setting. Disabled choices appear alphabetically in Lineup, but retain the positions below for scoring until the visitor changes the order.
+Without a saved order, the browser uses `LEAGUES` in `build.py`. That configured order applies in both AI designs; an AI response does not override it. The first 13 competitions below are enabled by default. All others start disabled, including lower-division domestic leagues and national-team competitions; a US national-team match does not bypass that setting. You can enable these competitions in Lineup. Disabled choices appear alphabetically there, but retain the positions below for scoring until the visitor changes the order.
 
 | Rank | Competition | Rank | Competition |
 | ---: | --- | ---: | --- |

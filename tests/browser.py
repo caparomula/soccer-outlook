@@ -984,7 +984,7 @@ class BrowserChecks(unittest.TestCase):
         enabled_services = set(default_order)
         league_order = ["mex.1", "uefa.champions", "eng.1", "usa.1", "esp.1", "usa.nwsl",
                         "ita.1", "ger.1", "uefa.europa", "concacaf.champions", "eng.fa", "fra.1",
-                        "esp.copa_del_rey", "eng.2", "usa.usl.1"]
+                        "esp.copa_del_rey"]
         leagues = list(build.LEAGUES)
         hidden_leagues = set(leagues) - set(league_order)
         html = render_page(build, fixtures=[

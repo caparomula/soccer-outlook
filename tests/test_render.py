@@ -93,15 +93,15 @@ class LeagueCodes(unittest.TestCase):
 
 class DefaultPriority(unittest.TestCase):
     def test_the_page_takes_its_default_league_priority_from_the_league_table(self):
-        """Default selection and priority match the owner's fifteen chosen competitions."""
+        """Default selection and priority match the owner's chosen competitions."""
         page = render_page(build)
         meta = json.loads(re.search(r'<script type="application/json" id="service-meta">(.*?)</script>', page, re.S).group(1))
         self.assertEqual(list(meta["leagues"]), list(build.LEAGUES))
         enabled = [lg for lg, info in build.LEAGUES.items() if not info.get("default_off")]
         self.assertEqual(enabled, ["mex.1", "uefa.champions", "eng.1", "usa.1", "esp.1", "usa.nwsl", "ita.1",
                                    "ger.1", "uefa.europa", "concacaf.champions", "eng.fa", "fra.1",
-                                   "esp.copa_del_rey", "eng.2", "usa.usl.1"])
-        self.assertEqual(list(meta["leagues"])[:15], enabled)
+                                   "esp.copa_del_rey"])
+        self.assertEqual(list(meta["leagues"])[:13], enabled)
         fixtures = [(lg, "2026-10-07T18:00:00+00:00", "pre", "ESPN+", lg) for lg in build.LEAGUES]
         pills = [attrs for tag, attrs in Tags(render_page(build, fixtures=fixtures)).tags
                  if tag == "button" and attrs.get("data-kind") == "comp"]
