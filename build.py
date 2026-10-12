@@ -1426,12 +1426,12 @@ def pills_html(m):
         sid = owner_pill_service(o.via)
         cls = "pill" + (f" pill--mine svc-{sid}" if sid else (" pill--free" if o.free else ""))
         free = '<span class="pill__free">free</span>' if o.free else ""
-        hidden = ' hidden' if m.service and m.basis == "listed" and o.label == m.outlet else ''
+        hidden = ' hidden' if m.service and m.basis == "listed" and o.label == SERVICES[m.service] else ''
         parts.append(f'<span class="{cls}" data-i="{i}"{hidden}><i class="dot"></i>{esc(o.label)}{free}</span>')
     if m.rule:
         sid = owner_pill_service(m.rule.via)
         cls = f"pill pill--rule svc-{sid}" if sid else "pill pill--rule pill--rule-off"
-        hidden = ' hidden' if m.service and m.basis == "rule" else ''
+        hidden = ' hidden' if m.service and m.basis == "rule" and m.rule.label == SERVICES[m.service] else ''
         parts.append(f'<span class="{cls}" data-rule="1"{hidden}><i class="dot"></i>usually {esc(m.rule.label)}</span>')
     if m.hint:
         parts.append(f'<span class="pill pill--hint">{esc(m.hint)}</span>')
@@ -1440,17 +1440,17 @@ def pills_html(m):
     return "".join(parts)
 
 
-SHORT = {"cable": "cable", "ota": "antenna", "free": "free app"}
+SHORT = {"cable": "Cable / live TV", "ota": "Antenna", "free": "Free app"}
 UNRECOGNIZED_TITLE = "ESPN lists this channel, but the page doesn't know yet which services carry it"
 
 
 def chip_html(m):
     if m.service:
-        label = m.outlet if m.service in SHORT else SERVICES[m.service]
-        details = [SHORT[m.service]] if m.service in SHORT else ([m.outlet] if m.outlet and m.outlet != label else [])
+        label = SHORT.get(m.service, SERVICES[m.service])
+        details = []
         if m.basis == "rule":
             details.append("usually")
-        elif m.service != "free" and any(o.label == m.outlet and o.free for o in m.outlets):
+        elif any(o.label == label and o.free for o in m.outlets):
             details.append("free")
         via = "".join(f'<span class="chip__via">{esc(detail)}</span>' for detail in details)
         rule = " chip--rule" if m.basis == "rule" else ""

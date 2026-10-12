@@ -1,5 +1,5 @@
 /* Layout: a broadcast rundown re-bucketed by the viewer's clock. Time rail left, match in the middle,
-   the primary service chip right, and any alternative broadcasters under the match. */
+   the selected service provider right, and broadcast networks under the match. */
 :root {
   --bg: #f2f4ef; --card: #ffffff; --fg: #15201a; --muted: #5b6a61; --line: #d6dcd4; --line-strong: #b9c3ba;
   --accent: #15744a; --gold: #a87a00; --amber: #b86b12; --amber-soft: #fbead3; --warn-bg: #fff3e0; --win: #2e9e5b; --loss: #c84b3c; --draw: #a8b1a9;

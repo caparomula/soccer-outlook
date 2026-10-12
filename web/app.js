@@ -28,7 +28,7 @@
   if (!Array.isArray(SCORING.dots) || SCORING.dots.length !== 4) SCORING.dots = [35, 45, 55, 68];   // a page from before the dots
   var AI_ON = app.getAttribute('data-ai') !== 'off';
   function rankOf(id) { var i = serviceOrder().indexOf(id); return i < 0 ? 99 : i; }
-  var SHORT = { cable: 'cable', ota: 'antenna', free: 'free app' };   // buckets where the channel leads
+  var SHORT = { cable: 'Cable / live TV', ota: 'Antenna', free: 'Free app' };   // compact names for generic access options
   function escHtml(t) { return String(t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
   // The schedule's sections: matches in progress, one per sports day of the window (WINDOW_DAYS + 1
   // of them: Today and Tomorrow, then the later days by their dates), and today's and yesterday's
@@ -328,11 +328,9 @@
   function firstHave(via) { var hits = via.filter(function (x) { return HAVE[x]; }); hits.sort(function (a, b) { return rankOf(a) - rankOf(b); }); return hits[0] || ''; }
   function chipFor(r) {
     if (r._svc !== 'none') {
-      var name = SHORT[r._svc] ? r._outlet : SERVICE_NAMES[r._svc] || r._svc, details = [];
-      if (SHORT[r._svc]) details.push(SHORT[r._svc]);
-      else if (r._outlet && r._outlet !== name) details.push(r._outlet);
+      var name = SHORT[r._svc] || SERVICE_NAMES[r._svc] || r._svc, details = [];
       if (r._basis === 'rule') details.push('usually');
-      else if (r._svc !== 'free' && r._o.some(function (o) { return o.l === r._outlet && o.f; })) details.push('free');
+      else if (r._o.some(function (o) { return o.l === name && o.f; })) details.push('free');
       return '<span class="chip' + (r._basis === 'rule' ? ' chip--rule' : '') + ' svc-' + r._svc + '"><i class="dot"></i>' + escHtml(name) +
         details.map(function (label) { return '<span class="chip__via">' + escHtml(label) + '</span>'; }).join('') + '</span>';
     }
@@ -358,14 +356,14 @@
       var o = r._o[+p.getAttribute('data-i')]; if (!o) return;
       var sid = firstHave(o.v);
       p.className = 'pill' + (o.u ? ' pill--unk' : sid ? ' pill--mine svc-' + sid : (o.f ? ' pill--free' : ''));
-      // The primary chip already names this outlet. Keep the others as alternate broadcasts;
-      // recalculate both ways when preferences change so the previous primary can reappear.
-      p.hidden = r._basis === 'listed' && o.l === r._outlet;
+      // Networks stay under the match; the separate chip names the selected provider. Omit a
+      // network only when that provider has the same name, and restore it when preferences change.
+      p.hidden = r._basis === 'listed' && o.l === SERVICE_NAMES[r._svc];
     });
     var rp = r.querySelector('.pill[data-rule]');
     if (rp && r._r) {
       var rs = firstHave(r._r.v); rp.className = 'pill pill--rule' + (rs ? ' svc-' + rs : ' pill--rule-off');
-      rp.hidden = r._basis === 'rule';
+      rp.hidden = r._basis === 'rule' && r._r.l === SERVICE_NAMES[r._svc];
     }
     var w = r.querySelector('.row__watch'); if (w) w.innerHTML = chipFor(r);
     var viewing = r.querySelector('.match-watch');

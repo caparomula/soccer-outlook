@@ -133,7 +133,7 @@ Links open on the device you are using. Whether they launch an installed app dep
 
 League emblems identify competitions; badges beside team names identify the teams. Dark emblems and badges receive a contrast adjustment for the dark theme, while already bright images retain their colors.
 
-Each match shows its preferred viewing route once: the selected service and, when different, the channel carrying it. Smaller broadcaster pills show additional channels. Changing your service preferences updates the preferred route and its alternatives.
+The outlined chip names your selected service provider; smaller chips underneath the match list its broadcast networks. For example, a match can show **YouTube TV (main plan)** on the right and **USA Network** underneath. When the network and provider have the same name, such as **Paramount+**, the lower chip is omitted. Changing your service preferences updates both.
 
 ### Match details
 

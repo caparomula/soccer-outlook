@@ -554,8 +554,8 @@ class BrowserChecks(unittest.TestCase):
                 choose(page, "yttv", "yttvspanishplus")
                 expect(row).to_be_visible()
                 expect(row).to_have_attribute("data-svc", "yttvspanishplus")
-                expect(row.locator(".row__watch")).to_contain_text("YouTube TV Spanish Plus")
-                expect(row.locator(".row__watch")).to_contain_text("Universo")
+                expect(row.locator(".row__watch .chip")).to_have_text("YouTube TV Spanish Plus")
+                expect(row.locator(".pills > .pill:visible")).to_have_text(["Universo"])
                 expect(row.locator(".match-watch__link")).to_have_text("Open YouTube TV")
                 expect(row.locator(".match-watch__link")).to_have_attribute("href", "https://tv.youtube.com/")
                 expect(page.locator("#nextup")).to_have_attribute("data-match-id", match_id)
@@ -661,7 +661,7 @@ class BrowserChecks(unittest.TestCase):
                     self.assertEqual(page.evaluate("JSON.parse(localStorage.getItem('ssg3-have'))"), ["yttv"])
                     self.assertLessEqual(page.evaluate("document.documentElement.scrollWidth"), width)
 
-    def test_broadcaster_chips_show_primary_once_and_preserve_other_outlets(self):
+    def test_broadcaster_chips_separate_networks_from_providers_without_duplicates(self):
         fixtures = [
             ("chips-live", "2026-10-07T16:30:00+00:00", "in", "Paramount+", "ita.1"),
             ("chips-paramount", "2026-10-07T18:00:00+00:00", "pre", "Paramount+", "ita.1"),
@@ -680,26 +680,24 @@ class BrowserChecks(unittest.TestCase):
         with patch.object(build, "build_page", side_effect=with_alternative_outlet):
             html = render_page(build, fixtures=fixtures)
 
-        def assert_channels(host, service, extras, outlet=None):
+        def assert_channels(host, service, networks):
             chip = host.locator(".chip:visible")
             expect(chip).to_have_count(1)
-            expect(chip).to_contain_text(service)
-            if outlet:
-                expect(chip).to_contain_text(outlet)
-            expect(host.locator(".pills > .pill:visible")).to_have_text(extras)
+            expect(chip).to_have_text(service)
+            expect(host.locator(".pills > .pill:visible")).to_have_text(networks)
 
-        def assert_all_shapes(page, service="YouTube TV (main plan)", extras=None, outlet="USA Network"):
+        def assert_all_shapes(page, service="YouTube TV (main plan)", networks=None):
             expect(page.locator("#nextup")).to_have_attribute("data-match-id", "chips-live")
             expect(page.locator("#nextup-h")).to_have_text("Live now")
             expect(page.locator("#picks .pick")).to_have_count(3)
-            for match_id in ("chips-live", "chips-paramount", "chips-alternatives"):
+            for match_id in ("chips-live", "chips-paramount", "chips-alternatives", "chips-apple"):
                 row = page.locator(f'li.row[data-id="{match_id}"]')
                 featured = page.locator(f'[data-match-id="{match_id}"]')
                 for host in (row, featured):
                     if match_id == "chips-alternatives":
-                        assert_channels(host, service, ["Peacock"] if extras is None else extras, outlet)
+                        assert_channels(host, service, ["USA Network", "Peacock"] if networks is None else networks)
                     else:
-                        assert_channels(host, "Paramount+", [])
+                        assert_channels(host, "Apple TV" if match_id == "chips-apple" else "Paramount+", [])
 
         for width in (1280, 390):
             # The generated schedule should already be clean before JavaScript runs.
@@ -712,21 +710,32 @@ class BrowserChecks(unittest.TestCase):
                     for match_id in ("chips-live", "chips-paramount"):
                         assert_channels(page.locator(f'li.row[data-id="{match_id}"]'), "Paramount+", [])
                     assert_channels(page.locator('li.row[data-id="chips-alternatives"]'),
-                                    "YouTube TV (main plan)", ["Peacock"], "USA Network")
+                                    "YouTube TV (main plan)", ["USA Network", "Peacock"])
                 finally:
                     context.close()
 
             with self.subTest(width=width, javascript=True), self.page(
                     "after", html=html, width=width, touch=width < 600) as (page, _):
                 assert_all_shapes(page)
-                # Both channels remain listed. Changing services swaps which one is primary,
-                # so the former primary must reappear among the alternatives in every shape.
+                # Distinct networks stay underneath the selected provider. A direct subscription
+                # removes only its identical network chip, and switching back restores it.
                 page.locator("#btn-menu").click()
                 page.locator('[data-kind="have"][data-key="peacock"]').click()
                 page.locator('[data-kind="have"][data-key="yttv"]').click()
                 page.locator("#btn-filters-close").click()
-                assert_all_shapes(page, service="Peacock", extras=["USA Network"], outlet=None)
+                assert_all_shapes(page, service="Peacock", networks=["USA Network"])
                 page.locator("#btn-menu").click()
+                page.locator('[data-kind="have"][data-key="yttv"]').click()
+                page.locator("#btn-filters-close").click()
+                assert_all_shapes(page)
+                page.locator("#btn-menu").click()
+                page.locator('[data-kind="have"][data-key="peacock"]').click()
+                page.locator('[data-kind="have"][data-key="yttv"]').click()
+                page.locator('[data-kind="have"][data-key="usa"]').click()
+                page.locator("#btn-filters-close").click()
+                assert_all_shapes(page, service="USA Network", networks=["Peacock"])
+                page.locator("#btn-menu").click()
+                page.locator('[data-kind="have"][data-key="usa"]').click()
                 page.locator('[data-kind="have"][data-key="yttv"]').click()
                 page.locator("#btn-filters-close").click()
                 assert_all_shapes(page)
@@ -1491,7 +1500,8 @@ class BrowserChecks(unittest.TestCase):
                 expect(hero).to_have_attribute("data-match-id", "routine")
                 self.assertEqual(picks(), ["near"])
                 expect(page.locator('#picks .svc-off, #picks .chip--no')).to_have_count(0)
-                expect(page.locator('#picks .pick[data-match-id="near"] .match__watch')).to_contain_text("ESPN+")
+                expect(page.locator('#picks .pick[data-match-id="near"] .match__watch .chip')).to_have_text("YouTube TV (main plan)")
+                expect(page.locator('#picks .pick[data-match-id="near"] .pills > .pill:visible')).to_have_text(["ESPN+"])
                 # A hidden competition hides its matches from the picks as from the schedule.
                 page.locator('#comp-pills [data-key="esp.1"]').click()
                 expect(hero).to_have_attribute("data-match-id", "routine")
