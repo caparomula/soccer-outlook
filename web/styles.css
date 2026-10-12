@@ -326,6 +326,9 @@ html.has-match-dialog, .has-match-dialog body { overflow: hidden; }
 .stage::before, .venue::before { content: "\00b7"; margin-right: 10px; }
 .row__note { margin-top: 5px; font-size: 14px; max-width: 62ch; color: var(--muted); }
 .pills { display: flex; flex-wrap: wrap; gap: 4px 6px; margin-top: 6px; }
+.match-watch { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 6px; font-size: 13px; }
+.match-watch[hidden] { display: none; }
+.match-watch__link { color: var(--accent); padding-block: 4px; text-underline-offset: 3px; }
 .pill { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; letter-spacing: 0.01em; padding: 2px 9px; border-radius: 999px; background: var(--pill-bg); color: var(--pill-fg); white-space: nowrap; line-height: 1.5; }
 .pill .dot { width: 7px; height: 7px; }
 .pill--mine { background: color-mix(in srgb, var(--svc) 14%, transparent); color: var(--svc); }

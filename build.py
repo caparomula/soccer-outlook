@@ -53,6 +53,7 @@ import providers
 import story_state  # shared window and candidate limits; the builder does not import AI generation
 import discovery
 import broadcast_listings
+import watch_links
 
 ET = ZoneInfo("America/New_York")
 ESPN = "https://site.api.espn.com/apis/site/v2/sports/soccer/{league}/scoreboard?dates={day}&limit=200"
@@ -1616,6 +1617,7 @@ def row_html(m, cache):
     rule_json = json.dumps({"l": m.rule.label, "v": m.rule.via}, ensure_ascii=False) if m.rule else ""
     parts = outlook_parts(m)
     parts_json = json.dumps({k: None if v is None else round(100 * v) for k, v in parts.items()})
+    viewing_links = watch_links_html(m)
     return (
         f'<li class="row {avail}" data-id="{esc(m.id)}" data-utc="{m.utc.strftime("%Y-%m-%dT%H:%M:%SZ")}" data-tv="{tv}" '
         f'data-lg="{esc(m.league)}" data-svc="{m.service or "none"}" data-basis="{m.basis}" data-score="{m.score}" '
@@ -1628,11 +1630,29 @@ def row_html(m, cache):
         f'<div class="row__meta">{"".join(meta)}</div>{goals_html(m)}{note}'
         f'<div class="pills">{pills_html(m)}<button type="button" class="more" aria-haspopup="dialog" aria-controls="match-dialog" '
         f'aria-label="Details: {esc(m.home.name)} v {esc(m.away.name)}">Details</button></div>'
-        f'{detail_html(m, cache)}'
+        f'{viewing_links}{detail_html(m, cache)}'
         f'</div>'
         f'<div class="row__watch">{chip_html(m)}</div>'
         f'</li>'
     )
+
+
+def watch_links_html(m):
+    """Keep viewing links in the shared match body, including on small screens."""
+    links = watch_links.match_links(m)
+    if not links:
+        return ""
+    have = set(OWNER)
+    items = []
+    for link in links:
+        hidden = "" if have.intersection(link["via"]) else " hidden"
+        title = (f'Search YouTube TV for {m.home.name} or {m.away.name}. Opens in a new tab.'
+                 if link["kind"] == "service" else 'Opens the match page in a new tab; sign-in may be required.')
+        items.append(f'<a class="match-watch__link" href="{esc(link["url"])}" '
+                     f'data-via="{esc(json.dumps(link["via"]))}" data-kind="{esc(link["kind"])}" '
+                     f'target="_blank" rel="noopener noreferrer" title="{esc(title)}"{hidden}>{esc(link["label"])}</a>')
+    hidden = "" if any(have.intersection(link["via"]) for link in links) else " hidden"
+    return f'<div class="match-watch"{hidden}>{"".join(items)}</div>'
 
 
 def colors_html(home, away):

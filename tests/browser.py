@@ -592,6 +592,105 @@ class BrowserChecks(unittest.TestCase):
                     self.assertEqual(page.evaluate("JSON.parse(localStorage.getItem('ssg3-have'))"), ["yttv"])
                     self.assertLessEqual(page.evaluate("document.documentElement.scrollWidth"), width)
 
+    def test_watch_links_follow_service_access_in_schedule_and_featured_cards(self):
+        fixtures = [
+            ("watch-live", "2026-10-07T16:30:00+00:00", "in", "TUDN", "mex.1"),
+            ("watch-apple", "2026-10-07T18:00:00+00:00", "pre", "Apple TV", "usa.1"),
+            ("watch-espn", "2026-10-07T18:30:00+00:00", "pre", "ESPN+", "esp.1"),
+            ("watch-unlisted", "2026-10-07T19:00:00+00:00", "pre", None, "eng.1"),
+            ("watch-vix", "2026-10-07T19:30:00+00:00", "pre", "ViX", "mex.1"),
+        ]
+        apple_url = "https://tv.apple.com/us/sporting-event/fixture-match/umc.cse.fixture123"
+        espn_url = "https://www.espn.com/watch/player/_/id/12345678-1234-1234-1234-123456789abc"
+        vix_url = "https://vix.com/live/transmission-matchid-123456"
+        destinations = {
+            "watch-live": ("TUDN", "https://www.tudn.com/futbol/liga-mx/fixture-match"),
+            "watch-apple": ("Apple TV", apple_url),
+            "watch-espn": ("Watch ESPN", espn_url),
+            "watch-vix": ("ViX", vix_url),
+        }
+        original_build_page = build.build_page
+
+        def with_verified_destinations(matches, cache, built_at, failed, today):
+            for match in matches:
+                if match.id in destinations:
+                    match.broadcast_source, match.broadcast_url = destinations[match.id]
+            return original_build_page(matches, cache, built_at, failed, today)
+
+        with patch.object(build, "build_page", side_effect=with_verified_destinations):
+            html = render_page(build, fixtures=fixtures)
+        for width in (1280, 390):
+            with self.subTest(width=width), self.page("after", html=html, width=width, touch=width < 600) as (page, _):
+                row = lambda mid: page.locator(f'li.row[data-id="watch-{mid}"]')
+                service = lambda sid: page.locator(f'[data-kind="have"][data-key="{sid}"]')
+                expect(page.locator("#nextup")).to_have_attribute("data-match-id", "watch-live")
+                expect(page.locator("#nextup-h")).to_have_text("Live now")
+                for mid in ("apple", "espn"):
+                    expect(page.locator(f'#picks .pick[data-match-id="watch-{mid}"]')).to_be_visible()
+
+                # The shared match body retains the same destinations in every card shape.
+                # TUDN's listing is evidence of a channel, not a direct streaming player.
+                for card in page.locator("#nextup, #picks .pick").all():
+                    mid = card.get_attribute("data-match-id").removeprefix("watch-")
+                    self.assertEqual(card.locator(".match-watch").inner_html(), row(mid).locator(".match-watch").inner_html())
+                expect(row("live").locator(".match-watch__link")).to_have_count(1)
+                expect(row("live").locator(".match-watch__link")).to_have_text("Open YouTube TV")
+                expect(row("live").locator(".match-watch__link")).to_have_attribute("data-kind", "service")
+                expect(row("unlisted").locator(".match-watch__link")).to_have_count(0)
+                expect(row("vix")).to_have_count(0)  # rows outside the lineup are detached
+                expect(page.locator(f'.match-watch__link[href="{vix_url}"]:visible')).to_have_count(0)
+
+                # Follow actual links by mouse/touch. The context routes every external request
+                # to an offline response, so this checks navigation, not provider playback.
+                source_url = page.url
+                for scope, label, destination in (
+                    (page.locator("#nextup"), "Open YouTube TV", "https://tv.youtube.com/"),
+                    (page.locator('#picks .pick[data-match-id="watch-apple"]'), "Open on Apple TV", apple_url),
+                    (row("espn"), "Open on ESPN", espn_url),
+                ):
+                    link = scope.get_by_role("link", name=re.compile("^" + re.escape(label) + r"(?:\s*↗)?$"))
+                    expect(link).to_have_attribute("target", "_blank")
+                    self.assertIn("noopener", link.get_attribute("rel").split())
+                    with page.expect_popup() as opened:
+                        link.tap() if width < 600 else link.click()
+                    popup = opened.value
+                    popup.wait_for_load_state("domcontentloaded")
+                    self.assertEqual(popup.url, destination)
+                    popup.close()
+                    self.assertEqual(page.url, source_url)
+                self.full_page_shot(page, f"watch-links-{width}.png")
+
+                # A direct ESPN subscription keeps the ESPN player, but removing YouTube TV
+                # hides its launcher everywhere and changes the live feature to Apple next up.
+                page.locator("#btn-menu").click()
+                service("yttv").click()
+                service("espn").click()
+                page.locator("#btn-filters-close").click()
+                expect(page.locator("#nextup")).to_have_attribute("data-match-id", "watch-apple")
+                expect(page.locator("#nextup-h")).to_have_text("Next up")
+                expect(page.locator("#nextup .match-watch__link")).to_have_attribute("href", apple_url)
+                expect(row("espn").locator(f'.match-watch__link[href="{espn_url}"]')).to_be_visible()
+                expect(row("espn").locator('[data-kind="service"]')).to_have_attribute("hidden", "")
+                expect(row("live")).to_have_count(0)
+                expect(page.locator('.match-watch__link[data-kind="service"]:visible')).to_have_count(0)
+                # ViX also carries TUDN, so add it only after checking the Apple next-up state.
+                page.locator("#btn-menu").click()
+                service("vix").click()
+                page.locator("#btn-filters-close").click()
+                expect(row("vix").locator(f'.match-watch__link[href="{vix_url}"]')).to_be_visible()
+                self.assertLessEqual(page.evaluate("document.documentElement.scrollWidth"), width)
+
+                # Saved preferences also govern links after reload; a retired Everything
+                # preference must not grant access to any streaming destination.
+                page.locator("#btn-menu").click()
+                page.locator("#btn-clear").click()
+                page.locator("#btn-filters-close").click()
+                page.evaluate("localStorage.setItem('ssg2-mode', JSON.stringify('all'))")
+                page.reload()
+                expect(page.locator(".match-watch__link:visible")).to_have_count(0)
+                expect(page.locator("li.row")).to_have_count(0)
+                expect(page.locator("#nextup-section, #picks-section").locator(".match-watch__link:visible")).to_have_count(0)
+
     def test_retired_fox_access_migrates_without_changing_other_preferences(self):
         fixtures = [("english", "2026-10-07T18:00:00+00:00", "pre", "ESPN+", "eng.1"),
                     ("spanish", "2026-10-07T19:00:00+00:00", "pre", "ESPN+", "esp.1"),
@@ -1601,10 +1700,17 @@ class BrowserChecks(unittest.TestCase):
                 self.assertLess(panel["y"], menu["y"] + menu["height"] + 16)
                 page.keyboard.press("Escape")
                 expect(page.locator("#drawer")).to_be_hidden()
-                # Keyboard focus never hides under the bar: Tab onto a Details button that sits beneath it ...
+                # Keyboard focus never hides under the bar: Tab through a viewing link and
+                # then the next row's Details button, both initially beneath the sticky bar.
                 details = page.locator("#outlook li.row:visible button.more")
                 page.evaluate("""() => { const all = [...document.querySelectorAll('#outlook li.row button.more')].filter(el => el.getClientRects().length);
                     window.scrollBy(0, all[12].getBoundingClientRect().top - 20); all[11].focus({ preventScroll: true }); }""")
+                viewing = page.locator("#outlook li.row:visible").nth(11).locator(".match-watch__link:visible")
+                expect(viewing).to_have_count(1)
+                page.keyboard.press("Tab")
+                page.clock.run_for(50)
+                expect(viewing).to_be_focused()
+                self.assertGreaterEqual(viewing.bounding_box()["y"], bar.bounding_box()["y"] + bar.bounding_box()["height"])
                 page.keyboard.press("Tab")
                 page.clock.run_for(50)
                 expect(details.nth(12)).to_be_focused()
@@ -2716,6 +2822,7 @@ NOT_RUN = 77
 # Chromium still runs every check by default; WebKit smoke is an additional compatibility check.
 SMOKE_TESTS = (
     "test_lineup_persists_and_resets",
+    "test_watch_links_follow_service_access_in_schedule_and_featured_cards",
     "test_filter_groups_drag_between_areas_sort_persist_and_accept_empty_drops",
     "test_league_strip_long_press_solos_and_restores_without_saving",
     "test_details_hover_preview_is_stable_hoverable_and_dismissible",

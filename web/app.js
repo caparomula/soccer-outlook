@@ -360,6 +360,18 @@
     var rp = r.querySelector('.pill[data-rule]');
     if (rp && r._r) { var rs = firstHave(r._r.v); rp.className = 'pill pill--rule' + (rs ? ' svc-' + rs : ' pill--rule-off'); }
     var w = r.querySelector('.row__watch'); if (w) w.innerHTML = chipFor(r);
+    var viewing = r.querySelector('.match-watch');
+    if (viewing) {
+      var links = Array.from(viewing.querySelectorAll('.match-watch__link'));
+      links.forEach(function (link) {
+        var via = JSON.parse(link.dataset.via), service = firstHave(via);
+        link.hidden = !service;
+        link._watchRank = service ? rankOf(service) : 999;
+      });
+      links.sort(function (a, b) { return a._watchRank - b._watchRank; });
+      links.forEach(function (link) { viewing.appendChild(link); });
+      viewing.hidden = !links.some(function (link) { return !link.hidden; });
+    }
   }
   function evaluateAll() { rows.forEach(evaluateRow); }
 
