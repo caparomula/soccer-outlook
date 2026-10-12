@@ -386,7 +386,6 @@
       if (!tag) { tag = document.createElement('span'); tag.className = 'fpill__tag'; tag.textContent = 'hidden for now'; b.appendChild(tag); }
       tag.hidden = !(on && hiddenByStrip(k)); b.classList.toggle('fpill--paused', !tag.hidden);
     });
-    renderStrip();
   }
   function passes(r) {
     // The schedule promises availability: a match shows when one of the viewer's services carries it
@@ -460,20 +459,31 @@
   }
 
   // ---- the league strip ----------------------------------------------------------------------------
-  // The leagues the viewer follows, in priority order, as emblems in the bar (a league ESPN has no
-  // emblem for shows its short code): a tap pauses one, hiding its matches for now without unfollowing
+  // Followed leagues with matches on the viewer's services in the schedule window, in priority order,
+  // as emblems in the bar (or short codes when no emblem is available). A tap pauses a league without unfollowing
   // it, and another shows them again, with a note that offers the way back. It is one tab stop, a
   // toolbar the arrow keys move along. Leagues are followed, unfollowed and ordered in the Lineup
-  // panel; with none followed there is no strip. A hold (or Shift+Enter/Space) solos a league until
+  // panel; with no matching fixtures there is no strip. A hold (or Shift+Enter/Space) solos a league until
   // it is pressed again. Solo never writes preferences; an ordinary tap otherwise still pauses.
   var strip = document.getElementById('league-strip'), stripList = document.getElementById('league-strip-list');
   var stripFocus = '', stripShape = '';
-  function renderStrip() {
+  function renderStrip(now) {
     if (!strip) return;
-    var pills = {};
+    var pills = {}, scheduled = {};
     filterPills.comp.forEach(function (pill) { pills[pill.dataset.key] = pill; });
-    var ids = leagueOrder().filter(function (id) { return pills[id] && followed(id); });
-    if (stripList.getAttribute('data-order') !== ids.join(',')) {
+    // Include folded results, and ignore pause/solo here so their restore controls stay available.
+    rows.forEach(function (r) { if (onSvc(r) && bucketOf(r, now)) scheduled[r._lg] = true; });
+    var ids = leagueOrder().filter(function (id) { return pills[id] && followed(id) && scheduled[id]; });
+    if (soloLeague && ids.indexOf(soloLeague) < 0) {
+      var ended = soloLeague;
+      clearStripView(); applyFilterUI();
+      stripStatus.textContent = leagueNames[ended] + ' is no longer in this schedule; previous selection restored';
+    }
+    var focused = stripList.contains(document.activeElement);
+    if (focused) stripFocus = document.activeElement.getAttribute('data-league');
+    var oldIndex = Array.from(stripList.children).findIndex(function (b) { return b.getAttribute('data-league') === stripFocus; });
+    var left = stripList.scrollLeft, changed = stripList.getAttribute('data-order') !== ids.join(',');
+    if (changed) {
       stripList.setAttribute('data-order', ids.join(',')); stripList.innerHTML = '';
       ids.forEach(function (id) {
         var b = document.createElement('button'); b.type = 'button'; b.className = 'strip__lg';
@@ -487,7 +497,7 @@
       });
       watchIcons();
     }
-    if (ids.indexOf(stripFocus) < 0) stripFocus = ids[0] || '';
+    if (ids.indexOf(stripFocus) < 0) stripFocus = ids[Math.max(0, Math.min(oldIndex, ids.length - 1))] || '';
     Array.from(stripList.children).forEach(function (b) {
       var id = b.getAttribute('data-league');
       b.setAttribute('aria-pressed', hiddenByStrip(id) ? 'false' : 'true');
@@ -498,6 +508,10 @@
     // The bar is refitted when the strip's contents change, not on every redraw.
     var shape = strip.hidden + '|' + ids.join(',');
     if (shape !== stripShape) { stripShape = shape; fitBar(); }
+    if (changed) {
+      stripList.scrollLeft = left; fadeStrip();
+      if (focused) (stripList.querySelector('[tabindex="0"]') || btnMenu).focus({ preventScroll: true });
+    }
   }
   // A fade at an edge of the row says more emblems lie beyond it.
   function fadeStrip() {
@@ -750,6 +764,7 @@
   }
   function draw(force) {
     var now = nowMs();
+    renderStrip(now);
     renderFilterGroups();
     var groups = {}; ORDER.forEach(function (b) { groups[b] = []; });
     var sig = Object.keys(HAVE).join(',') + '|' + Object.keys(compOff).join(',') + '|' + JSON.stringify(compChoice) + '|' + soloLeague + '|';

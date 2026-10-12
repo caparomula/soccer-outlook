@@ -534,8 +534,13 @@ class BrowserChecks(unittest.TestCase):
                 self.assertEqual(page.evaluate("JSON.parse(localStorage.getItem('ssg3-have'))"), remaining)
                 for key, expected in unrelated.items():
                     self.assertEqual(page.evaluate("key => localStorage.getItem(key)", key), expected)
-                expect(page.locator('#league-strip-list [data-league="eng.1"]')).to_have_attribute("aria-pressed", "false")
-                self.assertEqual(self.strip_ids(page), ["mex.1", "eng.1"])
+                # The strip follows the migrated service access. Saved league choices and pauses
+                # survive even when their matches no longer have an available provider.
+                self.assertEqual(self.strip_ids(page), ["eng.1"] if remaining else [])
+                if remaining:
+                    expect(page.locator('#league-strip-list [data-league="eng.1"]')).to_have_attribute("aria-pressed", "false")
+                else:
+                    expect(page.locator("#league-strip")).to_be_hidden()
                 expect(page.locator('li.row[data-id="mexican"]')).to_be_hidden()
                 page.locator("#btn-menu").click()
                 expect(page.locator("#fox-access-note")).to_be_visible()
@@ -545,6 +550,14 @@ class BrowserChecks(unittest.TestCase):
                 page.reload()
                 expect(page.locator('[data-kind="have"][aria-pressed="true"]')).to_have_count(len(remaining))
                 self.assertEqual(page.evaluate("JSON.parse(localStorage.getItem('ssg3-have'))"), remaining)
+                if not remaining:
+                    page.locator("#btn-menu").click()
+                    page.locator('#have-disabled [data-key="espn"]').click()
+                    self.assertEqual(self.strip_ids(page), ["eng.1"])
+                    expect(page.locator('#league-strip-list [data-league="eng.1"]')).to_have_attribute("aria-pressed", "false")
+                    expect(page.locator('li.row[data-id="english"]')).to_be_hidden()
+                    for key, expected in unrelated.items():
+                        self.assertEqual(page.evaluate("key => localStorage.getItem(key)", key), expected)
 
     def test_bulk_filters_are_independent_persist_and_reset_to_owner_defaults(self):
         default_order = ["apple", "yttv", "hbo", "para", "prime", "netflix", "disney"]
@@ -1944,10 +1957,10 @@ class BrowserChecks(unittest.TestCase):
                 expect(lg("esp.1")).to_have_attribute("aria-pressed", "false")
                 expect(row("liga")).to_be_hidden()
                 expect(tally).to_have_text("3")
-                # Off is more than a colour: a dashed edge and a slash, and the mark faded.
-                look = "el => [getComputedStyle(el).borderTopStyle, getComputedStyle(el, '::after').content, getComputedStyle(el.firstChild).opacity]"
-                self.assertEqual(lg("esp.1").evaluate(look), ["dashed", '""', "0.35"])
-                self.assertEqual(lg("eng.1").evaluate(look), ["solid", "none", "1"])
+                # Pausing gently dims the emblem without a slash or a grayscale filter.
+                look = "el => [getComputedStyle(el).borderTopStyle, getComputedStyle(el, '::after').content, getComputedStyle(el.firstChild).opacity, getComputedStyle(el.firstChild).filter]"
+                self.assertEqual(lg("esp.1").evaluate(look), ["solid", "none", "0.65", "none"])
+                self.assertEqual(lg("eng.1").evaluate(look), ["solid", "none", "1", "none"])
                 expect(note).to_be_visible()
                 expect(note).to_contain_text("La Liga hidden")
                 expect(page.locator("#strip-status")).to_have_text("La Liga hidden")
@@ -2052,6 +2065,99 @@ class BrowserChecks(unittest.TestCase):
                         self.assertAlmostEqual(box["width"], page.locator("#bar").bounding_box()["width"], delta=1)
                     else:
                         self.assertAlmostEqual(mid(box), mid(menu), delta=3)
+
+    def test_league_strip_tracks_the_available_schedule_without_forgetting_pauses(self):
+        fixtures = [("today", "2026-10-07T18:00:00+00:00", "pre", "ESPN+", "eng.1"),
+                    ("other-service", "2026-10-07T19:00:00+00:00", "pre", "Peacock", "esp.1"),
+                    ("earlier", "2026-10-07T14:00:00+00:00", "post", "Paramount+", "ita.1"),
+                    ("yesterday", "2026-10-06T18:00:00+00:00", "post", "Apple TV", "usa.1"),
+                    ("later", "2026-10-10T18:00:00+00:00", "pre", "FS2", "mex.1"),
+                    ("too-far", "2026-10-11T18:00:00+00:00", "pre", "ESPN+", "ger.1"),
+                    ("too-old", "2026-10-05T18:00:00+00:00", "post", "ESPN+", "por.1"),
+                    ("unrecognized", "2026-10-07T18:00:00+00:00", "pre", "Mystery Sports+", "eng.2"),
+                    ("disabled", "2026-10-07T18:00:00+00:00", "pre", "ESPN+", "fra.1")]
+        html = render_page(build, fixtures=fixtures, league_logos=True)
+        ordered = lambda *keys: [key for key in build.LEAGUES if key in keys]
+        expected = ordered("eng.1", "ita.1", "usa.1", "mex.1")
+        with_service = ordered(*expected, "esp.1")
+        for width in (1280, 390):
+            with self.subTest(width=width), self.page("after", width=width, html=html) as (page, _):
+                lg = lambda key: page.locator(f'#league-strip-list [data-league="{key}"]')
+                self.assertEqual(self.strip_ids(page), expected)
+                # Folded results are still part of the schedule, but unavailable and out-of-window
+                # leagues are not. All leagues from the fetched fixtures remain configurable.
+                for match in ("earlier", "yesterday"):
+                    expect(page.locator(f'li.row[data-id="{match}"]')).to_be_hidden()
+                drawer_ids = page.locator('#comp-pills .fpill').evaluate_all("els => els.map(e => e.dataset.key).sort()")
+                self.assertEqual(drawer_ids, sorted({fixture[4] for fixture in fixtures}))
+                page.locator("#btn-menu").click()
+                page.locator('#have-disabled [data-key="peacock"]').click()
+                page.locator("#btn-filters-close").click()
+                self.assertEqual(self.strip_ids(page), with_service)
+                lg("esp.1").click()
+                expect(lg("esp.1")).to_have_attribute("aria-pressed", "false")
+                self.assertEqual(self.strip_ids(page), with_service)
+                # Losing the sole carrying service removes the icon; restoring that service must
+                # restore the saved pause, without silently enabling the league's matches.
+                page.locator("#btn-menu").click()
+                page.locator('#have-enabled [data-key="peacock"]').click()
+                self.assertEqual(self.strip_ids(page), expected)
+                page.locator('#have-disabled [data-key="peacock"]').click()
+                self.assertEqual(self.strip_ids(page), with_service)
+                expect(lg("esp.1")).to_have_attribute("aria-pressed", "false")
+                self.assertEqual(page.evaluate("JSON.parse(localStorage.getItem('ssg1-league-paused'))"), ["esp.1"])
+                page.locator("#btn-filters-close").click()
+                # A solo view leaves all available league controls reachable for switching back.
+                lg("eng.1").focus()
+                page.keyboard.press("Shift+Enter")
+                self.assertEqual(self.strip_ids(page), with_service)
+                expect(page.locator('#league-strip-list [aria-pressed="true"]')).to_have_count(1)
+                page.keyboard.press("Shift+Enter")
+                expect(lg("esp.1")).to_have_attribute("aria-pressed", "false")
+                page.locator("#btn-menu").click()
+                page.locator("#btn-clear").click()
+                expect(page.locator("#league-strip")).to_be_hidden()
+                self.assertEqual(page.locator('#comp-pills .fpill').evaluate_all("els => els.map(e => e.dataset.key).sort()"), drawer_ids)
+                self.assertLessEqual(page.evaluate("document.documentElement.scrollWidth"), width)
+
+    def test_league_strip_tracks_the_window_and_preserves_keyboard_focus(self):
+        fixtures = [("old", "2026-10-06T18:00:00+00:00", "post", "ESPN+", "eng.1"),
+                    ("stays", "2026-10-08T18:00:00+00:00", "pre", "ESPN+", "esp.1"),
+                    ("enters", "2026-10-11T18:00:00+00:00", "pre", "ESPN+", "ita.1")]
+        with self.page("after", html=render_page(build, fixtures=fixtures)) as (page, _):
+            lg = lambda key: page.locator(f'#league-strip-list [data-league="{key}"]')
+            self.assertEqual(self.strip_ids(page), ["eng.1", "esp.1"])
+            lg("esp.1").focus()
+            page.evaluate("location.hash = '#at-20261008-1300'")
+            expect(lg("eng.1")).to_have_count(0)
+            expect(lg("ita.1")).to_have_count(1)
+            self.assertEqual(self.strip_ids(page), ["esp.1", "ita.1"])
+            expect(lg("esp.1")).to_be_focused()
+            # When the focused league expires, focus moves to a remaining league, then Lineup if
+            # no league has matches left. No saved preferences change just because time advanced.
+            page.evaluate("location.hash = '#at-20261012-1300'")
+            expect(lg("esp.1")).to_have_count(0)
+            expect(lg("ita.1")).to_be_focused()
+            page.evaluate("location.hash = '#at-20261013-1300'")
+            expect(page.locator("#league-strip")).to_be_hidden()
+            expect(page.locator("#btn-menu")).to_be_focused()
+            expect(page.locator('#comp-enabled .fpill')).to_have_count(3)
+            self.assertIsNone(page.evaluate("localStorage.getItem('ssg5-leagues')"))
+
+    def test_league_strip_ends_solo_when_its_last_match_leaves_the_window(self):
+        fixtures = [("expires", "2026-10-06T18:00:00+00:00", "post", "ESPN+", "eng.1"),
+                    ("remaining", "2026-10-08T18:00:00+00:00", "pre", "ESPN+", "esp.1")]
+        with self.page("after", html=render_page(build, fixtures=fixtures)) as (page, _):
+            page.locator('#league-strip-list [data-league="eng.1"]').focus()
+            page.keyboard.press("Shift+Enter")
+            expect(page.locator('li.row[data-id="remaining"]')).to_be_hidden()
+            page.evaluate("location.hash = '#at-20261008-1300'")
+            expect(page.locator('#league-strip-list [data-league="eng.1"]')).to_have_count(0)
+            expect(page.locator('li.row[data-id="remaining"]')).to_be_visible()
+            expect(page.locator('#league-strip-list [data-league="esp.1"]')).to_be_focused()
+            expect(page.locator('.strip__lg--solo')).to_have_count(0)
+            expect(page.locator('#strip-note')).to_be_hidden()
+            self.assertIsNone(page.evaluate("localStorage.getItem('ssg1-league-paused')"))
 
     def test_league_strip_shows_emblems_and_keeps_the_readers_place(self):
         # 36 Premier League matches, then one Liga match; the page has its emblems.

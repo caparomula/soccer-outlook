@@ -47,15 +47,17 @@ Local affiliates vary by ZIP code. Check [YouTube TV's current plans and local l
 
 ### Quickly hide a league
 
-The bar shows emblems for your enabled leagues. Tap one to hide that league's matches; tap it again to show them. A hidden league's emblem is dimmed and slashed, and a short notice offers **Undo**. The strip scrolls sideways if it does not fit.
+The bar shows emblems for enabled leagues with matches on your selected services in the displayed schedule, including folded results. It updates when you change services or the schedule's date window changes. Leagues without matching games stay available in **Lineup**. Tap an emblem to hide that league's matches; tap it again to show them. A hidden league's emblem is gently dimmed, keeping its colors, and a short notice offers **Undo**. The strip scrolls sideways if it does not fit.
 
-Hiding keeps the league in the strip and remembers the choice for your next visit. Disabling it in **Lineup** removes it from the strip. If you enable it again, it starts visible.
+Hiding keeps the league in the strip while it has matching games and remembers the choice for your next visit. Disabling it in **Lineup** removes it from the strip. If you enable it again, it starts visible.
 
 With a keyboard, Tab enters the strip; arrow keys, Home and End move between leagues, and Enter or Space toggles the focused league. If ESPN has no emblem for a league, the strip shows a short name instead.
 
 ### Focus on one league
 
 Press and hold a league emblem to show only that league, still using your selected broadcasters. Tap or hold the same emblem again to restore your previous selection. You can also choose **Undo** or press **Escape**. Pressing another emblem switches the solo view to that league.
+
+If the solo league's last match leaves the displayed schedule, the page restores your previous selection automatically.
 
 With a keyboard, **Shift + Enter** or **Shift + Space** starts or ends the solo view. Your saved selections and hidden leagues stay intact, even if the solo league was previously hidden. Reloading the page or changing your league or broadcaster selections in **Lineup** ends the solo view; simply opening Lineup or reordering visible leagues does not.
 

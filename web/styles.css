@@ -437,7 +437,7 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
    coffee link, each a toggle that hides or shows its matches. It shares their line where it has room
    for a run of emblems and takes a line of its own below them where it hasn't (the script measures,
    as for the tight bar); either way it is one row that scrolls sideways, faded at an edge with more
-   beyond it. Off is not colour alone: faded, grey, dashed and struck through. */
+   beyond it. Paused emblems retain their colors with a gentle dim; aria-pressed exposes the state. */
 .strip { flex: 1 1 0; min-width: 0; display: flex; align-items: center; gap: 6px; }
 .strip[hidden] { display: none; }
 .bar--strip-below .strip { order: 1; flex-basis: 100%; }
@@ -451,9 +451,8 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
 .strip__mark { display: grid; place-items: center; }
 .strip__lg .lg { display: block; width: 22px; height: 22px; margin: 0; }
 .strip__code { font: 700 10px/1 var(--body); letter-spacing: 0.02em; }
-.strip__lg[aria-pressed="false"] { background: transparent; border-style: dashed; }
-.strip__lg[aria-pressed="false"] .strip__mark { opacity: 0.35; filter: grayscale(1); }
-.strip__lg[aria-pressed="false"]::after { content: ""; position: absolute; left: 7px; right: 7px; top: calc(50% - 1px); height: 2px; border-radius: 1px; background: var(--muted); transform: rotate(-45deg); }
+.strip__lg[aria-pressed="false"] { background: transparent; border-color: var(--line); }
+.strip__lg[aria-pressed="false"] .strip__mark { opacity: 0.65; }
 .strip__lg:hover { border-color: var(--fg); }
 .strip__lg--solo { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
 .strip__lg:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
