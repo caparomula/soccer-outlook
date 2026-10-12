@@ -518,6 +518,75 @@ class BrowserChecks(unittest.TestCase):
                 page.locator("#btn-filters-close").click()
                 check_matches(page, base_matches)
 
+    def test_universo_requires_youtube_tv_spanish_access_and_paramount_is_independent(self):
+        match_id = "atalanta-venezia"
+        fixtures = [(match_id, "2026-10-07T18:00:00+00:00", "pre", "Universo", "ita.1")]
+        names = {match_id: ("Atalanta", "Venezia")}
+        # Separate synthetic listings for the same teams: Universo requires Spanish access,
+        # while an explicitly listed Paramount+ broadcast provides its own valid route.
+        universo_html = render_page(build, fixtures=fixtures, team_names=names)
+        paramount_html = render_page(build, fixtures=[(*fixtures[0][:3], "Paramount+", "ita.1")],
+                                     team_names=names)
+
+        def choose(page, *services):
+            page.locator("#btn-menu").click()
+            page.locator("#btn-clear").click()
+            for service in services:
+                page.locator(f'[data-kind="have"][data-key="{service}"]').click()
+            page.locator("#btn-filters-close").click()
+
+        def unavailable(page):
+            # Filtered schedule rows are detached; featured cards must disappear with them.
+            expect(page.locator(f'li.row[data-id="{match_id}"]')).to_have_count(0)
+            expect(page.locator(f'[data-match-id="{match_id}"]:visible')).to_have_count(0)
+            expect(page.locator('.match-watch__link[href="https://tv.youtube.com/"]:visible')).to_have_count(0)
+            expect(page.locator("#tally-n")).to_have_text("0")
+
+        for width in (1280, 390):
+            with self.subTest(width=width, listing="Universo"), self.page(
+                    "after", width=width, html=universo_html) as (page, _):
+                row = page.locator(f'li.row[data-id="{match_id}"]')
+                unavailable(page)  # defaults include main and Paramount+, neither carries Universo
+                for service in ("yttv", "yttvsports", "para"):
+                    choose(page, service)
+                    unavailable(page)
+
+                choose(page, "yttv", "yttvspanishplus")
+                expect(row).to_be_visible()
+                expect(row).to_have_attribute("data-svc", "yttvspanishplus")
+                expect(row.locator(".row__watch")).to_contain_text("YouTube TV Spanish Plus")
+                expect(row.locator(".row__watch")).to_contain_text("Universo")
+                expect(row.locator(".match-watch__link")).to_have_text("Open YouTube TV")
+                expect(row.locator(".match-watch__link")).to_have_attribute("href", "https://tv.youtube.com/")
+                expect(page.locator("#nextup")).to_have_attribute("data-match-id", match_id)
+                expect(page.locator("#nextup .chip")).to_contain_text("YouTube TV Spanish Plus")
+                expect(page.locator("#nextup .match-watch__link")).to_be_visible()
+                expect(page.locator("#tally-n")).to_have_text("1")
+                page.locator("#btn-menu").click()
+                page.locator('[data-kind="have"][data-key="yttvspanishplus"]').click()
+                page.locator("#btn-filters-close").click()
+                unavailable(page)
+
+                choose(page, "yttvspanish")
+                expect(row).to_be_visible()
+                expect(row).to_have_attribute("data-svc", "yttvspanish")
+                expect(row.locator(".row__watch")).to_contain_text("YouTube TV Spanish Plan")
+                expect(row.locator(".match-watch__link")).to_be_visible()
+                self.assertLessEqual(page.evaluate("document.documentElement.scrollWidth"), width)
+
+            with self.subTest(width=width, listing="Paramount+"), self.page(
+                    "after", width=width, html=paramount_html) as (page, _):
+                row = page.locator(f'li.row[data-id="{match_id}"]')
+                expect(row).to_be_visible()
+                expect(row).to_have_attribute("data-svc", "para")
+                choose(page, "yttv")
+                unavailable(page)
+                choose(page, "para")
+                expect(row).to_be_visible()
+                expect(row.locator(".row__watch")).to_contain_text("Paramount+")
+                expect(row.locator('.match-watch__link[href="https://tv.youtube.com/"]')).to_have_count(0)
+                expect(page.locator("#tally-n")).to_have_text("1")
+
     def test_tudn_listing_makes_america_monterrey_visible_on_youtube_tv(self):
         samples = Path(__file__).parent / "fixtures"
         schedule = (samples / "tudn-results.html").read_bytes()

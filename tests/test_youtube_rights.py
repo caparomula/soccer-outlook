@@ -32,12 +32,26 @@ class YouTubeRights(unittest.TestCase):
     def test_main_and_sports_do_not_include_paid_addons_or_other_apps(self):
         for service in ("yttv", "yttvsports"):
             self.assert_access({service}, ["Fox Deportes", "FSP", "beIN Sports", "beIN Sports en Español",
-                                          "FOX One", "Peacock", "Paramount+", "HBO Max", "Apple TV"], False)
+                                          "Universo", "FOX One", "Peacock", "Paramount+", "HBO Max", "Apple TV"], False)
 
     def test_sports_plan_does_not_inherit_the_main_plans_extra_channels(self):
-        extras = ["CNBC", "Universo", "Galavision", "ION"]
+        extras = ["CNBC", "Galavision", "ION"]
         self.assert_access({"yttv"}, extras, True)
         self.assert_access({"yttvsports"}, extras, False)
+
+    def test_universo_requires_a_spanish_package_without_hiding_other_viewing_routes(self):
+        universo = build.map_outlet("Universo", "ita.1")
+        paramount = build.map_outlet("Paramount+", "ita.1")
+        for services in ({"yttv"}, {"yttvsports"}, {"yttv", "yttvsportsplus"}, {"yttv", "para"}):
+            with self.subTest(services=services):
+                self.assertEqual(build.evaluate([universo], None, services), ("", "none", ""))
+        for service in ("yttvspanishplus", "yttvspanish"):
+            self.assertEqual(build.evaluate([universo], None, {"yttv", service}),
+                             (service, "listed", "Universo"))
+        # A separate Paramount+ listing is still valid; a YouTube plan does not grant it.
+        self.assertEqual(build.evaluate([paramount], None, {"yttv"}), ("", "none", ""))
+        self.assertEqual(build.evaluate([universo, paramount], None, {"yttv", "para"}),
+                         ("para", "listed", "Paramount+"))
 
     def test_sports_plus_adds_only_premium_channels(self):
         self.assert_access({"yttvsportsplus"}, ["FSP", "beIN Sports", "beIN Sports XTRA"], True)

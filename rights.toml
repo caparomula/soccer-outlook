@@ -224,9 +224,9 @@ checked = 2026-10-06
 [services.yttv]
 name = "YouTube TV (main plan)"
 channels = ["FOX", "FS1", "FS2", "Big Ten Network", "ABC", "CBS", "CBS Sports Network", "NBC", "NBCSN", "The CW",
-            "USA Network", "TNT", "TBS", "truTV", "Telemundo", "Univision", "UniMás", "TUDN", "CNBC", "Universo", "Galavisión", "ION",
+            "USA Network", "TNT", "TBS", "truTV", "Telemundo", "Univision", "UniMás", "TUDN", "CNBC", "Galavisión", "ION",
             "ESPN+", "ESPN Unlimited", "ESPN", "ESPN2", "ESPNU", "ESPNEWS", "ESPN Deportes", "ACC Network", "SEC Network"]
-note = "The main plan, formerly Base Plan. Includes ESPN Unlimited and ESPN+ events in YouTube TV; using the ESPN app requires account linking. Local affiliates vary by ZIP code. Sports Plus and Spanish Plus are separate add-ons. Channel carriage does not grant subscriptions to FOX One, Peacock, Paramount+ or HBO Max."
+note = "The main plan, formerly Base Plan. Includes ESPN Unlimited and ESPN+ events in YouTube TV; using the ESPN app requires account linking. Local affiliates vary by ZIP code. Sports Plus and Spanish Plus are separate add-ons; Universo requires a Spanish package. Channel carriage does not grant subscriptions to FOX One, Peacock, Paramount+ or HBO Max."
 source = "https://support.google.com/youtubetv/answer/16865391?hl=en ; https://www.cabletv.com/youtube-tv/channels ; https://blog.youtube/news-and-events/espn-unlimited-youtube-tv-live-sports/ ; https://support.google.com/youtubetv/answer/18116615?hl=en"
 checked = 2026-10-12
 
@@ -235,7 +235,7 @@ name = "YouTube TV Sports Plan"
 channels = ["FOX", "FS1", "FS2", "Big Ten Network", "ABC", "CBS", "CBS Sports Network", "NBC", "NBCSN", "The CW",
             "USA Network", "TNT", "TBS", "truTV", "Telemundo", "Univision", "UniMás", "TUDN",
             "ESPN+", "ESPN Unlimited", "ESPN", "ESPN2", "ESPNU", "ESPNEWS", "ESPN Deportes", "ACC Network", "SEC Network"]
-note = "The Sports Plan, not the Sports Plus add-on. Includes ESPN Unlimited and ESPN+ events. Does not include CNBC, Universo, Galavisión or ION from the main plan. Local affiliates vary by ZIP code. Premium sports channels still need their own add-on."
+note = "The Sports Plan, not the Sports Plus add-on. Includes ESPN Unlimited and ESPN+ events. Does not include the main plan's CNBC, Galavisión or ION; Universo requires a Spanish package. Local affiliates vary by ZIP code. Premium sports channels still need their own add-on."
 source = "https://blog.youtube/news-and-events/youtube-tv-plans-launch-pricing/ ; https://www.cabletv.com/youtube-tv/channels ; https://blog.youtube/news-and-events/espn-unlimited-youtube-tv-live-sports/ ; https://support.google.com/youtubetv/answer/18116615?hl=en"
 checked = 2026-10-12
 
@@ -248,6 +248,9 @@ checked = 2026-10-12
 
 [services.yttvspanishplus]
 name = "YouTube TV Spanish Plus"
+# The owner's YouTube TV guide explicitly marked Universo's Atalanta–Venezia broadcast
+# "Add Spanish Plus to watch" on 2026-10-12. This contradicts the older third-party main-plan
+# table; use the observed package restriction rather than granting main-plan access.
 channels = ["ESPN Deportes", "Fox Deportes", "beIN Sports en Español", "TyC Sports", "Universo"]
 note = "A paid add-on to an eligible YouTube TV plan. Select the underlying plan separately. The add-on itself does not grant TUDN, Univision, UniMás or Galavisión; the main plan includes those."
 source = "https://support.google.com/youtubetv/answer/12083189?hl=en ; https://www.cabletv.com/youtube-tv/channels/spanish-plus-add-on ; https://support.google.com/youtubetv/answer/11489195?hl=en"

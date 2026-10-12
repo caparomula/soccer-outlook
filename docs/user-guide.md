@@ -35,13 +35,15 @@ Choose your plan and any add-ons you pay for in **Lineup**, instead of **Cable o
 
 | Choice | Soccer coverage included |
 | --- | --- |
-| **YouTube TV (main plan)** | The former Base Plan: FOX, FS1, FS2, Big Ten Network, ESPN networks and ESPN+, USA Network, NBC/NBCSN, CBS/CBS Sports Network, TNT/TBS/truTV, CNBC, ION, and Spanish channels including TUDN, Univision, UniMás, Telemundo, Universo and Galavisión. |
-| **YouTube TV Sports Plan** | The core sports channels above, including ESPN+, but without the main plan's CNBC, Universo, Galavisión or ION. Sports Plus is a separate purchase. |
+| **YouTube TV (main plan)** | The former Base Plan: FOX, FS1, FS2, Big Ten Network, ESPN networks and ESPN+, USA Network, NBC/NBCSN, CBS/CBS Sports Network, TNT/TBS/truTV, CNBC, ION, and Spanish channels including TUDN, Univision, UniMás, Telemundo and Galavisión. Universo requires a Spanish package. |
+| **YouTube TV Sports Plan** | The core sports channels above, including ESPN+, but without the main plan's CNBC, Galavisión or ION. Sports Plus is a separate purchase; Universo requires a Spanish package. |
 | **YouTube TV Sports Plus** | An add-on with FOX Soccer Plus, beIN Sports and beIN Sports XTRA. Select your underlying plan too. |
 | **YouTube TV Spanish Plus** | An add-on with ESPN Deportes, FOX Deportes, beIN Sports en Español, TyC Sports and Universo. Select your underlying plan too. |
 | **YouTube TV Spanish Plan** | A standalone Spanish subscription: the Spanish Plus channels above, plus TUDN, Univision, UniMás and Galavisión. It does not include Telemundo, English sports channels or ESPN+. |
 
 [ESPN Unlimited is included with the main and Sports plans](https://blog.youtube/news-and-events/espn-unlimited-youtube-tv-live-sports/), so ESPN+ matches are available directly in YouTube TV. To watch through the ESPN app instead, the family manager must [link the accounts](https://support.google.com/youtubetv/answer/18116615?hl=en). Carrying a TV channel does not grant a separate Peacock, Paramount+, HBO Max or FOX One subscription. The beIN add-on choices cover their named channels; they do not assume access to beIN Sports Connect overflow streams.
+
+A match listed on Universo requires **Spanish Plus** or the standalone **Spanish Plan** in YouTube TV. A match may still appear through another selected service if it has a separate listing there—for example, Paramount+. The match's service badge identifies the viewing route.
 
 Local affiliates vary by ZIP code. Check [YouTube TV's current plans and local lineup](https://support.google.com/youtubetv/answer/16865391?hl=en), [Sports Plus channels](https://support.google.com/youtubetv/answer/10057534?hl=en), and [Spanish plan options](https://support.google.com/youtubetv/answer/12083189?hl=en) against your subscription. Free broadcasts listed on **YouTube** belong to **Free apps**, separate from paid YouTube TV.
 
