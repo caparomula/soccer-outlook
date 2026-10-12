@@ -93,12 +93,22 @@ class LeagueCodes(unittest.TestCase):
 
 class DefaultPriority(unittest.TestCase):
     def test_the_page_takes_its_default_league_priority_from_the_league_table(self):
-        """The page's default league priority is build.py's LEAGUES in order, set by US popularity as researched on
-        8 October 2026: the Champions League, the Premier League and Liga MX lead (README says why)."""
+        """Default selection and priority match the owner's fifteen chosen competitions."""
         page = render_page(build)
         meta = json.loads(re.search(r'<script type="application/json" id="service-meta">(.*?)</script>', page, re.S).group(1))
         self.assertEqual(list(meta["leagues"]), list(build.LEAGUES))
-        self.assertEqual(list(build.LEAGUES)[:3], ["uefa.champions", "eng.1", "mex.1"])
+        enabled = [lg for lg, info in build.LEAGUES.items() if not info.get("default_off")]
+        self.assertEqual(enabled, ["mex.1", "uefa.champions", "eng.1", "usa.1", "esp.1", "usa.nwsl", "ita.1",
+                                   "ger.1", "uefa.europa", "concacaf.champions", "eng.fa", "fra.1",
+                                   "esp.copa_del_rey", "eng.2", "usa.usl.1"])
+        self.assertEqual(list(meta["leagues"])[:15], enabled)
+        fixtures = [(lg, "2026-10-07T18:00:00+00:00", "pre", "ESPN+", lg) for lg in build.LEAGUES]
+        pills = [attrs for tag, attrs in Tags(render_page(build, fixtures=fixtures)).tags
+                 if tag == "button" and attrs.get("data-kind") == "comp"]
+        self.assertEqual([p["data-key"] for p in pills if p["aria-pressed"] == "true"], enabled)
+        disabled = [p["data-key"] for p in pills if p["aria-pressed"] == "false"]
+        self.assertEqual(set(disabled), set(build.LEAGUES) - set(enabled))
+        self.assertEqual(disabled, sorted(disabled, key=lambda lg: build.LEAGUES[lg]["name"].casefold()))
 
 
 class MalformedFeed(unittest.TestCase):
@@ -194,12 +204,12 @@ class Markup(unittest.TestCase):
         for links in ([{"href": " JaVaScRiPt:alert(1)"}], [{"href": "data:text/html,x"}], [{"href": None}], []):
             self.assertEqual(build.interpret("fifa.friendly.w", self.event(links)).link, "")
 
-    def test_us_national_teams_are_shown_by_default_in_an_off_competition(self):
+    def test_us_national_teams_obey_disabled_competitions(self):
         self.assertTrue(build.LEAGUES["fifa.friendly.w"].get("default_off"))
         usa = build.interpret("fifa.friendly.w", self.event())
         other = build.interpret("fifa.friendly.w", self.event(home="India", home_id="20885"))
-        self.assertEqual((build.featured(usa), build.shown_by_default(usa)), (True, True))
-        self.assertEqual((build.featured(other), build.shown_by_default(other)), (False, False))
+        self.assertFalse(build.shown_by_default(usa))
+        self.assertFalse(build.shown_by_default(other))
         fixtures = [("usa", "2026-10-07T23:00:00+00:00", "pre", "HBO Max", "fifa.friendly.w"),
                     ("india", "2026-10-07T23:30:00+00:00", "pre", "HBO Max", "fifa.friendly.w")]
         with tempfile.TemporaryDirectory() as tmp:
@@ -209,10 +219,11 @@ class Markup(unittest.TestCase):
                                team_ids={"usa": ("2765", "17640"), "india": ("20885", "2763")})
             facts = json.loads(facts_path.read_text())
         rows = {attrs["data-id"]: attrs for tag, attrs in Tags(page).tags if tag == "li" and "data-id" in attrs}
-        self.assertEqual(rows["usa"].get("data-featured"), "1")
+        self.assertNotIn("data-featured", rows["usa"])
+        self.assertEqual(re.search(r'id="tally-n">(\d+)<', page).group(1), "0")
         self.assertNotIn("data-featured", rows["india"])
         shown = {m["id"]: m.get("default_competition") for m in facts["ranking_candidates"] + facts["next_24_hours"] if "default_competition" in m}
-        self.assertEqual(shown, {"usa": True, "india": False})
+        self.assertEqual(shown, {"usa": False, "india": False})
 
     def test_details_buttons_name_their_match_and_logos_stay_out_of_the_reading_order(self):
         page = render_page(build)

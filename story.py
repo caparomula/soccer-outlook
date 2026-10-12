@@ -1232,7 +1232,7 @@ def user_prompt(facts, budget):
             f"Here are the candidate matches. {FACTS_GUIDE}\n\n"
             f"{compact(news_view(facts))}\n\n"
             "Write a paragraph for every supplied league, plus up to eight researched match notes. Rank all supplied leagues "
-            "in league_order by general viewing interest; the browser separately adds a small share of league priority to match interest, as a tiebreaker. Use the match ids exactly as given. "
+            "in league_order by general viewing interest for the editorial output; the browser uses the visitor's saved order or the configured default. Use the match ids exactly as given. "
             f"{FORECAST_GUIDE} "
             f"You have up to {budget[0]} web searches and {budget[1]} page reads.")
 
@@ -1272,7 +1272,7 @@ def refresh_prompt(facts, previous, budget):
             "must affect a specific upcoming fixture. Keep qualifying notes with their sources exactly as given; revise or replace "
             "the others, and add notes for matches that have become the day's stories. Supply a paragraph for every league, "
             "including later options for filter changes; past results are context, not the lead. Notes are only for matches in the lists "
-            "above. Rank every supplied league in league_order by general viewing interest; this supplies the separate league-priority tiebreaker. "
+            "above. Rank every supplied league in league_order by general viewing interest for the editorial output; this does not override the visitor's saved order or the configured default. "
             "Use the match ids exactly as given. "
             f"{FORECAST_GUIDE} Rewrite it for this moment. "
             f"You have up to {budget[0]} web searches and {budget[1]} page reads. Call publish_story once with the "

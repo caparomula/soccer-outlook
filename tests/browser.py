@@ -562,9 +562,11 @@ class BrowserChecks(unittest.TestCase):
     def test_bulk_filters_are_independent_persist_and_reset_to_owner_defaults(self):
         default_order = ["apple", "yttv", "hbo", "para", "prime", "netflix", "disney"]
         enabled_services = set(default_order)
-        hidden_leagues = {"fifa.friendly.w", "usa.usl.1", "usa.usl.l1", "usa.nwsl",
-                          "ned.1", "fra.1", "uefa.europa.conf", "uefa.europa"}
-        leagues = ["eng.1", "esp.1", *sorted(hidden_leagues)]
+        league_order = ["mex.1", "uefa.champions", "eng.1", "usa.1", "esp.1", "usa.nwsl",
+                        "ita.1", "ger.1", "uefa.europa", "concacaf.champions", "eng.fa", "fra.1",
+                        "esp.copa_del_rey", "eng.2", "usa.usl.1"]
+        leagues = list(build.LEAGUES)
+        hidden_leagues = set(leagues) - set(league_order)
         html = render_page(build, fixtures=[
             (f"match-{i}", "2026-10-07T18:00:00+00:00", "pre", "ESPN+", league)
             for i, league in enumerate(leagues)])
@@ -576,15 +578,17 @@ class BrowserChecks(unittest.TestCase):
         def check_default_order(page):
             self.assertEqual(page.locator('#have-enabled .fpill').evaluate_all(
                 "buttons => buttons.map(button => button.dataset.key)"), default_order)
+            self.assertEqual(page.locator('#comp-enabled .fpill').evaluate_all(
+                "buttons => buttons.map(button => button.dataset.key)"), league_order)
 
         for width in (1280, 390):
             with self.subTest(width=width), self.page("after", width=width, html=html) as (page, _):
                 self.assertEqual(keys(page, "have", "true"), enabled_services)
                 check_default_order(page)
                 self.assertEqual(keys(page, "comp", "false"), hidden_leagues)
-                expect(page.locator('li.row:visible')).to_have_count(2)
+                expect(page.locator('li.row:visible')).to_have_count(len(league_order))
                 page.locator("#btn-menu").click()
-                expect(page.locator("#filter-sum")).to_have_text("7 services, 8 competitions hidden")
+                expect(page.locator("#filter-sum")).to_have_text(f"7 services, {len(hidden_leagues)} competitions hidden")
                 self.assertLessEqual(page.evaluate("document.documentElement.scrollWidth"), width)
                 page.locator("#drawer").screenshot(path=str(self.artifacts / f"bulk-filters-{width}.png"))
 
@@ -618,15 +622,50 @@ class BrowserChecks(unittest.TestCase):
                 self.assertEqual(keys(page, "have", "true"), enabled_services)
                 check_default_order(page)
                 self.assertEqual(keys(page, "comp", "false"), hidden_leagues)
-                expect(page.locator('li.row:visible')).to_have_count(2)
+                expect(page.locator('li.row:visible')).to_have_count(len(league_order))
                 page.reload()
                 self.assertEqual(keys(page, "have", "true"), enabled_services)
                 check_default_order(page)
                 self.assertEqual(keys(page, "comp", "false"), hidden_leagues)
-                expect(page.locator('li.row:visible')).to_have_count(2)
+                expect(page.locator('li.row:visible')).to_have_count(len(league_order))
+
+    def test_saved_league_choices_and_order_override_defaults_but_ai_order_does_not(self):
+        leagues = ["eng.1", "esp.1", "ned.1", "fifa.friendly"]
+        fixtures = [(lg, "2026-10-07T18:00:00+00:00", "pre", "ESPN+", lg) for lg in leagues]
+        story = self.tagged_story()
+        story["league_order"] = ["fifa.friendly", "ned.1", "esp.1", "eng.1"]
+        story["rankings"] = {"eng.1": {"score": 80}}
+        for design in ("ratings", "full"):
+            with self.subTest(design=design), self.page(
+                    "after", html=render_page(build, fixtures=fixtures, design=design), story=story) as (page, _):
+                enabled = lambda: page.locator('#comp-enabled .fpill').evaluate_all("els => els.map(e => e.dataset.key)")
+                expect(page.locator('li.row[data-id="eng.1"] .row__pick')).to_have_attribute("title", re.compile("AI rating"))
+                self.assertEqual(enabled(), ["eng.1", "esp.1"])
+                self.assertEqual(self.strip_ids(page), ["eng.1", "esp.1"])
+                # Existing explicit choices and their custom priority survive a new default lineup.
+                saved = {"ssg5-leagues": {"on": ["ned.1"], "off": ["eng.1"]},
+                         "ssg4-league-order": ["ned.1", "esp.1", "eng.1"],
+                         "ssg3-have": ["espn"]}
+                page.evaluate("values => Object.entries(values).forEach(([key, value]) => localStorage.setItem(key, JSON.stringify(value)))", saved)
+                page.reload()
+                page.wait_for_load_state("networkidle")
+                self.assertEqual(enabled(), ["ned.1", "esp.1"])
+                self.assertEqual(self.strip_ids(page), ["ned.1", "esp.1"])
+                expect(page.locator('li.row[data-id="eng.1"]')).to_be_hidden()
+                expect(page.locator('li.row[data-id="ned.1"]')).to_be_visible()
+                for key, value in saved.items():
+                    self.assertEqual(page.evaluate("key => JSON.parse(localStorage.getItem(key))", key), value)
+                page.locator("#btn-menu").click()
+                page.locator("#btn-reset").click()
+                self.assertEqual(enabled(), ["eng.1", "esp.1"])
+                self.assertIsNone(page.evaluate("localStorage.getItem('ssg4-league-order')"))
+                expect(page.locator('li.row[data-id="ned.1"]')).to_be_hidden()
+                page.reload()
+                page.wait_for_load_state("networkidle")
+                self.assertEqual(enabled(), ["eng.1", "esp.1"])
 
     def test_filter_groups_drag_between_areas_sort_persist_and_accept_empty_drops(self):
-        leagues = ['eng.1', 'esp.1', 'fra.1', 'uefa.europa']
+        leagues = ['eng.1', 'esp.1', 'ned.1', 'uefa.europa.conf']
         html = render_page(build, fixtures=[(lg, '2026-10-07T18:00:00+00:00', 'pre', 'ESPN+', lg) for lg in leagues], league_logos=True)
         for width in (1280, 390):
             with self.subTest(width=width), self.page('after', width=width, html=html, touch=width <= 600) as (page, _):
@@ -1206,7 +1245,6 @@ class BrowserChecks(unittest.TestCase):
                     ("future", "2026-10-07T20:00:00+00:00", "pre", "ESPN+", "esp.1"),
                     ("fourth", "2026-10-07T21:00:00+00:00", "pre", "ESPN+", "eng.1")]
         story = self.tagged_story()
-        story["league_order"] = ["eng.1", "esp.1", "usa.1"]
         story["rankings"] = {mid: dict(score=score, blurb=f"Specific context for {mid}.", sources=[{"url": "https://example.com/report"}])
                              for mid, score in (("upcoming", 80), ("live-second", 80.5), ("mls", 90), ("future", 70), ("fourth", 40))}
         story['rankings']['live-second']['blurb'] = 'A longer match preview with team news and recent form, demonstrating that every card keeps its color bar aligned even when the commentary takes several more lines than its neighboring cards.'
@@ -1216,8 +1254,9 @@ class BrowserChecks(unittest.TestCase):
                 expect(page.locator('#nextup-h')).to_have_text('Live now')
                 expect(page.locator('#nextup-sub')).to_have_text('Best pick score of the 2 in progress in your lineup')
                 expect(page.locator('#nextup-status')).to_have_text("30'")
-                # Interest (80 + Outlook 57.5) / 2 = 68.75; 80% of that and 20% of league priority 100: five dots, no words.
-                expect(page.locator('#nextup-rating')).to_have_attribute('aria-label', 'Pick score 75 out of 100, 5 dots of 5')
+                # Interest (80 + Outlook 57.5) / 2 = 68.75; 80% of that and 20% of the league priority.
+                pick = round(0.8 * 68.75 + 0.2 * self.default_priority("eng.1"), 1)
+                expect(page.locator('#nextup-rating')).to_have_attribute('aria-label', f'Pick score {pick:g} out of 100, 5 dots of 5')
                 expect(page.locator('#nextup-rating i')).to_have_count(5)
                 expect(page.locator('#nextup-rating')).to_have_text('')
                 self.assertEqual(page.locator('#picks .pick').evaluate_all('els => els.map(e => e.dataset.matchId)'), ['live-second', 'mls', 'future'])
@@ -1303,13 +1342,13 @@ class BrowserChecks(unittest.TestCase):
     def test_top_card_counts_down_to_the_next_match_to_watch_until_one_is_live(self):
         fixtures = [("tbd", "2026-10-07T17:05:00+00:00", "pre", "ESPN+", "eng.1"),
                     ("elsewhere", "2026-10-07T17:06:00+00:00", "pre", "Peacock", "eng.1"),
-                    ("nwsl", "2026-10-07T17:08:00+00:00", "pre", "ESPN+", "usa.nwsl"),
+                    ("dutch", "2026-10-07T17:08:00+00:00", "pre", "ESPN+", "ned.1"),
                     ("apple", "2026-10-07T17:10:00+00:00", "pre", "Apple TV", "usa.1"),
                     ("upcoming", "2026-10-07T17:10:00+00:00", "pre", "ESPN+", "eng.1"),
                     ("evening", "2026-10-07T23:00:00+00:00", "pre", "ESPN+", "esp.1")]
         story = self.tagged_story()
         story["rankings"] = {mid: dict(score=score) for mid, score in
-                             (("tbd", 99), ("elsewhere", 99), ("nwsl", 99), ("upcoming", 90), ("apple", 10), ("evening", 95))}
+                             (("tbd", 99), ("elsewhere", 99), ("dutch", 99), ("upcoming", 90), ("apple", 10), ("evening", 95))}
         html = render_page(build, fixtures=fixtures, tbd={"tbd"})
         for width in (1280, 320):
             with self.subTest(width=width), self.page("after", width=width, html=html, story=story) as (page, feed):
@@ -1337,10 +1376,10 @@ class BrowserChecks(unittest.TestCase):
                 # It follows the lineup both ways: a service added brings its sooner kickoff to the card, and taking
                 # the service away gives the card back.
                 page.locator("#btn-menu").click()
-                page.locator('#comp-pills [data-key="usa.nwsl"]').click()
-                expect(card).to_have_attribute("data-match-id", "nwsl")
+                page.locator('#comp-pills [data-key="ned.1"]').click()
+                expect(card).to_have_attribute("data-match-id", "dutch")
                 expect(count).to_have_text("8:00")
-                page.locator('#comp-pills [data-key="usa.nwsl"]').click()
+                page.locator('#comp-pills [data-key="ned.1"]').click()
                 expect(card).to_have_attribute("data-match-id", "upcoming")
                 page.locator('[data-kind="have"][data-key="yttv"]').click()
                 expect(card).to_have_attribute("data-match-id", "apple")
@@ -1560,7 +1599,6 @@ class BrowserChecks(unittest.TestCase):
                     ("esp", "2026-10-07T18:00:00+00:00", "pre", "ESPN+", "esp.1"),
                     ("unconfirmed-live", "2026-10-07T16:45:00+00:00", "pre", "ESPN+", "eng.1")]
         story = self.tagged_story()
-        story['league_order'] = ['eng.1', 'esp.1']
         story['rankings'] = {mid: dict(score=score) for mid, score in [('eng', 80), ('esp', 80.5), ('unconfirmed-live', 40)]}
         for width in (1280, 390):
             with self.subTest(width=width), self.page('after', width=width, html=render_page(build, fixtures=fixtures, league_logos=True), story=story, touch=width <= 600) as (page, _):
@@ -1610,7 +1648,8 @@ class BrowserChecks(unittest.TestCase):
                     page.mouse.move(tx, ty, steps=8)
                     page.mouse.up()
                 page.clock.run_for(1)
-                self.assertEqual(page.evaluate("JSON.parse(localStorage.getItem('ssg4-league-order'))[0]"), 'esp.1')
+                saved = page.evaluate("JSON.parse(localStorage.getItem('ssg4-league-order'))")
+                self.assertLess(saved.index('esp.1'), saved.index('eng.1'))
                 expect(page.locator('#comp-pills [data-key="esp.1"]')).to_have_attribute('aria-pressed', 'true')
                 expect(page.locator('#comp-pills [data-key="eng.1"]')).to_have_attribute('aria-pressed', 'true')
                 expect(page.locator('#picks .pick:not([data-match-id="unconfirmed-live"])').first).to_have_attribute('data-match-id', 'esp')
@@ -1626,13 +1665,14 @@ class BrowserChecks(unittest.TestCase):
                     ("esp", "2026-10-07T18:00:00+00:00", "pre", "ESPN+", "esp.1"),
                     ("off", "2026-10-07T19:00:00+00:00", "pre", "Peacock", "usa.1"),
                     ("done", "2026-10-07T15:00:00+00:00", "post", "ESPN+", "eng.1"),
-                    # Rated 1, in the last league shown by default: league priority 0, so the score stays below 35.
+                    # Rated 1, moved to the last priority below: the score stays below 35.
                     ("low", "2026-10-07T20:00:00+00:00", "pre", "ESPN+",
                      next(lg for lg in reversed(list(build.LEAGUES)) if not build.LEAGUES[lg].get("default_off"))),
                     # Rated 30 in the first league: 80% of (30 + Outlook 57.5) / 2 plus 20% of 100 is 55.0, the fourth dot's threshold.
                     ("edge", "2026-10-07T21:00:00+00:00", "pre", "ESPN+", "eng.1")]
         story = self.tagged_story()
-        story['league_order'] = ['eng.1', 'esp.1']
+        low_league = fixtures[4][4]
+        priority = ['eng.1', 'esp.1', *(lg for lg in build.LEAGUES if lg not in {'eng.1', 'esp.1', low_league}), low_league]
         story['rankings'] = {mid: dict(score=score, popularity=score, gameplay=score, impact=score)
                              for mid, score in (('eng', 80), ('esp', 80.5), ('off', 30), ('done', 60), ('low', 1), ('edge', 30))}
         dots_for = lambda score: 1 + sum(score >= t for t in (35, 45, 55, 68))       # the fixture settings' thresholds
@@ -1647,6 +1687,9 @@ class BrowserChecks(unittest.TestCase):
             return card_label(mid).get_attribute('aria-label').split(' ')[2]
         for width in (1280, 320):
             with self.subTest(width=width), self.page('after', width=width, html=render_page(build, fixtures=fixtures), story=story) as (page, _):
+                page.evaluate("order => localStorage.setItem('ssg4-league-order', JSON.stringify(order))", priority)
+                page.reload()
+                page.wait_for_load_state('networkidle')
                 page.locator('#btn-menu').click()          # every service: every row, the finished one too
                 page.locator('#btn-select-services').click()
                 page.locator('#btn-filters-close').click()
@@ -1861,7 +1904,7 @@ class BrowserChecks(unittest.TestCase):
             expect(lg("ita.1")).to_be_focused()
             self.assertEqual(page.evaluate("JSON.parse(localStorage.getItem('ssg1-league-paused'))"), ["esp.1"])
 
-    def test_league_strip_solo_switches_target_and_hides_featured_exceptions(self):
+    def test_league_strip_solo_switches_target_and_keeps_disabled_leagues_hidden(self):
         fixtures = [("pl", "2026-10-07T18:00:00+00:00", "pre", "ESPN+", "eng.1"),
                     ("liga", "2026-10-07T19:00:00+00:00", "pre", "ESPN+", "esp.1"),
                     ("usa", "2026-10-07T20:00:00+00:00", "pre", "ESPN+", "fifa.friendly.w")]
@@ -1869,8 +1912,8 @@ class BrowserChecks(unittest.TestCase):
                            team_names={"usa": ("United States", "Spain")})
         with self.page("after", html=html) as (page, _):
             lg = lambda key: page.locator(f'#league-strip-list [data-league="{key}"]')
-            expect(page.locator('li.row:visible')).to_have_count(3)
-            expect(lg("fifa.friendly.w")).to_have_count(0)  # US women are a default featured-team exception
+            expect(page.locator('li.row:visible')).to_have_count(2)
+            expect(lg("fifa.friendly.w")).to_have_count(0)  # A national team does not bypass its disabled competition
             with self.hold_strip_icon(page, "eng.1"):
                 page.clock.run_for(700)
             expect(page.locator('li.row:visible')).to_have_count(1)
@@ -1880,7 +1923,7 @@ class BrowserChecks(unittest.TestCase):
             expect(page.locator('li.row:visible')).to_have_count(1)
             expect(page.locator('li.row[data-id="liga"]')).to_be_visible()
             page.keyboard.press("Escape")
-            expect(page.locator('li.row:visible')).to_have_count(3)
+            expect(page.locator('li.row:visible')).to_have_count(2)
             self.assertIsNone(page.evaluate("localStorage.getItem('ssg1-league-paused')"))
 
             with self.hold_strip_icon(page, "eng.1"):
@@ -1888,14 +1931,14 @@ class BrowserChecks(unittest.TestCase):
             page.clock.run_for(5000)
             expect(page.locator("#strip-undo")).to_be_visible()  # solo's undo stays available
             page.locator("#strip-undo").click()
-            expect(page.locator('li.row:visible')).to_have_count(3)
+            expect(page.locator('li.row:visible')).to_have_count(2)
             with self.hold_strip_icon(page, "eng.1"):
                 page.clock.run_for(700)
             page.locator("#btn-menu").click()
             page.locator('#comp-enabled [data-key="esp.1"]').click()
             page.locator("#btn-filters-close").click()
-            expect(page.locator('li.row:visible')).to_have_count(2)
-            expect(page.locator('li.row[data-id="usa"]')).to_be_visible()
+            expect(page.locator('li.row:visible')).to_have_count(1)
+            expect(page.locator('li.row[data-id="usa"]')).to_be_hidden()
             expect(lg("esp.1")).to_have_count(0)
 
     def test_league_strip_movement_scroll_and_pointer_cancel_do_not_solo(self):
@@ -1926,9 +1969,9 @@ class BrowserChecks(unittest.TestCase):
         fixtures = [("pl", "2026-10-07T18:00:00+00:00", "pre", "ESPN+", "eng.1"),
                     ("liga", "2026-10-07T19:00:00+00:00", "pre", "ESPN+", "esp.1"),
                     ("serie", "2026-10-07T20:00:00+00:00", "pre", "ESPN+", "ita.1"),
-                    ("ligue", "2026-10-07T21:00:00+00:00", "pre", "ESPN+", "fra.1"),
-                    ("usa", "2026-10-07T23:00:00+00:00", "pre", "ESPN+", "fifa.friendly")]
-        html = render_page(build, fixtures=fixtures, team_names={"usa": ("United States", "Mexico")})
+                    ("dutch", "2026-10-07T21:00:00+00:00", "pre", "ESPN+", "ned.1"),
+                    ("france", "2026-10-07T23:00:00+00:00", "pre", "ESPN+", "fra.1")]
+        html = render_page(build, fixtures=fixtures, team_names={"france": ("Paris Saint-Germain", "Lyon")})
         mid = lambda box: box["y"] + box["height"] / 2
         in_order = lambda *keys: [k for k in build.LEAGUES if k in keys]
         for width in (1280, 390):
@@ -1936,9 +1979,9 @@ class BrowserChecks(unittest.TestCase):
                 strip, note, tally = page.locator("#league-strip"), page.locator("#strip-note"), page.locator("#tally-n")
                 lg = lambda key: page.locator(f'#league-strip-list [data-league="{key}"]')
                 row = lambda key: page.locator(f'li.row[data-id="{key}"]')
-                # The followed leagues (Ligue 1 is off by default), in the default priority order (build.py's LEAGUES);
+                # The followed leagues (Eredivisie is off by default), in the default priority order (build.py's LEAGUES);
                 # without emblems on the page, by their short codes, each named for screen readers and in its tooltip.
-                followed = in_order("eng.1", "esp.1", "ita.1", "fifa.friendly")
+                followed = in_order("eng.1", "esp.1", "ita.1", "fra.1")
                 self.assertEqual(self.strip_ids(page), followed)
                 expect(page.locator("#league-strip-list .strip__lg")).to_have_text([build.LEAGUES[k]["short"] for k in followed])
                 expect(lg("esp.1")).to_have_attribute("aria-label", "La Liga")
@@ -1977,19 +2020,19 @@ class BrowserChecks(unittest.TestCase):
                 expect(note).to_be_visible()
                 page.clock.run_for(5000)
                 expect(note).to_be_hidden()
-                # The US match, shown though friendlies' featured teams outlast a default filter, goes with its league.
-                expect(row("usa")).to_be_visible()
-                lg("fifa.friendly").click()
-                expect(row("usa")).to_be_hidden()
+                # The other followed league can be paused independently of the first one.
+                expect(row("france")).to_be_visible()
+                lg("fra.1").click()
+                expect(row("france")).to_be_hidden()
                 # Still hidden on the next visit.
                 page.reload()
-                for key in ("esp.1", "fifa.friendly"):
+                for key in ("esp.1", "fra.1"):
                     expect(lg(key)).to_have_attribute("aria-pressed", "false")
-                for key in ("liga", "usa"):
+                for key in ("liga", "france"):
                     expect(row(key)).to_be_hidden()
-                self.assertEqual(sorted(page.evaluate("JSON.parse(localStorage.getItem('ssg1-league-paused'))")), ["esp.1", "fifa.friendly"])
-                lg("fifa.friendly").click()
-                expect(row("usa")).to_be_visible()
+                self.assertEqual(sorted(page.evaluate("JSON.parse(localStorage.getItem('ssg1-league-paused'))")), ["esp.1", "fra.1"])
+                lg("fra.1").click()
+                expect(row("france")).to_be_visible()
                 # Leagues are enabled and disabled in the Lineup panel, where a hidden one says so.
                 menu_btn, drawer = page.locator("#btn-menu"), page.locator("#drawer")
                 expect(page.locator("#league-strip button:not(.strip__lg)")).to_have_count(0)
@@ -2001,21 +2044,21 @@ class BrowserChecks(unittest.TestCase):
                 # Disabling a league takes it out of the strip and forgets its pause: enabled again, it comes back
                 # shown, and a league enabled for the first time joins in its priority place.
                 pill.click()
-                self.assertEqual(self.strip_ids(page), in_order("eng.1", "ita.1", "fifa.friendly"))
+                self.assertEqual(self.strip_ids(page), in_order("eng.1", "ita.1", "fra.1"))
                 expect(page.locator('#comp-disabled [data-key="esp.1"]')).to_have_count(1)
                 page.locator('#comp-pills [data-key="esp.1"]').click()
-                page.locator('#comp-pills [data-key="fra.1"]').click()
-                self.assertEqual(self.strip_ids(page), in_order("eng.1", "esp.1", "ita.1", "fra.1", "fifa.friendly"))
+                page.locator('#comp-pills [data-key="ned.1"]').click()
+                self.assertEqual(self.strip_ids(page), in_order("eng.1", "esp.1", "ita.1", "ned.1", "fra.1"))
                 expect(lg("esp.1")).to_have_attribute("aria-pressed", "true")
                 expect(row("liga")).to_be_visible()
-                expect(row("ligue")).to_be_visible()
+                expect(row("dutch")).to_be_visible()
                 page.keyboard.press("Escape")
                 expect(drawer).to_be_hidden()
                 expect(menu_btn).to_be_focused()
                 # One tab stop, on the league last used; the arrow keys, Home and End move along the strip.
                 expect(page.locator('#league-strip-list [tabindex="0"]')).to_have_count(1)
                 page.keyboard.press("Tab")
-                expect(lg("fifa.friendly")).to_be_focused()
+                expect(lg("fra.1")).to_be_focused()
                 page.keyboard.press("Home")
                 expect(lg(followed[0])).to_be_focused()
                 page.keyboard.press("ArrowRight")
@@ -2037,7 +2080,7 @@ class BrowserChecks(unittest.TestCase):
                 expect(strip).to_be_hidden()
                 # Select all enables every league, shown; Reset forgets what the strip hid since.
                 page.locator("#btn-select-leagues").click()
-                self.assertEqual(self.strip_ids(page), in_order("eng.1", "esp.1", "ita.1", "fra.1", "fifa.friendly"))
+                self.assertEqual(self.strip_ids(page), in_order("eng.1", "esp.1", "ita.1", "ned.1", "fra.1"))
                 expect(page.locator('#league-strip-list [aria-pressed="false"]')).to_have_count(0)
                 page.locator("#btn-filters-close").click()
                 lg("esp.1").click()
@@ -2075,7 +2118,7 @@ class BrowserChecks(unittest.TestCase):
                     ("too-far", "2026-10-11T18:00:00+00:00", "pre", "ESPN+", "ger.1"),
                     ("too-old", "2026-10-05T18:00:00+00:00", "post", "ESPN+", "por.1"),
                     ("unrecognized", "2026-10-07T18:00:00+00:00", "pre", "Mystery Sports+", "eng.2"),
-                    ("disabled", "2026-10-07T18:00:00+00:00", "pre", "ESPN+", "fra.1")]
+                    ("disabled", "2026-10-07T18:00:00+00:00", "pre", "ESPN+", "ned.1")]
         html = render_page(build, fixtures=fixtures, league_logos=True)
         ordered = lambda *keys: [key for key in build.LEAGUES if key in keys]
         expected = ordered("eng.1", "ita.1", "usa.1", "mex.1")
@@ -2333,7 +2376,7 @@ class BrowserChecks(unittest.TestCase):
     def test_enabled_leagues_move_repeatedly_from_the_keyboard_and_set_the_priority(self):
         # The league priority is the order of the enabled leagues; there is no separate list of every league
         # (until 9 October 2026 there was, which also listed leagues neither enabled nor disabled).
-        fixtures = [(lg, "2026-10-07T18:00:00+00:00", "pre", "ESPN+", lg) for lg in ("eng.1", "esp.1", "ita.1", "fra.1")]
+        fixtures = [(lg, "2026-10-07T18:00:00+00:00", "pre", "ESPN+", lg) for lg in ("eng.1", "esp.1", "ita.1", "ned.1")]
         with self.page("after", html=render_page(build, fixtures=fixtures)) as (page, _):
             page.locator("#btn-menu").click()
             expect(page.locator("#league-order, .league-priority")).to_have_count(0)
@@ -2354,7 +2397,7 @@ class BrowserChecks(unittest.TestCase):
             # A disabled league keeps its place: enabled again, it returns there.
             page.locator(f'#comp-enabled [data-key="{enabled()[1]}"]').click()
             second = page.locator("#comp-disabled .fpill").evaluate_all("els => els.map(e => e.dataset.key)")
-            back = [k for k in second if k != "fra.1"][0]
+            back = [k for k in second if k != "ned.1"][0]
             before = enabled()
             page.locator(f'#comp-disabled [data-key="{back}"]').click()
             self.assertEqual(enabled()[1], back)
@@ -2389,24 +2432,30 @@ class BrowserChecks(unittest.TestCase):
             self.assertEqual(page.evaluate("JSON.parse(localStorage.getItem('ssg5-leagues'))"), {"on": [hidden], "off": ["esp.1"]})
             self.assertIsNone(page.evaluate("localStorage.getItem('ssg2-comp-off')"))
 
-    def test_us_national_team_shows_by_default_until_its_competition_is_switched_off(self):
+    def test_us_national_team_obeys_its_competition_default_and_saved_choices(self):
         fixtures = [("usa", "2026-10-07T23:00:00+00:00", "pre", "HBO Max", "fifa.friendly.w"),
                     ("india", "2026-10-07T23:30:00+00:00", "pre", "HBO Max", "fifa.friendly.w")]
         names = {"usa": ("United States", "Spain"), "india": ("India", "Russia")}
         ids = {"usa": ("2765", "17640"), "india": ("20885", "2763")}
         with self.page("after", html=render_page(build, fixtures=fixtures, team_names=names, team_ids=ids)) as (page, _):
             usa, india = page.locator('li.row[data-id="usa"]'), page.locator('li.row[data-id="india"]')
-            expect(usa).to_be_visible()
+            expect(usa).to_be_hidden()
             expect(india).to_be_hidden()
             page.locator("#btn-menu").click()
             pill = page.locator('#drawer [data-kind="comp"][data-key="fifa.friendly.w"]')
             pill.click()
+            expect(usa).to_be_visible()
             expect(india).to_be_visible()
-            pill.click()                     # switched off by the viewer, not by default: both go
+            page.reload()
+            expect(usa).to_be_visible()
+            expect(india).to_be_visible()
+            page.locator("#btn-menu").click()
+            pill.click()                     # Explicitly disabling the competition hides both teams.
             expect(usa).to_be_hidden()
             expect(india).to_be_hidden()
             page.locator("#btn-reset").click()
-            expect(usa).to_be_visible()
+            expect(usa).to_be_hidden()
+            expect(india).to_be_hidden()
 
     def test_24_hour_clocks_keep_their_minutes(self):
         fixtures = [("next", "2026-10-07T18:00:00+00:00", "pre", "ESPN+")]
@@ -2494,7 +2543,7 @@ class BrowserChecks(unittest.TestCase):
             expect(label).to_have_text("")
             self.assertEqual(label.get_attribute("title"),
                              f"Pick score {pick:g}/100, 4 of 5 dots. 80% Outlook score (57.5) + 20% league priority "
-                             f"({round(self.default_priority('eng.1'), 1):g}). Outlook score 57.5: occasion 100 · "
+                             f"({round(self.default_priority('eng.1')):g}). Outlook score 57.5: occasion 100 · "
                              "evenly matched no data · stakes 0 · TV 0 · goals expected no data.")
             expect(page.locator("footer")).to_contain_text("No AI is used on this page")
             expect(page.locator("#priority-hint")).to_contain_text("80% the Outlook score and 20% this order")
@@ -2511,10 +2560,12 @@ class BrowserChecks(unittest.TestCase):
             self.assertEqual(page.locator("#picks .pick").evaluate_all("els => els.map(e => e.dataset.matchId)"), ["b", "c", "d"])
             expect(page.locator("#picks-sub")).to_have_text("The best of the next three days on your services by AI rating + Outlook score + league priority · in kickoff order")
             label = page.locator('#picks .pick[data-match-id="b"] .pick__rating')
-            expect(label).to_have_attribute("aria-label", "Pick score 67 out of 100, 4 dots of 5")      # 80% of 58.75 and 20% of 100
+            pick = round(0.8 * 58.75 + 0.2 * self.default_priority("eng.1"), 1)
+            expect(label).to_have_attribute("aria-label", f"Pick score {pick:g} out of 100, 4 dots of 5")
             # The model settings.toml asked for, not the dated snapshot that answered.
             self.assertEqual(label.get_attribute("title"),
-                             "Pick score 67/100, 4 of 5 dots. 80% interest (58.8) + 20% league priority (100). Interest: 50% AI rating (60) + 50% Outlook score "
+                             f"Pick score {pick:g}/100, 4 of 5 dots. 80% interest (58.8) + 20% league priority "
+                             f"({round(self.default_priority('eng.1')):g}). Interest: 50% AI rating (60) + 50% Outlook score "
                              "(57.5). AI rating by gpt-6.1-sol: Popularity 60 · Expected gameplay 60 · Competitive impact 60. "
                              "Outlook score 57.5: occasion 100 · evenly matched no data · stakes 0 · TV 0 · goals expected no data.")
             expect(page.locator("footer")).to_contain_text("50% the AI rating and 50% the Outlook score")

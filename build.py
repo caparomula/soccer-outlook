@@ -72,43 +72,43 @@ LIVE_MINUTES = 125
 #
 # Insertion order sets the default league priority used by the strip, filter panel and pick score.
 # It is an editorial preference for a US audience, informed by audience reporting reviewed on
-# 8 October 2026. Those figures are not directly comparable across competitions; docs/scoring.md
+# 12 October 2026. Those figures are not directly comparable across competitions; docs/scoring.md
 # preserves the sources, limitations and full order. Visitors can save their own order.
 # ----------------------------------------------------------------------------------------------
 LEAGUES = {
+    "mex.1": dict(name="Liga MX", short="LMX", tier=2),
     "uefa.champions": dict(name="Champions League", short="UCL", tier=1),
     "eng.1": dict(name="Premier League", short="EPL", tier=1),
-    "mex.1": dict(name="Liga MX", short="LMX", tier=2),
     "usa.1": dict(name="MLS", short="MLS", tier=2),
     "esp.1": dict(name="La Liga", short="LIGA", tier=1),
-    "fifa.friendly": dict(name="Men's friendly", short="FRI", tier=2),
-    "usa.nwsl": dict(name="NWSL", short="NWSL", tier=2, default_off=True),
-    "concacaf.nations.league": dict(name="Concacaf Nations League", short="CNL", tier=3),
+    "usa.nwsl": dict(name="NWSL", short="NWSL", tier=2),
     "ita.1": dict(name="Serie A", short="SERA", tier=1),
     "ger.1": dict(name="Bundesliga", short="BUND", tier=1),   # Versant from 2026-27: 30+ on USA Network, the rest free on Fandango
-    "uefa.europa": dict(name="Europa League", short="UEL", tier=2, default_off=True),
+    "uefa.europa": dict(name="Europa League", short="UEL", tier=2),
     "concacaf.champions": dict(name="Concacaf Champions Cup", short="CCC", tier=2),
-    "fifa.friendly.w": dict(name="Women's friendly", short="WFRI", tier=2, default_off=True),
     "eng.fa": dict(name="FA Cup", short="FAC", tier=2),
-    "uefa.nations": dict(name="Nations League", short="UNL", tier=2),
-    "fra.1": dict(name="Ligue 1", short="L1", tier=2, default_off=True),
+    "fra.1": dict(name="Ligue 1", short="L1", tier=2),
     "esp.copa_del_rey": dict(name="Copa del Rey", short="CDR", tier=2),
-    "eng.league_cup": dict(name="Carabao Cup", short="EFLC", tier=2),
-    "usa.usl.1": dict(name="USL Championship", short="USLC", tier=3, default_off=True),
     "eng.2": dict(name="Championship", short="EFL", tier=3),
+    "usa.usl.1": dict(name="USL Championship", short="USLC", tier=3),
+    "fifa.friendly": dict(name="Men's friendly", short="FRI", tier=2, default_off=True),
+    "concacaf.nations.league": dict(name="Concacaf Nations League", short="CNL", tier=3, default_off=True),
+    "fifa.friendly.w": dict(name="Women's friendly", short="WFRI", tier=2, default_off=True),
+    "uefa.nations": dict(name="Nations League", short="UNL", tier=2, default_off=True),
+    "eng.league_cup": dict(name="Carabao Cup", short="EFLC", tier=2, default_off=True),
     "uefa.europa.conf": dict(name="Conference League", short="UECL", tier=3, default_off=True),
-    "usa.open": dict(name="U.S. Open Cup", short="USOC", tier=3),
-    "uefa.wchampions": dict(name="Women's Champions League", short="UWCL", tier=2),
-    "eng.w.1": dict(name="Women's Super League", short="WSL", tier=2),
-    "ita.coppa_italia": dict(name="Coppa Italia", short="COPI", tier=2),
-    "ger.dfb_pokal": dict(name="DFB-Pokal", short="DFB", tier=2),
-    "sco.1": dict(name="Scottish Premiership", short="SPFL", tier=3),
+    "usa.open": dict(name="U.S. Open Cup", short="USOC", tier=3, default_off=True),
+    "uefa.wchampions": dict(name="Women's Champions League", short="UWCL", tier=2, default_off=True),
+    "eng.w.1": dict(name="Women's Super League", short="WSL", tier=2, default_off=True),
+    "ita.coppa_italia": dict(name="Coppa Italia", short="COPI", tier=2, default_off=True),
+    "ger.dfb_pokal": dict(name="DFB-Pokal", short="DFB", tier=2, default_off=True),
+    "sco.1": dict(name="Scottish Premiership", short="SPFL", tier=3, default_off=True),
     "ned.1": dict(name="Eredivisie", short="ERE", tier=2, default_off=True),
-    "ksa.1": dict(name="Saudi Pro League", short="SPL", tier=3),
-    "caf.nations": dict(name="Africa Cup of Nations", short="AFCN", tier=2),
-    "por.1": dict(name="Primeira Liga", short="POR", tier=3),
-    "arg.1": dict(name="Liga Profesional (Argentina)", short="ARG", tier=3),
-    "bra.1": dict(name="Brasileirão", short="BRA", tier=3),
+    "ksa.1": dict(name="Saudi Pro League", short="SPL", tier=3, default_off=True),
+    "caf.nations": dict(name="Africa Cup of Nations", short="AFCN", tier=2, default_off=True),
+    "por.1": dict(name="Primeira Liga", short="POR", tier=3, default_off=True),
+    "arg.1": dict(name="Liga Profesional (Argentina)", short="ARG", tier=3, default_off=True),
+    "bra.1": dict(name="Brasileirão", short="BRA", tier=3, default_off=True),
     "usa.usl.l1": dict(name="USL League One", short="USL1", tier=3, default_off=True),
 }
 
@@ -123,9 +123,8 @@ LEAGUES = {
 # ----------------------------------------------------------------------------------------------
 RIGHTS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "rights.toml")
 OWNER = ["apple", "yttv", "hbo", "para", "prime", "netflix", "disney"]
-# Teams whose matches are shown by default even in a competition that is off by default (LEAGUES'
-# default_off), identified by ESPN's stable team IDs: switching women's friendlies off hid the USWNT
-# against the world champions. A viewer who switches the competition off still hides them.
+# Teams receiving a US-interest bonus in the occasion score, identified by ESPN's stable IDs.
+# This affects ranking only; their matches obey the same competition filters as every other team.
 FEATURED_TEAMS = {"660", "2765"}   # United States men and women
 STALE_AFTER_DAYS = 180      # an entry in rights.toml not checked for this long is reported
 LAPSE_NOTICE_DAYS = 30      # a usual home is reported this long before its season ends
@@ -1030,13 +1029,9 @@ def called_off(state, status):
     return state == "post" and status.lower() in VOID_STATUSES
 
 
-def featured(m):
-    return m.home.id in FEATURED_TEAMS or m.away.id in FEATURED_TEAMS
-
-
 def shown_by_default(m):
     """Whether the page shows the match before a viewer changes the competition filters."""
-    return not LEAGUES[m.league].get("default_off") or featured(m)
+    return not LEAGUES[m.league].get("default_off")
 
 
 def interpret(league, ev):
@@ -1613,7 +1608,6 @@ def row_html(m, cache):
         f'data-lg="{esc(m.league)}" data-svc="{m.service or "none"}" data-basis="{m.basis}" data-score="{m.score}" '
         f'data-outlook="{outlook_score(parts):g}" data-outlook-parts="{esc(parts_json)}" '
         f'data-state="{m.state}" data-home="{esc(m.home.name)}" data-away="{esc(m.away.name)}" data-comp="{esc(m.comp)}" '
-        + ('data-featured="1" ' if featured(m) else "") +
         f'data-outlet="{esc(m.outlet)}" data-hc="{m.home.color}" data-ac="{m.away.color}" data-o="{esc(outlets_json)}"' + (f' data-r="{esc(rule_json)}"' if rule_json else "") + '>'
         f'<div class="row__time">{league_badge}<div class="row__kickoff">{time_html}<span class="row__et" hidden></span><span class="row__until" hidden></span><span class="row__live" hidden>Live</span>{status}</div></div>'
         f'<div class="row__body">'
@@ -1794,7 +1788,6 @@ def build_page(matches, cache, built_at, failed, today, skipped=(), site_url=Non
         n = sum(1 for m in matches if m.league == lg)
         if n:
             comps.append((info["name"], lg, n, bool(info.get("default_off"))))
-    comps.sort(key=lambda c: (-c[2], c[0]))
     comp_buttons = {lg: (
         f'<button type="button" class="fpill" data-kind="comp" data-key="{esc(lg)}" data-short="{esc(LEAGUES[lg]["short"])}" data-default-off="{"1" if off else "0"}" aria-pressed="{"false" if off else "true"}"><span class="fpill__grip" aria-hidden="true">⠿</span>{league_logo_html(lg, cache)}{esc(name)}'
         f'<span class="fpill__n">{n}</span></button>') for name, lg, n, off in comps}

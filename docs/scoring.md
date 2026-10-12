@@ -77,35 +77,36 @@ Here rank starts at 1. The denominator uses the **full league list**, including 
 
 At the default 5% weight, moving a league from last to first adds five pick-score points. This is a small preference boost, not a strict tie breaker: it can change the order of matches with different interest scores.
 
-Without a saved order, the browser uses an order supplied by the full AI design when available, followed by any omitted leagues in the built-in order. The current ratings-only design supplies no such order, so the default is `LEAGUES` in `build.py`:
+Without a saved order, the browser uses `LEAGUES` in `build.py`. That configured order applies in both AI designs; an AI response does not override it. The first 15 competitions below are enabled by default. All others start disabled, including national-team competitions; a US national-team match does not bypass that setting. Disabled choices appear alphabetically in Lineup, but retain the positions below for scoring until the visitor changes the order.
 
 | Rank | Competition | Rank | Competition |
 | ---: | --- | ---: | --- |
-| 1 | Champions League | 18 | Carabao Cup |
-| 2 | Premier League | 19 | USL Championship |
-| 3 | Liga MX | 20 | Championship |
+| 1 | Liga MX | 18 | Women's friendly |
+| 2 | Champions League | 19 | UEFA Nations League |
+| 3 | Premier League | 20 | Carabao Cup |
 | 4 | MLS | 21 | Conference League |
 | 5 | La Liga | 22 | U.S. Open Cup |
-| 6 | Men's friendly | 23 | Women's Champions League |
-| 7 | NWSL | 24 | Women's Super League |
-| 8 | Concacaf Nations League | 25 | Coppa Italia |
-| 9 | Serie A | 26 | DFB-Pokal |
-| 10 | Bundesliga | 27 | Scottish Premiership |
-| 11 | Europa League | 28 | Eredivisie |
-| 12 | Concacaf Champions Cup | 29 | Saudi Pro League |
-| 13 | Women's friendly | 30 | Africa Cup of Nations |
-| 14 | FA Cup | 31 | Primeira Liga |
-| 15 | UEFA Nations League | 32 | Liga Profesional (Argentina) |
-| 16 | Ligue 1 | 33 | Brasileirão |
-| 17 | Copa del Rey | 34 | USL League One |
+| 6 | NWSL | 23 | Women's Champions League |
+| 7 | Serie A | 24 | Women's Super League |
+| 8 | Bundesliga | 25 | Coppa Italia |
+| 9 | Europa League | 26 | DFB-Pokal |
+| 10 | Concacaf Champions Cup | 27 | Scottish Premiership |
+| 11 | FA Cup | 28 | Eredivisie |
+| 12 | Ligue 1 | 29 | Saudi Pro League |
+| 13 | Copa del Rey | 30 | Africa Cup of Nations |
+| 14 | Championship (England) | 31 | Primeira Liga |
+| 15 | USL Championship | 32 | Liga Profesional (Argentina) |
+| 16 | Men's friendly | 33 | Brasileirão |
+| 17 | Concacaf Nations League | 34 | USL League One |
 
-This is a starting preference for a US audience, informed by audience reporting reviewed on 8 October 2026. It is not a statistically established popularity table. Published figures cover different channels, time periods and kinds of matches; streaming audiences are often unavailable. In particular, playoff or final audiences cannot be compared directly with a regular-season average.
+The owner chose this starting preference for a US audience, informed by audience reporting reviewed on 12 October 2026. It is an editorial order, not a statistically established popularity table. Published figures cover different channels, time periods and kinds of matches; streaming audiences are often unavailable. In particular, playoff or final audiences cannot be compared directly with a regular-season average. Existing saved selections and orders take precedence; **Reset to defaults** restores the current configuration.
 
 The sources behind that choice are retained here so an owner can revisit it:
 
-- **Champions League, Premier League and Liga MX:** [CBS coverage reported by Awful Announcing](https://awfulannouncing.com/cbs/uefa-champions-league-final-sets-viewership-record-club-soccer.html), [NBC's Premier League season report](https://www.nbcsports.com/pressbox/press-releases/nbc-sports-caps-2025-26-premier-league-season-highlighted-by-memorable-moments-fantastic-finishes-viewership-milestones), [Liga MX reporting citing Sports Business Journal](https://www.goal.com/en/lists/liga-mx-remains-the-most-watched-soccer-league-on-u-s-television/blt2eb5436af5948721), and [Nielsen's total-viewing figures reported by SVG](https://www.sportsvideo.org/2026/04/30/nielsen-u-s-viewers-spent-79-8-billion-minutes-watching-soccer-in-2025/). Total viewing and per-match averages answer different questions; neither determines this top-three order on its own.
-- **MLS and La Liga:** [MLS's playoff report](https://www.mlssoccer.com/news/mls-sees-strong-playoff-viewership-heading-into-mls-cup-presented-by-audi) and [La Liga's ESPN season report](https://www.laliga.com/en-US/news/laliga-scores-best-season-ever-in-us-on-espn-platforms). These support substantial US interest but do not offer a like-for-like comparison of their regular seasons across all services.
-- **Women's soccer and national teams:** [NWSL postseason reporting](https://www.nwslsoccer.com/news/2025-nwsl-championship-postseason-records) and [USMNT friendly audiences](https://awfulannouncing.com/ratings/usmnt-germany-record-friendly-viewership-turner-tbs.html). National-team opponents and event importance make audiences particularly variable.
+- **Leading US television audiences:** [Nielsen's 2026 report, page 8, figure 1.4](https://www.nielsen.com/wp-content/uploads/sites/2/2026/05/913-World-Cup-2026-GRWM-d06.pdf) ranks Liga MX, Champions League, Premier League, NWSL and La Liga in that order for 2025, based on **each competition's ten largest US telecasts**, including English and Spanish coverage. This is neither total annual viewing nor a comprehensive streaming comparison. It supports the leading group, not every position in the default order.
+- **Premier League and Liga MX:** [NBC's 2025–26 season report](https://www.nbcsports.com/pressbox/press-releases/nbc-sports-caps-2025-26-premier-league-season-highlighted-by-memorable-moments-fantastic-finishes-viewership-milestones) and [Liga MX reporting citing Sports Business Journal](https://www.goal.com/en/lists/liga-mx-remains-the-most-watched-soccer-league-on-u-s-television/blt2eb5436af5948721) provide further audience figures, with different periods and broadcaster coverage.
+- **MLS and La Liga:** [MLS's playoff report](https://www.mlssoccer.com/news/mls-sees-strong-playoff-viewership-heading-into-mls-cup-presented-by-audi) and [La Liga's ESPN season report](https://www.laliga.com/en-US/news/laliga-scores-best-season-ever-in-us-on-espn-platforms). MLS reports audiences across its distribution without identifying them as US-only; those figures cannot establish its US position relative to La Liga or the other competitions. MLS's Apple streaming audience is also poorly represented by linear television rankings.
+- **NWSL:** [The league's postseason report](https://www.nwslsoccer.com/news/2025-nwsl-championship-postseason-records) shows substantial television interest. Its championship and playoff audiences do not establish a regular-season ranking against men's leagues.
 
 Lower positions rely more on editorial judgment about access and the teams involved because comparable US audience data is sparse. Nielsen measurement changes in 2025 also complicate comparisons with earlier seasons. Reorder leagues to suit your own interests rather than treating this default as authoritative.
 

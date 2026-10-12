@@ -47,7 +47,7 @@ Local affiliates vary by ZIP code. Check [YouTube TV's current plans and local l
 
 ### Quickly hide a league
 
-The bar shows emblems for enabled leagues with matches on your selected services in the displayed schedule, including folded results. It updates when you change services or the schedule's date window changes. Leagues without matching games stay available in **Lineup**. Tap an emblem to hide that league's matches; tap it again to show them. A hidden league's emblem is gently dimmed, keeping its colors, and a short notice offers **Undo**. The strip scrolls sideways if it does not fit.
+The bar shows emblems for enabled leagues with matches on your selected services in the displayed schedule, including folded results. It updates when you change services or the schedule's date window changes. A league can remain enabled without appearing in the strip; **Lineup** lists leagues with fixtures in the fetched schedule, even when none match your services or the displayed days. Tap an emblem to hide that league's matches; tap it again to show them. A hidden league's emblem is gently dimmed, keeping its colors, and a short notice offers **Undo**. The strip scrolls sideways if it does not fit.
 
 Hiding keeps the league in the strip while it has matching games and remembers the choice for your next visit. Disabling it in **Lineup** removes it from the strip. If you enable it again, it starts visible.
 
@@ -71,7 +71,25 @@ Until you reset, a league you have explicitly enabled or disabled keeps that cho
 
 The default services, in preference order, are Apple TV, YouTube TV (main plan), HBO Max, Paramount+, Prime Video, Netflix and Disney+. YouTube TV includes its main-plan FOX channels, ESPN coverage and USA Network, so those do not need separate selections. Saved personal choices take precedence over these defaults; use **Reset to defaults** to adopt the current lineup and order.
 
-All tracked competitions are enabled by default except Women's friendly, USL Championship, USL League One, NWSL, Eredivisie, Ligue 1, Conference League and Europa League. US national-team matches are an exception to a competition's default-off setting. Explicitly disabling or hiding that competition hides those matches too. Leagues without fixtures in the fetched schedule may not appear in the panel.
+The default leagues, in preference order, are:
+
+1. Liga MX
+2. Champions League
+3. Premier League
+4. MLS
+5. La Liga
+6. NWSL
+7. Serie A
+8. Bundesliga
+9. Europa League
+10. Concacaf Champions Cup
+11. FA Cup
+12. Ligue 1
+13. Copa del Rey
+14. Championship (England)
+15. USL Championship
+
+All other tracked competitions start disabled, including national-team competitions. A US national-team match does not bypass that choice. Existing saved selections and orders still apply; choose **Reset to defaults** to adopt this list. Leagues without fixtures in the fetched schedule do not appear in the panel, but their saved choices are kept for when they return.
 
 ## Read the schedule
 

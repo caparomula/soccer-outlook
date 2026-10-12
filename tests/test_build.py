@@ -74,13 +74,11 @@ class RecordedESPN(unittest.TestCase):
         self.assertEqual(unrelated.score, 60)
         self.assertIsNone(unrelated.rule)
 
-    def test_featured_national_teams_are_ids_not_labels(self):
+    def test_us_national_team_score_bonus_uses_ids_not_labels(self):
         for team_id in ("660", "2765"):
             match = build.interpret("fifa.friendly.w", test_render.Markup.event(home="USA renamed", home_id=team_id))
-            self.assertTrue(build.featured(match))
             self.assertEqual(match.score, 165)  # tier 60 + two marquee nations 60 + US bonus 45
         unrelated = build.interpret("fifa.friendly.w", test_render.Markup.event(home="United States", home_id="99999999"))
-        self.assertFalse(build.featured(unrelated))
         self.assertEqual(unrelated.score, 90)
 
     def test_non_utc_offset_is_normalized_before_export(self):

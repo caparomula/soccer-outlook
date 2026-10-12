@@ -40,7 +40,7 @@ For a browser preview at a chosen local time, append a fragment such as `#at-202
 
 | File or directory | Responsibility |
 | --- | --- |
-| [`build.py`](../build.py) | Fetch and interpret ESPN data, validate configuration, calculate the Outlook score and generate HTML. Also defines tracked leagues, default services and featured teams. |
+| [`build.py`](../build.py) | Fetch and interpret ESPN data, validate configuration, calculate the Outlook score and generate HTML. Also defines tracked leagues, their default selection and order, default services, and teams receiving an occasion-score bonus. |
 | [`discovery.py`](../discovery.py) | Generate public league and service schedule pages, their links, and search-discovery metadata. |
 | [`broadcast_listings.py`](../broadcast_listings.py) and the provider `*_listings.py` modules | Check public broadcaster schedules for usual-coverage fixtures, apply confirmed listings, and retain source/check results. |
 | [`rights.toml`](../rights.toml) | Broadcaster aliases, services, simulcasts and each competition's usual coverage, with sources and check dates. |

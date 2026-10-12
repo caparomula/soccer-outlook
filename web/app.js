@@ -48,7 +48,6 @@
     var outlook = parseFloat(r.getAttribute('data-outlook'));
     r._outlook = isFinite(outlook) ? outlook : null;   // the page's own score, from fixture and broadcast data
     r._state = r.getAttribute('data-state');
-    r._featured = r.getAttribute('data-featured') === '1';
     try { r._o = JSON.parse(r.getAttribute('data-o') || '[]'); } catch (e) { r._o = []; }
     r._unk = r._o.some(function (o) { return o.u; });   // a channel the page doesn't recognize
     try { r._r = r.hasAttribute('data-r') ? JSON.parse(r.getAttribute('data-r')) : null; } catch (e) { r._r = null; }
@@ -177,11 +176,9 @@
     try { localStorage.removeItem(LS.compOff); } catch (e) {}
   }
   applyCompChoices();
-  // A match of a team build.py features (the US national teams) shows while its competition is off
-  // by default; a viewer who switches the competition off, or pauses it, hides it too.
   function compHidden(r) {
     if (soloLeague) return r._lg !== soloLeague;
-    return !!compOff[r._lg] && (!r._featured || hasChoice(r._lg) || !!paused[r._lg]);
+    return !!compOff[r._lg];
   }
   var storedPriority = read(LS.priority);
   var storedServiceOrder = read(LS.services);
@@ -199,7 +196,7 @@
   }
   function leagueOrder() {
     var base = Object.keys(leagueNames), order = [];
-    var preferred = Array.isArray(storedPriority) ? storedPriority : (STORY && STORY.s && Array.isArray(STORY.s.league_order) ? STORY.s.league_order : []);
+    var preferred = Array.isArray(storedPriority) ? storedPriority : [];
     preferred.concat(base).forEach(function (id) { if (base.indexOf(id) >= 0 && order.indexOf(id) < 0) order.push(id); });
     return order;
   }
