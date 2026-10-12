@@ -1,7 +1,7 @@
 """Offline browser checks; run with python3 -m tests.browser --help."""
 import argparse
 from copy import deepcopy
-from datetime import timedelta
+from datetime import datetime, timedelta
 from contextlib import contextmanager
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -15,6 +15,7 @@ import sys
 import tempfile
 from threading import Thread
 import unittest
+from unittest.mock import patch
 from urllib.parse import quote, urlsplit
 
 from playwright.sync_api import expect, sync_playwright
@@ -22,6 +23,8 @@ from PIL import Image
 from pixelmatch.contrib.PIL import pixelmatch
 
 import build
+import broadcast_listings
+import tudn_listings
 from tests.page_fixture import BUILT_AT, TODAY, render_page, scoreboard
 
 
@@ -34,7 +37,8 @@ class BrowserChecks(unittest.TestCase):
     engine = "chromium"
 
     @contextmanager
-    def page(self, target, *, width=1280, theme="light", at="20261007-1300", html=None, story=None, touch=False, locale="en-US"):
+    def page(self, target, *, width=1280, theme="light", at="20261007-1300", html=None, story=None, touch=False, locale="en-US",
+             built_at=BUILT_AT):
         context = self.browser.new_context(
             viewport={"width": width, "height": 900 if width > 600 else 844},
             locale=locale, timezone_id="America/New_York", color_scheme=theme,
@@ -71,8 +75,8 @@ class BrowserChecks(unittest.TestCase):
 
         context.route("**/*", route_request)
         # Leave room for real time between the two protocol calls before freezing the clock.
-        page.clock.install(time=BUILT_AT - timedelta(seconds=1))
-        page.clock.pause_at(BUILT_AT)
+        page.clock.install(time=built_at - timedelta(seconds=1))
+        page.clock.pause_at(built_at)
         try:
             page.goto(f"{self.base}/{target}/index.html?scoresbase={self.base}/espn/#at-{at}")
             expect(page.locator("#eyebrow")).not_to_have_text("Your lineup")       # the script's first render dates it
@@ -513,6 +517,80 @@ class BrowserChecks(unittest.TestCase):
                 expect(page.locator('[data-kind="have"][aria-pressed="true"]')).to_have_count(7)
                 page.locator("#btn-filters-close").click()
                 check_matches(page, base_matches)
+
+    def test_tudn_listing_makes_america_monterrey_visible_on_youtube_tv(self):
+        samples = Path(__file__).parent / "fixtures"
+        schedule = (samples / "tudn-results.html").read_bytes()
+        event = (samples / "tudn-match.html").read_bytes()
+        match_id = "america-monterrey"
+        fixtures = [(match_id, "2026-10-11T03:10:00+00:00", "in", None, "mex.1")]
+        original_build_page = build.build_page
+
+        def enrich_and_render(matches, cache, built_at, failed, today):
+            # Reproduce ESPN's missing broadcasters, then pass the recorded official listing
+            # through the production enrichment and rendering paths.
+            self.assertEqual(matches[0].outlets, [])
+            report = broadcast_listings.enrich(
+                build, matches, lambda url: schedule if url == tudn_listings.SCHEDULE_URL else event, built_at)
+            self.assertEqual(report["TUDN"]["confirmed"], 1)
+            self.assertEqual({outlet.label for outlet in matches[0].outlets}, {"TUDN", "Univision"})
+            return original_build_page(matches, cache, built_at, failed, today)
+
+        cases = (("in", "2026-10-11T03:30:00+00:00", "20261010-2330", "Live now"),
+                 ("post", "2026-10-12T05:30:00+00:00", "20261012-0130", "Yesterday"))
+        for state, timestamp, at, bucket in cases:
+            built_at = datetime.fromisoformat(timestamp)
+            fixtures[0] = (*fixtures[0][:2], state, *fixtures[0][3:])
+            with (patch("tests.page_fixture.BUILT_AT", built_at),
+                  patch("tests.page_fixture.TODAY", built_at.astimezone(build.ET).date()),
+                  patch.object(build, "build_page", side_effect=enrich_and_render)):
+                html = render_page(build, fixtures=fixtures,
+                                   team_names={match_id: ("América", "Monterrey")})
+            for width in (1280, 390):
+                with self.subTest(state=state, width=width), self.page(
+                        "after", html=html, width=width, at=at, built_at=built_at) as (page, _):
+                    row = page.locator(f'li.row[data-id="{match_id}"]')
+                    service = page.locator('[data-kind="have"][data-key="yttv"]')
+                    expect(page.locator('#comp-enabled [data-key="mex.1"]')).to_have_attribute("aria-pressed", "true")
+                    expect(row).to_have_attribute("data-svc", "yttv")
+                    expect(row).to_have_attribute("data-basis", "listed")
+                    self.assertEqual(self.bucket(page, match_id), bucket)
+                    if state == "post":
+                        # After midnight but before 4 am, Saturday's match remains yesterday's
+                        # result. Confirmed coverage must never promote an ESPN final to live.
+                        expect(row).to_be_hidden()
+                        page.locator('[data-b="yesterday"] > summary').click()
+                        expect(row.locator(".row__status")).to_have_text("FT")
+                        expect(page.locator('[data-b="live"]')).to_have_count(0)
+                        expect(page.locator("#nextup-section")).to_be_hidden()
+                    else:
+                        expect(page.locator("#nextup")).to_have_attribute("data-match-id", match_id)
+                        expect(page.locator("#nextup-h")).to_have_text("Live now")
+                    expect(row).to_be_visible()
+                    expect(row.locator(".pills")).to_contain_text("TUDN")
+                    expect(row.locator(".pills")).to_contain_text("Univision")
+
+                    # The main plan, without any Spanish add-on, grants the listed coverage.
+                    page.locator("#btn-menu").click()
+                    page.locator("#btn-clear").click()
+                    service.click()
+                    page.locator("#btn-filters-close").click()
+                    if state == "post":
+                        page.locator('[data-b="yesterday"] > summary').click()
+                    expect(row).to_be_visible()
+                    page.locator("#btn-menu").click()
+                    service.click()
+                    page.locator("#btn-filters-close").click()
+                    expect(row).to_be_hidden()
+                    page.locator("#btn-menu").click()
+                    service.click()
+                    page.locator("#btn-filters-close").click()
+                    if state == "post":
+                        page.locator('[data-b="yesterday"] > summary').click()
+                    expect(row).to_be_visible()
+                    self.assertEqual(self.bucket(page, match_id), bucket)
+                    self.assertEqual(page.evaluate("JSON.parse(localStorage.getItem('ssg3-have'))"), ["yttv"])
+                    self.assertLessEqual(page.evaluate("document.documentElement.scrollWidth"), width)
 
     def test_retired_fox_access_migrates_without_changing_other_preferences(self):
         fixtures = [("english", "2026-10-07T18:00:00+00:00", "pre", "ESPN+", "eng.1"),

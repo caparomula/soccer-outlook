@@ -20,9 +20,35 @@ PROVIDERS = {
 def enrich(builder, matches, fetch, built_at):
     """Run independent public schedule checks and retain their result on each match.
 
+    Liga MX's TUDN check also looks for linear simulcasts missing from streaming-only listings.
     Confirmed channels are applied by the provider adapters, using the normal service mapper.
     An absent or unreadable listing never erases the rights fallback or an ESPN listing.
     """
+    def record(group, report, name, url):
+        for match in group:
+            result = report.get("per_match", {}).get(match.id, {})
+            status = result.get("status", "not_checked")
+            if status not in ("confirmed", "unlisted", "unavailable", "not_checked"):
+                raise ValueError("Unrecognized broadcaster-check outcome")
+            # A missing simulcast must not describe existing confirmed outlets as usual coverage.
+            if match.outlets and status != "confirmed":
+                continue
+            # A lookup that did not apply must not erase evidence already attached to a match.
+            if status == "not_checked" and match.broadcast_check:
+                continue
+            match.broadcast_check = status
+            match.broadcast_check_source = name
+            match.broadcast_check_url = result.get("url") or url
+            match.broadcast_checked_at = built_at.isoformat() if status != "not_checked" else ""
+
+    reports = {}
+    liga_mx = [match for match in matches if match.league == "mex.1"]
+    if liga_mx:
+        provider = import_module("tudn_listings")
+        report = provider.enrich(builder, liga_mx, fetch)
+        reports["TUDN"] = report
+        record(liga_mx, report, "TUDN", provider.SCHEDULE_URL)
+
     groups = {}
     for match in matches:
         if match.outlets or not match.rule:
@@ -41,18 +67,8 @@ def enrich(builder, matches, fetch, built_at):
         report = import_module(module).enrich(builder, group, fetch)
         return channel, report, name, url
 
-    reports = {}
     with ThreadPoolExecutor(max_workers=min(4, len(groups) or 1)) as pool:
         for channel, report, name, url in pool.map(check, groups.items()):
             reports[channel] = report
-            outcomes = report.get("per_match", {})
-            for match in groups[channel]:
-                result = outcomes.get(match.id, {})
-                status = result.get("status", "not_checked")
-                if status not in ("confirmed", "unlisted", "unavailable", "not_checked"):
-                    raise ValueError("Unrecognized broadcaster-check outcome")
-                match.broadcast_check = status
-                match.broadcast_check_source = name
-                match.broadcast_check_url = result.get("url") or url
-                match.broadcast_checked_at = built_at.isoformat() if status != "not_checked" else ""
+            record(groups[channel], report, name, url)
     return reports

@@ -18,7 +18,7 @@ python3 -m http.server 8000 --bind 127.0.0.1 --directory site
 
 Open <http://127.0.0.1:8000/>. Stop the server with Ctrl+C. Serving the directory over HTTP lets the page load `story.json` if one exists beside `index.html`.
 
-By default, the builder fetches six dates: yesterday, today and the following four days. The extra dates support results and a page left open across a day change. The visible schedule covers today and the following three days; see the user guide for the 4 a.m. day boundary. The AI's corresponding window uses Eastern time, while the browser groups matches using the visitor's local time.
+By default, the builder fetches six Eastern calendar dates: yesterday, today and the following four days. Before 4 a.m. Eastern, it also fetches the preceding date, because the display still treats the previous evening as today and needs another day's results for Yesterday. The forward buffer supports a page left open across a day change. The visible schedule covers today and the following three days; see the user guide for the 4 a.m. day boundary. The AI's corresponding window uses Eastern time, while the browser groups matches using the visitor's local time.
 
 Useful build options:
 
@@ -28,8 +28,8 @@ Useful build options:
 | `--warnings work/mapping-report.txt` | Save broadcast-mapping warnings; the file is empty when the report is clean. |
 | `--report work/build-report.json` | Save source-health and fixture counts used to decide whether the build can be published. |
 | `--site-url https://example.com/soccer/` | Set the public directory URL used by the canonical link, sharing metadata and sitemap. Defaults to the published Soccer Outlook URL. |
-| `--date YYYY-MM-DD` | Choose the Eastern date used to fetch fixtures, evaluate rights and date the public static schedules. It does not change the build timestamp or the browser's clock. |
-| `--days-back N --days-ahead N` | Change the dates fetched. This does not change the browser's display window. |
+| `--date YYYY-MM-DD` | Choose the Eastern date used to fetch fixtures, evaluate rights and date the public static schedules. The configured calendar range is exact, without the extra date before 4 a.m. It does not change the build timestamp or the browser's clock. |
+| `--days-back N --days-ahead N` | Change the dates fetched. Builds before 4 a.m. Eastern fetch one additional prior date unless `--date` is set. This does not change the browser's display window. |
 | `--no-logos` | Build without team or league images. |
 | `--embed-images --logos logos.json` | Embed images instead of linking to ESPN; cache downloaded images in the named file. |
 | `--fragment` | Write the page body for a host that supplies its own document wrapper. |
@@ -42,7 +42,7 @@ For a browser preview at a chosen local time, append a fragment such as `#at-202
 | --- | --- |
 | [`build.py`](../build.py) | Fetch and interpret ESPN data, validate configuration, calculate the Outlook score and generate HTML. Also defines tracked leagues, their default selection and order, default services, and teams receiving an occasion-score bonus. |
 | [`discovery.py`](../discovery.py) | Generate public league and service schedule pages, their links, and search-discovery metadata. |
-| [`broadcast_listings.py`](../broadcast_listings.py) and the provider `*_listings.py` modules | Check public broadcaster schedules for usual-coverage fixtures, apply confirmed listings, and retain source/check results. |
+| [`broadcast_listings.py`](../broadcast_listings.py) and the provider `*_listings.py` modules | Check public broadcaster schedules for usual coverage and Liga MX simulcasts, apply confirmed listings, and retain source/check results. |
 | [`rights.toml`](../rights.toml) | Broadcaster aliases, services, simulcasts and each competition's usual coverage, with sources and check dates. |
 | [`settings.toml`](../settings.toml) | AI configuration, score weights and golden-dot thresholds. |
 | [`web/page.html`](../web/page.html) | Page structure. |
@@ -172,11 +172,11 @@ Researched text must cite sources returned by the model's tools. Full-design lea
 
 ## Automated builds and publishing
 
-Before rendering, the builder checks the public schedules behind every configured usual-coverage route: FOX Sports, ESPN+, Paramount+, ViX, Peacock, Apple TV, Fandango and beIN Sports Connect. It fetches only providers needed by the current fixtures, reuses each provider's page where possible, and checks independent providers in parallel. These are public schedule requests, with no AI calls or broadcaster account credentials.
+Before rendering, the builder checks the public schedules behind every configured usual-coverage route: FOX Sports, ESPN+, Paramount+, ViX, Peacock, Apple TV, Fandango and beIN Sports Connect. It fetches only providers needed by the current fixtures, reuses each provider's page where possible, and checks independent providers in parallel. Liga MX also gets a TUDN check before those fallbacks, including fixtures that ESPN lists only on ViX. TUDN's current-round results page supplies match URLs; matching US event metadata supplies the actual television channels. This can make a match available through YouTube TV without assuming every ViX match airs on TUDN. The parser currently verifies Apertura catalogue ID `199`; review that ID when the season changes. Fixtures outside the supported catalogue or current round retain their other listings or usual coverage. These are public schedule requests, with no AI calls or broadcaster account credentials.
 
-Adapters require match-specific evidence: competition, both teams, a dated kickoff or narrowly matched live-broadcast start, and an explicit channel or service. Replays and general league rights do not confirm a live listing. Some providers start their broadcast a few minutes before the match; this never changes ESPN's kickoff time. Existing ESPN listings take precedence. Missing, conflicting, changed-format or unreachable supplemental data leaves the usual coverage intact, with a source link and explanation in Details. A provider failure does not make the ESPN fixture feed unusable.
+Adapters require match-specific evidence: competition, both teams, a dated kickoff or narrowly matched live-broadcast start, and an explicit channel or service. Replays and general league rights do not confirm a live listing. Some providers start their broadcast a few minutes before the match; this never changes ESPN's kickoff time. Existing ESPN listings are preserved; a verified TUDN simulcast can add viewing options. The TUDN check also covers recent results, and never changes ESPN's score, kickoff or match status. Missing, conflicting, changed-format or unreachable supplemental data leaves the usual coverage intact, with a source link and explanation in Details. A provider failure does not make the ESPN fixture feed unusable.
 
-`build-report.json` records `broadcast_checks` by usual channel, including request, confirmation and failure counts and per-match source URLs/status. Confirmed source URLs are also included in the match facts supplied to optional AI generation. Check those records before changing an adapter: an empty or unavailable provider page must not be treated as a confirmed listing. Parser tests use small recorded or synthetic responses and make no live requests.
+`build-report.json` records `broadcast_checks` by provider or usual channel, including request, confirmation and failure counts and per-match source URLs/status. Confirmed source URLs are also included in the match facts supplied to optional AI generation. Check those records before changing an adapter: an empty or unavailable provider page must not be treated as a confirmed listing. Parser tests use small recorded or synthetic responses and make no live requests.
 
 [`Refresh outlook`](../.github/workflows/refresh.yml) runs at **09:50, 16:50 and 22:50 UTC** each day. That is 5:50 a.m., 12:50 p.m. and 6:50 p.m. during Eastern daylight time, or 4:50 a.m., 11:50 a.m. and 5:50 p.m. during standard time. The morning run stays after the 4 a.m. day boundary in both seasons. GitHub can delay scheduled runs.
 

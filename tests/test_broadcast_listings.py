@@ -41,6 +41,54 @@ class BroadcastChecks(unittest.TestCase):
         loader.assert_not_called()
         self.assertEqual(match.broadcast_check, "")
 
+    def test_tudn_confirmation_makes_liga_mx_available_on_youtube_before_usual_checks(self):
+        match = fixture(league="mex.1", channel=None, rule=build.map_outlet("ViX", "mex.1"))
+        url = "https://www.tudn.com/futbol/liga-mx/america-vs-monterrey-liga-mx-ap-2026-10-10"
+        def enrich(builder, matches, fetch):
+            match.outlets = [builder.map_outlet("TUDN", match.league)]
+            match.rule = None
+            match.broadcast_source, match.broadcast_url = "TUDN", url
+            return dict(requested=2, confirmed=1, unmatched=0, failed=0,
+                        per_match={match.id: dict(status="confirmed", url=url)})
+        adapter = SimpleNamespace(enrich=enrich, SCHEDULE_URL="https://www.tudn.com/futbol/liga-mx/resultados")
+        with patch.object(broadcast_listings, "import_module", return_value=adapter) as loader:
+            report = broadcast_listings.enrich(build, [match], lambda _: b"", NOW)
+        loader.assert_called_once_with("tudn_listings")
+        self.assertEqual(build.evaluate(match.outlets, match.rule, {"yttv"}), ("yttv", "listed", "TUDN"))
+        self.assertEqual(match.broadcast_check, "confirmed")
+        self.assertEqual(match.broadcast_checked_at, NOW.isoformat())
+        self.assertIn("TUDN broadcast listing", build.detail_html(match, {}))
+        self.assertEqual(set(report), {"TUDN"})
+
+    def test_missing_tudn_simulcast_preserves_existing_vix_listing(self):
+        match = fixture(league="mex.1", channel="ViX")
+        schedule = "https://www.tudn.com/futbol/liga-mx/resultados"
+        adapter = SimpleNamespace(SCHEDULE_URL=schedule, enrich=lambda *_: dict(
+            requested=1, confirmed=0, unmatched=1, failed=0,
+            per_match={match.id: dict(status="unlisted", url=schedule)}))
+        with patch.object(broadcast_listings, "import_module", return_value=adapter):
+            report = broadcast_listings.enrich(build, [match], lambda _: b"", NOW)
+        self.assertEqual([outlet.label for outlet in match.outlets], ["ViX"])
+        self.assertEqual(build.evaluate(match.outlets, match.rule, {"yttv"}), ("", "none", ""))
+        self.assertEqual(match.broadcast_check, "")
+        self.assertNotIn("Coverage shown is the usual arrangement", build.detail_html(match, {}))
+        self.assertEqual(report["TUDN"]["unmatched"], 1)
+
+    def test_unavailable_tudn_still_checks_vix_without_granting_youtube_access(self):
+        match = fixture(league="mex.1", channel=None, rule=build.map_outlet("ViX", "mex.1"))
+        def adapter(name, status):
+            url = f"https://{name}.example/schedule"
+            return SimpleNamespace(SCHEDULE_URL=url, enrich=lambda *_: dict(
+                requested=1, confirmed=0, unmatched=1, failed=int(status == "unavailable"),
+                per_match={match.id: dict(status=status, url=url)}))
+        modules = {"tudn_listings": adapter("tudn", "unavailable"), "vix_listings": adapter("vix", "unlisted")}
+        with patch.object(broadcast_listings, "import_module", side_effect=modules.__getitem__):
+            report = broadcast_listings.enrich(build, [match], lambda _: None, NOW)
+        self.assertEqual(set(report), {"TUDN", "ViX"})
+        self.assertEqual(match.rule.label, "ViX")
+        self.assertEqual(match.broadcast_check_source, "ViX")
+        self.assertEqual(build.evaluate(match.outlets, match.rule, {"yttv"}), ("", "none", ""))
+
     def test_failed_and_unlisted_checks_preserve_rights_and_explain_them_in_details(self):
         for status in ("unavailable", "unlisted"):
             match = fixture(channel=None, rule=build.Outlet("ESPN+", ["espn", "espnplus"]))

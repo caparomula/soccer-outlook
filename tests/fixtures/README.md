@@ -20,3 +20,8 @@ These reduced samples were captured on 10 October 2026. They preserve the event 
 - `bein-catalogue.html` and `bein-event.html`: beIN Sports Connect's upcoming-event links and Benfica–Vitória event page, including the broadcast start with its UTC offset.
 
 Paramount+ tests construct small responses following its observed US live/upcoming catalogue structure. Synthetic variants across the tests exercise wrong teams, times, countries, replay types, duplicate listings and unavailable sources.
+
+The TUDN samples were captured on 12 October 2026. They retain reduced public Next.js component data, without player credentials or stream URLs:
+
+- `tudn-results.html`: [TUDN's US Liga MX results](https://www.tudn.com/futbol/liga-mx/resultados), retaining the América–Monterrey and Querétaro–Atlante identities, dates and match-page links from the Apertura catalogue (`competitionKey: "199"`).
+- `tudn-match.html`: [América–Monterrey's match page](https://www.tudn.com/futbol/liga-mx/america-vs-monterrey-liga-mx-ap-2026-10-10), retaining the exact kickoff, event ID, US scope and authenticated live-event channel metadata for TUDN and Univision. This confirms that specific simulcast; it does not imply that every ViX fixture airs on those channels.

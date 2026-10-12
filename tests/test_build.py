@@ -1,6 +1,7 @@
 """Publication depends on usable ESPN sources, not on how busy the soccer calendar is."""
 from copy import deepcopy
 from dataclasses import replace
+from datetime import date, datetime, timedelta, timezone
 import io
 import json
 from pathlib import Path
@@ -16,6 +17,52 @@ from tests import test_render
 
 FIXTURES = Path(__file__).parent / "fixtures"
 SAMPLES = json.loads((FIXTURES / "espn-scoreboards.json").read_text())["scoreboards"]
+
+
+class FetchDates(unittest.TestCase):
+    def dates(self, timestamp, days_back=1, days_ahead=4, fixed_date=None):
+        built_at = datetime.fromisoformat(timestamp)
+        today = fixed_date or built_at.astimezone(build.ET).date()
+        return build.scoreboard_dates(today, built_at, days_back, days_ahead, fixed_date=fixed_date is not None)
+
+    def test_pre_dawn_build_keeps_yesterday_results_and_forward_buffer(self):
+        days = self.dates("2026-10-12T05:14:22+00:00")
+        self.assertEqual(days, [date(2026, 10, 10) + timedelta(days=i) for i in range(7)])
+        # At 4 am Eastern, October 10 is outside Yesterday and can fall out of the fetch.
+        self.assertEqual(self.dates("2026-10-12T08:00:00+00:00"), days[1:])
+        self.assertEqual(self.dates("2026-10-12T07:59:59+00:00"), days)
+
+    def test_before_midnight_eastern_does_not_use_the_utc_date(self):
+        days = self.dates("2026-10-12T02:00:00+00:00")
+        self.assertEqual((days[0], days[-1], len(days)), (date(2026, 10, 10), date(2026, 10, 15), 6))
+
+    def test_lookback_crosses_month_and_year_boundaries(self):
+        for timestamp, first in (("2027-01-01T05:30:00+00:00", date(2026, 12, 30)),
+                                 ("2026-03-01T05:30:00+00:00", date(2026, 2, 27))):
+            with self.subTest(timestamp=timestamp):
+                self.assertEqual(self.dates(timestamp)[0], first)
+
+    def test_dst_changes_preserve_the_four_am_boundary(self):
+        for timestamp, first, count in (
+                ("2026-03-08T06:30:00+00:00", date(2026, 3, 6), 7),  # 1:30 EST
+                ("2026-03-08T07:30:00+00:00", date(2026, 3, 6), 7),  # 3:30 EDT
+                ("2026-03-08T08:00:00+00:00", date(2026, 3, 7), 6),  # 4:00 EDT
+                ("2026-11-01T05:30:00+00:00", date(2026, 10, 30), 7),  # first 1:30
+                ("2026-11-01T06:30:00+00:00", date(2026, 10, 30), 7),  # repeated 1:30
+                ("2026-11-01T09:00:00+00:00", date(2026, 10, 31), 6)):  # 4:00 EST
+            with self.subTest(timestamp=timestamp):
+                days = self.dates(timestamp)
+                self.assertEqual((days[0], len(days)), (first, count))
+
+    def test_explicit_date_has_the_same_calendar_range_at_every_hour(self):
+        expected = [date(2026, 10, 11) + timedelta(days=i) for i in range(6)]
+        for timestamp in ("2027-01-01T06:00:00+00:00", "2027-01-01T16:00:00+00:00"):
+            with self.subTest(timestamp=timestamp):
+                self.assertEqual(self.dates(timestamp, fixed_date=date(2026, 10, 12)), expected)
+
+    def test_custom_range_adds_only_one_earlier_date(self):
+        days = self.dates("2026-10-12T05:00:00+00:00", days_back=2, days_ahead=0)
+        self.assertEqual(days, [date(2026, 10, 9) + timedelta(days=i) for i in range(4)])
 
 
 class Calendar(unittest.TestCase):
@@ -157,14 +204,33 @@ class SourceQuality(unittest.TestCase):
 
 
 class BuildCommand(unittest.TestCase):
-    def run_build(self, payload, directory):
+    def run_build(self, payload, directory, extra_args=()):
         argv = ["build.py", "--no-logos", "--days-back", "0", "--days-ahead", "0",
-                "--out", str(directory / "index.html"), "--report", str(directory / "report.json")]
+                "--out", str(directory / "index.html"), "--report", str(directory / "report.json"), *extra_args]
         with patch("sys.argv", argv), patch.dict(build.LEAGUES, {"eng.1": build.LEAGUES["eng.1"]}, clear=True), \
                 patch.dict(build.STANDINGS, {}, clear=True), patch.object(build, "fetch_standings", return_value={}), \
                 patch.object(build, "curl_bytes", return_value=json.dumps(payload).encode()), \
                 patch.object(build, "audit", return_value=[]), patch("sys.stdout", io.StringIO()), patch("sys.stderr", io.StringIO()):
             return build.main()
+
+    def test_pre_dawn_build_fetches_previous_evening_without_changing_rights_date(self):
+        built_at = datetime(2026, 10, 12, 5, 14, tzinfo=timezone.utc)
+        with tempfile.TemporaryDirectory() as temporary, patch.object(build, "datetime", wraps=datetime) as clock, \
+                patch.object(build, "fetch_scoreboards", wraps=build.fetch_scoreboards) as fetch, \
+                patch.object(build, "TODAY"):
+            clock.now.return_value = built_at
+            self.assertEqual(self.run_build({"events": []}, Path(temporary)), 0)
+            self.assertEqual(fetch.call_args.args[0], [date(2026, 10, 11), date(2026, 10, 12)])
+            self.assertEqual(build.TODAY, date(2026, 10, 12))
+
+    def test_explicit_date_build_uses_only_the_configured_calendar_range_before_dawn(self):
+        with tempfile.TemporaryDirectory() as temporary, patch.object(build, "datetime", wraps=datetime) as clock, \
+                patch.object(build, "fetch_scoreboards", wraps=build.fetch_scoreboards) as fetch, \
+                patch.object(build, "TODAY"):
+            clock.now.return_value = datetime(2027, 1, 1, 6, tzinfo=timezone.utc)
+            self.assertEqual(self.run_build({"events": []}, Path(temporary), ["--date", "2026-10-12"]), 0)
+            self.assertEqual(fetch.call_args.args[0], [date(2026, 10, 12)])
+            self.assertEqual(build.TODAY, date(2026, 10, 12))
 
     def test_complete_zero_or_one_fixture_build_publishes_and_reports_volume(self):
         for events in ([], [test_render.Markup.event()]):

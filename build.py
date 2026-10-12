@@ -4,8 +4,9 @@
 Fetch fixtures and standings from ESPN, map US broadcasters through rights.toml, and write the main
 HTML file with web/page.html, web/styles.css, web/live.js and web/app.js embedded. Full builds also write
 three public schedule pages, a sitemap, a PNG favicon and an IndexNow ownership file. The default
-fetch covers six Eastern calendar dates: yesterday, today and four days ahead. The browser displays today and
-three later days, with each day starting at 4 am in the viewer's time zone, plus recent results.
+fetch covers yesterday, today and four days ahead in Eastern time. Before 4 am Eastern, it also
+fetches the preceding date so the previous evening's results are retained. The browser displays
+today and three later days, with each day starting at 4 am in the viewer's time zone, plus recent results.
 
 rights.toml supplies listed-channel mappings and established usual coverage when ESPN has not
 posted a broadcaster. Public broadcaster schedules are checked before using the "usually"
@@ -849,6 +850,18 @@ def write_build_report(path, report):
         output = Path(path)
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def scoreboard_dates(today, built_at, days_back, days_ahead, *, fixed_date=False):
+    """Fetch calendar dates covering the previous sports day and the forward buffer.
+
+    Before 4 am Eastern, the browser still calls the previous calendar date today. Fetch one
+    extra earlier date to retain its yesterday results, without shifting rights checks or the
+    forward buffer away from the actual calendar date. An explicit --date keeps the configured
+    calendar range regardless of when the command runs.
+    """
+    extra_back = int(not fixed_date and built_at.astimezone(ET).hour < story_state.DAY_START_HOUR)
+    return [today + timedelta(days=i) for i in range(-days_back - extra_back, days_ahead + 1)]
 
 
 def fetch_scoreboards(days, workers, quality=None):
@@ -2002,7 +2015,8 @@ def main():
     ap.add_argument("--fragment", action="store_true", help="write the page body only, for hosts that add the document wrapper")
     ap.add_argument("--days-ahead", type=int, default=4, help="days of fixtures to fetch: the page shows today and the "
                     "three days after it (story_state.WINDOW_DAYS), and one more covers a page read after midnight before the next build")
-    ap.add_argument("--days-back", type=int, default=1)
+    ap.add_argument("--days-back", type=int, default=1,
+                    help="prior calendar dates to fetch; before 4 am Eastern, one more is fetched unless --date is set")
     ap.add_argument("--date", help="treat this Eastern date as today (testing)")
     ap.add_argument("--no-logos", action="store_true", help="no team or league images at all")
     ap.add_argument("--workers", type=int, default=6)
@@ -2021,7 +2035,7 @@ def main():
     today = datetime.strptime(args.date, "%Y-%m-%d").date() if args.date else built_at.astimezone(ET).date()
     global TODAY
     TODAY = today
-    days = [today + timedelta(days=i) for i in range(-args.days_back, args.days_ahead + 1)]
+    days = scoreboard_dates(today, built_at, args.days_back, args.days_ahead, fixed_date=bool(args.date))
 
     quality = BuildQuality()
     merged, league_logos, failed = fetch_scoreboards(days, args.workers, quality)
