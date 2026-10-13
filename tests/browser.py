@@ -3137,6 +3137,9 @@ class BrowserChecks(unittest.TestCase):
                 page.locator("#ai-generate").click()
                 prompt = page.locator("#ai-prompt").input_value()
                 self.assertIn(preferences, prompt)
+                self.assertIn("single fenced ```json code block", prompt)
+                self.assertIn("Research before writing when web search is available", prompt)
+                self.assertIn("Do not repeat kickoff dates, times, channels or venue in match blurbs", prompt)
                 snapshot = self.personal_ai_snapshot(page)
                 self.assertEqual({m["id"] for m in snapshot["matches"]}, set("abcde"))
                 self.assertIn("Arsenal", json.dumps(snapshot))
@@ -3152,6 +3155,9 @@ class BrowserChecks(unittest.TestCase):
                 expect(page.locator("#ai-preferences")).to_have_value(preferences)
                 expect(page.locator("#ai-weight")).to_have_value("100")
                 reply = self.personal_ai_reply(snapshot, dict(a=50, b=10, c=100, d=0, e=20), "c")
+                # A rating is still useful when research finds no worthwhile supported blurb.
+                without_news = next(match for match in reply["matches"] if match["id"] == "d")
+                without_news.update(blurb="", sources=[])
                 page.locator("#ai-response").fill("```json\n" + json.dumps(reply) + "\n```")
                 page.locator("#ai-apply").click()
                 expect(page.locator("#ai-error")).to_be_empty()
@@ -3161,8 +3167,9 @@ class BrowserChecks(unittest.TestCase):
                 expect(page.locator("#nextup .row__story")).to_contain_text("Your preview for a.")
                 for mid in "bce":
                     expect(page.locator(f'#picks [data-match-id="{mid}"] .row__story')).to_contain_text(f"Your preview for {mid}.")
-                for mid in "abcde":
+                for mid in "abce":
                     expect(page.locator(f'li.row[data-id="{mid}"] .row__story')).to_contain_text(f"Your preview for {mid}.")
+                expect(page.locator('li.row[data-id="d"] .row__story')).to_have_count(0)
                 # A newly enabled service can add an unrated match after the prompt was copied.
                 # It still competes using its Outlook score instead of vanishing from the picks.
                 page.locator("#btn-menu").click()
@@ -3178,6 +3185,7 @@ class BrowserChecks(unittest.TestCase):
                 page.locator("#ai-weight").fill("0")
                 self.close_personal_ai(page)
                 self.assertEqual(picks.evaluate_all("els => els.map(e => e.dataset.matchId)"), ["b", "d", "e"])
+                expect(page.locator('#picks [data-match-id="d"] .row__story')).to_have_count(0)
                 expect(page.locator("#story-lede")).to_have_text("Your match overview.")
                 button.click()
                 page.locator("#ai-clear").click()
