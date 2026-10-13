@@ -3281,6 +3281,7 @@ class BrowserChecks(unittest.TestCase):
             page.locator("#ai-apply").click()
             self.close_personal_ai(page)
             expect(page.locator("#story-lede")).to_have_text("Your match overview.")
+
             # An old saved response must not revive merely because its fixture is still upcoming.
             page.evaluate("""() => {
                 const key = 'sso-personal-ai-v1', saved = JSON.parse(localStorage.getItem(key));
@@ -3316,6 +3317,211 @@ class BrowserChecks(unittest.TestCase):
             expect(page.locator("#story-lede")).to_have_text("Your match overview.")
 
 
+    @staticmethod
+    def personal_ai_headline(snapshot, league, ids, title, interest, *, lede="", sources=None, expires_at=None):
+        deadline = snapshot.get("response_expires_at") or (datetime.fromisoformat(snapshot["now"]) + timedelta(hours=24)).isoformat()
+        return {"league_id": league, "headline": title, "lede": lede, "interest": interest, "match_ids": ids,
+                "sources": sources if sources is not None else [{"url": "https://news.example/preview", "title": "Match preview"}],
+                "expires_at": expires_at or deadline}
+
+    @staticmethod
+    def personal_ai_headline_reply(snapshot, headlines):
+        return {"version": 2, "request_id": snapshot["request_id"], "headlines": headlines,
+                "matches": [{"id": match["id"], "score": 50, "blurb": f'Your preview for {match["id"]}.', "sources": []}
+                            for match in snapshot["matches"]]}
+
+    def test_personal_ai_headlines_prioritize_near_matches_and_expand_on_request(self):
+        fixtures = [("near", "2026-10-07T18:00:00+00:00", "pre", "ESPN+", "eng.1"),
+                    ("tomorrow", "2026-10-08T20:00:00+00:00", "pre", "ESPN+", "esp.1"),
+                    ("later", "2026-10-09T20:00:00+00:00", "pre", "Apple TV", "usa.1"),
+                    ("low", "2026-10-07T19:00:00+00:00", "pre", "ESPN+", "fra.1")]
+        html = render_page(build, fixtures=fixtures, ai=False)
+        for width in (1280, 390):
+            with self.subTest(width=width), self.page("after", html=html, width=width) as (page, _):
+                page.locator("#btn-ai-settings").click()
+                page.locator("#ai-generate").click()
+                snapshot = self.personal_ai_snapshot(page)
+                reply = self.personal_ai_headline_reply(snapshot, [
+                    self.personal_ai_headline(snapshot, "eng.1", ["near"], "A returning midfielder changes the contest", 80,
+                                              lede="The returning midfielder gives the home side another passing option."),
+                    self.personal_ai_headline(snapshot, "esp.1", ["tomorrow"], "The Spanish title contenders meet", 99),
+                    self.personal_ai_headline(snapshot, "usa.1", ["later"], "A playoff place is on the line", 98),
+                    self.personal_ai_headline(snapshot, "fra.1", ["low"], "An ordinary fixture needs no headline", 59)])
+                page.locator("#ai-response").fill("```json\n" + json.dumps(reply) + "\n```")
+                page.locator("#ai-apply").click()
+                expect(page.locator("#ai-error")).to_be_empty()
+                self.close_personal_ai(page)
+                lead = page.locator("#story-headlines > article.story-headline")
+                expect(lead).to_have_attribute("data-league", "eng.1")
+                expect(lead.locator(".story-headline__title")).to_have_text(reply["headlines"][0]["headline"])
+                expect(page.locator('#story-headlines article[data-league="fra.1"]')).to_have_count(0)
+                more = page.locator("details.story-headlines__more")
+                expect(more.locator("summary").first).to_have_text(re.compile(r"More headlines\s*\(2\)"))
+                self.assertFalse(more.evaluate("el => el.open"))
+                detail = lead.locator("details.story-headline__details")
+                self.assertFalse(detail.evaluate("el => el.open"))
+                expect(lead.locator(".story-headline__lede")).to_be_hidden()
+                detail.locator("summary").click()
+                expect(lead.locator(".story-headline__lede")).to_have_text(reply["headlines"][0]["lede"])
+                expect(lead.locator(".story-headline__lede")).to_be_visible()
+                more.locator("summary").first.click()
+                self.assertEqual(more.locator("article.story-headline").evaluate_all("els => els.map(el => el.dataset.league)"), ["esp.1", "usa.1"])
+                expect(more.locator(".story-headline__title").first).to_be_visible()
+                self.assertLessEqual(page.evaluate("document.documentElement.scrollWidth"), width)
+                self.full_page_shot(page, f"personal-headlines-{width}.png")
+                page.locator("#btn-menu").click()
+                page.locator('#comp-pills [data-key="eng.1"]').click()
+                expect(lead).to_have_attribute("data-league", "esp.1")
+                page.locator('#comp-pills [data-key="usa.1"]').click()
+                expect(page.locator("details.story-headlines__more")).to_have_count(0)
+                page.locator("#btn-filters-close").click()
+                expect(lead.locator(".story-headline__title")).to_have_text("The Spanish title contenders meet")
+
+    def test_personal_ai_calendar_headlines_need_enabled_leagues_and_empty_replies_stay_empty(self):
+        with self.page("after", html=render_page(build, fixtures=[], ai=False)) as (page, _):
+            page.locator("#btn-ai-settings").click()
+            page.locator("#ai-generate").click()
+            expect(page.locator("#ai-error")).to_be_empty()
+            snapshot = self.personal_ai_snapshot(page)
+            self.assertEqual(snapshot["matches"], [])
+            league_ids = {league["id"] for league in snapshot["league_order"]}
+            self.assertIn("uefa.champions", league_ids)
+            self.assertTrue({"eng.2", "usa.usl.1", "ned.1"}.isdisjoint(league_ids))
+            reply = self.personal_ai_headline_reply(snapshot, [self.personal_ai_headline(
+                snapshot, "uefa.champions", [], "The next European round follows the international break", 85)])
+            page.locator("#ai-response").fill(json.dumps(reply))
+            page.locator("#ai-apply").click()
+            expect(page.locator("#ai-error")).to_be_empty()
+            self.close_personal_ai(page)
+            expect(page.locator("#story-headlines > article.story-headline")).to_have_attribute("data-league", "uefa.champions")
+            page.reload()
+            expect(page.locator("#story-headlines .story-headline__title")).to_have_text(reply["headlines"][0]["headline"])
+            # Bulk league controls also cover leagues with no fixture pills on this quiet day.
+            page.locator("#btn-menu").click()
+            page.locator("#btn-clear-leagues").click()
+            expect(page.locator("#story")).to_be_hidden()
+            page.locator("#btn-ai-settings").click()
+            old_prompt = page.locator("#ai-prompt").input_value()
+            page.locator("#ai-generate").click()
+            expect(page.locator("#ai-error")).to_be_visible()
+            expect(page.locator("#ai-prompt")).to_have_value(old_prompt)
+            self.close_personal_ai(page)
+            page.locator("#btn-menu").click()
+            page.locator("#btn-select-leagues").click()
+            expect(page.locator("#story")).to_be_visible()
+            expect(page.locator("#story-headlines .story-headline__title")).to_have_text(reply["headlines"][0]["headline"])
+            page.locator("#btn-ai-settings").click()
+            page.locator("#ai-generate").click()
+            expect(page.locator("#ai-error")).to_be_empty()
+            all_leagues = {league["id"] for league in self.personal_ai_snapshot(page)["league_order"]}
+            self.assertEqual(all_leagues, set(build.LEAGUES))
+            self.close_personal_ai(page)
+            page.locator("#btn-menu").click()
+            page.locator("#btn-reset").click()
+            page.locator("#btn-ai-settings").click()
+            page.locator("#ai-generate").click()
+            default_leagues = {league["id"] for league in self.personal_ai_snapshot(page)["league_order"]}
+            self.assertEqual(default_leagues, league_ids)
+            self.close_personal_ai(page)
+            page.locator("#btn-menu").click()
+            page.locator("#btn-clear").click()
+            page.locator("#btn-filters-close").click()
+            expect(page.locator("#story")).to_be_hidden()
+        with self.page("after", html=render_page(build, fixtures=self.SCORED, ai=False)) as (page, _):
+            page.locator("#btn-ai-settings").click()
+            page.locator("#ai-generate").click()
+            snapshot = self.personal_ai_snapshot(page)
+            for headlines in ([], [self.personal_ai_headline(snapshot, "eng.1", ["a"], "Below the interest threshold", 59)]):
+                page.locator("#ai-response").fill(json.dumps(self.personal_ai_headline_reply(snapshot, headlines)))
+                page.locator("#ai-apply").click()
+                expect(page.locator("#ai-error")).to_be_empty()
+                self.close_personal_ai(page)
+                expect(page.locator("#story")).to_be_hidden()
+                expect(page.locator('li.row[data-id="a"] .row__story')).to_contain_text("Your preview for a.")
+                page.locator("#btn-ai-settings").click()
+
+    def test_bad_personal_ai_headlines_leave_the_accepted_response_in_place(self):
+        fixtures = [("eng", "2026-10-07T18:00:00+00:00", "pre", "ESPN+", "eng.1"),
+                    ("esp", "2026-10-07T19:00:00+00:00", "pre", "ESPN+", "esp.1")]
+        with self.page("after", html=render_page(build, fixtures=fixtures, ai=False)) as (page, _):
+            page.locator("#btn-ai-settings").click()
+            page.locator("#ai-generate").click()
+            snapshot = self.personal_ai_snapshot(page)
+            valid = self.personal_ai_headline_reply(snapshot, [self.personal_ai_headline(
+                snapshot, "eng.1", ["eng"], "The accepted match headline", 80)])
+            page.locator("#ai-response").fill(json.dumps(valid))
+            page.locator("#ai-apply").click()
+            expect(page.locator("#ai-error")).to_be_empty()
+            for name in ("unknown league", "duplicate league", "cross-league match", "unsourced calendar", "unsafe source", "excessive expiry", "bad interest"):
+                with self.subTest(response=name):
+                    reply = deepcopy(valid)
+                    item = reply["headlines"][0]
+                    if name == "unknown league":
+                        item["league_id"] = "not-a-league"
+                    elif name == "duplicate league":
+                        reply["headlines"].append(deepcopy(item))
+                    elif name == "cross-league match":
+                        item["match_ids"] = ["esp"]
+                    elif name == "unsourced calendar":
+                        item.update(match_ids=[], sources=[])
+                    elif name == "unsafe source":
+                        item["sources"][0]["url"] = "javascript:window.__unsafeExecuted=true"
+                    elif name == "excessive expiry":
+                        item["expires_at"] = "2026-10-09T17:00:00Z"
+                    else:
+                        item["interest"] = 101
+                    page.locator("#ai-response").fill(json.dumps(reply))
+                    page.locator("#ai-apply").click()
+                    expect(page.locator("#ai-error")).to_be_visible()
+                    expect(page.locator("#story-headlines > article .story-headline__title")).to_have_text("The accepted match headline")
+                    self.assertFalse(page.evaluate("Boolean(window.__unsafeExecuted)"))
+
+    def test_personal_ai_headlines_follow_final_scores_and_expire_without_padding(self):
+        fixtures = [("upcoming", "2026-10-07T17:05:00+00:00", "pre", "ESPN+", "eng.1"),
+                    ("spanish", "2026-10-07T20:00:00+00:00", "pre", "ESPN+", "esp.1")]
+        with self.page("after", html=render_page(build, fixtures=fixtures, ai=False)) as (page, feed):
+            page.locator("#btn-ai-settings").click()
+            page.locator("#ai-generate").click()
+            snapshot = self.personal_ai_snapshot(page)
+            reply = self.personal_ai_headline_reply(snapshot, [
+                self.personal_ai_headline(snapshot, "eng.1", ["upcoming"], "The near match leads", 90, expires_at="2026-10-07T17:10:00Z"),
+                self.personal_ai_headline(snapshot, "esp.1", ["spanish"], "The other match remains", 80, expires_at="2026-10-07T17:10:00Z")])
+            page.locator("#ai-response").fill(json.dumps(reply))
+            page.locator("#ai-apply").click()
+            expect(page.locator("#ai-error")).to_be_empty()
+            self.close_personal_ai(page)
+            lead = page.locator("#story-headlines > article.story-headline")
+            expect(lead).to_have_attribute("data-league", "eng.1")
+            feed["data"] = scoreboard("post")
+            page.clock.run_for(60000)
+            expect(page.locator('li.row[data-id="upcoming"]')).to_have_attribute("data-state", "post")
+            expect(lead).to_have_attribute("data-league", "esp.1")
+            page.evaluate("location.hash = '#at-20261007-1311'")
+            expect(page.locator("#story")).to_be_hidden()
+            expect(page.locator('li.row[data-id="spanish"] .row__story')).to_contain_text("Your preview for spanish.")
+
+    def test_personal_ai_legacy_pending_prompt_can_still_be_completed(self):
+        with self.page("after", html=render_page(build, fixtures=self.SCORED, ai=False)) as (page, _):
+            page.locator("#btn-ai-settings").click()
+            page.locator("#ai-generate").click()
+            snapshot = self.personal_ai_snapshot(page)
+            page.evaluate("""() => {
+                const key = 'sso-personal-ai-v1', saved = JSON.parse(localStorage.getItem(key));
+                delete saved.pending.schema_version;
+                localStorage.setItem(key, JSON.stringify(saved));
+            }""")
+            page.reload()
+            page.locator("#btn-ai-settings").click()
+            self.assertRegex(page.locator("#ai-prompt").input_value(), r'"version"\s*:\s*1')
+            page.locator("#ai-response").fill(json.dumps(self.personal_ai_reply(snapshot)))
+            page.locator("#ai-apply").click()
+            expect(page.locator("#ai-error")).to_be_empty()
+            self.close_personal_ai(page)
+            expect(page.locator("#story-lede")).to_have_text("Your match overview.")
+            page.reload()
+            expect(page.locator("#story-lede")).to_have_text("Your match overview.")
+
+
 # Exit status when the browser cannot start: the checks did not run, which says nothing about the page.
 # 77 is automake's "skipped"; Python and argparse already use 1 and 2 for their own errors.
 NOT_RUN = 77
@@ -3323,6 +3529,7 @@ NOT_RUN = 77
 # A compact cross-engine pass through the interactions most sensitive to browser behavior.
 # Chromium still runs every check by default; WebKit smoke is an additional compatibility check.
 SMOKE_TESTS = (
+    "test_personal_ai_headlines_prioritize_near_matches_and_expand_on_request",
     "test_personal_ai_prompt_import_weight_persistence_and_reset",
     "test_lineup_persists_and_resets",
     "test_watch_links_follow_service_access_in_schedule_and_featured_cards",

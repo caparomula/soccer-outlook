@@ -1844,7 +1844,8 @@ def build_page(matches, cache, built_at, failed, today, skipped=(), site_url=Non
         f'<p class="svc__desc" data-desc></p></div>' for k in OWNER)
 
     svc_meta = {"order": SERVICE_RANK, "name": SERVICES, "owner": OWNER,
-                "leagues": {league: info["name"] for league, info in LEAGUES.items()}}
+                "leagues": {league: info["name"] for league, info in LEAGUES.items()},
+                "league_default_off": [league for league, info in LEAGUES.items() if info.get("default_off")]}
     used = set()
     for m in matches:
         used.update([m.home.logo_key, m.away.logo_key])

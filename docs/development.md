@@ -109,33 +109,25 @@ Use a complete checkout of the baseline revision so its supporting files and ass
 
 **AI settings** lets a visitor generate a prompt, run it in a chat of their choice, and paste the response back. This path makes no AI API requests, needs no provider credentials and does not modify `story.json`. The [user guide](user-guide.md#use-your-own-ai-for-blurbs) explains the controls.
 
-The prompt uses current, filter-eligible live and upcoming fixtures in the browser's display window, including league priority, team facts and known coverage. User preference text influences the requested ratings and prose. It requests a single JSON code block, formatted with two-space indentation for readable copying. The browser validates responses against the exported fixture IDs and request ID before applying them, and renders text as text rather than HTML. The response contract is:
+The prompt includes every enabled and unpaused league, league priority and user preferences, plus current filter-eligible live and upcoming fixtures with team facts and known coverage. It can be generated with no fixtures when services and leagues are selected, allowing the chat to research calendar developments. An empty schedule must not be interpreted as a break or the start of a season.
 
-```json
-{
-  "version": 1,
-  "request_id": "the request_id from the generated prompt",
-  "overview": {
-    "text": "One short paragraph about the supplied matches.",
-    "match_ids": ["123456"],
-    "sources": [{"title": "Source title", "url": "https://example.com/match"}]
-  },
-  "matches": [
-    {
-      "id": "123456",
-      "score": 70,
-      "blurb": "A short match-specific preview.",
-      "sources": []
-    }
-  ]
-}
-```
+New prompts request one JSON code block, formatted with two-space indentation, using response version 2. This replaces the mandatory overview paragraph with optional headline candidates:
 
-Every exported fixture must appear exactly once in `matches`, with a score from 0 to 100. The overview is one paragraph of at most 600 characters; each blurb is at most 400 characters and may be empty when no useful supported angle exists. Each source list allows up to five HTTPS links and may be empty for text based entirely on supplied facts. URL validation does not verify the cited page or the AI's interpretation of it. Plain JSON or one JSON code block is accepted; responses over 256 KB are rejected. An invalid response leaves the previous import intact. Fixture IDs link text and ratings to existing rows; imported data cannot alter the fixture, channel mapping, kickoff, score or live state.
+| Field | Contract |
+| --- | --- |
+| `version`, `request_id` | `2` and the unchanged ID from the generated prompt. |
+| `headlines` | An array, possibly empty, with at most one candidate per exported league. Each candidate has `league_id`, `headline` (at most 80 characters, aiming for 3–8 words), an optional `lede` (at most 240 characters, possibly empty), `interest` (0–100), `match_ids`, `sources` and `expires_at`. Referenced matches must be supplied fixtures from that league. |
+| `matches` | Every exported fixture exactly once, with its unchanged `id`, a `score` from 0 to 100, a `blurb` of at most 400 characters and `sources`. The blurb may be empty when no useful supported angle exists. |
 
-The manual prompt asks for researched player, coach, tactical, rivalry or competitive-stakes angles when the chosen chat has web search. It discourages schedule repetition and generic filler; without useful evidence, the match keeps its rating and returns an empty blurb. Users must enable search in their chat for current reporting. These editorial goals also apply to published prose, but manual imports do not run the same prompt, research tools or source-provenance checks as `story.py`. Updates to the writing instructions do not rewrite existing imports: choose **Create prompt** and obtain a fresh chat response to use them.
+Headline interest is an absolute editorial assessment, not a rank within the response or the match's pick score. Candidates below 60 are not displayed. Starting from the current time, the browser groups stories into successive 24-hour intervals by their earliest referenced kickoff. It prefers the earliest interval, then higher interest, with league priority breaking ties. A calendar notice occupies the current interval. The leading headline is visible; others sit behind **More headlines**, and **Read more** reveals any lede. Match-linked headlines require all referenced fixtures to remain eligible, unfinished and unchanged in kickoff. A notice without match references requires a research source, an enabled and unpaused league, and at least one selected service.
 
-Imports and personal preferences are stored locally, and an import expires 24 hours after its prompt was created. Matching imported ratings take precedence over published ratings while valid. The visitor's **Imported rating influence** controls their blend with the Outlook score; league-priority weighting stays unchanged. Current filters also apply to imported text. Restoring site recommendations clears the imported result without resetting the lineup or preference text.
+Each headline's `expires_at` must be an ISO timestamp after prompt creation and no later than the exported `response_expires_at` deadline, 24 hours later. Each source list allows up to five objects with `title` and HTTPS `url`; sources can be empty for text based only on supplied facts, but not for a calendar notice without fixtures. URL validation does not verify the cited page or the AI's interpretation of it. Plain JSON or one JSON code block is accepted; responses over 256 KB are rejected. An invalid response leaves the previous import intact. Imported data cannot alter fixtures, coverage, kickoff times, scores or live states.
+
+The manual prompt asks for researched player, coach, tactical, rivalry or competitive-stakes angles when the chosen chat has web search. Headlines may connect a league's relevant stories, including a verified break or resumption; routine news should be omitted. It discourages unrelated club news, schedule repetition and generic filler. Users must enable search in their chat for current reporting. Manual imports do not run the same prompt, research tools or source-provenance checks as `story.py`; the published generation path is unchanged and its prose remains off by default.
+
+Imports and personal preferences are stored locally. The whole import expires 24 hours after prompt creation, and headlines may expire sooner. Saved version 1 prompts and responses remain supported with their original overview format. Updating the app does not rewrite an imported paragraph: choose **Create prompt** and obtain a fresh response to use version 2.
+
+Matching imported ratings take precedence over published ratings while valid. The visitor's **Imported rating influence** controls their blend with the Outlook score; league-priority weighting stays unchanged. Current filters also apply to imported text. Restoring site recommendations clears the imported result without resetting the lineup or preference text.
 
 ### A future GitHub Copilot connection
 

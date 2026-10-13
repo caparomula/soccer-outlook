@@ -3,6 +3,7 @@
   var DAY_START = 4;                 // a day changes at 4 am local time, not midnight, so a late game stays with its evening (README)
   var WINDOW_DAYS = 3;               // the page shows today and the three days after it (story.py's WINDOW_DAYS)
   var FOCUS_MS = 24 * 60 * 60000;
+  var HEADLINE_MIN = 60;            // absolute editorial interest: routine fixture notices stay out
   var LIVE_MS = 125 * 60000;
   var LS = { mode: 'ssg2-mode', have: 'ssg3-have', leagues: 'ssg5-leagues', compOff: 'ssg2-comp-off', paused: 'ssg1-league-paused', priority: 'ssg4-league-order', services: 'ssg4-service-order' };
   var app = document.getElementById('app');
@@ -138,6 +139,7 @@
   // that had no fixtures when the viewer saved come back switched on. The earlier format, a list of
   // switched-off leagues, is read once as explicit offs. Anything malformed is ignored, not fatal.
   var DEFAULT_OFF = {};
+  (Array.isArray(SERVICES.league_default_off) ? SERVICES.league_default_off : []).forEach(function (id) { DEFAULT_OFF[id] = true; });
   drawer.querySelectorAll('[data-kind="comp"][data-default-off="1"]').forEach(function (b) { DEFAULT_OFF[b.getAttribute('data-key')] = true; });
   var compChoice = {}, compOff = {};
   (function () {
@@ -677,7 +679,8 @@
     }
     else if (b.id === 'btn-clear-leagues' || b.id === 'btn-select-leagues') {
       clearStripView();
-      drawer.querySelectorAll('[data-kind="comp"]').forEach(function (x) { compChoice[x.getAttribute('data-key')] = b.id === 'btn-select-leagues'; });
+      // Calendar headlines can concern a league without a fixture pill in this window.
+      Object.keys(leagueNames).forEach(function (id) { compChoice[id] = b.id === 'btn-select-leagues'; });
       paused = {}; applyCompChoices(); saveCompChoices();
     }
     else if (b.hasAttribute('data-kind')) { setFilterEnabled(b.dataset.kind, b.dataset.key, !filterEnabled(b.dataset.kind, b.dataset.key)); persistFilters(b.dataset.kind); }
@@ -1569,14 +1572,81 @@
     appendEditorialText(text, item.segments); el.appendChild(text);
     return el;
   }
-  // The ratings design's overview: one plain paragraph about the whole slate, the same for every visitor,
-  // so nothing in it is filtered or dimmed. A full-design story's tagged overview follows the filters below.
+  function headlineMode(on) {
+    document.getElementById('story-headlines').hidden = !on;
+    ['story-h', 'story-lede', 'story-by'].forEach(function (id) { document.getElementById(id).hidden = on; });
+  }
+  // Headline interest measures editorial usefulness, separately from a game's pick score. Stories
+  // within the next 24 hours come before later ones; low-rated filler never wins an empty slot.
+  function rankedHeadlines(items, now) {
+    var order = leagueOrder();
+    function kickoff(item) {
+      if (!item.match_ids.length) return now; // verified calendar context is about the current slate
+      return Math.min.apply(Math, item.match_ids.map(function (id) { return Math.max(now, ROW_BY_ID[id]._k); }));
+    }
+    function band(item) { return Math.floor((kickoff(item) - now) / FOCUS_MS); }
+    var seen = Object.create(null);
+    return items.filter(function (item) { return item.interest >= HEADLINE_MIN; }).sort(function (a, b) {
+      return band(a) - band(b) || b.interest - a.interest || order.indexOf(a.league_id) - order.indexOf(b.league_id) || kickoff(a) - kickoff(b);
+    }).filter(function (item) {
+      var key = item.headline.toLocaleLowerCase().replace(/\s+/g, ' ').trim();
+      if (seen[key]) return false;
+      seen[key] = true; return true;
+    });
+  }
+  function renderHeadlines(items, now) {
+    var chosen = rankedHeadlines(items, now), storyEl = document.getElementById('story');
+    var signature = JSON.stringify(['headlines', chosen]);
+    if (storyEl._signature === signature) return;
+    storyEl._signature = signature;
+    keepFocus(function () {
+      headlineMode(true);
+      storyEl.hidden = !chosen.length;
+      setText(document.getElementById('story-h'), 'League headlines');
+      if (chosen.length) storyEl.setAttribute('data-league', chosen[0].league_id);
+      else storyEl.removeAttribute('data-league');
+      var host = document.getElementById('story-headlines'); host.replaceChildren();
+      function article(item, main) {
+        var el = document.createElement('article'); el.className = 'story-headline';
+        el.setAttribute('data-league', item.league_id); el.setAttribute('data-interest', item.interest);
+        var heading = document.createElement(main ? 'h2' : 'h3'); heading.className = 'story-headline__title';
+        heading.textContent = item.headline; el.appendChild(heading);
+        var by = document.createElement('p'); by.className = 'story-headline__by';
+        by.textContent = 'Your AI headline · ' + (leagueNames[item.league_id] || item.league_id); el.appendChild(by);
+        var links = sourceLinks(item.sources, 5);
+        if (item.lede || links.childNodes.length) {
+          var detail = document.createElement('details'); detail.className = 'story-headline__details';
+          var summary = document.createElement('summary'); summary.textContent = item.lede ? 'Read more' : 'Sources'; detail.appendChild(summary);
+          if (item.lede) {
+            var lede = document.createElement('p'); lede.className = 'story-headline__lede'; lede.textContent = item.lede; detail.appendChild(lede);
+          }
+          if (links.childNodes.length) {
+            var sources = document.createElement('p'); sources.className = 'story-headline__sources'; sources.appendChild(links); detail.appendChild(sources);
+          }
+          el.appendChild(detail);
+        }
+        return el;
+      }
+      if (!chosen.length) return;
+      host.appendChild(article(chosen[0], true));
+      if (chosen.length > 1) {
+        var more = document.createElement('details'); more.className = 'story-headlines__more';
+        var summary = document.createElement('summary'); summary.textContent = 'More headlines (' + (chosen.length - 1) + ')'; more.appendChild(summary);
+        var list = document.createElement('div'); list.className = 'story-headlines__list';
+        chosen.slice(1).forEach(function (item) { list.appendChild(article(item, false)); });
+        more.appendChild(list); host.appendChild(more);
+      }
+    });
+  }
+  // Published and version-1 personal imports retain their paragraph display. New personal imports
+  // provide ranked league headlines, with supporting prose available only when the reader opens it.
   function renderOverview(o, personal) {
     var storyEl = document.getElementById('story'), sources = Array.isArray(o.sources) ? o.sources : [];
     var signature = JSON.stringify(['overview', !!personal, o.text, sources.map(function (src) { return src && src.url; })]);
     if (storyEl._signature === signature) return;
     storyEl._signature = signature;
     keepFocus(function () {
+      headlineMode(false);
       storyEl.hidden = false;
       storyEl.removeAttribute('data-league');
       setText(document.getElementById('story-h'), 'Overview');
@@ -1588,6 +1658,8 @@
     });
   }
   function renderEditorial(now) {
+    var headlines = PERSONAL ? PERSONAL.headlines() : null;
+    if (headlines !== null) return renderHeadlines(headlines, now);
     if (PERSONAL && PERSONAL.active()) {
       var overview = PERSONAL.overview();
       if (overview) return renderOverview(overview, true);
@@ -1650,6 +1722,7 @@
     if (storyEl._signature === signature) return;
     storyEl._signature = signature;
     keepFocus(function () {
+      headlineMode(false);
       storyEl.hidden = !lead.length;
       var lede = document.getElementById('story-lede'); lede.innerHTML = '';
       lead.forEach(function (item, i) {
@@ -1842,11 +1915,15 @@
     return { id: id, kickoff: new Date(r._k).toISOString(), state: r._state,
       eligible: passes(r) && r._state !== 'post' && !!bucket && bucket !== 'earlier' && bucket !== 'yesterday' };
   }
+  function personalLeagueEligible(id) {
+    return Object.prototype.hasOwnProperty.call(SERVICES.leagues || {}, id) &&
+      followed(id) && !hiddenByStrip(id) && Object.keys(HAVE).length > 0;
+  }
   function personalSnapshot() {
     var now = nowMs();
     return {
       now: new Date(now).toISOString(), built_at: app.getAttribute('data-built'), timezone: tz || 'local time',
-      league_order: leagueOrder().filter(function (id) { return !compHidden({ _lg: id }); }).map(function (id) {
+      league_order: leagueOrder().filter(personalLeagueEligible).map(function (id) {
         return { id: id, name: leagueNames[id] || id };
       }),
       services: serviceOrder().filter(function (id) { return HAVE[id]; }).map(function (id) { return SERVICE_NAMES[id] || id; }),
@@ -1865,7 +1942,7 @@
   evaluateAll();
   applyFilterUI();
   PERSONAL = window.SoccerOutlookPersonalAI.create({
-    snapshot: personalSnapshot, lookup: personalLookup, now: nowMs,
+    snapshot: personalSnapshot, lookup: personalLookup, leagueEligible: personalLeagueEligible, now: nowMs,
     defaultWeight: share(SCORING.blend.ai, SCORING.blend.outlook),
     onOpen: function () { setDrawer(false, false); hideDetailPreview(); },
     onChange: function () { render(true); }
