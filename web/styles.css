@@ -104,7 +104,6 @@ a { color: inherit; }
 
 /* Storylines */
 .story { margin-top: 18px; max-width: 70ch; }
-.story__eyebrow { font-family: var(--display); font-weight: 700; font-size: 13px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); }
 .story__lede { font-size: 18px; margin: 8px 0 0; }
 .story__by { font-size: 13px; color: var(--muted); margin: 8px 0 0; }
 .story__by a, .row__story a, .miss__story a { color: var(--muted); }

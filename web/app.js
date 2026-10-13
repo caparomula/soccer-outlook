@@ -1581,7 +1581,12 @@
   }
   function headlineMode(on) {
     document.getElementById('story-headlines').hidden = !on;
-    ['story-h', 'story-lede', 'story-by'].forEach(function (id) { document.getElementById(id).hidden = on; });
+    document.getElementById('story-h').hidden = on;
+    var detail = document.getElementById('story-details');
+    detail.hidden = on;
+    // A new editorial item starts compact. Unchanged minute updates return before this call,
+    // preserving an opened disclosure and the reader's focus on its source links.
+    detail.open = false;
   }
   // Headline interest measures editorial usefulness, separately from a game's pick score. Stories
   // within the next 24 hours come before later ones; low-rated filler never wins an empty slot.
@@ -1645,8 +1650,8 @@
       }
     });
   }
-  // Published and version-1 personal imports retain their paragraph display. New personal imports
-  // provide ranked league headlines, with supporting prose available only when the reader opens it.
+  // Older responses have no authored headline. Keep their prose behind a neutral heading and
+  // disclosure rather than inventing a headline or letting a cached paragraph expand the page.
   function renderOverview(o, personal) {
     var storyEl = document.getElementById('story'), sources = Array.isArray(o.sources) ? o.sources : [];
     var signature = JSON.stringify(['overview', !!personal, o.text, sources.map(function (src) { return src && src.url; })]);
@@ -1656,7 +1661,7 @@
       headlineMode(false);
       storyEl.hidden = false;
       storyEl.removeAttribute('data-league');
-      setText(document.getElementById('story-h'), 'Overview');
+      setText(document.getElementById('story-h'), 'Match outlook');
       document.getElementById('story-lede').textContent = o.text;
       // The disclosure that the overview is written by AI; the footer says which model and how.
       var storyBy = document.getElementById('story-by'); storyBy.textContent = personal ? 'Your AI summary' : 'AI Summary';
@@ -1741,7 +1746,7 @@
         if (i) lede.appendChild(document.createTextNode(' '));
         lede.appendChild(editorialItem(item));
       });
-      document.getElementById('story-h').textContent = hasNear ? 'Overview' : 'Overview · Further ahead';
+      document.getElementById('story-h').textContent = hasNear ? 'Match outlook' : 'Match outlook · Further ahead';
       if (lead.length && lead[0].league_id) storyEl.setAttribute('data-league', lead[0].league_id);
       else storyEl.removeAttribute('data-league');
       // The page's disclosure that the overview is written by AI (Anthropic's Usage Policy asks for one

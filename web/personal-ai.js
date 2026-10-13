@@ -248,6 +248,11 @@
     }
     function showStatus() {
       var messages = notice ? [notice] : [];
+      if (applied && alive(applied.request) && applied.response.version === 1) {
+        messages.push('This response uses the older overview format. Its text appears under “Read more” when it matches your filters. Select “Create prompt” to request league headlines.');
+      } else if (pending && schema(pending) === 1) {
+        messages.push('Your saved prompt asks for the older overview format. Select “Create prompt” to request league headlines.');
+      }
       if (pending && pending.preferences !== preferences) messages.push('Preferences changed; create a new prompt to include them.');
       if (pending && pending.weight !== weight) messages.push('The rating blend is updated, but the saved prompt still has the previous blend. Create a new prompt to update it.');
       if (notSaved) messages.push('Changes work in this tab, but could not be saved in this browser.');

@@ -1556,7 +1556,7 @@ class BrowserChecks(unittest.TestCase):
                 feed["data"] = scoreboard("post")
                 page.clock.run_for(60000)
                 expect(lede).to_have_text("Friday Premier League context.")
-                expect(page.locator("#story-h")).to_have_text("Overview · Further ahead")
+                expect(page.locator("#story-h")).to_have_text("Match outlook · Further ahead")
                 page.locator('#comp-pills [data-key="eng.1"]').click()
                 expect(lede).to_have_text("Friday French match context.")
                 page.locator("#btn-filters-close").click()
@@ -2700,7 +2700,7 @@ class BrowserChecks(unittest.TestCase):
             with self.subTest(width=width), self.page("after", width=width, html=render_page(build, fixtures=fixtures), story=story) as (page, _):
                 expect(page.locator("#forecast, #forecast-later, #period-h")).to_have_count(0)
                 expect(page.locator("#story-lede")).to_have_text("Main Friday story.")
-                expect(page.locator("#story-h")).to_have_text("Overview · Further ahead")
+                expect(page.locator("#story-h")).to_have_text("Match outlook · Further ahead")
                 expect(page.locator("#app")).not_to_contain_text("Unwanted section blurb")
                 expect(page.locator("#nextup")).to_have_attribute("data-match-id", "main")
                 expect(page.locator("#picks .pick")).to_have_count(1)
@@ -2725,10 +2725,10 @@ class BrowserChecks(unittest.TestCase):
             expect(page.locator("#story")).to_be_hidden()
         story["lede_items"] = [later]
         with self.page("after", html=html, story=story) as (page, _):
-            expect(page.locator("#story-h")).to_have_text("Overview · Further ahead")
+            expect(page.locator("#story-h")).to_have_text("Match outlook · Further ahead")
             expect(page.locator("#story-lede")).to_have_text("Later context.")
             page.evaluate("location.hash = '#at-20261007-1401'")
-            expect(page.locator("#story-h")).to_have_text("Overview")
+            expect(page.locator("#story-h")).to_have_text("Match outlook")
             expect(page.locator("#story-lede")).to_have_text("Later context.")
             expect(page.locator("#forecast, #forecast-later")).to_have_count(0)
 
@@ -2759,7 +2759,7 @@ class BrowserChecks(unittest.TestCase):
             page.locator('[data-kind="have"][data-key="apple"]').click()
             expect(page.locator("#story-lede")).not_to_contain_text("Near match context")
             expect(page.locator("#story-lede")).to_contain_text("Later match context")
-            expect(page.locator("#story-h")).to_have_text("Overview · Further ahead")
+            expect(page.locator("#story-h")).to_have_text("Match outlook · Further ahead")
             page.locator('[data-kind="have"][data-key="apple"]').click()
             expect(page.locator("#story-lede")).to_contain_text("Near match context")
 
@@ -2792,6 +2792,7 @@ class BrowserChecks(unittest.TestCase):
 
     def test_keyboard_focus_survives_minute_ticks_goals_and_card_rebuilds(self):
         with self.page("after", story=self.overview_story()) as (page, feed):
+            page.locator("#story-details > summary").click()
             page.locator("#story-by a").first.focus()
             page.evaluate("window.__link = document.activeElement")
             page.clock.run_for(61000)       # the minute tick redraws the overview's facts, not its text
@@ -3066,7 +3067,7 @@ class BrowserChecks(unittest.TestCase):
         with self.page("after", story=story) as (page, _):
             lede = page.locator("#story-lede")
             expect(page.locator("#story")).to_be_visible()
-            expect(page.locator("#story-h")).to_have_text("Overview")
+            expect(page.locator("#story-h")).to_have_text("Match outlook")
             expect(lede).to_have_text(text)
             # One plain paragraph: no phrases to dim or hide, and only real links among its sources.
             expect(lede.locator(".editorial-part")).to_have_count(0)
@@ -3745,6 +3746,79 @@ class BrowserChecks(unittest.TestCase):
             self.close_personal_ai(page)
             expect(title).to_have_text("The shared league headline")
 
+    def test_legacy_ai_paragraphs_stay_collapsed_until_read_more_and_real_headlines_replace_them(self):
+        text = "A returning midfielder gives Arsenal a different passing option. Chelsea's narrow midfield may leave space out wide."
+        sources = [{"url": "https://news.example/team-news", "title": "Team news"}]
+        fixtures = [("upcoming", "2026-10-07T17:05:00+00:00", "pre", "ESPN+", "eng.1")]
+        for kind in ("personal", "shared", "published overview", "published tagged"):
+            shared, story = None, None
+            if kind == "shared":
+                shared = self.shared_ai_payload(fixtures)
+                old = self.personal_ai_reply({"request_id": shared["response"]["request_id"], "matches": shared["fixtures"]})
+                old["overview"].update(text=text, sources=sources)
+                shared["response"] = old
+            elif kind.startswith("published"):
+                story = self.overview_story(sources)
+                if kind == "published overview":
+                    story.update(lede_items=[], overview={"text": text, "sources": sources})
+                else:
+                    story["lede_items"][0].update(text=text, segments=[{"text": text, "match_ids": ["upcoming"]}])
+            html = render_page(build, fixtures=fixtures, ai=story is not None)
+            for width in (1280, 390):
+                with self.subTest(source=kind, width=width), self.page("after", html=html, story=story, shared=shared, width=width) as (page, _):
+                    if kind == "personal":
+                        page.locator("#btn-ai-settings").click()
+                        page.locator("#ai-generate").click()
+                        old = self.personal_ai_reply(self.personal_ai_snapshot(page))
+                        old["overview"].update(text=text, sources=sources)
+                        page.locator("#ai-response").fill(json.dumps(old))
+                        page.locator("#ai-apply").click()
+                        self.close_personal_ai(page)
+                    details, lede = page.locator("#story-details"), page.locator("#story-lede")
+                    expect(page.locator("#story-h")).to_have_text("Match outlook")
+                    expect(details).to_be_visible()
+                    self.assertFalse(details.evaluate("el => el.open"))
+                    expect(lede).to_have_text(text)
+                    expect(lede).to_be_hidden()
+                    self.assertNotIn(text, page.locator("body").inner_text())
+                    expect(page.locator("#story-headlines .story-headline__title:visible")).to_have_count(0)
+                    # Preserve the old paragraph, without pretending its first sentence is a headline.
+                    page.locator("#story-details > summary").click()
+                    expect(lede).to_be_visible()
+                    source = page.locator("#story-by a").first
+                    source.focus()
+                    page.evaluate("window.__legacySource = document.activeElement")
+                    page.clock.run_for(61000)
+                    expect(lede).to_be_visible()
+                    self.assertTrue(page.evaluate("window.__legacySource.isConnected && document.activeElement === window.__legacySource"))
+                    page.reload()
+                    expect(page.locator("#story-h")).to_have_text("Match outlook")
+                    expect(lede).to_be_hidden()
+                    self.assertFalse(details.evaluate("el => el.open"))
+                    # A response with a real headline switches formats and collapses its own lede.
+                    page.locator("#story-details > summary").click()
+                    page.locator("#btn-ai-settings").click()
+                    page.locator("#ai-generate").click()
+                    snapshot = self.personal_ai_snapshot(page)
+                    headline = "Arsenal's returning midfielder changes the matchup"
+                    reply = self.personal_ai_headline_reply(snapshot, [self.personal_ai_headline(
+                        snapshot, "eng.1", ["upcoming"], headline, 90, lede=text, sources=sources)])
+                    page.locator("#ai-response").fill(json.dumps(reply))
+                    page.locator("#ai-apply").click()
+                    self.close_personal_ai(page)
+                    expect(page.locator("#story-headlines > article .story-headline__title")).to_have_text(headline)
+                    expect(details).to_be_hidden()
+                    expect(page.locator("#story-headlines .story-headline__lede")).to_be_hidden()
+                    self.assertNotIn(text, page.locator("body").inner_text())
+                    self.assertLessEqual(page.evaluate("document.documentElement.scrollWidth"), width)
+                    if kind != "personal":
+                        page.locator("#btn-ai-settings").click()
+                        page.locator("#ai-clear").click()
+                        self.close_personal_ai(page)
+                        expect(details).to_be_visible()
+                        self.assertFalse(details.evaluate("el => el.open"))
+                        expect(lede).to_be_hidden()
+
 
 # Exit status when the browser cannot start: the checks did not run, which says nothing about the page.
 # 77 is automake's "skipped"; Python and argparse already use 1 and 2 for their own errors.
@@ -3753,6 +3827,7 @@ NOT_RUN = 77
 # A compact cross-engine pass through the interactions most sensitive to browser behavior.
 # Chromium still runs every check by default; WebKit smoke is an additional compatibility check.
 SMOKE_TESTS = (
+    "test_legacy_ai_paragraphs_stay_collapsed_until_read_more_and_real_headlines_replace_them",
     "test_shared_ai_defaults_reach_new_visitors_and_local_imports_take_precedence",
     "test_github_publication_checks_access_keeps_tokens_private_and_preserves_local_results",
     "test_personal_ai_headlines_prioritize_near_matches_and_expand_on_request",
