@@ -52,8 +52,8 @@
     </section>
     <div class="settings-panel ai-settings" id="ai-settings" role="tabpanel" aria-labelledby="settings-tab-ai" aria-describedby="ai-settings-intro" tabindex="0" hidden>
       <div class="ai-visibility">
-        <label class="ai-visibility__label" for="ai-blurbs"><span>Show AI headlines and match blurbs</span><input type="checkbox" role="switch" id="ai-blurbs" aria-describedby="ai-blurbs-help" checked></label>
-        <p class="ai-settings__hint" id="ai-blurbs-help">Show available AI text. Match ratings still apply when this is off.</p>
+        <label class="ai-visibility__label" for="ai-blurbs"><span>Show AI headlines and match blurbs</span><input type="checkbox" role="switch" id="ai-blurbs" aria-describedby="ai-blurbs-help"></label>
+        <p class="ai-settings__hint" id="ai-blurbs-help">Off by default. Turn on to show available AI headlines and match blurbs. Your choice is saved in this browser; match ratings still apply when this is off.</p>
       </div>
       <h3 class="ai-settings__title" id="ai-settings-title">Your AI recommendations</h3>
       <p id="ai-settings-intro">Ask your chat AI for ranked league headlines, match blurbs and ratings. Copy the prompt into your chat, then paste its response here.</p>
@@ -82,7 +82,7 @@
         <h3 id="ai-response-heading">3. Bring back the recommendations</h3>
         <label for="ai-response">AI response</label>
         <textarea id="ai-response" maxlength="262144" rows="5" placeholder="Paste the JSON response from your chat here." spellcheck="false" aria-describedby="ai-response-help"></textarea>
-        <p class="ai-settings__hint" id="ai-response-help">Apply the response to show its strongest headline that passes your filters and update match recommendations. Other headlines and longer text stay available to open. You can restore the site's recommendations at any time.</p>
+        <p class="ai-settings__hint" id="ai-response-help">Apply the response to update match recommendations. Its headlines and match blurbs appear when the switch above is on; ratings apply either way. You can restore the site's recommendations at any time.</p>
         <div class="ai-settings__actions">
           <button type="button" class="fbtn ai-settings__primary" id="ai-apply">Apply response</button>
           <button type="button" class="fbtn" id="ai-clear">Restore site recommendations</button>

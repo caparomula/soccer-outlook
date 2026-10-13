@@ -124,7 +124,7 @@
   var drawerOpen = false;
   var drawer = document.getElementById('drawer'), btnMenu = document.getElementById('btn-menu');
   var settingsTab = 'lineup', settingsTabs = Array.from(drawer.querySelectorAll('[data-settings-tab]'));
-  var showAIBlurbs = read(LS.aiBlurbs) !== false, aiBlurbs = document.getElementById('ai-blurbs');
+  var showAIBlurbs = read(LS.aiBlurbs) === true, aiBlurbs = document.getElementById('ai-blurbs');
   aiBlurbs.checked = showAIBlurbs;
   aiBlurbs.addEventListener('change', function () {
     showAIBlurbs = aiBlurbs.checked; write(LS.aiBlurbs, showAIBlurbs); render(true);

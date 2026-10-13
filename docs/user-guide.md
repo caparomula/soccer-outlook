@@ -113,7 +113,7 @@ The site's automatic AI generation supplies ratings, with prose turned off. A ma
 
 Open **Settings → AI** to use a chat AI you already have access to, such as Copilot, Claude or ChatGPT. This is a copy-and-paste workflow: Soccer Outlook does not sign in to an AI account or send the prompt automatically.
 
-The **Show AI headlines and match blurbs** switch controls whether AI text appears. Turning it off hides headlines and match blurbs while retaining AI ratings, rankings, saved responses and preferences. Your choice is remembered in this browser; turn it back on to show any still-current text.
+The **Show AI headlines and match blurbs** switch starts off. Turn it on to show available headlines and match blurbs together. Turning it off hides both while retaining AI ratings, rankings, saved responses and preferences. Your explicit choice is remembered in this browser; a different browser starts with AI text off until you enable it there.
 
 1. Choose your services in **Settings → Lineup** and competitions in **Settings → Leagues** first.
 2. In **Settings → AI**, describe what you enjoy watching—for example, close games, title races, a favorite club or matches happening this evening.

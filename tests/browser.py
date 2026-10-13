@@ -1381,6 +1381,7 @@ class BrowserChecks(unittest.TestCase):
         story["forecast"]["items"] = [part]
         with self.page("after", html=html, story=story) as (page, _):
             # Exercise broadcast availability independently of the default league exclusions.
+            self.enable_ai_text(page)
             self.open_settings(page, "leagues")
             page.locator('#comp-pills [data-key="fifa.friendly.w"]').click()
             page.locator("#btn-filters-close").click()
@@ -1475,6 +1476,7 @@ class BrowserChecks(unittest.TestCase):
         story["headline_segments"] = [{"text": story["headline"], "match_ids": ["mls", "spain"]}]
         for width in (1280, 390):
             with self.subTest(width=width), self.page("after", html=render_page(build, fixtures=fixtures), story=story, width=width) as (page, _):
+                self.enable_ai_text(page)
                 expect(page.locator("#story-h")).to_have_text(story["headline"])
                 expect(page.locator("#story")).to_be_visible()
                 expect(page.locator("#story-lede")).to_be_hidden()
@@ -1518,6 +1520,7 @@ class BrowserChecks(unittest.TestCase):
                 story["headline_segments"][0]["match_ids"] = {
                     "unreferenced": [], "unknown": ["missing"], "mixed": ["mls", "missing"], "completed": ["finished"], "outside-window": ["far"]}[kind]
             with self.subTest(kind=kind), self.page("after", html=render_page(build, fixtures=fixtures), story=story) as (page, _):
+                self.enable_ai_text(page)
                 expect(page.locator("#story")).to_be_hidden()
                 expect(page.locator("#nextup")).to_have_attribute("data-match-id", "mls")
                 self.assertNotIn("Match outlook", page.locator("body").inner_text())
@@ -1529,6 +1532,7 @@ class BrowserChecks(unittest.TestCase):
         story["league_blurbs"] = [dict(story["lede_items"][0], league_id="usa.1", interest=100)]
         for width in (1280, 390):
             with self.subTest(width=width), self.page("after", width=width, html=render_page(build, fixtures=fixtures), story=story) as (page, _):
+                self.enable_ai_text(page)
                 expect(page.locator("#story-h")).to_have_text("Fixture headline")
                 expect(page.locator("#story-lede")).to_be_hidden()
                 expect(page.locator("#story-details")).not_to_have_attribute("open", "")
@@ -1575,6 +1579,7 @@ class BrowserChecks(unittest.TestCase):
         for width in (1280, 390):
             with self.subTest(width=width), self.page("after", width=width, html=render_page(build, fixtures=fixtures), story=story) as (page, feed):
                 # Exercise match notes independently of the owner's league defaults.
+                self.enable_ai_text(page)
                 self.open_settings(page, "leagues")
                 page.get_by_role("button", name="Select all leagues", exact=True).click()
                 self.open_settings(page)
@@ -1724,6 +1729,7 @@ class BrowserChecks(unittest.TestCase):
         story['rankings']['live-second']['blurb'] = 'A longer match preview with team news and recent form, demonstrating that every card keeps its color bar aligned even when the commentary takes several more lines than its neighboring cards.'
         for width in (1280, 820, 390, 320):
             with self.subTest(width=width), self.page("after", width=width, html=render_page(build, fixtures=fixtures, league_logos=True), story=story) as (page, feed):
+                self.enable_ai_text(page)
                 expect(page.locator('#nextup')).to_have_attribute('data-match-id', 'upcoming')
                 expect(page.locator('#nextup-h')).to_have_text('Live now')
                 expect(page.locator('#nextup-sub')).to_have_text('Best pick score of the 2 in progress in your lineup')
@@ -2046,6 +2052,7 @@ class BrowserChecks(unittest.TestCase):
         html = render_page(build, fixtures=fixtures, league_logos=True)
         for width in (1280, 820, 390, 320):
             with self.subTest(width=width), self.page("after", width=width, html=html, story=story, touch=width <= 600) as (page, _):
+                self.enable_ai_text(page)
                 card = page.locator("#nextup")
                 expect(card).to_have_attribute("data-match-id", "upcoming")
                 box, column, count, emblem, body = (loc.bounding_box() for loc in (
@@ -2757,6 +2764,7 @@ class BrowserChecks(unittest.TestCase):
                              for mid in ("main", "second")}
         for width in (1280, 390):
             with self.subTest(width=width), self.page("after", width=width, html=render_page(build, fixtures=fixtures), story=story) as (page, _):
+                self.enable_ai_text(page)
                 expect(page.locator("#forecast, #forecast-later, #period-h")).to_have_count(0)
                 expect(page.locator("#story-lede")).to_have_text("Main Friday story.")
                 expect(page.locator("#story-h")).to_have_text(story["headline"])
@@ -2779,6 +2787,7 @@ class BrowserChecks(unittest.TestCase):
         story["headline_segments"] = [{"text": story["headline"], "match_ids": ["usual"]}]
         story["lede_items"] = [{"segments": [{"text": "Later context.", "match_ids": ["usual"]}], "sources": []}]
         with self.page("after", html=html, story=story) as (page, _):
+            self.enable_ai_text(page)
             expect(page.locator("#story-h")).to_have_text(story["headline"])
             expect(page.locator("#story-lede")).to_be_hidden()
             page.locator("#story-details > summary").click()
@@ -2797,6 +2806,7 @@ class BrowserChecks(unittest.TestCase):
         story = self.tagged_story()
         story["notes"] = {"peacock": {"note": "Match-specific lineup news.", "sources": []}}
         with self.page("after", html=render_page(build, fixtures=fixtures), story=story) as (page, _):
+            self.enable_ai_text(page)
             expect(page.locator('li.row[data-id="peacock"]')).to_be_hidden()
             expect(page.locator('.miss__story')).to_have_count(0)
             self.open_settings(page)
@@ -2815,6 +2825,7 @@ class BrowserChecks(unittest.TestCase):
             {"segments": [{"text": "Later match context.", "match_ids": ["later"]}], "sources": []}]
         story["notes"] = {"later": {"note": "Later match context.", "sources": []}}
         with self.page("after", html=render_page(build, fixtures=fixtures), story=story) as (page, _):
+            self.enable_ai_text(page)
             expect(page.locator("#story-h")).to_have_text(story["headline"])
             self.open_settings(page)
             page.locator('[data-kind="have"][data-key="apple"]').click()
@@ -2838,6 +2849,7 @@ class BrowserChecks(unittest.TestCase):
             else:
                 changed["lede_items"] = [{"segments": [{"text": "Stale", "match_ids": ["missing" if kind == "unknown" else "finished"]}]}]
             with self.subTest(kind=kind), self.page("after", story=changed) as (page, _):
+                self.enable_ai_text(page)
                 expect(page.locator("#story")).to_be_hidden()
                 expect(page.locator("#schedule-summary")).to_contain_text("1 live · 5 upcoming")
 
@@ -2857,6 +2869,7 @@ class BrowserChecks(unittest.TestCase):
         story["headline"] = "Arsenal and Chelsea contest the league lead"
         story["headline_segments"] = [{"text": story["headline"], "match_ids": ["upcoming"]}]
         with self.page("after", story=story) as (page, feed):
+            self.enable_ai_text(page)
             page.locator("#story-details > summary").click()
             page.locator("#story-by a").first.focus()
             page.evaluate("window.__link = document.activeElement")
@@ -3021,6 +3034,7 @@ class BrowserChecks(unittest.TestCase):
         story["rankings"] = {mid: {"score": 60, "popularity": 60, "gameplay": 60, "impact": 60, "blurb": f"Context for {mid}.",
                                    "sources": [{"url": "https://news.example/a", "title": "A"}]} for mid in ("upcoming", "midnight", "late", "dawn")}
         with self.page("after", story=story) as (page, _):
+            self.enable_ai_text(page)
             card = page.locator("#picks .pick").first
             expect(card.locator(".row__story")).to_have_count(1)
             expect(card).not_to_have_class(re.compile(r"\bmatch--facts\b"))
@@ -3104,6 +3118,7 @@ class BrowserChecks(unittest.TestCase):
                                             "sources": [{"url": "https://news.example/x", "title": 99}]}},
                      league_blurbs=["junk", None, {"segments": "junk"}])
         with self.page("after", story=story) as (page, feed):
+            self.enable_ai_text(page)
             expect(page.locator("#story")).to_be_hidden()
             self.open_settings(page)
             page.locator("#btn-clear").click()
@@ -3122,6 +3137,7 @@ class BrowserChecks(unittest.TestCase):
             story["headline"] = "Arsenal and Chelsea contest the league lead"
             story["headline_segments"] = [{"text": story["headline"], "match_ids": ["upcoming"]}]
             with self.subTest(sources=bool(selected)), self.page("after", story=story) as (page, _):
+                self.enable_ai_text(page)
                 expect(page.locator("#story-h")).to_have_text(story["headline"])
                 expect(page.locator("#story-lede")).to_be_hidden()
                 page.locator("#story-details > summary").click()
@@ -3138,6 +3154,7 @@ class BrowserChecks(unittest.TestCase):
             story = dict(self.overview_story(), overview=overview,
                          notes={"upcoming": {"note": "A returning defender changes the matchup.", "sources": []}})
             with self.subTest(overview=overview), self.page("after", story=story) as (page, _):
+                self.enable_ai_text(page)
                 expect(page.locator("#story")).to_be_hidden()
                 expect(page.locator('li.row[data-id="upcoming"] .row__story')).to_contain_text("A returning defender changes the matchup.")
                 self.assertNotIn("Match outlook", page.locator("body").inner_text())
@@ -3205,6 +3222,69 @@ class BrowserChecks(unittest.TestCase):
         if page.locator("#drawer").is_visible():
             page.locator("#btn-filters-close").click()
 
+    def enable_ai_text(self, page):
+        """Opt in through Settings when a test specifically exercises editorial text."""
+        self.open_settings(page, "ai")
+        page.locator("#ai-blurbs").check()
+        self.close_personal_ai(page)
+
+    def test_ai_text_is_off_for_fresh_browsers_and_late_responses_until_explicitly_enabled(self):
+        html = render_page(build, fixtures=self.SCORED, stature=self.STATURE, ai=False)
+        shared = self.shared_ai_payload(self.SCORED, dict(a=50, b=10, c=100, d=0, e=20))
+        for width, delivery in ((1280, "initial"), (390, "later")):
+            initial = shared if delivery == "initial" else None
+            with self.subTest(width=width, delivery=delivery), self.page("after", html=html, shared=initial, width=width) as (page, feed):
+                picks = lambda: page.locator("#picks .pick").evaluate_all("els => els.map(e => e.dataset.matchId)")
+                self.assertIsNone(page.evaluate("localStorage.getItem('ssg3-ai-blurbs')"))
+                expect(page.locator("#story")).to_be_hidden()
+                expect(page.locator(".row__story")).to_have_count(0)
+                if delivery == "later":
+                    self.assertEqual(picks(), ["b", "d", "e"])
+                    requests = feed["shared"]
+                    feed["shared_data"] = shared
+                    page.clock.run_for(10 * 60 * 1000)
+                    expect(page.locator('#picks [data-match-id="c"]')).to_be_visible()
+                    self.assertGreater(feed["shared"], requests)
+                    expect(page.locator("#story")).to_be_hidden()
+                    expect(page.locator(".row__story")).to_have_count(0)
+                self.assertEqual(picks(), ["b", "c", "e"], "Shared ratings apply even when their text is hidden")
+                self.open_settings(page, "ai")
+                expect(page.locator("#ai-blurbs")).not_to_be_checked()
+                page.locator("#ai-blurbs").check()
+                self.close_personal_ai(page)
+                expect(page.locator("#story-headlines > article .story-headline__title")).to_have_text("The shared league headline")
+                expect(page.locator("#nextup .row__story")).to_contain_text("Shared preview for a.")
+                expect(page.locator('#picks [data-match-id="c"] .row__story')).to_contain_text("Shared preview for c.")
+                expect(page.locator('li.row[data-id="d"] .row__story')).to_contain_text("Shared preview for d.")
+                self.assertEqual(page.evaluate("localStorage.getItem('ssg3-ai-blurbs')"), "true")
+                self.assertEqual(picks(), ["b", "c", "e"])
+                page.reload()
+                expect(page.locator("#story-headlines > article .story-headline__title")).to_have_text("The shared league headline")
+                expect(page.locator('li.row[data-id="d"] .row__story')).to_contain_text("Shared preview for d.")
+                self.open_settings(page, "ai")
+                expect(page.locator("#ai-blurbs")).to_be_checked()
+                page.locator("#ai-blurbs").uncheck()
+                self.close_personal_ai(page)
+                self.assertEqual(page.evaluate("localStorage.getItem('ssg3-ai-blurbs')"), "false")
+                page.reload()
+                expect(page.locator('#picks [data-match-id="c"]')).to_be_visible()
+                expect(page.locator("#story")).to_be_hidden()
+                expect(page.locator(".row__story")).to_have_count(0)
+                self.assertEqual(picks(), ["b", "c", "e"])
+                self.open_settings(page, "ai")
+                expect(page.locator("#ai-blurbs")).not_to_be_checked()
+                self.close_personal_ai(page)
+                if width == 1280:
+                    for invalid in ('"true"', '{broken'):
+                        page.evaluate("value => localStorage.setItem('ssg3-ai-blurbs', value)", invalid)
+                        page.reload()
+                        expect(page.locator('#picks [data-match-id="c"]')).to_be_visible()
+                        expect(page.locator("#story")).to_be_hidden()
+                        expect(page.locator(".row__story")).to_have_count(0)
+                        self.open_settings(page, "ai")
+                        expect(page.locator("#ai-blurbs")).not_to_be_checked()
+                        self.close_personal_ai(page)
+
     def test_settings_tabs_preserve_drafts_and_ai_visibility_without_changing_ratings(self):
         html = render_page(build, fixtures=self.SCORED, stature=self.STATURE, ai=False)
         shared = self.shared_ai_payload(self.SCORED, dict(a=50, b=10, c=100, d=0, e=20))
@@ -3229,7 +3309,8 @@ class BrowserChecks(unittest.TestCase):
                 expect(page.locator("#settings-tab-lineup")).to_be_focused()
                 page.keyboard.press("ArrowLeft")
                 expect(page.locator("#settings-tab-ai")).to_be_focused()
-                expect(page.locator("#ai-blurbs")).to_be_checked()
+                expect(page.locator("#ai-blurbs")).not_to_be_checked()
+                page.locator("#ai-blurbs").check()
                 preferences = "Favor close games, especially an underdog with improving form."
                 page.locator("#ai-preferences").fill(preferences)
                 page.locator("#ai-weight").fill("100")
@@ -3306,6 +3387,7 @@ class BrowserChecks(unittest.TestCase):
         html = render_page(build, fixtures=fixtures, stature=self.STATURE, ai=False)
         for width in (1280, 390):
             with self.subTest(width=width), self.page("after", width=width, html=html, touch=width < 600) as (page, feed):
+                self.enable_ai_text(page)
                 picks = page.locator("#picks .pick")
                 self.assertEqual(picks.evaluate_all("els => els.map(e => e.dataset.matchId)"), ["b", "d", "e"])
                 button = page.locator("#btn-menu")
@@ -3384,6 +3466,7 @@ class BrowserChecks(unittest.TestCase):
         shared = self.shared_ai_payload(self.SCORED)
         html = render_page(build, fixtures=self.SCORED, stature=self.STATURE, ai=False)
         with self.page("after", html=html, shared=shared) as (page, _):
+            self.enable_ai_text(page)
             before = page.locator("#picks .pick").evaluate_all("els => els.map(e => e.dataset.matchId)")
             self.open_settings(page, "ai")
             page.locator("#ai-generate").click()
@@ -3431,6 +3514,7 @@ class BrowserChecks(unittest.TestCase):
         fixtures = [("upcoming", "2026-10-07T17:05:00+00:00", "pre", "ESPN+", "eng.1"),
                     ("spanish", "2026-10-07T20:00:00+00:00", "pre", "ESPN+", "esp.1")]
         with self.page("after", html=render_page(build, fixtures=fixtures, ai=False)) as (page, feed):
+            self.enable_ai_text(page)
             self.open_settings(page, "ai")
             page.locator("#ai-generate").click()
             reply = self.personal_ai_reply(self.personal_ai_snapshot(page), overview_id="upcoming")
@@ -3460,6 +3544,7 @@ class BrowserChecks(unittest.TestCase):
     def test_personal_ai_expiry_and_unavailable_browser_storage(self):
         html = render_page(build, fixtures=self.SCORED, stature=self.STATURE, ai=False)
         with self.page("after", html=html) as (page, _):
+            self.enable_ai_text(page)
             self.open_settings(page, "ai")
             page.locator("#ai-generate").click()
             reply = self.personal_ai_reply(self.personal_ai_snapshot(page))
@@ -3492,6 +3577,7 @@ class BrowserChecks(unittest.TestCase):
                 Object.defineProperty(navigator, 'clipboard', {configurable: true,
                     value: {writeText: () => Promise.reject(new Error('Clipboard blocked'))}});
             }""")
+            self.enable_ai_text(page)
             self.open_settings(page, "ai")
             page.locator("#ai-generate").click()
             expect(page.locator("#ai-status")).to_contain_text("could not be saved")
@@ -3504,6 +3590,11 @@ class BrowserChecks(unittest.TestCase):
             expect(page.locator("#ai-status")).to_contain_text("could not be saved")
             self.close_personal_ai(page)
             expect(page.locator("#story-headlines > article .story-headline__title")).to_have_text("Your match headline.")
+            self.assertIsNone(page.evaluate("localStorage.getItem('ssg3-ai-blurbs')"))
+            page.reload()
+            expect(page.locator("#story")).to_be_hidden()
+            self.open_settings(page, "ai")
+            expect(page.locator("#ai-blurbs")).not_to_be_checked()
 
 
     @staticmethod
@@ -3527,6 +3618,7 @@ class BrowserChecks(unittest.TestCase):
         html = render_page(build, fixtures=fixtures, ai=False)
         for width in (1280, 390):
             with self.subTest(width=width), self.page("after", html=html, width=width) as (page, _):
+                self.enable_ai_text(page)
                 self.open_settings(page, "ai")
                 page.locator("#ai-generate").click()
                 snapshot = self.personal_ai_snapshot(page)
@@ -3570,6 +3662,7 @@ class BrowserChecks(unittest.TestCase):
 
     def test_personal_ai_calendar_headlines_need_enabled_leagues_and_empty_replies_stay_empty(self):
         with self.page("after", html=render_page(build, fixtures=[], ai=False)) as (page, _):
+            self.enable_ai_text(page)
             self.open_settings(page, "ai")
             page.locator("#ai-generate").click()
             expect(page.locator("#ai-error")).to_be_empty()
@@ -3621,6 +3714,7 @@ class BrowserChecks(unittest.TestCase):
             page.locator("#btn-filters-close").click()
             expect(page.locator("#story")).to_be_hidden()
         with self.page("after", html=render_page(build, fixtures=self.SCORED, ai=False)) as (page, _):
+            self.enable_ai_text(page)
             self.open_settings(page, "ai")
             page.locator("#ai-generate").click()
             snapshot = self.personal_ai_snapshot(page)
@@ -3637,6 +3731,7 @@ class BrowserChecks(unittest.TestCase):
         fixtures = [("eng", "2026-10-07T18:00:00+00:00", "pre", "ESPN+", "eng.1"),
                     ("esp", "2026-10-07T19:00:00+00:00", "pre", "ESPN+", "esp.1")]
         with self.page("after", html=render_page(build, fixtures=fixtures, ai=False)) as (page, _):
+            self.enable_ai_text(page)
             self.open_settings(page, "ai")
             page.locator("#ai-generate").click()
             snapshot = self.personal_ai_snapshot(page)
@@ -3673,6 +3768,7 @@ class BrowserChecks(unittest.TestCase):
         fixtures = [("upcoming", "2026-10-07T17:05:00+00:00", "pre", "ESPN+", "eng.1"),
                     ("spanish", "2026-10-07T20:00:00+00:00", "pre", "ESPN+", "esp.1")]
         with self.page("after", html=render_page(build, fixtures=fixtures, ai=False)) as (page, feed):
+            self.enable_ai_text(page)
             self.open_settings(page, "ai")
             page.locator("#ai-generate").click()
             snapshot = self.personal_ai_snapshot(page)
@@ -3695,6 +3791,7 @@ class BrowserChecks(unittest.TestCase):
 
     def test_personal_ai_retires_old_prompts_and_rejects_new_overview_responses_without_losing_ratings(self):
         with self.page("after", html=render_page(build, fixtures=self.SCORED, stature=self.STATURE, ai=False)) as (page, _):
+            self.enable_ai_text(page)
             self.open_settings(page, "ai")
             page.locator("#ai-generate").click()
             snapshot = self.personal_ai_snapshot(page)
@@ -3743,6 +3840,7 @@ class BrowserChecks(unittest.TestCase):
         shared = self.shared_ai_payload(self.SCORED, dict(a=50, b=10, c=100, d=0, e=20))
         for width in (1280, 390):
             with self.subTest(width=width), self.page("after", html=html, shared=shared, width=width) as (page, feed):
+                self.enable_ai_text(page)
                 title = page.locator("#story-headlines > article .story-headline__title")
                 picks = page.locator("#picks .pick")
                 expect(title).to_have_text("The shared league headline")
@@ -3795,6 +3893,7 @@ class BrowserChecks(unittest.TestCase):
             self.personal_ai_headline(snapshot, "esp.1", ["spanish"], "The shared Spanish headline", 80, expires_at="2026-10-07T17:10:00Z")]
         html = render_page(build, fixtures=fixtures, ai=False)
         with self.page("after", html=html, shared=shared) as (page, feed):
+            self.enable_ai_text(page)
             lead = page.locator("#story-headlines > article.story-headline")
             expect(lead).to_have_attribute("data-league", "eng.1")
             self.open_settings(page)
@@ -3813,6 +3912,7 @@ class BrowserChecks(unittest.TestCase):
             expect(page.locator('li.row[data-id="spanish"] .row__story')).to_contain_text("Shared preview for spanish.")
         moved = [(fixtures[0][0], "2026-10-07T19:00:00+00:00", *fixtures[0][2:]), fixtures[1]]
         with self.page("after", html=render_page(build, fixtures=moved, ai=False), shared=shared) as (page, _):
+            self.enable_ai_text(page)
             expect(page.locator("#story-headlines > article.story-headline")).to_have_attribute("data-league", "esp.1")
             expect(page.locator('li.row[data-id="upcoming"] .row__story')).to_have_count(0)
 
@@ -3826,6 +3926,7 @@ class BrowserChecks(unittest.TestCase):
         html = render_page(build, fixtures=self.SCORED, stature=self.STATURE, ai=False)
         for name, shared in (("missing", None), ("bad JSON", "{broken"), ("expired", expired), ("unsafe", unsafe)):
             with self.subTest(shared=name), self.page("after", html=html, shared=shared) as (page, feed):
+                self.enable_ai_text(page)
                 expect(page.locator("#story")).to_be_hidden()
                 expect(page.locator(".row__story")).to_have_count(0)
                 self.assertEqual(page.locator("#picks .pick").evaluate_all("els => els.map(e => e.dataset.matchId)"), ["b", "d", "e"])
@@ -3841,6 +3942,7 @@ class BrowserChecks(unittest.TestCase):
         html = render_page(build, fixtures=self.SCORED, ai=False)
         shared = self.shared_ai_payload(self.SCORED)
         with self.page("after", html=html, shared=shared) as (page, _):
+            self.enable_ai_text(page)
             calls, published = [], []
             server = {"push": False, "put_status": 200, "exists": True, "get_status": 200}
 
@@ -3958,6 +4060,7 @@ class BrowserChecks(unittest.TestCase):
                     {"request_id": shared["response"]["request_id"], "matches": shared["fixtures"]}, scores)
             for width in (1280, 390):
                 with self.subTest(source=kind, width=width), self.page("after", html=html, shared=shared, width=width) as (page, _):
+                    self.enable_ai_text(page)
                     if kind != "shared":
                         self.open_settings(page, "ai")
                         page.locator("#ai-generate").click()
@@ -3994,6 +4097,7 @@ NOT_RUN = 77
 # A compact cross-engine pass through the interactions most sensitive to browser behavior.
 # Chromium still runs every check by default; WebKit smoke is an additional compatibility check.
 SMOKE_TESTS = (
+    "test_ai_text_is_off_for_fresh_browsers_and_late_responses_until_explicitly_enabled",
     "test_settings_tabs_preserve_drafts_and_ai_visibility_without_changing_ratings",
     "test_cached_legacy_ratings_do_not_create_headlines_or_hide_shared_headlines",
     "test_shared_ai_defaults_reach_new_visitors_and_local_imports_take_precedence",
