@@ -2496,6 +2496,8 @@ class BrowserChecks(unittest.TestCase):
                 # One tab stop, on the league last used; the arrow keys, Home and End move along the strip.
                 expect(page.locator('#league-strip-list [tabindex="0"]')).to_have_count(1)
                 page.keyboard.press("Tab")
+                expect(page.locator("#btn-ai-settings")).to_be_focused()
+                page.keyboard.press("Tab")
                 expect(lg("fra.1")).to_be_focused()
                 page.keyboard.press("Home")
                 expect(lg(followed[0])).to_be_focused()
@@ -2529,18 +2531,24 @@ class BrowserChecks(unittest.TestCase):
                 expect(page.locator('#league-strip-list [aria-pressed="false"]')).to_have_count(0)
                 self.assertIsNone(page.evaluate("localStorage.getItem('ssg1-league-paused')"))
                 # Where the bar's line can't spare the strip room for its emblems (five, or these four), here because
-                # the coffee link is made wide as a large text size would, Lineup first drops its name, then the strip
+                # the coffee link is made wide as a large text size would, the controls drop their names, then the strip
                 # takes the line below.
                 page.locator("#btn-filters-close").click()
                 if width > 600:
                     continue
-                for css, tight, below in ((".coffee { min-width: 100px }", True, False), (".coffee { min-width: 170px }", False, True)):
+                for css, below in ((".coffee { min-width: 60px }", False), (".coffee { min-width: 170px }", True)):
                     page.evaluate("css => { const s = document.getElementById('probe-css') || document.head.appendChild(Object.assign(document.createElement('style'), { id: 'probe-css' })); s.textContent = css; }", css)
                     page.evaluate("window.dispatchEvent(new Event('resize'))")
                     bar_class = page.locator("#bar").get_attribute("class").split()
-                    self.assertEqual(("bar--tight" in bar_class, "bar--strip-below" in bar_class), (tight, below), css)
+                    self.assertEqual("bar--strip-below" in bar_class, below, css)
+                    if not below:
+                        self.assertIn("bar--tight", bar_class)
+                    # Once the strip wraps, font metrics decide whether the two named controls
+                    # fit above it or stay compact. Both must share the coffee link's line.
                     menu, coffee, box = page.locator("#btn-menu").bounding_box(), page.locator(".coffee").bounding_box(), strip.bounding_box()
                     self.assertAlmostEqual(mid(coffee), mid(menu), delta=3)
+                    self.assertAlmostEqual(mid(page.locator("#btn-ai-settings").bounding_box()), mid(menu), delta=3)
+                    self.assertLessEqual(page.evaluate("document.documentElement.scrollWidth"), width)
                     if below:
                         self.assertGreaterEqual(box["y"], menu["y"] + menu["height"])
                         self.assertAlmostEqual(box["width"], page.locator("#bar").bounding_box()["width"], delta=1)
@@ -2983,7 +2991,7 @@ class BrowserChecks(unittest.TestCase):
                              f"Pick score {pick:g}/100, 4 of 5 dots. 80% Outlook score (57.5) + 20% league priority "
                              f"({round(self.default_priority('eng.1')):g}). Outlook score 57.5: occasion 100 · "
                              "evenly matched no data · stakes 0 · TV 0 · goals expected no data.")
-            expect(page.locator("footer")).to_contain_text("No AI is used on this page")
+            expect(page.locator("footer")).to_contain_text("Site-generated AI is turned off")
             expect(page.locator("#priority-hint")).to_contain_text("80% the Outlook score and 20% this order")
 
     def test_the_ai_rating_and_the_outlook_score_share_the_interest(self):
@@ -3067,6 +3075,238 @@ class BrowserChecks(unittest.TestCase):
         with self.page("after", story=empty) as (page, _):
             expect(page.locator("#story")).to_be_hidden()
 
+    # Manual AI responses are a visitor's local data, independent of the published AI switch.
+    @staticmethod
+    def personal_ai_snapshot(page):
+        prompt = page.locator("#ai-prompt").input_value()
+        decoder = json.JSONDecoder()
+        candidates = []
+        for start in re.finditer(r"\{", prompt):
+            try:
+                value, _ = decoder.raw_decode(prompt[start.start():])
+            except json.JSONDecodeError:
+                continue
+            if isinstance(value, dict) and value.get("request_id") and isinstance(value.get("matches"), list):
+                candidates.append(value)
+        if not candidates:
+            raise AssertionError("The copied prompt has no request ID and match snapshot")
+        return candidates[-1]
+
+    @staticmethod
+    def personal_ai_reply(snapshot, scores=None, overview_id=None):
+        ids = [match["id"] for match in snapshot["matches"]]
+        return {"version": 1, "request_id": snapshot["request_id"],
+                "overview": {"text": "Your match overview.", "match_ids": [overview_id or ids[0]], "sources": []},
+                "matches": [{"id": mid, "score": (scores or {}).get(mid, 50), "blurb": f"Your preview for {mid}.",
+                             "sources": [{"url": "https://news.example/report", "title": "Match report"}]} for mid in ids]}
+
+    @staticmethod
+    def close_personal_ai(page):
+        if page.locator("#ai-settings").is_visible():
+            page.locator("#ai-close").click()
+
+    def test_personal_ai_prompt_import_weight_persistence_and_reset(self):
+        fixtures = self.SCORED + [
+            ("finished", "2026-10-07T14:00:00+00:00", "post", "ESPN+"),
+            ("unavailable", "2026-10-07T23:00:00+00:00", "pre", "Peacock"),
+            ("disabled-league", "2026-10-07T23:00:00+00:00", "pre", "ESPN+", "eng.2"),
+            ("unknown", "2026-10-07T23:00:00+00:00", "pre", "Mystery Sports+"),
+            ("too-far", "2026-10-15T23:00:00+00:00", "pre", "ESPN+")]
+        html = render_page(build, fixtures=fixtures, stature=self.STATURE, ai=False)
+        for width in (1280, 390):
+            with self.subTest(width=width), self.page("after", width=width, html=html, touch=width < 600) as (page, feed):
+                picks = page.locator("#picks .pick")
+                self.assertEqual(picks.evaluate_all("els => els.map(e => e.dataset.matchId)"), ["b", "d", "e"])
+                button = page.locator("#btn-ai-settings")
+                button.click()
+                dialog = page.locator("#ai-settings")
+                expect(dialog).to_be_visible()
+                self.assertTrue(dialog.evaluate("el => el.open && el.contains(document.activeElement)"))
+                for _ in range(12):
+                    page.keyboard.press("Tab")
+                    # A native dialog may hand focus to browser chrome between cycles; it must
+                    # never tab into the inert page's links or filter controls.
+                    self.assertTrue(dialog.evaluate("el => el.contains(document.activeElement) || document.activeElement === document.body"))
+                page.keyboard.press("Escape")
+                expect(dialog).to_be_hidden()
+                expect(button).to_be_focused()
+                button.click()
+                preferences = "Prefer close games and developing players. Avoid spoilers."
+                page.locator("#ai-preferences").fill(preferences)
+                page.locator("#ai-weight").fill("100")
+                page.locator("#ai-generate").click()
+                prompt = page.locator("#ai-prompt").input_value()
+                self.assertIn(preferences, prompt)
+                snapshot = self.personal_ai_snapshot(page)
+                self.assertEqual({m["id"] for m in snapshot["matches"]}, set("abcde"))
+                self.assertIn("Arsenal", json.dumps(snapshot))
+                self.assertIn("Chelsea", json.dumps(snapshot))
+                self.assertIn("Fixture Stadium", json.dumps(snapshot))
+                self.assertLessEqual(page.evaluate("document.documentElement.scrollWidth"), width)
+                self.assertLessEqual(dialog.evaluate("el => el.scrollWidth"), dialog.evaluate("el => el.clientWidth") + 1)
+                dialog.screenshot(path=str(self.artifacts / f"personal-ai-{width}.png"))
+                # The visitor leaves for their chat and can return after reloading this tab.
+                page.reload()
+                button.click()
+                expect(page.locator("#ai-prompt")).to_have_value(prompt)
+                expect(page.locator("#ai-preferences")).to_have_value(preferences)
+                expect(page.locator("#ai-weight")).to_have_value("100")
+                reply = self.personal_ai_reply(snapshot, dict(a=50, b=10, c=100, d=0, e=20), "c")
+                page.locator("#ai-response").fill("```json\n" + json.dumps(reply) + "\n```")
+                page.locator("#ai-apply").click()
+                expect(page.locator("#ai-error")).to_be_empty()
+                self.close_personal_ai(page)
+                expect(page.locator("#story-lede")).to_have_text("Your match overview.")
+                self.assertEqual(picks.evaluate_all("els => els.map(e => e.dataset.matchId)"), ["b", "c", "e"])
+                expect(page.locator("#nextup .row__story")).to_contain_text("Your preview for a.")
+                for mid in "bce":
+                    expect(page.locator(f'#picks [data-match-id="{mid}"] .row__story')).to_contain_text(f"Your preview for {mid}.")
+                for mid in "abcde":
+                    expect(page.locator(f'li.row[data-id="{mid}"] .row__story')).to_contain_text(f"Your preview for {mid}.")
+                # A newly enabled service can add an unrated match after the prompt was copied.
+                # It still competes using its Outlook score instead of vanishing from the picks.
+                page.locator("#btn-menu").click()
+                page.locator('[data-kind="have"][data-key="peacock"]').click()
+                self.assertEqual(picks.evaluate_all("els => els.map(e => e.dataset.matchId)"), ["c", "e", "unavailable"])
+                expect(page.locator('#picks [data-match-id="unavailable"] .row__story')).to_have_count(0)
+                page.locator('[data-kind="have"][data-key="peacock"]').click()
+                page.locator("#btn-filters-close").click()
+                page.reload()
+                expect(page.locator("#story-lede")).to_have_text("Your match overview.")
+                self.assertEqual(picks.evaluate_all("els => els.map(e => e.dataset.matchId)"), ["b", "c", "e"])
+                button.click()
+                page.locator("#ai-weight").fill("0")
+                self.close_personal_ai(page)
+                self.assertEqual(picks.evaluate_all("els => els.map(e => e.dataset.matchId)"), ["b", "d", "e"])
+                expect(page.locator("#story-lede")).to_have_text("Your match overview.")
+                button.click()
+                page.locator("#ai-clear").click()
+                self.close_personal_ai(page)
+                expect(page.locator("#story")).to_be_hidden()
+                expect(page.locator(".row__story")).to_have_count(0)
+                self.assertEqual(picks.evaluate_all("els => els.map(e => e.dataset.matchId)"), ["b", "d", "e"])
+                self.assertEqual(feed["stories"], 0, "A personal import must not enable public AI requests")
+
+    def test_bad_personal_ai_response_keeps_the_existing_recommendations(self):
+        story = self.overview_story()
+        story["overview"] = {"text": "Published overview stays here.", "sources": []}
+        html = render_page(build, fixtures=self.SCORED, stature=self.STATURE)
+        with self.page("after", html=html, story=story) as (page, _):
+            before = page.locator("#picks .pick").evaluate_all("els => els.map(e => e.dataset.matchId)")
+            page.locator("#btn-ai-settings").click()
+            page.locator("#ai-generate").click()
+            valid = self.personal_ai_reply(self.personal_ai_snapshot(page))
+            invalid = {"not JSON": "A conversational response without JSON."}
+            for name in ("wrong request", "unknown fixture", "missing fixture", "duplicate fixture", "unsafe source", "bad score"):
+                reply = deepcopy(valid)
+                if name == "wrong request":
+                    reply["request_id"] = "another-tab-request"
+                elif name == "unknown fixture":
+                    reply["matches"][0]["id"] = "not-a-real-match"
+                elif name == "missing fixture":
+                    reply["matches"].pop()
+                elif name == "duplicate fixture":
+                    reply["matches"].append(reply["matches"][0])
+                elif name == "unsafe source":
+                    reply["matches"][0]["sources"][0]["url"] = "javascript:window.__unsafeExecuted=true"
+                else:
+                    reply["matches"][0]["score"] = 101
+                invalid[name] = json.dumps(reply)
+            for name, response in invalid.items():
+                with self.subTest(response=name):
+                    page.locator("#ai-response").fill(response)
+                    page.locator("#ai-apply").click()
+                    expect(page.locator("#ai-error")).to_be_visible()
+                    self.assertTrue(page.locator("#ai-error").inner_text().strip())
+                    expect(page.locator("#story-lede")).to_have_text("Published overview stays here.")
+                    self.assertEqual(page.locator("#picks .pick").evaluate_all("els => els.map(e => e.dataset.matchId)"), before)
+                    self.assertFalse(page.evaluate("Boolean(window.__unsafeExecuted)"))
+            # AI prose is text, even if it contains markup; a corrected reply remains usable after errors.
+            valid["overview"]["text"] = 'Your <img src=x onerror="window.__unsafeExecuted=true"> preview.'
+            page.locator("#ai-response").fill(json.dumps(valid))
+            page.locator("#ai-apply").click()
+            expect(page.locator("#ai-error")).to_be_empty()
+            self.close_personal_ai(page)
+            expect(page.locator("#story-lede")).to_have_text(valid["overview"]["text"])
+            expect(page.locator("#story-lede img")).to_have_count(0)
+            self.assertFalse(page.evaluate("Boolean(window.__unsafeExecuted)"))
+            page.locator("#btn-ai-settings").click()
+            page.locator("#ai-clear").click()
+            self.close_personal_ai(page)
+            expect(page.locator("#story-lede")).to_have_text("Published overview stays here.")
+
+    def test_personal_ai_overview_tracks_filters_and_completed_matches(self):
+        fixtures = [("upcoming", "2026-10-07T17:05:00+00:00", "pre", "ESPN+", "eng.1"),
+                    ("spanish", "2026-10-07T20:00:00+00:00", "pre", "ESPN+", "esp.1")]
+        with self.page("after", html=render_page(build, fixtures=fixtures, ai=False)) as (page, feed):
+            page.locator("#btn-ai-settings").click()
+            page.locator("#ai-generate").click()
+            reply = self.personal_ai_reply(self.personal_ai_snapshot(page), overview_id="upcoming")
+            page.locator("#ai-response").fill(json.dumps(reply))
+            page.locator("#ai-apply").click()
+            self.close_personal_ai(page)
+            expect(page.locator("#story-lede")).to_have_text("Your match overview.")
+            page.locator("#btn-menu").click()
+            page.locator('#comp-pills [data-key="eng.1"]').click()
+            expect(page.locator("#story-lede")).to_contain_text("Your preview for spanish.")
+            expect(page.locator("#story-lede")).not_to_contain_text("Your match overview.")
+            page.locator('#comp-pills [data-key="eng.1"]').click()
+            page.locator("#btn-filters-close").click()
+            expect(page.locator("#story-lede")).to_have_text("Your match overview.")
+            feed["data"] = scoreboard("post")
+            page.clock.run_for(60000)
+            expect(page.locator('li.row[data-id="upcoming"]')).to_have_attribute("data-state", "post")
+            expect(page.locator("#story-lede")).to_contain_text("Your preview for spanish.")
+            expect(page.locator("#story-lede")).not_to_contain_text("Your match overview.")
+            page.locator("#btn-menu").click()
+            page.locator("#btn-clear").click()
+            page.locator("#btn-filters-close").click()
+            expect(page.locator("#story")).to_be_hidden()
+
+    def test_personal_ai_expiry_and_unavailable_browser_storage(self):
+        html = render_page(build, fixtures=self.SCORED, stature=self.STATURE, ai=False)
+        with self.page("after", html=html) as (page, _):
+            page.locator("#btn-ai-settings").click()
+            page.locator("#ai-generate").click()
+            reply = self.personal_ai_reply(self.personal_ai_snapshot(page))
+            page.locator("#ai-response").fill(json.dumps(reply))
+            page.locator("#ai-apply").click()
+            self.close_personal_ai(page)
+            expect(page.locator("#story-lede")).to_have_text("Your match overview.")
+            # An old saved response must not revive merely because its fixture is still upcoming.
+            page.evaluate("""() => {
+                const key = 'sso-personal-ai-v1', saved = JSON.parse(localStorage.getItem(key));
+                saved.pending.created_at -= 25 * 60 * 60 * 1000;
+                saved.applied.request.created_at -= 25 * 60 * 60 * 1000;
+                localStorage.setItem(key, JSON.stringify(saved));
+            }""")
+            page.reload()
+            expect(page.locator("#story")).to_be_hidden()
+            page.locator("#btn-ai-settings").click()
+            expect(page.locator("#ai-status")).to_contain_text("expired")
+            page.locator("#ai-response").fill(json.dumps(reply))
+            page.locator("#ai-apply").click()
+            expect(page.locator("#ai-error")).to_contain_text("24 hours")
+            expect(page.locator("#story")).to_be_hidden()
+        with self.page("after", html=html) as (page, _):
+            page.evaluate("""() => {
+                Storage.prototype.setItem = function () { throw new DOMException('Storage blocked', 'SecurityError'); };
+                Object.defineProperty(navigator, 'clipboard', {configurable: true,
+                    value: {writeText: () => Promise.reject(new Error('Clipboard blocked'))}});
+            }""")
+            page.locator("#btn-ai-settings").click()
+            page.locator("#ai-generate").click()
+            expect(page.locator("#ai-status")).to_contain_text("could not be saved")
+            page.locator("#ai-copy").click()
+            expect(page.locator("#ai-status")).to_contain_text("prompt is selected")
+            self.assertTrue(page.locator("#ai-prompt").evaluate("el => el.selectionStart === 0 && el.selectionEnd === el.value.length"))
+            reply = self.personal_ai_reply(self.personal_ai_snapshot(page))
+            page.locator("#ai-response").fill(json.dumps(reply))
+            page.locator("#ai-apply").click()
+            expect(page.locator("#ai-status")).to_contain_text("could not be saved")
+            self.close_personal_ai(page)
+            expect(page.locator("#story-lede")).to_have_text("Your match overview.")
+
 
 # Exit status when the browser cannot start: the checks did not run, which says nothing about the page.
 # 77 is automake's "skipped"; Python and argparse already use 1 and 2 for their own errors.
@@ -3075,6 +3315,7 @@ NOT_RUN = 77
 # A compact cross-engine pass through the interactions most sensitive to browser behavior.
 # Chromium still runs every check by default; WebKit smoke is an additional compatibility check.
 SMOKE_TESTS = (
+    "test_personal_ai_prompt_import_weight_persistence_and_reset",
     "test_lineup_persists_and_resets",
     "test_watch_links_follow_service_access_in_schedule_and_featured_cards",
     "test_youtube_tv_match_link_is_only_available_while_its_fixture_is_live",

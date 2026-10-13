@@ -105,9 +105,26 @@ The header count and **Your lineup** totals cover the displayed days. **Elsewher
 
 **Live now** shows the highest-scoring match that passes your filters and that ESPN confirms is in progress. When none is live, **Next up** shows the earliest confirmed kickoff within the displayed days, with a countdown. Simultaneous kickoffs are separated by pick score.
 
-**Top three** chooses the highest-scoring remaining matches across the displayed days, then presents them in kickoff order. It never repeats the top card's match. It can show one or two matches, or disappear when none qualify. If any remaining candidate has a current AI rating, only rated candidates compete for this section; otherwise it uses the Outlook score and league priority.
+**Top three** chooses the highest-scoring remaining matches across the displayed days, then presents them in kickoff order. It never repeats the top card's match. It can show one or two matches, or disappear when none qualify. With site recommendations, a current AI rating on any remaining candidate limits this section to rated matches; otherwise it uses the Outlook score and league priority. While a personal AI import is active, all eligible matches can compete, including newly enabled matches outside the import, which use the site's normal scores.
 
-The current site uses AI ratings but no AI-written overview or match blurbs. A featured card without a blurb shows extra match facts and links instead. [How recommendations work](scoring.md) explains the scores and configurable alternatives.
+The published site supplies AI ratings but no AI-written overview or match blurbs. You can add personal text and ratings through **AI settings**, described below. A featured card without a blurb shows extra match facts and links instead. [How recommendations work](scoring.md) explains the scores and configurable alternatives.
+
+### Use your own AI for blurbs
+
+Open **AI settings** to use a chat AI you already have access to, such as Copilot, Claude or ChatGPT. This is a copy-and-paste workflow: Soccer Outlook does not sign in to an AI account or send the prompt automatically.
+
+1. Choose your services and leagues in **Lineup** first.
+2. In **AI settings**, describe what you enjoy watching—for example, close games, title races, a favorite club or matches happening this evening.
+3. Choose **Create prompt**, then **Copy prompt**, and paste it into your chat. The prompt contains the live and upcoming matches passing your current filters within today and the next three days, their available facts, your league order and your preferences. It asks for one short overview and a rating and blurb for each match in a specific JSON format.
+4. Copy the chat's complete JSON response into **AI response**, then choose **Apply response**. The app checks the response before using it; if it reports an error, your previous recommendations stay in place. Ask the chat to correct the response using the original prompt.
+
+The imported overview appears above the featured matches; match-specific blurbs appear with their match, including in the schedule. Recommendations still follow your current services and league filters. The AI can change text and interest ratings, but cannot add fixtures, change kickoff times or scores, or make a match available on another service. The prompt asks for upcoming-match context rather than general football news, with current-day events preferred when there are any.
+
+**Imported rating influence** sets the balance between your AI's rating and the site's Outlook score for imported matches. At 100%, match interest comes entirely from the imported rating; at 0%, it uses the Outlook score. Your league priority still contributes to the final pick score. Changing this slider takes effect without another chat request. Matches without an imported rating keep the site's normal scoring.
+
+Your preferences and accepted response are saved in this browser. Recommendations expire **24 hours after the prompt was created**, so pasting the same response again does not refresh them. Make a new prompt for a new schedule or different interests. After changing filters, existing matching recommendations can still be used; create another prompt to get blurbs for newly included matches. Text is shown only when its referenced matches still pass the filters and remain live or upcoming with unchanged kickoffs.
+
+Choose **Restore site recommendations** to remove the imported ratings and blurbs. This keeps your lineup and the preference text you entered. Nothing you import changes the public page for other visitors. Clearing site data removes local preferences and imports, and private browsing may not retain them. The prompt becomes visible to your chosen AI service when you paste it there. Source links supplied by a chat are references, not independent verification by Soccer Outlook.
 
 ### Opening a match on a streaming service
 

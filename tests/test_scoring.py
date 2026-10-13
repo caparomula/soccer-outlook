@@ -232,11 +232,11 @@ class PageScoring(unittest.TestCase):
         self.assertEqual(blend, {"blend": {"ai": 50, "outlook": 50, "interest": 80, "league_priority": 20}, "dots": [35, 45, 55, 68]})
         self.assertIn("one to five golden dots: two from 35, three from 45, four from 55 and five from 68 out of 100", self.footer(on))
         self.assertIn("gpt-6.1-sol, an OpenAI AI model, is asked to rate the matches the page shows, from today through the third day after it", self.footer(on))
-        self.assertIn("the page shows no AI-written text", self.footer(on))
+        self.assertIn("Site-generated blurbs are turned off", self.footer(on))
         self.assertNotIn("Claude", self.footer(on))
         self.assertIn("50% the AI rating and 50% the Outlook score", self.footer(on))
         self.assertIn("80% interest and 20% league priority", self.footer(on))
-        self.assertIn("No AI is used on this page", self.footer(off))
+        self.assertIn("Site-generated AI is turned off", self.footer(off))
         self.assertNotIn("Claude", self.footer(off))
         self.assertIn("80% the Outlook score and 20% league priority", self.footer(off))
         hint = lambda page: re.search(r'id="priority-hint">([^<]*)<', page).group(1)
@@ -322,7 +322,7 @@ class PageScoring(unittest.TestCase):
 
     def test_the_footer_names_the_overview_model_and_its_rule(self):
         no_overview = self.footer(render_page(build))
-        self.assertIn("not predicted results, and the page shows no AI-written text.", no_overview)
+        self.assertIn("not predicted results. Site-generated blurbs are turned off", no_overview)
         with patch.object(build, "SETTINGS", replace(fixture_settings(build), overview_model="gemini-3.1-pro-preview", overview_effort="medium")):
             footer = build.about_ai()
         self.assertIn("Then gemini-3.1-pro-preview, a Google AI model, searches the web and writes the overview at the top (marked AI Summary)", footer)

@@ -166,6 +166,7 @@ a { color: inherit; }
 
 /* Controls */
 .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+.bar .controls { flex: none; flex-wrap: nowrap; }
 .fbtn { appearance: none; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line-strong); background: transparent; color: var(--fg); border-radius: 999px; padding: 6px 12px; font: 600 14px var(--body); cursor: pointer; white-space: nowrap; max-width: 100%; }
 .fbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 /* The header's Lineup button opens a separately scrolling panel beneath it. */
@@ -178,6 +179,44 @@ a { color: inherit; }
 .menu-btn[aria-expanded="true"] circle { fill: var(--fg); }
 .menu-btn[aria-expanded="true"] .menu-btn__caret { color: inherit; transform: rotate(180deg); }
 .menu-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ai-settings-mark { font-weight: 700; letter-spacing: 0.02em; }
+/* The manual AI workflow stays in a modal, away from the schedule. It uses the site's
+   theme and scrolls within the available screen height, including on small phones. */
+html.has-ai-dialog, .has-ai-dialog body { overflow: hidden; }
+.ai-settings { width: min(720px, calc(100vw - 24px)); max-width: calc(100vw - 24px); max-height: calc(100vh - 24px); max-height: calc(100dvh - 24px);
+  margin: auto; padding: 22px; overflow: auto; overscroll-behavior: contain; scroll-padding-block: 20px;
+  color: var(--fg); background: var(--card); border: 1px solid var(--line-strong); border-radius: 14px;
+  box-shadow: 0 12px 40px rgb(0 0 0 / 0.3); font: 15px/1.45 var(--body); }
+.ai-settings::backdrop { background: rgb(0 0 0 / 0.6); }
+.ai-settings__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.ai-settings__head h2 { min-width: 0; overflow-wrap: anywhere; font: 600 24px/1.2 var(--body); }
+.ai-settings__head .fbtn { flex: none; }
+.ai-settings p { margin: 12px 0 0; }
+.ai-settings .ai-settings__hint { margin: 6px 0 12px; color: var(--muted); font-size: 13px; }
+.ai-settings__step { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }
+.ai-settings__step h3 { margin: 0 0 12px; font: 600 18px/1.3 var(--body); }
+.ai-settings label { display: block; margin-bottom: 6px; font-weight: 600; }
+.ai-settings textarea { display: block; width: 100%; max-width: 100%; min-height: 76px; padding: 9px 11px;
+  border: 1px solid var(--line-strong); border-radius: 7px; background: var(--bg); color: var(--fg);
+  font: 16px/1.4 var(--body); resize: vertical; }
+.ai-settings textarea::placeholder { color: var(--muted); opacity: 1; }
+.ai-settings textarea:focus-visible, .ai-settings input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ai-settings__weight-label { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-top: 16px; }
+.ai-settings__weight-label output { color: var(--accent); font-weight: 600; font-variant-numeric: tabular-nums; }
+.ai-settings input[type="range"] { display: block; width: 100%; margin: 4px 0 8px; accent-color: var(--accent); cursor: pointer; }
+.ai-settings__actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.ai-settings .fbtn { min-height: 38px; white-space: normal; text-align: left; }
+.ai-settings .fbtn:hover { border-color: var(--accent); }
+.ai-settings .fbtn:disabled { cursor: default; opacity: 0.5; }
+.ai-settings .ai-settings__primary { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+.ai-settings__status { color: var(--accent); }
+.ai-settings__error { color: var(--loss); }
+.ai-settings__status:empty, .ai-settings__error:empty { display: none; }
+@media (max-width: 600px) {
+  .ai-settings { padding: 16px; }
+  .ai-settings__head h2 { font-size: 21px; }
+  .ai-settings__step { margin-top: 18px; padding-top: 14px; }
+}
 .drawer { position: fixed; z-index: 30; top: var(--drawer-top, 52px); right: var(--drawer-right, 16px);
   width: min(600px, calc(100vw - 32px)); max-height: calc(100vh - var(--drawer-top, 52px) - 12px);
   max-height: calc(100dvh - var(--drawer-top, 52px) - 12px); overflow-y: auto; overscroll-behavior: contain;

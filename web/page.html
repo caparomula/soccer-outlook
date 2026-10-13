@@ -52,6 +52,9 @@
         <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 5h14M3 10h14M3 15h14"/><circle cx="13" cy="5" r="2.3"/><circle cx="7" cy="10" r="2.3"/><circle cx="11" cy="15" r="2.3"/></svg>
         <span class="menu-btn__txt">Lineup</span><span class="menu-btn__caret" aria-hidden="true">&#9662;</span>
       </button>
+      <button type="button" class="menu-btn" id="btn-ai-settings" aria-label="AI settings" aria-controls="ai-settings" aria-haspopup="dialog" title="AI settings">
+        <span class="ai-settings-mark" aria-hidden="true">AI</span><span class="menu-btn__txt" aria-hidden="true">settings</span>
+      </button>
     </div>
     <div class="strip" id="league-strip" hidden>
       <div class="strip__list" id="league-strip-list" role="toolbar" aria-label="Your leagues: show or hide their matches"></div>
@@ -113,8 +116,8 @@
     @@FAILED@@
     <p>Fixtures, scores, standings, most images and most broadcast listings come from ESPN. Some league emblems use compact artwork from the organizers' official websites; see <a href="https://github.com/caparomula/soccer-outlook/blob/main/web/logos/README.md">artwork sources</a>. Where ESPN has no listing, public broadcaster schedules are checked. Details links show the source or explain why coverage remains unconfirmed. While relevant matches are on, the browser checks scores about once a minute. US coverage mappings and their sources are maintained in <a href="https://github.com/caparomula/soccer-outlook/blob/main/rights.toml">rights.toml</a>. <a href="https://github.com/caparomula/soccer-outlook">Source code and development guide</a>.</p>
     <p>@@ABOUT_AI@@</p>
-    <p>@@ABOUT_SCORES@@ Pick scores rank interest; they do not predict results. See <a href="https://github.com/caparomula/soccer-outlook/blob/main/docs/scoring.md">how recommendations work</a> for the formula and default league order.</p>
-    <p><strong>Live now</strong> shows the highest-scoring available match ESPN confirms is in progress. Otherwise, <strong>Next up</strong> counts down to the earliest confirmed kickoff within the displayed days. <strong>Top three</strong> selects up to three other matches on your services and competitions by score, then shows them in kickoff order. When any remaining candidate has an AI rating, only rated candidates compete for those places.</p>
+    <p>@@ABOUT_SCORES@@ For imported ratings, the influence chosen in AI settings replaces the AI/Outlook split. Pick scores rank interest; they do not predict results. See <a href="https://github.com/caparomula/soccer-outlook/blob/main/docs/scoring.md">how recommendations work</a> for the formula and default league order.</p>
+    <p><strong>Live now</strong> shows the highest-scoring available match ESPN confirms is in progress. Otherwise, <strong>Next up</strong> counts down to the earliest confirmed kickoff within the displayed days. <strong>Top three</strong> selects up to three other matches on your services and competitions by score, then shows them in kickoff order. With site recommendations, rated candidates take precedence when available. While personal AI recommendations are active, newly enabled matches also compete using their usual scores.</p>
     <p>The schedule covers today and the three days after it. Each day starts at 4 am in your time zone so late matches stay with their evening. Open <strong>Schedule and data details</strong> above for the last build time, live-score checks and coverage summary.</p>
   </footer>
 </div>
@@ -129,6 +132,47 @@
     <button type="button" class="fbtn" id="match-dialog-close" aria-label="Close match details" autofocus>Close</button>
   </div>
   <div id="match-dialog-content"></div>
+</dialog>
+
+<dialog class="ai-settings" id="ai-settings" aria-labelledby="ai-settings-title" aria-describedby="ai-settings-intro">
+  <div class="ai-settings__head">
+    <h2 id="ai-settings-title">Your AI recommendations</h2>
+    <button type="button" class="fbtn" id="ai-close" aria-label="Close AI settings" autofocus>Close</button>
+  </div>
+  <p id="ai-settings-intro">Use any chat AI to write match blurbs and rate your schedule. Copy the prompt into your chat, then paste its response here.</p>
+  <p class="ai-settings__hint">The prompt uses matches that pass your current Lineup filters, plus your preferences below. Nothing is sent automatically. Your preferences and imported recommendations stay in this browser.</p>
+
+  <section class="ai-settings__step" aria-labelledby="ai-preferences-heading">
+    <h3 id="ai-preferences-heading">1. Set your preferences</h3>
+    <label for="ai-preferences">What makes a match worth watching for you?</label>
+    <textarea id="ai-preferences" maxlength="2000" rows="3" placeholder="For example: Favor close games, title races and attacking football. I follow Arsenal and prefer a match this evening to one later in the week." aria-describedby="ai-preferences-help"></textarea>
+    <p class="ai-settings__hint" id="ai-preferences-help">Optional. These preferences are included in the prompt you copy.</p>
+    <div class="ai-settings__weight-label"><label for="ai-weight">Imported rating influence</label><output id="ai-weight-value" for="ai-weight">50%</output></div>
+    <input type="range" id="ai-weight" min="0" max="100" step="5" value="50" aria-describedby="ai-weight-help">
+    <p class="ai-settings__hint" id="ai-weight-help">Choose how much imported AI ratings count compared with the site's Outlook scores. Higher means more influence; your league priority still applies.</p>
+    <button type="button" class="fbtn ai-settings__primary" id="ai-generate">Create prompt</button>
+  </section>
+
+  <section class="ai-settings__step" aria-labelledby="ai-prompt-heading">
+    <h3 id="ai-prompt-heading">2. Take the prompt to your AI</h3>
+    <label for="ai-prompt">Prompt to copy</label>
+    <textarea id="ai-prompt" rows="5" readonly placeholder="Create a prompt using your current lineup and preferences." aria-describedby="ai-prompt-help"></textarea>
+    <p class="ai-settings__hint" id="ai-prompt-help">Paste this into a chat session. It includes the schedule and the response format the app needs.</p>
+    <button type="button" class="fbtn" id="ai-copy">Copy prompt</button>
+  </section>
+
+  <section class="ai-settings__step" aria-labelledby="ai-response-heading">
+    <h3 id="ai-response-heading">3. Bring back the recommendations</h3>
+    <label for="ai-response">AI response</label>
+    <textarea id="ai-response" maxlength="262144" rows="5" placeholder="Paste the JSON response from your chat here." spellcheck="false" aria-describedby="ai-response-help"></textarea>
+    <p class="ai-settings__hint" id="ai-response-help">Apply the response to update your blurbs and match recommendations. You can restore the site's recommendations at any time.</p>
+    <div class="ai-settings__actions">
+      <button type="button" class="fbtn ai-settings__primary" id="ai-apply">Apply response</button>
+      <button type="button" class="fbtn" id="ai-clear">Restore site recommendations</button>
+    </div>
+  </section>
+  <p class="ai-settings__status" id="ai-status" role="status" aria-live="polite"></p>
+  <p class="ai-settings__error" id="ai-error" role="alert"></p>
 </dialog>
 
 <script>

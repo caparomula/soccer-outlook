@@ -2,7 +2,7 @@
 """Build Soccer Outlook, a soccer schedule filtered by the viewer's US services and leagues.
 
 Fetch fixtures and standings from ESPN, map US broadcasters through rights.toml, and write the main
-HTML file with web/page.html, web/styles.css, web/live.js and web/app.js embedded. Full builds also write
+HTML file with web/page.html, web/styles.css, web/live.js, web/personal-ai.js and web/app.js embedded. Full builds also write
 three public schedule pages, a sitemap, a PNG favicon and an IndexNow ownership file. The default
 fetch covers yesterday, today and four days ahead in Eastern time. Before 4 am Eastern, it also
 fetches the preceding date so the previous evening's results are retained. The browser displays
@@ -1348,7 +1348,7 @@ def priority_hint():
 def about_ai():
     """The footer's account of the AI's part, or of its absence: which model, doing what."""
     if not SETTINGS.ai:
-        return "No AI is used on this page: there is no overview, no match blurbs and no AI rating."
+        return "Site-generated AI is turned off. Personal AI ratings and blurbs can still be imported through AI settings."
     if SETTINGS.design == "ratings":
         def who(model):
             maker = providers.PROVIDER_NAMES[providers.MODELS[model]]
@@ -1359,7 +1359,7 @@ def about_ai():
                    "fill missing or newly listed ratings while keeping the day's accepted ratings. Its ratings are "
                    "editorial judgments, not predicted results")
         if not SETTINGS.overview_model and not SETTINGS.blurbs_model:
-            return ratings + ", and the page shows no AI-written text."
+            return ratings + ". Site-generated blurbs are turned off; AI settings can add personal ratings and text in your browser."
         text = ratings + "."
         if SETTINGS.overview_model:
             text += (f" Then {who(SETTINGS.overview_model)}, searches the web and writes the overview at the top (marked "
@@ -1370,7 +1370,7 @@ def about_ai():
                      f"{story_candidates()} best-scored matches in the days the page shows.")
         each = "Each is" if SETTINGS.overview_model and SETTINGS.blurbs_model else "It is"
         return text + (f" {each} published only with a page its own search returned, linked beside it; a day without one "
-                       "has none. The page shows no other AI-written text.")
+                       "has none. AI settings can also add personal ratings and text in your browser.")
     return ("The overview (marked AI Summary) and the match blurbs are written by Claude, Anthropic's AI model "
             f"({SETTINGS.model}), once a day, early in the morning; the midday and evening rebuilds update fixtures, "
             "broadcasters and scores but keep the morning's text. Blurbs link to their sources; one that rests only on "
@@ -1630,12 +1630,18 @@ def row_html(m, cache):
     parts = outlook_parts(m)
     parts_json = json.dumps({k: None if v is None else round(100 * v) for k, v in parts.items()})
     destinations = provider_links(m)
+    ai_facts = dict(venue=m.venue, stage=m.stage, espn_url=m.link,
+                    home_form=m.home.form, away_form=m.away.form,
+                    home_rank=m.home.rank or None, away_rank=m.away.rank or None,
+                    home_points=m.home.pts, away_points=m.away.pts,
+                    home_record=m.home.record, away_record=m.away.record)
     return (
         f'<li class="row {avail}" data-id="{esc(m.id)}" data-utc="{m.utc.strftime("%Y-%m-%dT%H:%M:%SZ")}" data-tv="{tv}" '
         f'data-lg="{esc(m.league)}" data-svc="{m.service or "none"}" data-basis="{m.basis}" data-score="{m.score}" '
         f'data-outlook="{outlook_score(parts):g}" data-outlook-parts="{esc(parts_json)}" '
         f'data-state="{m.state}" data-home="{esc(m.home.name)}" data-away="{esc(m.away.name)}" data-comp="{esc(m.comp)}" '
         f'data-outlet="{esc(m.outlet)}" data-hc="{m.home.color}" data-ac="{m.away.color}" data-o="{esc(outlets_json)}"' +
+        f' data-ai-facts="{esc(json.dumps(ai_facts, ensure_ascii=False))}"' +
         (f' data-watch="{esc(json.dumps(destinations, ensure_ascii=False))}"' if destinations else "") +
         (f' data-r="{esc(rule_json)}"' if rule_json else "") + '>'
         f'<div class="row__time">{league_badge}<div class="row__kickoff">{time_html}<span class="row__et" hidden></span><span class="row__until" hidden></span><span class="row__live" hidden>Live</span>{status}</div></div>'
@@ -1980,7 +1986,7 @@ WEB_DIR = Path(__file__).resolve().parent / "web"
 TEMPLATE = (WEB_DIR.joinpath("page.html").read_text(encoding="utf-8")
             .replace("@@STYLES@@", WEB_DIR.joinpath("styles.css").read_text(encoding="utf-8"))
             .replace("@@SCRIPT@@", "\n".join(WEB_DIR.joinpath(name).read_text(encoding="utf-8")
-                                            for name in ("live.js", "app.js"))))
+                                            for name in ("live.js", "personal-ai.js", "app.js"))))
 
 
 # ----------------------------------------------------------------------------------------------

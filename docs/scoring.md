@@ -12,7 +12,9 @@ All recommendations follow the same lineup rules as the schedule. Temporarily hi
 
 The candidate window is today and the three following days, with each day starting at 4 am in the visitor's time zone. Finished matches are excluded. The daily AI ratings use the equivalent window in Eastern time, so the edges can differ for visitors elsewhere. A match with a time still to be confirmed can enter the top three, but not Next up.
 
-If any remaining candidate has a valid AI rating, the top three use only rated candidates. This keeps a match scored by Outlook alone from gaining an advantage simply because its AI rating is missing. If no candidate has an AI rating, the Outlook score and league priority supply the ranking instead. Fewer than three eligible candidates produce fewer cards; no candidates hide the section.
+With site recommendations, if any remaining candidate has a valid AI rating, the top three use only rated candidates. This keeps a match scored by Outlook alone from gaining an advantage simply because its AI rating is missing. If no candidate has an AI rating, the Outlook score and league priority supply the ranking instead.
+
+While a personal AI import is active for at least one eligible match, all eligible candidates can compete. Matches outside the import use their published AI rating when available, or the Outlook score otherwise, with league priority still applied. This lets newly enabled matches enter the top three without requiring another import first. Fewer than three eligible candidates produce fewer cards; no candidates hide the section.
 
 ## The pick score
 
@@ -25,7 +27,9 @@ pick score    = 95% match interest + 5% league priority
 
 For example, an AI rating of 60 and an Outlook score of 50 give match interest of 57. With league priority 80, the pick score is `0.95 × 57 + 0.05 × 80 = 58.15`, displayed as 58.2 in its tooltip.
 
-The weights are proportions: each pair in `[blend]` is divided by its sum, so it need not add up to 100. Without an AI rating, match interest is the Outlook score alone; on an older page without an Outlook score, an available AI rating can stand alone. Neither available means no pick score. Turning AI off leaves Outlook and league priority active.
+The weights are proportions: each pair in `[blend]` is divided by its sum, so it need not add up to 100. Without an AI rating, match interest is the Outlook score alone; on an older page without an Outlook score, an available AI rating can stand alone. Neither available means no pick score. Turning published AI off leaves Outlook and league priority active.
+
+An accepted response in **AI settings** replaces the published AI rating for each matching fixture. **Imported rating influence** replaces the 70/30 interest split for those matches: an influence of 50% means equal parts imported rating and Outlook score. It does not change the 95/5 interest/league-priority split or scoring for other fixtures. Imported ratings reflect the preferences you put in your prompt, so they need not match the site's standard rating dimensions below. They expire 24 hours after prompt creation; **Restore site recommendations** removes them immediately. See [Use your own AI for blurbs](user-guide.md#use-your-own-ai-for-blurbs).
 
 The browser ranks by the unrounded blend. Tooltips and dots use the score rounded to one decimal. A tooltip identifies the rating model and lists the score's parts.
 

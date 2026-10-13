@@ -22,11 +22,12 @@
   try { SERVICES = JSON.parse(document.getElementById('service-meta').textContent) || SERVICES; } catch (e) {}
   var SERVICE_NAMES = SERVICES.name;
   // How a pick score is made (settings.toml, embedded by build.py), and whether an AI model takes part
-  // at all: with AI off the page never asks for story.json, so no AI-written text or rating can appear.
+  // at all: with AI off the page never asks for story.json. A visitor can still import personal AI data.
   var SCORING = { blend: { ai: 70, outlook: 30, interest: 95, league_priority: 5 }, dots: [35, 45, 55, 68] };
   try { SCORING = JSON.parse(document.getElementById('scoring').textContent) || SCORING; } catch (e) {}
   if (!Array.isArray(SCORING.dots) || SCORING.dots.length !== 4) SCORING.dots = [35, 45, 55, 68];   // a page from before the dots
   var AI_ON = app.getAttribute('data-ai') !== 'off';
+  var PERSONAL = null;              // optional, private ratings/text imported by this visitor
   function rankOf(id) { var i = serviceOrder().indexOf(id); return i < 0 ? 99 : i; }
   var SHORT = { cable: 'Cable / live TV', ota: 'Antenna', free: 'Free app' };   // compact names for generic access options
   function escHtml(t) { return String(t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
@@ -52,6 +53,7 @@
     r._unk = r._o.some(function (o) { return o.u; });   // a channel the page doesn't recognize
     try { r._r = r.hasAttribute('data-r') ? JSON.parse(r.getAttribute('data-r')) : null; } catch (e) { r._r = null; }
     try { r._watch = JSON.parse(r.getAttribute('data-watch') || '{}'); } catch (e) { r._watch = {}; }
+    try { r._facts = JSON.parse(r.getAttribute('data-ai-facts') || '{}'); } catch (e) { r._facts = {}; }
   });
 
   function read(key) { try { var v = localStorage.getItem(key); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
@@ -637,7 +639,7 @@
   }, true);
   document.addEventListener('focusin', function (ev) {
     var el = ev.target;
-    if (!tabbing || !bar || !el.closest || el.closest('.bar, #drawer, #match-preview, #match-dialog')) return;
+    if (!tabbing || !bar || !el.closest || el.closest('.bar, #drawer, #match-preview, #match-dialog, #ai-settings')) return;
     requestAnimationFrame(function () {
       if (document.activeElement !== el) return;
       var below = bar.getBoundingClientRect().bottom, rect = el.getBoundingClientRect();
@@ -781,6 +783,7 @@
     renderFilterGroups();
     var groups = {}; ORDER.forEach(function (b) { groups[b] = []; });
     var sig = Object.keys(HAVE).join(',') + '|' + Object.keys(compOff).join(',') + '|' + JSON.stringify(compChoice) + '|' + soloLeague + '|';
+    sig += (PERSONAL && PERSONAL.active() ? 'personal' : 'site') + '|';
     var all = {}; ORDER.forEach(function (b) { all[b] = []; });
     rows.forEach(function (r) {
       var b = bucketOf(r, now);
@@ -885,11 +888,14 @@
   }
   // The model that wrote the ratings on show, as the tooltip names it: what settings.toml asked for,
   // else who answered; '' for a story that records neither.
-  function raterName() {
+  function raterName(rating) {
+    if (rating && rating._personal) return 'your imported AI response';
     var s = STORY.s || {}, name = typeof s.requested_model === 'string' && s.requested_model ? s.requested_model : s.model;
     return typeof name === 'string' ? name : '';
   }
   function ratingOf(r) {
+    var personal = PERSONAL && PERSONAL.rating(r.getAttribute('data-id'));
+    if (personal) return Object.assign({ _personal: true }, personal);
     var rating = STORY.rankings && STORY.rankings[r.getAttribute('data-id')];
     return rating && typeof rating.score === 'number' && rating.score >= 0 && rating.score <= 100 ? rating : null;
   }
@@ -898,6 +904,10 @@
   // visitor's league priority. All run from 0 to 100; null only on a page built without scores.
   function interestOf(r) {
     var rating = ratingOf(r), own = r._outlook, b = SCORING.blend;
+    if (rating && rating._personal) {
+      var weight = PERSONAL.weight();
+      return own === null ? rating.score : (rating.score * weight + own * (100 - weight)) / 100;
+    }
     if (rating && own !== null && b.ai + b.outlook > 0) return (rating.score * b.ai + own * b.outlook) / (b.ai + b.outlook);
     return own !== null ? own : rating ? rating.score : null;
   }
@@ -938,8 +948,9 @@
     var rating = ratingOf(r), own = r._outlook, b = SCORING.blend, both = rating && own !== null;
     var lines = [share(b.interest, b.league_priority) + '% ' + (both ? 'interest' : own !== null ? 'Outlook score' : 'AI rating') +
       ' (' + oneDecimal(interestOf(r)) + ') + ' + share(b.league_priority, b.interest) + '% league priority (' + Math.round(leaguePriority(r)) + ').'];
-    if (both) lines.push('Interest: ' + share(b.ai, b.outlook) + '% AI rating (' + rating.score + ') + ' + share(b.outlook, b.ai) + '% Outlook score (' + own + ').');
-    if (rating) lines.push('AI rating' + (raterName() ? ' by ' + raterName() : '') + ': ' + ratingDetails(rating) + '.');
+    var aiShare = rating && rating._personal ? PERSONAL.weight() : share(b.ai, b.outlook);
+    if (both) lines.push('Interest: ' + aiShare + '% AI rating (' + rating.score + ') + ' + (100 - aiShare) + '% Outlook score (' + own + ').');
+    if (rating) lines.push('AI rating' + (raterName(rating) ? ' by ' + raterName(rating) : '') + ': ' + ratingDetails(rating) + '.');
     if (own !== null) {
       var parts = {};
       try { parts = JSON.parse(r.getAttribute('data-outlook-parts') || '{}') || {}; } catch (e) {}
@@ -1165,7 +1176,10 @@
     var sc = r._b === 'live' ? scoreOf(r) : '', clk = clockOf(r);
     return sc ? 'live ' + sc + (clk ? ', ' + clk : '') : timeLabel(r) + dayTag(r, now);
   }
-  function ratingDetails(rating) { return 'Popularity ' + rating.popularity + ' · Expected gameplay ' + rating.gameplay + ' · Competitive impact ' + rating.impact; }
+  function ratingDetails(rating) {
+    if (rating._personal) return rating.score + '/100, based on your prompt preferences';
+    return 'Popularity ' + rating.popularity + ' · Expected gameplay ' + rating.gameplay + ' · Competitive impact ' + rating.impact;
+  }
   // The top three are the best matches the viewer can watch: from the same matches as the top card and
   // the schedule (their services, their enabled leagues, none hidden from the strip), the top card's own
   // match aside. Until 9 October 2026 they came from every service and competition, for the AI-written
@@ -1174,11 +1188,14 @@
   // rates each morning; not of the next 24 hours, where on a quiet day (an international break) the few
   // matches took every place whatever their scores, over far better ones the day after. With AI ratings
   // on the page, only rated matches compete: one the ratings missed would be scored by the Outlook score
-  // alone, which runs several points higher, and could win on that. Fewer than three in the window
-  // make fewer cards.
+  // alone, which runs several points higher, and could win on that. A personal import covers only its
+  // original lineup, so while it is active newly enabled matches may compete using their normal scores.
+  // Fewer than three in the window make fewer cards.
   function renderPicks(now) {
     var available = availableUpcoming(now).filter(function (r) { return r !== nextRow; });
-    if (available.some(function (r) { return ratingOf(r); })) available = available.filter(function (r) { return ratingOf(r); });
+    if (!(PERSONAL && PERSONAL.active()) && available.some(function (r) { return ratingOf(r); })) {
+      available = available.filter(function (r) { return ratingOf(r); });
+    }
     var chosen = available.sort(byRating).slice(0, 3);
     chosen.sort(function (a, b) { return byTime(a, b) || byRating(a, b); });
     document.getElementById('picks-section').hidden = !chosen.length;
@@ -1326,6 +1343,8 @@
   };
 
   function matchBlurb(r) {
+    var personal = PERSONAL && PERSONAL.rating(r.getAttribute('data-id'));
+    if (personal) return personal.blurb ? { note: personal.blurb, sources: personal.sources } : null;
     var rating = ratingOf(r), note = STORY.notes[r.getAttribute('data-id')];
     if (rating && typeof rating.blurb === 'string' && rating.blurb) return { note: rating.blurb, sources: rating.sources };
     if (note) return note;
@@ -1552,9 +1571,9 @@
   }
   // The ratings design's overview: one plain paragraph about the whole slate, the same for every visitor,
   // so nothing in it is filtered or dimmed. A full-design story's tagged overview follows the filters below.
-  function renderOverview(o) {
+  function renderOverview(o, personal) {
     var storyEl = document.getElementById('story'), sources = Array.isArray(o.sources) ? o.sources : [];
-    var signature = JSON.stringify(['overview', o.text, sources.map(function (src) { return src && src.url; })]);
+    var signature = JSON.stringify(['overview', !!personal, o.text, sources.map(function (src) { return src && src.url; })]);
     if (storyEl._signature === signature) return;
     storyEl._signature = signature;
     keepFocus(function () {
@@ -1563,12 +1582,33 @@
       setText(document.getElementById('story-h'), 'Overview');
       document.getElementById('story-lede').textContent = o.text;
       // The disclosure that the overview is written by AI; the footer says which model and how.
-      var storyBy = document.getElementById('story-by'); storyBy.textContent = 'AI Summary';
+      var storyBy = document.getElementById('story-by'); storyBy.textContent = personal ? 'Your AI summary' : 'AI Summary';
       var links = sourceLinks(sources, 5);
       if (links.childNodes.length) { storyBy.appendChild(document.createTextNode(' · ')); storyBy.appendChild(links); }
     });
   }
   function renderEditorial(now) {
+    if (PERSONAL && PERSONAL.active()) {
+      var overview = PERSONAL.overview();
+      if (overview) return renderOverview(overview, true);
+      // After a filter or live-state change, select one still-relevant imported match's
+      // text instead of keeping a paragraph about matches the visitor can no longer see.
+      var candidates = rows.filter(function (r) {
+        var note = PERSONAL.rating(r.getAttribute('data-id'));
+        return note && note.blurb;
+      });
+      var soon = candidates.filter(function (r) { return r._k < now + FOCUS_MS; });
+      if (soon.length) candidates = soon;
+      else if (candidates.length) {
+        var earliest = Math.min.apply(Math, candidates.map(function (r) { return r._k; }));
+        candidates = candidates.filter(function (r) { return r._k < earliest + FOCUS_MS; });
+      }
+      candidates.sort(byRating);
+      if (candidates.length) {
+        var note = PERSONAL.rating(candidates[0].getAttribute('data-id'));
+        return renderOverview({ text: note.blurb, sources: note.sources }, true);
+      }
+    }
     var s = STORY.s, storyEl = document.getElementById('story');
     if (s && s.overview) return renderOverview(s.overview);
     var lead = s && Array.isArray(s.lede_items) ? s.lede_items : [];
@@ -1794,8 +1834,42 @@
     }
   });
 
+  // The manual workflow and a future connected provider use the same match-scoped prompt.
+  // Only selected viewing routes enter the prompt; AI output never writes fixture facts.
+  function personalLookup(id) {
+    var r = ROW_BY_ID[id]; if (!r) return null;
+    var now = nowMs(), bucket = bucketOf(r, now);
+    return { id: id, kickoff: new Date(r._k).toISOString(), state: r._state,
+      eligible: passes(r) && r._state !== 'post' && !!bucket && bucket !== 'earlier' && bucket !== 'yesterday' };
+  }
+  function personalSnapshot() {
+    var now = nowMs();
+    return {
+      now: new Date(now).toISOString(), built_at: app.getAttribute('data-built'), timezone: tz || 'local time',
+      league_order: leagueOrder().filter(function (id) { return !compHidden({ _lg: id }); }).map(function (id) {
+        return { id: id, name: leagueNames[id] || id };
+      }),
+      services: serviceOrder().filter(function (id) { return HAVE[id]; }).map(function (id) { return SERVICE_NAMES[id] || id; }),
+      all_matches: rows.map(function (r) { return personalLookup(r.getAttribute('data-id')); }),
+      matches: rows.filter(function (r) { return personalLookup(r.getAttribute('data-id')).eligible; }).sort(byTime).map(function (r) {
+        return Object.assign({}, r._facts, {
+          id: r.getAttribute('data-id'), kickoff: new Date(r._k).toISOString(), kickoff_confirmed: r._tv,
+          league_id: r._lg, competition: r.getAttribute('data-comp'), home: r.getAttribute('data-home'),
+          away: r.getAttribute('data-away'), state: r._state, outlook_score: r._outlook,
+          channels: r._o.filter(function (o) { return !o.u; }).map(function (o) { return o.l; }),
+          service: SERVICE_NAMES[r._svc] || r._svc, coverage: r._basis
+        });
+      })
+    };
+  }
   evaluateAll();
   applyFilterUI();
+  PERSONAL = window.SoccerOutlookPersonalAI.create({
+    snapshot: personalSnapshot, lookup: personalLookup, now: nowMs,
+    defaultWeight: share(SCORING.blend.ai, SCORING.blend.outlook),
+    onOpen: function () { setDrawer(false, false); hideDetailPreview(); },
+    onChange: function () { render(true); }
+  });
   render(true);
   checkStale();
   loadStory();

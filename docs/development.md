@@ -1,6 +1,6 @@
 # Development and maintenance
 
-Soccer Outlook is a static site. Python fetches fixtures and builds the page; JavaScript applies the visitor's preferences and updates live scores. AI ratings are optional and published separately as `story.json`.
+Soccer Outlook is a static site. Python fetches fixtures and builds the page; JavaScript applies the visitor's preferences and updates live scores. Published AI ratings are optional and stored separately as `story.json`. Visitors can also import personal AI recommendations through a browser-only copy-and-paste workflow.
 
 For how the page works, see the [user guide](user-guide.md). For the ranking formula and default league order, see [scoring](scoring.md).
 
@@ -51,6 +51,7 @@ For a browser preview at a chosen local time, append a fragment such as `#at-202
 | [`web/styles.css`](../web/styles.css) | Layout, themes and responsive styles. |
 | [`web/app.js`](../web/app.js) | Filters, saved preferences, match cards, scoring in the browser, details overlays and applying live updates. |
 | [`web/live.js`](../web/live.js) | Live-score requests, catch-up checks, timeouts and retry scheduling. |
+| [`web/personal-ai.js`](../web/personal-ai.js) | Personal AI prompt and response format, validation and import freshness. |
 | [`web/favicon.svg`](../web/favicon.svg), [`web/favicon.png`](../web/favicon.png) | Editable soccer-ball artwork and its 64 × 64 PNG browser icon. |
 | [`web/logos/`](../web/logos/README.md) | Compact official league artwork used instead of unsuitable ESPN wordmarks, with source attribution. |
 | [`story.py`](../story.py) | Generate, validate and reuse optional AI ratings and text. |
@@ -104,15 +105,51 @@ For a refactor that should preserve output exactly:
 
 Use a complete checkout of the baseline revision so its supporting files and assets are available. Both generators receive the same fixture data and build time. The harness first requires byte-identical document and fragment HTML, then compares screenshots across 12 viewport/theme/UI combinations. Pixel comparisons allow antialiasing differences using pixelmatch's threshold of 0.1; any remaining differing pixel fails and produces a diff image. The ordinary behavior suite primarily exercises the current version. This comparison is deliberately unsuitable for an intentional visual change.
 
-## Configure AI ratings and text
+## Personal AI imports
 
-The current [`settings.toml`](../settings.toml) configuration enables the **ratings** design with `gpt-6.1-sol` at `low` effort. It requests scores without web research. The optional overview and card blurbs are disabled, so a page without AI prose is expected.
+**AI settings** lets a visitor generate a prompt, run it in a chat of their choice, and paste the response back. This path makes no AI API requests, needs no provider credentials and does not modify `story.json`. The [user guide](user-guide.md#use-your-own-ai-for-blurbs) explains the controls.
+
+The prompt uses current, filter-eligible live and upcoming fixtures in the browser's display window, including league priority, team facts and known coverage. User preference text influences the requested ratings and prose. The browser validates responses against the exported fixture IDs and request ID before applying them, and renders text as text rather than HTML. The response contract is:
+
+```json
+{
+  "version": 1,
+  "request_id": "the request_id from the generated prompt",
+  "overview": {
+    "text": "One short paragraph about the supplied matches.",
+    "match_ids": ["123456"],
+    "sources": [{"title": "Source title", "url": "https://example.com/match"}]
+  },
+  "matches": [
+    {
+      "id": "123456",
+      "score": 70,
+      "blurb": "A short match-specific preview.",
+      "sources": []
+    }
+  ]
+}
+```
+
+Every exported fixture must appear exactly once in `matches`, with a score from 0 to 100. The overview is one paragraph of at most 600 characters; each blurb is at most 400 characters. Each source list allows up to five HTTPS links and may be empty for text based entirely on supplied facts. URL validation does not verify the cited page or the AI's interpretation of it. Plain JSON or one JSON code block is accepted; responses over 256 KB are rejected. An invalid response leaves the previous import intact. Fixture IDs link text and ratings to existing rows; imported data cannot alter the fixture, channel mapping, kickoff, score or live state.
+
+Imports and personal preferences are stored locally, and an import expires 24 hours after its prompt was created. Matching imported ratings take precedence over published ratings while valid. The visitor's **Imported rating influence** controls their blend with the Outlook score; league-priority weighting stays unchanged. Current filters also apply to imported text. Restoring site recommendations clears the imported result without resetting the lineup or preference text.
+
+### A future GitHub Copilot connection
+
+The same prompt and response contract could support a direct connection through the [official GitHub Copilot SDK](https://github.com/github/copilot-sdk). Its [OAuth authentication](https://github.com/github/copilot-sdk/blob/main/docs/auth/authenticate.md#github-oauth-app) supports acting for a signed-in user with a Copilot subscription. A multi-user implementation must associate each request with that user's authorization rather than a shared owner account.
+
+That connection is **not implemented**. The current GitHub Pages deployment cannot run the SDK: it would need separately hosted backend code, a configured GitHub OAuth application and session handling. A backend should return the same validated recommendation format; manual imports can continue to work independently.
+
+## Configure published AI ratings and text
+
+The current [`settings.toml`](../settings.toml) configuration enables the **ratings** design with `gpt-6.1-sol` at `low` effort. It requests scores without web research. The optional published overview and card blurbs are disabled, so a page without AI prose is expected unless the visitor imports a personal response.
 
 The `[ai]` table controls this behavior:
 
 | Setting | Effect |
 | --- | --- |
-| `enabled = false` | Disable AI calls and prevent the browser from requesting AI data. Picks still use the Outlook score and league priority. |
+| `enabled = false` | Disable site-generated AI calls and prevent the browser from requesting `story.json`. Personal imports remain available; otherwise picks use the Outlook score and league priority. |
 | `design = "ratings"` | Rate upcoming fixtures within the display window. Optionally add separately researched overview text or card blurbs. |
 | `design = "full"` | Ask Claude for researched overview and league context, plus ratings and blurbs for upcoming fixtures. Requires a supported Claude Sonnet or Opus model. |
 | `model`, `effort` | Choose the main model and its reasoning effort. |
@@ -243,10 +280,11 @@ After publication, [the mapping script](../.github/scripts/mapping-issue.sh) mai
 | Symptom | What to check |
 | --- | --- |
 | Local build cannot fetch fixtures | Confirm that `curl` can reach ESPN from this machine. Unit and browser tests can still run without ESPN access, but they cannot produce a current real schedule. |
-| No AI prose | Expected with the current ratings-only settings. If overview or blurbs are enabled, check their provider key and generation log for missing or rejected sources. |
+| No AI prose | Expected with the current published ratings-only settings unless the visitor imports a personal response. For imports, check expiry and whether referenced matches still pass filters. For enabled published prose, check the provider key and generation log. |
 | No AI ratings | Check `[ai] enabled`, the correct provider secret, whether generation returned ratings, and the result's freshness. Picks still use the Outlook score. |
 | A local `story.py` run does nothing | Its default mode is `keep`. Use `daily` or another generation mode, and supply `--previous` if reuse is wanted. |
-| A card has no blurb | Optional text may be disabled, the match may not be one of the six researched candidates, or its text may have failed validation. Cards show match facts in its place. |
+| A card has no blurb | A personal import may not cover this fixture or may have expired. Published text may be disabled, the match may not be one of the six researched candidates, or its text may have failed validation. Cards show match facts in its place. |
+| A pasted AI response is rejected | Use the complete JSON response for the current prompt, including every requested match ID and its unchanged request ID. Follow the reported error; create a new prompt if the old one has expired. |
 | Published page has not changed | Check **Refresh outlook** and then the Pages deployment. A failed build preserves the prior site; documentation-only commits do not rebuild it. |
 | Browser checks cannot start | Install the selected Playwright browser and its system dependencies, or deliberately set `BROWSER_EXECUTABLE`. Exit code 77 means the browser could not start, not that the assertions passed. |
 | A fixture is missing | Check enabled services and leagues, the displayed date window, known coverage and the page's data details for incomplete ESPN requests. |
