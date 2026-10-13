@@ -1,6 +1,6 @@
 # How matches are ranked
 
-Soccer Outlook combines a match's appeal with your league preferences to recommend what to watch. The score is an editorial aid, not a prediction of the result or a probability. This guide describes the defaults in [settings.toml](../settings.toml); the owner can change those settings, and each visitor can change league priority in Lineup.
+Soccer Outlook combines a match's appeal with your league preferences to recommend what to watch. The score is an editorial aid, not a prediction of the result or a probability. This guide describes the defaults in [settings.toml](../settings.toml); the owner can change those settings, and each visitor can change league priority in **Settings → Leagues**.
 
 ## Choosing matches and displaying them
 
@@ -32,6 +32,8 @@ The weights are proportions: each pair in `[blend]` is divided by its sum, so it
 For each fixture, a valid personal rating takes precedence over a shared rating, then the automatic AI rating. **Imported rating influence** replaces the 70/30 interest split for your personally imported matches: an influence of 50% means equal parts imported rating and Outlook score. Shared ratings use the blend their publisher saved. Neither changes the 95/5 interest/league-priority split; your league order still applies.
 
 Personal and shared ratings reflect the preferences in the prompt that produced them, so they need not match the site's standard rating dimensions below. Both expire 24 hours after their original prompt; publishing does not renew them. **Restore site recommendations** removes your personal import and returns to shared or automatic recommendations without deleting the shared defaults. See [Use your own AI for blurbs](user-guide.md#use-your-own-ai-for-blurbs).
+
+Turning off **Settings → AI → Show AI headlines and match blurbs** hides text only. It does not disable AI ratings or change any of these scoring rules.
 
 The browser ranks by the unrounded blend. Tooltips and dots use the score rounded to one decimal. A tooltip identifies the rating model and lists the score's parts.
 
@@ -83,7 +85,7 @@ Here rank starts at 1. The denominator uses the **full league list**, including 
 
 At the default 5% weight, moving a league from last to first adds five pick-score points. This is a small preference boost, not a strict tie breaker: it can change the order of matches with different interest scores.
 
-Without a saved order, the browser uses `LEAGUES` in `build.py`. That configured order applies in both AI designs; an AI response does not override it. The first 13 competitions below are enabled by default. All others start disabled, including lower-division domestic leagues and national-team competitions; a US national-team match does not bypass that setting. You can enable these competitions in Lineup. Disabled choices appear alphabetically there, but retain the positions below for scoring until the visitor changes the order.
+Without a saved order, the browser uses `LEAGUES` in `build.py`. That configured order applies in both AI designs; an AI response does not override it. The first 13 competitions below are enabled by default. All others start disabled, including lower-division domestic leagues and national-team competitions; a US national-team match does not bypass that setting. You can enable these competitions in **Settings → Leagues**. Disabled choices appear alphabetically there, but retain the positions below for scoring until the visitor changes the order.
 
 | Rank | Competition | Rank | Competition |
 | ---: | --- | ---: | --- |

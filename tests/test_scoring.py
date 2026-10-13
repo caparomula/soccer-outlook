@@ -247,7 +247,8 @@ class PageScoring(unittest.TestCase):
     def test_the_footer_names_the_model_and_what_it_does(self):
         full = self.footer(render_page(build, design="full", model="claude-opus-5-5"))
         self.assertIn("written by Claude, Anthropic&#x27;s AI model (claude-opus-5-5)", full)
-        self.assertIn("a sourced blurb for every rated match", full)
+        self.assertIn("An authored headline appears at the top only while its referenced matches pass your filters", full)
+        self.assertIn("supporting text is collapsed under Read more", full)
         haiku = self.footer(render_page(build, model="claude-haiku-5-5"))
         self.assertIn("claude-haiku-5-5, an Anthropic AI model, is asked to rate the matches", haiku)
         gemini = self.footer(render_page(build, model="gemini-3.1-flash-lite"))
@@ -325,7 +326,8 @@ class PageScoring(unittest.TestCase):
         self.assertIn("not predicted results. Site-generated blurbs are turned off", no_overview)
         with patch.object(build, "SETTINGS", replace(fixture_settings(build), overview_model="gemini-3.1-pro-preview", overview_effort="medium")):
             footer = build.about_ai()
-        self.assertIn("Then gemini-3.1-pro-preview, a Google AI model, searches the web and writes the overview at the top (marked AI Summary)", footer)
+        self.assertIn("Then gemini-3.1-pro-preview, a Google AI model, searches the web and writes an overview paragraph for the generated AI data", footer)
+        self.assertIn("That paragraph is not displayed in the headline area", footer)
         self.assertIn("published only with a page its own search returned", footer)
         self.assertNotIn("the page shows no AI-written text", footer)
 

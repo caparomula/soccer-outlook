@@ -118,7 +118,9 @@ class BrowserChecks(unittest.TestCase):
     def drag_filter(self, page, source, target, *, touch=False, cancel=False):
         """Exercise pointer capture and edge scrolling, including destinations off screen."""
         grip = page.locator(source).locator('.fpill__grip')
-        grip.scroll_into_view_if_needed()
+        # Center the grip in the scroll area: a sticky settings header can cover an
+        # element that Playwright otherwise considers inside the viewport.
+        grip.evaluate("el => el.scrollIntoView({block: 'center', inline: 'nearest'})")
         start = grip.bounding_box()
         x, y = start['x'] + start['width'] / 2, start['y'] + start['height'] / 2
         session = page.context.new_cdp_session(page) if touch else None
@@ -139,11 +141,20 @@ class BrowserChecks(unittest.TestCase):
         for _ in range(35):
             destination = page.locator(target).bounding_box()
             panel = page.locator('#drawer').bounding_box()
-            tx, ty = destination['x'] + 3, destination['y'] + min(15, destination['height'] / 2)
-            if panel['y'] + 45 <= ty <= panel['y'] + panel['height'] - 75:
-                move(tx, ty)
+            chrome = page.locator('.drawer__chrome').bounding_box()
+            footer = page.locator('.drawer__foot').bounding_box()
+            tx = destination['x'] + 3
+            if page.locator(target).evaluate("el => !!el.closest('.drawer__chrome')"):
+                move(tx, destination['y'] + destination['height'] / 2)
                 break
-            edge_y = panel['y'] + 20 if ty < panel['y'] + 45 else panel['y'] + panel['height'] - 60
+            content_top = max(panel['y'], chrome['y'] + chrome['height']) + 4
+            content_bottom = min(panel['y'] + panel['height'], footer['y']) - 4
+            low = max(destination['y'] + 3, content_top)
+            high = min(destination['y'] + destination['height'] - 3, content_bottom)
+            if low <= high:
+                move(tx, min(high, max(low, destination['y'] + 15)))
+                break
+            edge_y = panel['y'] + 20 if destination['y'] < content_top else panel['y'] + panel['height'] - 60
             move(panel['x'] + panel['width'] / 2, edge_y)
             page.clock.run_for(180)
         else:
@@ -331,10 +342,10 @@ class BrowserChecks(unittest.TestCase):
         html = render_page(build, fixtures=fixtures, team_names=names, league_logos=True)
         for width in (1280, 820, 600, 390, 320):
             with self.subTest(width=width), self.page("after", width=width, html=html) as (page, _):
-                page.locator('#btn-menu').click()
+                self.open_settings(page)
                 page.locator('#btn-select-services').click()      # every match on a service, whichever carries it
                 page.locator('#btn-filters-close').click()
-                # The masthead (title, tally) above the bar: Lineup, the league strip and the coffee link, on one line
+                # The masthead (title, tally) above the bar: Settings, the league strip and the coffee link, on one line
                 # at every width; the view toggle is gone.
                 expect(page.locator('#bar #btn-menu')).to_have_count(1)
                 expect(page.locator('#btn-mine, #btn-all, #bar .seg')).to_have_count(0)
@@ -378,9 +389,10 @@ class BrowserChecks(unittest.TestCase):
             with self.subTest(target=target), self.page(target) as (page, _):
                 row = page.locator('li.row[data-id="upcoming"]')
                 expect(row).to_have_attribute("data-svc", "yttv")
-                page.locator("#btn-menu").click()
+                self.open_settings(page)
                 page.locator("#btn-clear").click()
                 expect(row).to_be_hidden()
+                self.open_settings(page)
                 page.locator('[data-kind="have"][data-key="espn"]').click()
                 page.locator("#btn-filters-close").click()
                 expect(row).to_be_visible()
@@ -411,6 +423,7 @@ class BrowserChecks(unittest.TestCase):
             page.locator("#btn-menu").click()
             for key in ("foxone", "foxlocal", "fs1", "fs2", "foxdeportes", "btn"):
                 expect(service(key)).to_have_attribute("aria-pressed", "false")
+            self.open_settings(page)
             page.locator("#btn-clear").click()
             service("fs1").click()
             page.locator("#btn-filters-close").click()
@@ -489,6 +502,7 @@ class BrowserChecks(unittest.TestCase):
                     expect(service(key)).to_have_attribute("aria-pressed", "true" if key == "yttv" else "false")
                 self.assertLessEqual(page.evaluate("document.documentElement.scrollWidth"), width)
                 self.assertLessEqual(page.locator("#drawer").evaluate("el => el.scrollWidth - el.clientWidth"), 1)
+                self.open_settings(page)
                 page.locator("#btn-clear").click()
                 service("yttv").click()
                 page.locator("#btn-filters-close").click()
@@ -511,13 +525,13 @@ class BrowserChecks(unittest.TestCase):
                                  {"yttv", "yttvsportsplus", "yttvspanishplus"})
 
                 # A standalone Spanish plan does not silently include the English sports plan.
-                page.locator("#btn-menu").click()
+                self.open_settings(page)
                 page.locator("#btn-clear").click()
                 service("yttvspanish").click()
                 page.locator("#btn-filters-close").click()
                 check_matches(page, {"yt-foxdeportes"})
 
-                page.locator("#btn-menu").click()
+                self.open_settings(page)
                 page.locator("#btn-clear").click()
                 service("yttvsports").click()
                 page.locator("#btn-filters-close").click()
@@ -541,9 +555,10 @@ class BrowserChecks(unittest.TestCase):
                                      team_names=names)
 
         def choose(page, *services):
-            page.locator("#btn-menu").click()
+            self.open_settings(page)
             page.locator("#btn-clear").click()
             for service in services:
+                self.open_settings(page)
                 page.locator(f'[data-kind="have"][data-key="{service}"]').click()
             page.locator("#btn-filters-close").click()
 
@@ -574,7 +589,7 @@ class BrowserChecks(unittest.TestCase):
                 expect(page.locator("#nextup .chip")).to_contain_text("YouTube TV Spanish Plus")
                 expect(page.locator("#nextup a.chip--link")).to_have_count(0)
                 expect(page.locator("#tally-n")).to_have_text("1")
-                page.locator("#btn-menu").click()
+                self.open_settings(page)
                 page.locator('[data-kind="have"][data-key="yttvspanishplus"]').click()
                 page.locator("#btn-filters-close").click()
                 unavailable(page)
@@ -653,7 +668,7 @@ class BrowserChecks(unittest.TestCase):
                     expect(row.locator(".pills")).to_contain_text("Univision")
 
                     # The main plan, without any Spanish add-on, grants the listed coverage.
-                    page.locator("#btn-menu").click()
+                    self.open_settings(page)
                     page.locator("#btn-clear").click()
                     service.click()
                     page.locator("#btn-filters-close").click()
@@ -732,23 +747,27 @@ class BrowserChecks(unittest.TestCase):
                 assert_all_shapes(page)
                 # Distinct networks stay underneath the selected provider. A direct subscription
                 # removes only its identical network chip, and switching back restores it.
-                page.locator("#btn-menu").click()
+                self.open_settings(page)
                 page.locator('[data-kind="have"][data-key="peacock"]').click()
+                self.open_settings(page)
                 page.locator('[data-kind="have"][data-key="yttv"]').click()
                 page.locator("#btn-filters-close").click()
                 assert_all_shapes(page, service="Peacock", networks=["USA Network"])
-                page.locator("#btn-menu").click()
+                self.open_settings(page)
                 page.locator('[data-kind="have"][data-key="yttv"]').click()
                 page.locator("#btn-filters-close").click()
                 assert_all_shapes(page)
-                page.locator("#btn-menu").click()
+                self.open_settings(page)
                 page.locator('[data-kind="have"][data-key="peacock"]').click()
+                self.open_settings(page)
                 page.locator('[data-kind="have"][data-key="yttv"]').click()
+                self.open_settings(page)
                 page.locator('[data-kind="have"][data-key="usa"]').click()
                 page.locator("#btn-filters-close").click()
                 assert_all_shapes(page, service="USA Network", networks=["Peacock"])
-                page.locator("#btn-menu").click()
+                self.open_settings(page)
                 page.locator('[data-kind="have"][data-key="usa"]').click()
+                self.open_settings(page)
                 page.locator('[data-kind="have"][data-key="yttv"]').click()
                 page.locator("#btn-filters-close").click()
                 assert_all_shapes(page)
@@ -887,7 +906,7 @@ class BrowserChecks(unittest.TestCase):
 
                 # Saved preferences also govern links after reload; a retired Everything
                 # preference must not grant access to any streaming destination.
-                page.locator("#btn-menu").click()
+                self.open_settings(page)
                 page.locator("#btn-clear").click()
                 page.locator("#btn-filters-close").click()
                 page.evaluate("localStorage.setItem('ssg2-mode', JSON.stringify('all'))")
@@ -982,7 +1001,7 @@ class BrowserChecks(unittest.TestCase):
                 expect(page.locator('[data-kind="have"][aria-pressed="true"]')).to_have_count(len(remaining))
                 self.assertEqual(page.evaluate("JSON.parse(localStorage.getItem('ssg3-have'))"), remaining)
                 if not remaining:
-                    page.locator("#btn-menu").click()
+                    self.open_settings(page)
                     page.locator('#have-disabled [data-key="espn"]').click()
                     self.assertEqual(self.strip_ids(page), ["eng.1"])
                     expect(page.locator('#league-strip-list [data-league="eng.1"]')).to_have_attribute("aria-pressed", "false")
@@ -1023,9 +1042,11 @@ class BrowserChecks(unittest.TestCase):
                 self.assertLessEqual(page.evaluate("document.documentElement.scrollWidth"), width)
                 page.locator("#drawer").screenshot(path=str(self.artifacts / f"bulk-filters-{width}.png"))
 
+                self.open_settings(page)
                 page.get_by_role("button", name="Select all broadcasters", exact=True).click()
                 expect(page.locator('[data-kind="have"][aria-pressed="true"]')).to_have_count(len(build.SERVICES))
                 self.assertEqual(keys(page, "comp", "false"), hidden_leagues)
+                self.open_settings(page, "leagues")
                 page.get_by_role("button", name="Clear all leagues", exact=True).click()
                 expect(page.locator('li.row:visible')).to_have_count(0)
                 expect(page.locator('[data-kind="have"][aria-pressed="true"]')).to_have_count(len(build.SERVICES))
@@ -1033,9 +1054,10 @@ class BrowserChecks(unittest.TestCase):
                 self.assertEqual(keys(page, "comp", "false"), set(leagues))
                 expect(page.locator('[data-kind="have"][aria-pressed="true"]')).to_have_count(len(build.SERVICES))
 
-                page.locator("#btn-menu").click()
+                self.open_settings(page, "leagues")
                 page.get_by_role("button", name="Select all leagues", exact=True).click()
                 expect(page.locator('li.row:visible')).to_have_count(len(leagues))
+                self.open_settings(page)
                 page.get_by_role("button", name="Clear all broadcasters", exact=True).click()
                 expect(page.locator('li.row:visible')).to_have_count(0)
                 self.assertEqual(keys(page, "comp", "true"), set(leagues))
@@ -1104,7 +1126,7 @@ class BrowserChecks(unittest.TestCase):
                 # WebKit exercises the same pointer-capture drag at both widths with a mouse;
                 # its native touch taps are covered by the Details-dialog check.
                 touch = width <= 600 and self.engine == "chromium"
-                page.locator('#btn-menu').click()
+                self.open_settings(page, "leagues")
 
                 def alphabetical(kind):
                     names = build.SERVICES if kind == 'have' else {lg: info['name'] for lg, info in build.LEAGUES.items()}
@@ -1124,14 +1146,16 @@ class BrowserChecks(unittest.TestCase):
                 alphabetical('comp')
                 page.reload()
                 expect(page.locator('#comp-disabled [data-key="eng.1"]')).to_have_count(1)
-                page.locator('#btn-menu').click()
+                self.open_settings(page, "leagues")
                 self.drag_filter(page, league, '#comp-enabled [data-key="esp.1"]', touch=touch)
                 expect(page.locator('#comp-enabled .fpill').first).to_have_attribute('data-key', 'eng.1')
                 expect(page.locator('li.row[data-id="eng.1"]')).to_be_visible()
+                self.open_settings(page, "leagues")
                 page.locator('#btn-clear-leagues').click()
                 expect(page.locator('#comp-enabled .fpill')).to_have_count(0)
                 self.drag_filter(page, league, on, touch=touch)
                 expect(page.locator('#comp-enabled .fpill')).to_have_attribute('data-key', 'eng.1')
+                self.open_settings(page, "leagues")
                 page.locator('#btn-select-leagues').click()
                 expect(page.locator('#comp-disabled .fpill')).to_have_count(0)
                 self.drag_filter(page, '#comp-pills [data-key="esp.1"]', off, touch=touch)
@@ -1139,18 +1163,22 @@ class BrowserChecks(unittest.TestCase):
                 self.drag_filter(page, league, off, touch=touch, cancel=True)
                 expect(page.locator('#drawer')).to_be_hidden()
                 expect(page.locator('#comp-enabled [data-key="eng.1"]')).to_have_count(1)
-                page.locator('#btn-menu').click()
-                self.drag_filter(page, league, '.filter-area[data-filter-kind="have"][data-enabled="false"]', touch=touch)
+                self.open_settings(page, "leagues")
+                # Another settings tab is not a valid league drop area.
+                self.drag_filter(page, league, '#settings-tab-lineup', touch=touch)
                 expect(page.locator('#comp-enabled [data-key="eng.1"]')).to_have_count(1)
+                self.open_settings(page)
                 network = '#have-pills [data-key="yttv"]'
                 self.drag_filter(page, network, '.filter-area[data-filter-kind="have"][data-enabled="false"]', touch=touch)
                 expect(page.locator('#have-disabled [data-key="yttv"]')).to_have_attribute('aria-pressed', 'false')
                 expect(page.locator('li.row[data-id="eng.1"]')).to_be_hidden()
                 alphabetical('have')
+                self.open_settings(page)
                 page.locator('#btn-clear').click()
                 self.drag_filter(page, network, '.filter-area[data-filter-kind="have"][data-enabled="true"]', touch=touch)
                 expect(page.locator('#have-enabled .fpill')).to_have_attribute('data-key', 'yttv')
                 expect(page.locator('li.row[data-id="eng.1"]')).to_be_visible()
+                self.open_settings(page)
                 page.locator('#have-disabled [data-key="espnplus"]').click()
                 preferred = page.locator('#have-enabled [data-key="espnplus"]')
                 preferred.focus(); preferred.press('Alt+ArrowUp')
@@ -1159,13 +1187,14 @@ class BrowserChecks(unittest.TestCase):
                 page.reload()
                 expect(page.locator('#have-enabled .fpill').first).to_have_attribute('data-key', 'espnplus')
                 expect(page.locator('#comp-disabled .fpill')).to_have_attribute('data-key', 'esp.1')
-                page.locator('#btn-menu').click()
+                self.open_settings(page)
                 page.locator('#btn-reset').click()
                 self.assertIsNone(page.evaluate("localStorage.getItem('ssg4-service-order')"))
                 expect(page.locator('#have-enabled .fpill')).to_have_count(len(build.OWNER))
                 expect(page.locator('#comp-disabled .fpill')).to_have_count(2)
                 alphabetical('have'); alphabetical('comp')
                 self.assertLessEqual(page.locator('#drawer').evaluate('el => el.scrollWidth - el.clientWidth'), 1)
+                self.open_settings(page, "leagues")
                 page.locator('#comp-enabled-h').scroll_into_view_if_needed()
                 page.screenshot(path=str(self.artifacts / f'grouped-filters-{width}.png'))
 
@@ -1301,6 +1330,7 @@ class BrowserChecks(unittest.TestCase):
             expect(page.locator("#picks-section")).to_be_hidden()
             page.locator("#btn-menu").click()
             expect(page.locator("#drawer")).to_be_visible()
+            self.open_settings(page)
             page.locator("#btn-clear").click()
             expect(page.locator("#filter-sum")).to_contain_text("0 services")
             page.locator("#btn-reset").click()
@@ -1328,11 +1358,13 @@ class BrowserChecks(unittest.TestCase):
             expect(summary).to_contain_text("Next kickoff · 1:05 pm")
             expect(page.locator("#forecast, #forecast-later")).to_have_count(0)
             expect(page.locator("#eyebrow")).to_have_text("Wednesday, October 7")   # the schedule runs past 24 hours
-            page.locator("#btn-menu").click()
+            self.open_settings(page, "leagues")
             page.locator('[data-kind="comp"][data-key="eng.1"]').click()
             expect(summary).to_contain_text("Next 24 hours: 6 matches hidden by competition filters.")
             expect(summary).not_to_contain_text("Next kickoff")
+            self.open_settings(page, "leagues")
             page.locator('[data-kind="comp"][data-key="eng.1"]').click()
+            self.open_settings(page)
             page.locator("#btn-clear").click()
             expect(summary).to_contain_text("No services selected")
 
@@ -1349,7 +1381,7 @@ class BrowserChecks(unittest.TestCase):
         story["forecast"]["items"] = [part]
         with self.page("after", html=html, story=story) as (page, _):
             # Exercise broadcast availability independently of the default league exclusions.
-            page.locator("#btn-menu").click()
+            self.open_settings(page, "leagues")
             page.locator('#comp-pills [data-key="fifa.friendly.w"]').click()
             page.locator("#btn-filters-close").click()
             for mid in ("unlisted", "unknown", "off-lineup", "usual-off-lineup"):
@@ -1364,7 +1396,7 @@ class BrowserChecks(unittest.TestCase):
             # With every service selected, the Peacock match comes in; those with unconfirmed coverage stay out, as the
             # "Everything" view that showed them is gone (8 October 2026): nothing listed and no usual home (the
             # Premier League has none this season, so usual-off-lineup is one), or a channel the page doesn't know.
-            page.locator("#btn-menu").click()
+            self.open_settings(page)
             page.locator("#btn-select-services").click()
             page.locator("#btn-filters-close").click()
             expect(page.locator('li.row[data-id="off-lineup"]')).to_be_visible()
@@ -1378,7 +1410,7 @@ class BrowserChecks(unittest.TestCase):
             fixtures = [(str(i), "2026-10-07T18:00:00+00:00", "pre", "ESPN+", league)
                         for i, league in enumerate(leagues)]
             with self.subTest(leagues=leagues), self.page("after", html=render_page(build, fixtures=fixtures)) as (page, _):
-                page.locator("#btn-menu").click()
+                self.open_settings(page, "leagues")
                 page.get_by_role("button", name="Select all leagues", exact=True).click()
                 page.locator("#btn-filters-close").click()
                 summary = page.locator("#schedule-summary")
@@ -1402,7 +1434,7 @@ class BrowserChecks(unittest.TestCase):
             expect(summary).to_contain_text("1 listed on your services; 1 with usual coverage on your services (not yet listed); 1 with unconfirmed coverage")
             expect(summary).to_contain_text("Some fixtures may be missing")
             # With every service, the Peacock match joins the simultaneous kickoffs; the unrecognized channel doesn't.
-            page.locator("#btn-menu").click()
+            self.open_settings(page)
             page.locator("#btn-select-services").click()
             page.locator("#btn-filters-close").click()
             expect(summary).to_contain_text("2 listed on your services")
@@ -1435,75 +1467,74 @@ class BrowserChecks(unittest.TestCase):
                 "forecast": {"items": [item("Context for Chicago and Vancouver.", "mls"),
                                        item("Context for the Spanish match.", "spain")]}}
 
-    def test_one_overview_changes_with_competitions_and_services(self):
+    def test_published_headline_requires_all_referenced_matches_to_pass_filters(self):
         fixtures = [("mls", "2026-10-07T18:00:00+00:00", "pre", "Apple TV", "usa.1"),
                     ("spain", "2026-10-07T19:00:00+00:00", "pre", "ESPN+", "esp.1")]
         story = self.tagged_story()
-        story["lede_items"] = []
-        story["league_blurbs"] = [dict(item, interest=80 - i, league_id=league)
-                                   for i, (item, league) in enumerate(zip(story["forecast"]["items"], ("usa.1", "esp.1")))]
+        story["headline"] = "Two playoff races reach a turning point"
+        story["headline_segments"] = [{"text": story["headline"], "match_ids": ["mls", "spain"]}]
         for width in (1280, 390):
             with self.subTest(width=width), self.page("after", html=render_page(build, fixtures=fixtures), story=story, width=width) as (page, _):
-                editorial = page.locator("#story-lede")
-                expect(editorial.locator('.editorial-item')).to_have_count(1)
-                expect(editorial).to_contain_text("Context for Chicago and Vancouver.")
-                expect(editorial.locator('.editorial-tags, .editorial-tag')).to_have_count(0)
-                expect(editorial.locator('.editorial-part[data-matches="mls"]')).to_have_text("Context for Chicago and Vancouver.")
-                page.locator("#btn-menu").click()
+                expect(page.locator("#story-h")).to_have_text(story["headline"])
+                expect(page.locator("#story")).to_be_visible()
+                expect(page.locator("#story-lede")).to_be_hidden()
+                expect(page.locator("#story-details")).not_to_have_attribute("open", "")
+                expect(page.locator('.editorial-tags, .editorial-tag')).to_have_count(0)
+                self.open_settings(page, "leagues")
                 page.locator('#comp-pills [data-key="usa.1"]').click()
-                expect(editorial).to_contain_text("Context for the Spanish match.")
-                expect(editorial.locator('.editorial-item')).to_have_count(1)
+                expect(page.locator("#story")).to_be_hidden()
+                self.open_settings(page, "leagues")
+                page.locator('#comp-pills [data-key="usa.1"]').click()
+                expect(page.locator("#story-h")).to_have_text(story["headline"])
+                self.open_settings(page)
+                page.locator('[data-kind="have"][data-key="apple"]').click()
+                expect(page.locator("#story")).to_be_hidden()
+                self.open_settings(page)
+                page.locator('[data-kind="have"][data-key="apple"]').click()
+                expect(page.locator("#story")).to_be_visible()
+                self.open_settings(page)
                 page.locator("#btn-clear").click()
-                expect(editorial).to_be_hidden()
-                page.locator('[data-kind="have"][data-key="espn"]').click()
-                expect(editorial).to_contain_text("Context for the Spanish match.")
-                expect(editorial).not_to_contain_text("Context for Chicago")
+                expect(page.locator("#story")).to_be_hidden()
                 page.locator("#btn-filters-close").click()
 
-    def test_one_phrase_dims_without_changing_other_league_or_connecting_words(self):
+    def test_published_headlines_reject_missing_mismatched_and_invalid_references(self):
         fixtures = [("mls", "2026-10-07T18:00:00+00:00", "pre", "Apple TV", "usa.1"),
-                    ("pl", "2026-10-07T19:00:00+00:00", "pre", "ESPN+", "eng.1")]
-        story = self.tagged_story()
-        parts = [{"text": "This evening ", "match_ids": []}, {"text": "MLS", "match_ids": ["mls"]},
-                 {"text": " and ", "match_ids": []}, {"text": "the Premier League", "match_ids": ["pl"]},
-                 {"text": " have matches.", "match_ids": []}]
-        item = {"segments": parts, "sources": []}
-        story["lede_items"] = [item]
-        story["forecast"]["items"] = [item]
-        story["headline_segments"] = parts
-        for theme in ("light", "dark"):
-            with self.subTest(theme=theme), self.page("after", html=render_page(build, fixtures=fixtures), story=story, theme=theme) as (page, _):
-                page.locator("#btn-menu").click()
-                # Explicitly select both relevant services, independent of the owner's defaults.
-                page.locator("#btn-clear").click()
-                page.locator('[data-kind="have"][data-key="espn"]').click()
-                page.locator('[data-kind="have"][data-key="apple"]').click()
-                for host in ("#story-lede",):
-                    expect(page.locator(host + " .editorial-part--filtered")).to_have_count(0)
-                page.locator('[data-kind="have"][data-key="apple"]').click()
-                for host in ("#story-lede",):
-                    expect(page.locator(host + " .editorial-part--filtered")).to_have_text("MLS")
-                    expect(page.locator(host + ' .editorial-part[data-matches="pl"]')).to_have_class("editorial-part")
-                    expect(page.locator(host + ' .editorial-part[data-matches="mls"]')).to_have_css("text-decoration-line", "none")
-                    expect(page.locator(host)).to_contain_text("This evening MLS and the Premier League have matches.")
-                page.locator("#btn-filters-close").click()
-                self.full_page_shot(page, f"phrases-{theme}.png")
-                page.locator("#btn-menu").click()
-                page.locator('#comp-pills [data-key="usa.1"]').click()
-                expect(page.locator("#story-lede .editorial-part--filtered")).to_have_text("MLS")
+                    ("finished", "2026-10-07T16:00:00+00:00", "post", "ESPN+", "eng.1"),
+                    ("far", "2026-10-12T18:00:00+00:00", "pre", "Apple TV", "usa.1")]
+        for kind in ("missing", "blank", "long", "mismatched", "unreferenced", "unknown", "mixed", "completed", "outside-window", "expired"):
+            story = self.tagged_story()
+            if kind == "missing":
+                story.pop("headline")
+            elif kind == "blank":
+                story["headline"] = "   "
+            elif kind == "long":
+                story["headline"] = "A" * 161
+                story["headline_segments"][0]["text"] = story["headline"]
+            elif kind == "expired":
+                story["focus_until"] = "2026-10-07T16:59:00Z"
+            elif kind == "mismatched":
+                story["headline_segments"][0]["text"] = "Different prose is not the title"
+            else:
+                story["headline_segments"][0]["match_ids"] = {
+                    "unreferenced": [], "unknown": ["missing"], "mixed": ["mls", "missing"], "completed": ["finished"], "outside-window": ["far"]}[kind]
+            with self.subTest(kind=kind), self.page("after", html=render_page(build, fixtures=fixtures), story=story) as (page, _):
+                expect(page.locator("#story")).to_be_hidden()
+                expect(page.locator("#nextup")).to_have_attribute("data-match-id", "mls")
+                self.assertNotIn("Match outlook", page.locator("body").inner_text())
 
-    def test_main_paragraph_leads_directly_to_cards(self):
+    def test_authored_headline_stays_compact_above_match_cards(self):
         fixtures = [("mls", "2026-10-07T18:00:00+00:00", "pre", "Apple TV", "usa.1"),
                     ("spain", "2026-10-07T19:00:00+00:00", "pre", "ESPN+", "esp.1")]
         story = self.tagged_story()
         story["league_blurbs"] = [dict(story["lede_items"][0], league_id="usa.1", interest=100)]
         for width in (1280, 390):
             with self.subTest(width=width), self.page("after", width=width, html=render_page(build, fixtures=fixtures), story=story) as (page, _):
-                expect(page.locator("p#story-lede")).to_have_text("An MLS storyline. A Spanish storyline.")
-                expect(page.locator("#story-lede p, #story-lede div, #story-lede .editorial-tags")).to_have_count(0)
+                expect(page.locator("#story-h")).to_have_text("Fixture headline")
+                expect(page.locator("#story-lede")).to_be_hidden()
+                expect(page.locator("#story-details")).not_to_have_attribute("open", "")
                 expect(page.locator('#story-tags, .editorial-tags, .editorial-tag')).to_have_count(0)
                 expect(page.locator("#period-h")).to_have_count(0)
-                # The top card is a section of its own, headed, after the overview and before the picks.
+                # The top card follows the authored headline and precedes the picks.
                 self.assertEqual(page.locator("#story").evaluate("el => el.nextElementSibling.id"), "nextup-section")
                 self.assertEqual(page.locator("#nextup-section").evaluate("el => el.nextElementSibling.id"), "picks-section")
                 expect(page.locator("#nextup-h")).to_have_text("Next up")
@@ -1522,7 +1553,7 @@ class BrowserChecks(unittest.TestCase):
                 self.assertLess(hero["y"] + hero["height"], page.viewport_size["height"])
                 self.full_page_shot(page, f"compact-opening-{width}.png")
 
-    def test_league_blurbs_choose_interest_after_time_and_service_filters(self):
+    def test_league_blurbs_remain_in_filtered_match_cards_without_becoming_headlines(self):
         fixtures = [("upcoming", "2026-10-07T17:05:00+00:00", "pre", "ESPN+", "esp.1"),
                     ("mls", "2026-10-07T19:00:00+00:00", "pre", "Apple TV", "usa.1"),
                     ("off", "2026-10-07T20:00:00+00:00", "pre", "Peacock", "usa.nwsl"),
@@ -1530,6 +1561,7 @@ class BrowserChecks(unittest.TestCase):
                     ("france", "2026-10-09T20:00:00+00:00", "pre", "FS1", "fra.1"),
                     ("far", "2026-10-10T20:00:00+00:00", "pre", "ESPN+", "ita.1")]
         story = self.tagged_story()
+        story.pop("headline")
         story["lede_items"], story["forecast"] = [], {"items": []}
         story["league_blurbs"] = [dict(league_id=league, interest=interest,
                                             segments=[{"text": text, "match_ids": [mid]}], sources=[])
@@ -1542,33 +1574,41 @@ class BrowserChecks(unittest.TestCase):
                                        ("far", "ita.1", 100, "Saturday Italian context."))]
         for width in (1280, 390):
             with self.subTest(width=width), self.page("after", width=width, html=render_page(build, fixtures=fixtures), story=story) as (page, feed):
-                # Exercise news ranking independently of the owner's league defaults.
-                page.locator("#btn-menu").click()
+                # Exercise match notes independently of the owner's league defaults.
+                self.open_settings(page, "leagues")
                 page.get_by_role("button", name="Select all leagues", exact=True).click()
+                self.open_settings(page)
                 page.locator('[data-kind="have"][data-key="fs1"]').click()
                 page.locator("#btn-filters-close").click()
-                lede = page.locator("p#story-lede")
-                expect(lede).to_have_text("MLS match context.")
-                expect(page.locator("#story-lede .editorial-item")).to_have_count(1)
-                page.locator("#btn-menu").click()
+                expect(page.locator("#story")).to_be_hidden()
+                expect(page.locator('li.row[data-id="mls"] .row__story')).to_contain_text("MLS match context.")
+                expect(page.locator('li.row[data-id="upcoming"] .row__story')).to_contain_text("Spanish match context.")
+                self.open_settings(page)
                 page.locator('[data-kind="have"][data-key="apple"]').click()
-                expect(lede).to_have_text("Spanish match context.")
+                expect(page.locator('li.row[data-id="mls"]')).to_be_hidden()
                 feed["data"] = scoreboard("post")
                 page.clock.run_for(60000)
-                expect(lede).to_have_text("Friday Premier League context.")
-                expect(page.locator("#story-h")).to_have_text("Match outlook · Further ahead")
+                expect(page.locator("#story")).to_be_hidden()
+                expect(page.locator("#nextup")).to_have_attribute("data-match-id", "pl")
+                expect(page.locator("#nextup .row__story")).to_contain_text("Friday Premier League context.")
+                self.open_settings(page, "leagues")
                 page.locator('#comp-pills [data-key="eng.1"]').click()
-                expect(lede).to_have_text("Friday French match context.")
+                expect(page.locator("#nextup")).to_have_attribute("data-match-id", "france")
+                expect(page.locator("#nextup .row__story")).to_contain_text("Friday French match context.")
                 page.locator("#btn-filters-close").click()
                 self.full_page_shot(page, f"league-fallback-{width}.png")
-                page.locator("#btn-menu").click()
+                self.open_settings(page)
                 page.locator("#btn-clear").click()
                 expect(page.locator("#story")).to_be_hidden()
+                self.open_settings(page)
                 page.locator('[data-kind="have"][data-key="fs1"]').click()
-                expect(lede).to_have_text("Friday French match context.")
+                expect(page.locator("#nextup")).to_have_attribute("data-match-id", "france")
+                expect(page.locator("#nextup .row__story")).to_contain_text("Friday French match context.")
+                self.open_settings(page)
                 page.locator('[data-kind="have"][data-key="fs1"]').click()
+                self.open_settings(page)
                 page.locator('[data-kind="have"][data-key="espn"]').click()
-                expect(lede).to_have_text("Saturday Italian context.")
+                expect(page.locator("#nextup .row__story")).to_contain_text("Saturday Italian context.")
                 expect(page.locator("#nextup")).to_have_attribute("data-match-id", "far")
                 # The top card follows the lineup, and so do the picks: with ESPN alone and the Premier League off,
                 # far, on the top card, is the only match left to watch, so there are none.
@@ -1600,7 +1640,7 @@ class BrowserChecks(unittest.TestCase):
                 self.full_page_shot(page, f"ranked-{width}.png")
                 # Without Apple TV the top card moves on, and the picks follow the lineup as the card does: best and
                 # low, on Apple TV, go, and near is what's left; none is ever marked as outside the lineup.
-                page.locator("#btn-menu").click()
+                self.open_settings(page)
                 page.locator('[data-kind="have"][data-key="apple"]').click()
                 expect(hero).to_have_attribute("data-match-id", "routine")
                 self.assertEqual(picks(), ["near"])
@@ -1608,11 +1648,13 @@ class BrowserChecks(unittest.TestCase):
                 expect(page.locator('#picks .pick[data-match-id="near"] .match__watch .chip')).to_have_text("YouTube TV (main plan)")
                 expect(page.locator('#picks .pick[data-match-id="near"] .pills > .pill:visible')).to_have_text(["ESPN+"])
                 # A hidden competition hides its matches from the picks as from the schedule.
+                self.open_settings(page, "leagues")
                 page.locator('#comp-pills [data-key="esp.1"]').click()
                 expect(hero).to_have_attribute("data-match-id", "routine")
                 expect(page.locator('li.row[data-id="near"]')).to_be_hidden()
                 expect(page.locator("#picks-section")).to_be_hidden()
                 # With no services at all there is neither a top card nor a pick.
+                self.open_settings(page)
                 page.locator("#btn-clear").click()
                 expect(hero).to_be_hidden()
                 expect(page.locator("#picks-section")).to_be_hidden()
@@ -1756,7 +1798,7 @@ class BrowserChecks(unittest.TestCase):
                 expect(page.locator('#match-dialog')).to_have_attribute('data-match-id', 'upcoming')
                 page.locator('#match-dialog-close').click()
                 page.clock.run_for(50)
-                page.locator('#btn-menu').click()
+                self.open_settings(page)
                 page.locator('[data-kind="have"][data-key="yttv"]').click()
                 expect(page.locator('#nextup')).to_have_attribute('data-match-id', 'mls')
                 expect(page.locator('#nextup')).not_to_have_class(re.compile(r'\bnextup--live\b'))
@@ -1766,6 +1808,7 @@ class BrowserChecks(unittest.TestCase):
                 # The picks follow the lineup too: the ESPN+ matches go with YouTube TV, and the lineup has nothing else.
                 expect(page.locator('#picks-section')).to_be_hidden()
                 expect(page.locator('li.row[data-id="future"]')).to_be_hidden()
+                self.open_settings(page)
                 page.locator('[data-kind="have"][data-key="yttv"]').click()
                 self.assertEqual(page.locator('#picks .pick').evaluate_all('els => els.map(e => e.dataset.matchId)'), ['mls', 'future', 'fourth'])
                 page.locator('#btn-filters-close').click()
@@ -1807,18 +1850,23 @@ class BrowserChecks(unittest.TestCase):
                 expect(count).to_have_text("10:00")
                 # It follows the lineup both ways: a service added brings its sooner kickoff to the card, and taking
                 # the service away gives the card back.
-                page.locator("#btn-menu").click()
+                self.open_settings(page, "leagues")
                 page.locator('#comp-pills [data-key="ned.1"]').click()
                 expect(card).to_have_attribute("data-match-id", "dutch")
                 expect(count).to_have_text("8:00")
+                self.open_settings(page, "leagues")
                 page.locator('#comp-pills [data-key="ned.1"]').click()
                 expect(card).to_have_attribute("data-match-id", "upcoming")
+                self.open_settings(page)
                 page.locator('[data-kind="have"][data-key="yttv"]').click()
                 expect(card).to_have_attribute("data-match-id", "apple")
+                self.open_settings(page)
                 page.locator('[data-kind="have"][data-key="yttv"]').click()
+                self.open_settings(page)
                 page.locator('[data-kind="have"][data-key="peacock"]').click()
                 expect(page.locator('li.row[data-id="elsewhere"]')).to_be_visible()
                 expect(card).to_have_attribute("data-match-id", "elsewhere")
+                self.open_settings(page)
                 page.locator('[data-kind="have"][data-key="peacock"]').click()
                 expect(card).to_have_attribute("data-match-id", "upcoming")
                 page.locator("#btn-filters-close").click()
@@ -1852,7 +1900,7 @@ class BrowserChecks(unittest.TestCase):
                 expect(card).not_to_have_class(re.compile(r"\bnextup--live\b"))
                 expect(count).to_have_text("Awaiting score")
                 # Nothing on the lineup, no card.
-                page.locator("#btn-menu").click()
+                self.open_settings(page)
                 page.locator("#btn-clear").click()
                 expect(card).to_be_hidden()
                 self.assertIsNone(card.get_attribute("data-match-id"))
@@ -1932,7 +1980,7 @@ class BrowserChecks(unittest.TestCase):
                 liga = page.locator('#league-strip-list [data-league="esp.1"]')
                 liga.click()                                                             # La Liga hidden for now
                 page.evaluate("window.scrollTo(0, 2200)")
-                # Deep in the page Lineup, the league strip and the coffee link are still at the top of the window.
+                # Deep in the page Settings, the league strip and the coffee link are still at the top of the window.
                 box = bar.bounding_box()
                 self.assertAlmostEqual(box["y"], 0, delta=1)
                 for control in (page.locator("#btn-menu"), liga, page.get_by_role("link", name="Buy me a coffee", exact=True)):
@@ -1958,7 +2006,7 @@ class BrowserChecks(unittest.TestCase):
                 expect(page.locator('li.row[data-id="m05"]')).to_be_hidden()
                 self.assertAlmostEqual(page.locator('li.row[data-id="m06"]').evaluate("el => el.getBoundingClientRect().top"), -10, delta=2)
                 page.clock.run_for(5000)       # the strip's note, and its Undo in the tab order, gone
-                # The Lineup panel opens right beneath its button, scrolled or not.
+                # Settings opens right beneath its button, scrolled or not.
                 page.locator("#btn-menu").click()
                 panel, menu = page.locator("#drawer").bounding_box(), page.locator("#btn-menu").bounding_box()
                 self.assertGreaterEqual(panel["y"], menu["y"] + menu["height"])
@@ -2063,6 +2111,7 @@ class BrowserChecks(unittest.TestCase):
                     "els => els.every(el => getComputedStyle(el).backgroundImage !== 'none')"))
                 self.assertLessEqual(page.locator('#drawer').evaluate('el => el.scrollWidth - el.clientWidth'), 1)
                 # La Liga up the enabled list from the keyboard: the order there is the league priority.
+                self.open_settings(page, "leagues")
                 page.locator('#comp-enabled [data-key="esp.1"]').focus()
                 page.keyboard.press('Alt+ArrowUp')
                 expect(page.locator('#drawer')).to_be_visible()
@@ -2072,6 +2121,7 @@ class BrowserChecks(unittest.TestCase):
                 expect(page.locator('#picks .pick:not([data-match-id="unconfirmed-live"])').first).to_have_attribute('data-match-id', 'esp')
                 page.locator('#btn-menu').click()
                 # Disabling La Liga takes its match from the picks as from the schedule.
+                self.open_settings(page, "leagues")
                 page.locator('#comp-pills [data-key="esp.1"] .lg').click()
                 expect(page.locator('li.row[data-id="esp"]')).to_be_hidden()
                 expect(page.locator('#picks [data-match-id="esp"]')).to_have_count(0)
@@ -2079,6 +2129,7 @@ class BrowserChecks(unittest.TestCase):
                 page.locator('#btn-reset').click()
                 expect(page.locator('#picks .pick:not([data-match-id="unconfirmed-live"])').first).to_have_attribute('data-match-id', 'eng')
                 self.assertIsNone(page.evaluate("localStorage.getItem('ssg4-league-order')"))
+                self.open_settings(page, "leagues")
                 source = page.locator('#comp-pills [data-key="esp.1"] .fpill__grip')
                 source.scroll_into_view_if_needed()
                 start = source.bounding_box()
@@ -2105,7 +2156,7 @@ class BrowserChecks(unittest.TestCase):
                 expect(page.locator('.fpill--drag-ghost')).to_have_count(0)
                 page.reload()
                 expect(page.locator('#picks .pick:not([data-match-id="unconfirmed-live"])').first).to_have_attribute('data-match-id', 'esp')
-                page.locator('#btn-menu').click()
+                self.open_settings(page, "leagues")
                 page.locator('#comp-pills [data-key="esp.1"]').click()
                 expect(page.locator('#comp-pills [data-key="esp.1"]')).to_have_attribute('aria-pressed', 'false')
 
@@ -2139,7 +2190,7 @@ class BrowserChecks(unittest.TestCase):
                 page.evaluate("order => localStorage.setItem('ssg4-league-order', JSON.stringify(order))", priority)
                 page.reload()
                 page.wait_for_load_state('networkidle')
-                page.locator('#btn-menu').click()          # every service: every row, the finished one too
+                self.open_settings(page)
                 page.locator('#btn-select-services').click()
                 page.locator('#btn-filters-close').click()
                 page.locator('li.row[data-id="done"]').evaluate("el => { el.closest('details').open = true; }")   # Earlier today is folded
@@ -2163,7 +2214,7 @@ class BrowserChecks(unittest.TestCase):
                     self.assertGreater(card_label(mid).locator('i').first.bounding_box()['width'], 3)    # drawn, even in the narrow top card
                 # It follows the visitor's league priority.
                 before = float(row('esp').get_attribute('aria-label').split(' ')[2])
-                page.locator('#btn-menu').click()
+                self.open_settings(page, "leagues")
                 page.locator('#comp-enabled [data-key="esp.1"]').focus()
                 page.keyboard.press('Alt+ArrowUp')
                 page.locator('#btn-filters-close').click()
@@ -2383,7 +2434,7 @@ class BrowserChecks(unittest.TestCase):
             expect(page.locator('li.row:visible')).to_have_count(2)
             with self.hold_strip_icon(page, "eng.1"):
                 page.clock.run_for(700)
-            page.locator("#btn-menu").click()
+            self.open_settings(page, "leagues")
             page.locator('#comp-enabled [data-key="esp.1"]').click()
             page.locator("#btn-filters-close").click()
             expect(page.locator('li.row:visible')).to_have_count(1)
@@ -2436,7 +2487,7 @@ class BrowserChecks(unittest.TestCase):
                 expect(lg("esp.1")).to_have_attribute("aria-label", "La Liga")
                 expect(lg("esp.1")).to_have_attribute("title", "La Liga")
                 expect(page.locator('#league-strip-list [aria-pressed="true"]')).to_have_count(4)
-                # Between Lineup and the coffee link, on their line, at either width.
+                # Between Settings and the coffee link, on their line, at either width.
                 menu, coffee, box = page.locator("#btn-menu").bounding_box(), page.locator(".coffee").bounding_box(), strip.bounding_box()
                 self.assertLessEqual(menu["x"] + menu["width"], box["x"])
                 self.assertLessEqual(box["x"] + box["width"], coffee["x"])
@@ -2482,10 +2533,11 @@ class BrowserChecks(unittest.TestCase):
                 self.assertEqual(sorted(page.evaluate("JSON.parse(localStorage.getItem('ssg1-league-paused'))")), ["esp.1", "fra.1"])
                 lg("fra.1").click()
                 expect(row("france")).to_be_visible()
-                # Leagues are enabled and disabled in the Lineup panel, where a hidden one says so.
+                # The Leagues tab marks a temporarily hidden league without disabling it.
                 menu_btn, drawer = page.locator("#btn-menu"), page.locator("#drawer")
                 expect(page.locator("#league-strip button:not(.strip__lg)")).to_have_count(0)
                 menu_btn.click()
+                self.open_settings(page, "leagues")
                 expect(drawer).to_be_visible()
                 expect(pill.locator(".fpill__tag")).to_be_visible()
                 expect(pill.locator(".fpill__tag")).to_have_text("hidden for now")
@@ -2495,7 +2547,9 @@ class BrowserChecks(unittest.TestCase):
                 pill.click()
                 self.assertEqual(self.strip_ids(page), in_order("eng.1", "ita.1", "fra.1"))
                 expect(page.locator('#comp-disabled [data-key="esp.1"]')).to_have_count(1)
+                self.open_settings(page, "leagues")
                 page.locator('#comp-pills [data-key="esp.1"]').click()
+                self.open_settings(page, "leagues")
                 page.locator('#comp-pills [data-key="ned.1"]').click()
                 self.assertEqual(self.strip_ids(page), in_order("eng.1", "esp.1", "ita.1", "ned.1", "fra.1"))
                 expect(lg("esp.1")).to_have_attribute("aria-pressed", "true")
@@ -2506,8 +2560,6 @@ class BrowserChecks(unittest.TestCase):
                 expect(menu_btn).to_be_focused()
                 # One tab stop, on the league last used; the arrow keys, Home and End move along the strip.
                 expect(page.locator('#league-strip-list [tabindex="0"]')).to_have_count(1)
-                page.keyboard.press("Tab")
-                expect(page.locator("#btn-ai-settings")).to_be_focused()
                 page.keyboard.press("Tab")
                 expect(lg("fra.1")).to_be_focused()
                 page.keyboard.press("Home")
@@ -2525,11 +2577,12 @@ class BrowserChecks(unittest.TestCase):
                 page.keyboard.press("Tab")
                 expect(page.get_by_role("link", name="Buy me a coffee", exact=True)).to_be_focused()
                 # With no league enabled there is no strip.
-                page.locator("#btn-menu").click()
+                self.open_settings(page, "leagues")
                 page.locator("#btn-clear-leagues").click()
                 self.assertEqual(self.strip_ids(page), [])
                 expect(strip).to_be_hidden()
                 # Select all enables every league, shown; Reset forgets what the strip hid since.
+                self.open_settings(page, "leagues")
                 page.locator("#btn-select-leagues").click()
                 self.assertEqual(self.strip_ids(page), in_order("eng.1", "esp.1", "ita.1", "ned.1", "fra.1"))
                 expect(page.locator('#league-strip-list [aria-pressed="false"]')).to_have_count(0)
@@ -2547,18 +2600,20 @@ class BrowserChecks(unittest.TestCase):
                 page.locator("#btn-filters-close").click()
                 if width > 600:
                     continue
-                for css, below in ((".coffee { min-width: 60px }", False), (".coffee { min-width: 170px }", True)):
+                # Leave room for compact gaps, then make the coffee control too wide
+                # to keep all four emblems beside it. Measure to avoid font-dependent widths.
+                tight_width = page.locator("#bar").bounding_box()["width"] - page.locator("#btn-menu").bounding_box()["width"] - page.locator(".strip__list").evaluate("el => el.scrollWidth") - 14
+                for coffee_width, below in ((tight_width, False), (tight_width + 60, True)):
+                    css = f".coffee {{ min-width: {coffee_width}px }}"
                     page.evaluate("css => { const s = document.getElementById('probe-css') || document.head.appendChild(Object.assign(document.createElement('style'), { id: 'probe-css' })); s.textContent = css; }", css)
                     page.evaluate("window.dispatchEvent(new Event('resize'))")
                     bar_class = page.locator("#bar").get_attribute("class").split()
                     self.assertEqual("bar--strip-below" in bar_class, below, css)
                     if not below:
                         self.assertIn("bar--tight", bar_class)
-                    # Once the strip wraps, font metrics decide whether the two named controls
-                    # fit above it or stay compact. Both must share the coffee link's line.
+                    # The Settings icon and coffee link remain on the same line above a wrapped strip.
                     menu, coffee, box = page.locator("#btn-menu").bounding_box(), page.locator(".coffee").bounding_box(), strip.bounding_box()
                     self.assertAlmostEqual(mid(coffee), mid(menu), delta=3)
-                    self.assertAlmostEqual(mid(page.locator("#btn-ai-settings").bounding_box()), mid(menu), delta=3)
                     self.assertLessEqual(page.evaluate("document.documentElement.scrollWidth"), width)
                     if below:
                         self.assertGreaterEqual(box["y"], menu["y"] + menu["height"])
@@ -2590,7 +2645,7 @@ class BrowserChecks(unittest.TestCase):
                     expect(page.locator(f'li.row[data-id="{match}"]')).to_be_hidden()
                 drawer_ids = page.locator('#comp-pills .fpill').evaluate_all("els => els.map(e => e.dataset.key).sort()")
                 self.assertEqual(drawer_ids, sorted({fixture[4] for fixture in fixtures}))
-                page.locator("#btn-menu").click()
+                self.open_settings(page)
                 page.locator('#have-disabled [data-key="peacock"]').click()
                 page.locator("#btn-filters-close").click()
                 self.assertEqual(self.strip_ids(page), with_service)
@@ -2599,9 +2654,10 @@ class BrowserChecks(unittest.TestCase):
                 self.assertEqual(self.strip_ids(page), with_service)
                 # Losing the sole carrying service removes the icon; restoring that service must
                 # restore the saved pause, without silently enabling the league's matches.
-                page.locator("#btn-menu").click()
+                self.open_settings(page)
                 page.locator('#have-enabled [data-key="peacock"]').click()
                 self.assertEqual(self.strip_ids(page), expected)
+                self.open_settings(page)
                 page.locator('#have-disabled [data-key="peacock"]').click()
                 self.assertEqual(self.strip_ids(page), with_service)
                 expect(lg("esp.1")).to_have_attribute("aria-pressed", "false")
@@ -2614,7 +2670,7 @@ class BrowserChecks(unittest.TestCase):
                 expect(page.locator('#league-strip-list [aria-pressed="true"]')).to_have_count(1)
                 page.keyboard.press("Shift+Enter")
                 expect(lg("esp.1")).to_have_attribute("aria-pressed", "false")
-                page.locator("#btn-menu").click()
+                self.open_settings(page)
                 page.locator("#btn-clear").click()
                 expect(page.locator("#league-strip")).to_be_hidden()
                 self.assertEqual(page.locator('#comp-pills .fpill').evaluate_all("els => els.map(e => e.dataset.key).sort()"), drawer_ids)
@@ -2682,15 +2738,18 @@ class BrowserChecks(unittest.TestCase):
                 before = page.evaluate(top_row)
                 page.locator("#btn-menu").click()
                 for _ in range(2):
+                    self.open_settings(page, "leagues")
                     page.locator('#comp-pills [data-key="esp.1"]').click()
                     row = page.locator(f'li.row[data-id="{before["id"]}"]')
                     self.assertAlmostEqual(row.evaluate("el => el.getBoundingClientRect().top"), before["top"], delta=2)
                 self.assertEqual(self.strip_ids(page), ["eng.1", "esp.1"])
 
-    def test_later_news_stays_in_match_cards_with_one_overview(self):
+    def test_later_news_stays_in_match_cards_below_an_authored_headline(self):
         fixtures = [("main", "2026-10-09T18:00:00+00:00", "pre", "ESPN+", "esp.1"),
                     ("second", "2026-10-09T20:00:00+00:00", "pre", "Apple TV", "usa.1")]
         story = self.tagged_story()
+        story["headline"] = "Friday's title contenders meet"
+        story["headline_segments"] = [{"text": story["headline"], "match_ids": ["main"]}]
         story["lede_items"] = [{"segments": [{"text": "Main Friday story.", "match_ids": ["main"]}], "sources": []}]
         story["forecast"]["items"] = [
             {"segments": [{"text": "Unwanted section blurb.", "match_ids": ["second"]}], "sources": []}]
@@ -2700,7 +2759,8 @@ class BrowserChecks(unittest.TestCase):
             with self.subTest(width=width), self.page("after", width=width, html=render_page(build, fixtures=fixtures), story=story) as (page, _):
                 expect(page.locator("#forecast, #forecast-later, #period-h")).to_have_count(0)
                 expect(page.locator("#story-lede")).to_have_text("Main Friday story.")
-                expect(page.locator("#story-h")).to_have_text("Match outlook · Further ahead")
+                expect(page.locator("#story-h")).to_have_text(story["headline"])
+                expect(page.locator("#story-lede")).to_be_hidden()
                 expect(page.locator("#app")).not_to_contain_text("Unwanted section blurb")
                 expect(page.locator("#nextup")).to_have_attribute("data-match-id", "main")
                 expect(page.locator("#picks .pick")).to_have_count(1)
@@ -2710,27 +2770,27 @@ class BrowserChecks(unittest.TestCase):
                 expect(page.locator('li.row[data-id="main"]')).to_be_visible()
                 self.full_page_shot(page, f"empty-near-{width}.png")
 
-    def test_later_overview_is_retained_and_rolls_into_window(self):
+    def test_authored_published_headline_keeps_its_title_as_the_match_approaches(self):
         html = render_page(build, fixtures=[
             ("upcoming", "2026-10-07T17:05:00+00:00", "pre", "ESPN+"),
             ("usual", "2026-10-08T18:00:00+00:00", "pre", "ESPN+")])
         story = self.tagged_story()
-        near = {"segments": [{"text": "Near context.", "match_ids": ["upcoming"]}], "sources": []}
-        later = {"segments": [{"text": "Later context.", "match_ids": ["usual"]}], "sources": []}
-        story["lede_items"] = [near, later]
+        story["headline"] = "The contenders meet with first place at stake"
+        story["headline_segments"] = [{"text": story["headline"], "match_ids": ["usual"]}]
+        story["lede_items"] = [{"segments": [{"text": "Later context.", "match_ids": ["usual"]}], "sources": []}]
         with self.page("after", html=html, story=story) as (page, _):
-            expect(page.locator("#story-lede")).to_have_text("Near context.")
-            page.locator("#btn-menu").click()
+            expect(page.locator("#story-h")).to_have_text(story["headline"])
+            expect(page.locator("#story-lede")).to_be_hidden()
+            page.locator("#story-details > summary").click()
+            expect(page.locator("#story-lede")).to_have_text("Later context.")
+            expect(page.locator("#story-lede")).to_be_visible()
+            page.evaluate("location.hash = '#at-20261007-1401'")
+            expect(page.locator("#story-h")).to_have_text(story["headline"])
+            expect(page.locator("#story-lede")).to_be_visible()
+            expect(page.locator("#forecast, #forecast-later")).to_have_count(0)
+            self.open_settings(page, "leagues")
             page.locator('#comp-pills [data-key="eng.1"]').click()
             expect(page.locator("#story")).to_be_hidden()
-        story["lede_items"] = [later]
-        with self.page("after", html=html, story=story) as (page, _):
-            expect(page.locator("#story-h")).to_have_text("Match outlook · Further ahead")
-            expect(page.locator("#story-lede")).to_have_text("Later context.")
-            page.evaluate("location.hash = '#at-20261007-1401'")
-            expect(page.locator("#story-h")).to_have_text("Match outlook")
-            expect(page.locator("#story-lede")).to_have_text("Later context.")
-            expect(page.locator("#forecast, #forecast-later")).to_have_count(0)
 
     def test_match_notes_follow_services(self):
         fixtures = [("peacock", "2026-10-07T18:00:00+00:00", "pre", "Peacock", "eng.1")]
@@ -2739,29 +2799,31 @@ class BrowserChecks(unittest.TestCase):
         with self.page("after", html=render_page(build, fixtures=fixtures), story=story) as (page, _):
             expect(page.locator('li.row[data-id="peacock"]')).to_be_hidden()
             expect(page.locator('.miss__story')).to_have_count(0)
-            page.locator("#btn-menu").click()
+            self.open_settings(page)
             page.locator('[data-kind="have"][data-key="peacock"]').click()
             expect(page.locator('li.row[data-id="peacock"]')).to_be_visible()
             expect(page.locator('li.row .row__story')).to_be_visible()
 
-    def test_filtering_near_news_can_reveal_available_later_fallback(self):
+    def test_filtering_the_published_headline_does_not_promote_other_match_prose(self):
         fixtures = [("near", "2026-10-07T18:00:00+00:00", "pre", "Apple TV", "usa.1"),
                     ("later", "2026-10-09T18:00:00+00:00", "pre", "ESPN+", "esp.1")]
         story = self.tagged_story()
-        story["later_reason"] = "Fallback for lineups without the earlier match."
+        story["headline"] = "The playoff rivals meet this evening"
+        story["headline_segments"] = [{"text": story["headline"], "match_ids": ["near"]}]
         story["lede_items"] = [
             {"segments": [{"text": "Near match context.", "match_ids": ["near"]}], "sources": []},
             {"segments": [{"text": "Later match context.", "match_ids": ["later"]}], "sources": []}]
+        story["notes"] = {"later": {"note": "Later match context.", "sources": []}}
         with self.page("after", html=render_page(build, fixtures=fixtures), story=story) as (page, _):
-            expect(page.locator("#story-lede")).to_contain_text("Near match context")
-            expect(page.locator("#story-lede")).not_to_contain_text("Later match context")
-            page.locator("#btn-menu").click()
+            expect(page.locator("#story-h")).to_have_text(story["headline"])
+            self.open_settings(page)
             page.locator('[data-kind="have"][data-key="apple"]').click()
-            expect(page.locator("#story-lede")).not_to_contain_text("Near match context")
-            expect(page.locator("#story-lede")).to_contain_text("Later match context")
-            expect(page.locator("#story-h")).to_have_text("Match outlook · Further ahead")
+            expect(page.locator("#story")).to_be_hidden()
+            expect(page.locator("#nextup .row__story")).to_contain_text("Later match context.")
+            self.open_settings(page)
             page.locator('[data-kind="have"][data-key="apple"]').click()
-            expect(page.locator("#story-lede")).to_contain_text("Near match context")
+            expect(page.locator("#story-h")).to_have_text(story["headline"])
+            expect(page.locator("#story")).to_be_visible()
 
     def test_legacy_expired_unknown_and_completed_editorial_do_not_leak(self):
         story = self.tagged_story()
@@ -2791,11 +2853,14 @@ class BrowserChecks(unittest.TestCase):
                                 "sources": sources}]}
 
     def test_keyboard_focus_survives_minute_ticks_goals_and_card_rebuilds(self):
-        with self.page("after", story=self.overview_story()) as (page, feed):
+        story = self.overview_story()
+        story["headline"] = "Arsenal and Chelsea contest the league lead"
+        story["headline_segments"] = [{"text": story["headline"], "match_ids": ["upcoming"]}]
+        with self.page("after", story=story) as (page, feed):
             page.locator("#story-details > summary").click()
             page.locator("#story-by a").first.focus()
             page.evaluate("window.__link = document.activeElement")
-            page.clock.run_for(61000)       # the minute tick redraws the overview's facts, not its text
+            page.clock.run_for(61000)       # the minute tick refreshes schedule facts, not authored text
             # The same element, not a rebuilt copy: rebuilding unchanged text also loses a selection.
             self.assertTrue(page.evaluate("window.__link.isConnected && document.activeElement === window.__link"))
             details = page.locator('li.row[data-id="upcoming"] button.more')
@@ -2836,7 +2901,7 @@ class BrowserChecks(unittest.TestCase):
         # (until 9 October 2026 there was, which also listed leagues neither enabled nor disabled).
         fixtures = [(lg, "2026-10-07T18:00:00+00:00", "pre", "ESPN+", lg) for lg in ("eng.1", "esp.1", "ita.1", "ned.1")]
         with self.page("after", html=render_page(build, fixtures=fixtures)) as (page, _):
-            page.locator("#btn-menu").click()
+            self.open_settings(page, "leagues")
             expect(page.locator("#league-order, .league-priority")).to_have_count(0)
             enabled = lambda: page.locator("#comp-enabled .fpill").evaluate_all("els => els.map(e => e.dataset.key)")
             self.assertEqual(enabled(), [k for k in build.LEAGUES if k in ("eng.1", "esp.1", "ita.1")])
@@ -2853,10 +2918,12 @@ class BrowserChecks(unittest.TestCase):
             self.assertEqual([k for k in saved if k in enabled()], enabled())
             expect(page.locator("#priority-hint")).to_contain_text("Higher leagues get more preference.")
             # A disabled league keeps its place: enabled again, it returns there.
+            self.open_settings(page, "leagues")
             page.locator(f'#comp-enabled [data-key="{enabled()[1]}"]').click()
             second = page.locator("#comp-disabled .fpill").evaluate_all("els => els.map(e => e.dataset.key)")
             back = [k for k in second if k != "ned.1"][0]
             before = enabled()
+            self.open_settings(page, "leagues")
             page.locator(f'#comp-disabled [data-key="{back}"]').click()
             self.assertEqual(enabled()[1], back)
             self.assertEqual([k for k in enabled() if k != back], before)
@@ -2884,7 +2951,7 @@ class BrowserChecks(unittest.TestCase):
             page.clock.run_for(1)
             expect(page.locator('li.row[data-id="pl"]')).to_be_visible()
             expect(page.locator('li.row[data-id="quiet"]')).to_be_hidden()
-            page.locator("#btn-menu").click()
+            self.open_settings(page, "leagues")
             page.locator(f'#drawer [data-kind="comp"][data-key="{hidden}"]').click()
             expect(page.locator('li.row[data-id="quiet"]')).to_be_visible()
             self.assertEqual(page.evaluate("JSON.parse(localStorage.getItem('ssg5-leagues'))"), {"on": [hidden], "off": ["esp.1"]})
@@ -2899,7 +2966,7 @@ class BrowserChecks(unittest.TestCase):
             usa, india = page.locator('li.row[data-id="usa"]'), page.locator('li.row[data-id="india"]')
             expect(usa).to_be_hidden()
             expect(india).to_be_hidden()
-            page.locator("#btn-menu").click()
+            self.open_settings(page, "leagues")
             pill = page.locator('#drawer [data-kind="comp"][data-key="fifa.friendly.w"]')
             pill.click()
             expect(usa).to_be_visible()
@@ -2907,7 +2974,7 @@ class BrowserChecks(unittest.TestCase):
             page.reload()
             expect(usa).to_be_visible()
             expect(india).to_be_visible()
-            page.locator("#btn-menu").click()
+            self.open_settings(page, "leagues")
             pill.click()                     # Explicitly disabling the competition hides both teams.
             expect(usa).to_be_hidden()
             expect(india).to_be_hidden()
@@ -3037,8 +3104,8 @@ class BrowserChecks(unittest.TestCase):
                                             "sources": [{"url": "https://news.example/x", "title": 99}]}},
                      league_blurbs=["junk", None, {"segments": "junk"}])
         with self.page("after", story=story) as (page, feed):
-            expect(page.locator("#story-lede")).to_contain_text("league lead")
-            page.locator("#btn-menu").click()
+            expect(page.locator("#story")).to_be_hidden()
+            self.open_settings(page)
             page.locator("#btn-clear").click()
             expect(page.locator('li.row[data-id="upcoming"]')).to_be_hidden()
             page.locator("#btn-reset").click()
@@ -3047,46 +3114,42 @@ class BrowserChecks(unittest.TestCase):
             page.clock.run_for(60000)
             expect(page.locator('li.row[data-id="upcoming"]')).to_have_attribute("data-state", "in")
 
-    def test_sources_name_espn_facts_and_number_a_repeated_site(self):
+    def test_authored_headline_sources_name_espn_facts_and_number_a_repeated_site(self):
         sources = [{"url": "https://www.espn.com/soccer/match/_/gameId/upcoming", "title": "ESPN table and form", "kind": "facts"},
                    {"url": "https://news.example/a", "title": "A"}, {"url": "https://news.example/b", "title": "B"}]
-        with self.page("after", story=self.overview_story(sources)) as (page, _):
-            expect(page.locator("#story-by a")).to_have_text(["ESPN table and form", "news.example", "news.example (2)"])
-            self.assertIn("not from reporting", page.locator("#story-by a").first.get_attribute("title"))
-            # The page's disclosure that the overview is written by AI, ahead of its sources.
-            expect(page.locator("#story-by")).to_have_text("AI Summary · ESPN table and form, news.example, news.example (2)")
-        with self.page("after", story=self.overview_story([])) as (page, _):
-            expect(page.locator("#story-by")).to_have_text("AI Summary")
+        for selected in (sources, []):
+            story = self.overview_story(selected)
+            story["headline"] = "Arsenal and Chelsea contest the league lead"
+            story["headline_segments"] = [{"text": story["headline"], "match_ids": ["upcoming"]}]
+            with self.subTest(sources=bool(selected)), self.page("after", story=story) as (page, _):
+                expect(page.locator("#story-h")).to_have_text(story["headline"])
+                expect(page.locator("#story-lede")).to_be_hidden()
+                page.locator("#story-details > summary").click()
+                if selected:
+                    expect(page.locator("#story-by a")).to_have_text(["ESPN table and form", "news.example", "news.example (2)"])
+                    self.assertIn("not from reporting", page.locator("#story-by a").first.get_attribute("title"))
+                else:
+                    expect(page.locator("#story-by a")).to_have_count(0)
 
-    def test_the_ratings_designs_overview_reads_the_same_whatever_the_filters(self):
+    def test_published_legacy_overviews_stay_hidden_without_discarding_match_notes(self):
         text = "Arsenal meet Chelsea with the league lead at stake, and Spain's women visit the United States."
-        story = dict(self.overview_story(), lede_items=[], overview={
-            "text": text, "model": "gemini-3.1-pro-preview", "requested_model": "gemini-3.1-pro-preview", "effort": "medium",
-            "sources": [{"url": "https://news.example/a", "title": "A"}, {"url": "https://news.example/b", "title": "B"},
-                        {"url": "javascript:alert(1)", "title": "not a page"}]})
-        with self.page("after", story=story) as (page, _):
-            lede = page.locator("#story-lede")
-            expect(page.locator("#story")).to_be_visible()
-            expect(page.locator("#story-h")).to_have_text("Match outlook")
-            expect(lede).to_have_text(text)
-            # One plain paragraph: no phrases to dim or hide, and only real links among its sources.
-            expect(lede.locator(".editorial-part")).to_have_count(0)
-            expect(page.locator("#story-by")).to_have_text("AI Summary · news.example, news.example (2)")
-            # With no services and no competitions, every visitor still reads the same overview.
-            page.locator("#btn-menu").click()
-            page.locator("#btn-clear").click()
-            page.locator("#btn-filters-close").click()
-            expect(page.locator('li.row[data-id="upcoming"]')).to_be_hidden()
-            expect(page.locator("#story")).to_be_visible()
-            expect(lede).to_have_text(text)
-        # A malformed overview is ignored, and the page falls back to a full-design story's overview if it has one.
-        broken = dict(self.overview_story(), overview={"text": ["not", "text"]})
-        with self.page("after", story=broken) as (page, _):
-            expect(page.locator("#story-lede")).to_contain_text("league lead at stake")
-        empty = dict(self.overview_story(), lede_items=[], overview={"text": "  "})
-        with self.page("after", story=empty) as (page, _):
-            expect(page.locator("#story")).to_be_hidden()
-
+        for overview in ({"text": text, "sources": [{"url": "https://news.example/a", "title": "A"}]},
+                         {"text": ["not", "text"]}, {"text": "  "}):
+            story = dict(self.overview_story(), overview=overview,
+                         notes={"upcoming": {"note": "A returning defender changes the matchup.", "sources": []}})
+            with self.subTest(overview=overview), self.page("after", story=story) as (page, _):
+                expect(page.locator("#story")).to_be_hidden()
+                expect(page.locator('li.row[data-id="upcoming"] .row__story')).to_contain_text("A returning defender changes the matchup.")
+                self.assertNotIn("Match outlook", page.locator("body").inner_text())
+                self.assertNotIn(text, page.locator("body").inner_text())
+                self.open_settings(page)
+                page.locator("#btn-clear").click()
+                expect(page.locator('li.row[data-id="upcoming"]')).to_be_hidden()
+                expect(page.locator("#story")).to_be_hidden()
+                page.locator("#btn-reset").click()
+                page.locator("#btn-filters-close").click()
+                expect(page.locator('li.row[data-id="upcoming"] .row__story')).to_contain_text("A returning defender changes the matchup.")
+                expect(page.locator("#story")).to_be_hidden()
     # Manual AI responses are a visitor's local data, independent of the published AI switch.
     @staticmethod
     def personal_ai_snapshot(page):
@@ -3105,17 +3168,133 @@ class BrowserChecks(unittest.TestCase):
         return candidates[-1]
 
     @staticmethod
-    def personal_ai_reply(snapshot, scores=None, overview_id=None):
+    def personal_ai_legacy_reply(snapshot, scores=None, overview_id=None):
         ids = [match["id"] for match in snapshot["matches"]]
         return {"version": 1, "request_id": snapshot["request_id"],
                 "overview": {"text": "Your match overview.", "match_ids": [overview_id or ids[0]], "sources": []},
                 "matches": [{"id": mid, "score": (scores or {}).get(mid, 50), "blurb": f"Your preview for {mid}.",
                              "sources": [{"url": "https://news.example/report", "title": "Match report"}]} for mid in ids]}
 
+    def personal_ai_reply(self, snapshot, scores=None, overview_id=None):
+        old = self.personal_ai_legacy_reply(snapshot, scores, overview_id)
+        mid = old["overview"]["match_ids"][0]
+        match = next(match for match in snapshot["matches"] if match["id"] == mid)
+        headline = self.personal_ai_headline(snapshot, match["league_id"], [mid], "Your match headline.", 80,
+                                             lede="Your match overview.", sources=[])
+        return {"version": 2, "request_id": snapshot["request_id"], "headlines": [headline], "matches": old["matches"]}
+
+    @staticmethod
+    def seed_legacy_personal_ai(page, response, weight=100):
+        """Represent an already-saved v1 response without sending it through the v2 import UI."""
+        page.evaluate("""({response, weight}) => {
+            const key = 'sso-personal-ai-v1', saved = JSON.parse(localStorage.getItem(key));
+            delete saved.pending.schema_version;
+            saved.applied = {request: JSON.parse(JSON.stringify(saved.pending)), response};
+            saved.weight = weight;
+            localStorage.setItem(key, JSON.stringify(saved));
+        }""", {"response": response, "weight": weight})
+
+    @staticmethod
+    def open_settings(page, tab="lineup"):
+        if not page.locator("#drawer").is_visible():
+            page.locator("#btn-menu").click()
+        page.locator(f"#settings-tab-{tab}").click()
+
     @staticmethod
     def close_personal_ai(page):
-        if page.locator("#ai-settings").is_visible():
-            page.locator("#ai-close").click()
+        if page.locator("#drawer").is_visible():
+            page.locator("#btn-filters-close").click()
+
+    def test_settings_tabs_preserve_drafts_and_ai_visibility_without_changing_ratings(self):
+        html = render_page(build, fixtures=self.SCORED, stature=self.STATURE, ai=False)
+        shared = self.shared_ai_payload(self.SCORED, dict(a=50, b=10, c=100, d=0, e=20))
+        for width in (1280, 390):
+            with self.subTest(width=width), self.page("after", html=html, shared=shared, width=width, touch=width < 600) as (page, _):
+                button, drawer = page.locator("#btn-menu"), page.locator("#drawer")
+                picks = lambda: page.locator("#picks .pick").evaluate_all("els => els.map(e => e.dataset.matchId)")
+                expect(page.locator("#btn-ai-settings, #ai-close")).to_have_count(0)
+                expect(button).to_have_accessible_name(re.compile("Settings"))
+                button.click()
+                expect(page.locator("#settings-tab-lineup")).to_be_focused()
+                expect(page.locator("#settings-lineup")).to_be_visible()
+                expect(page.locator("#settings-leagues")).to_be_hidden()
+                expect(page.locator("#ai-settings")).to_be_hidden()
+                page.keyboard.press("ArrowRight")
+                expect(page.locator("#settings-tab-leagues")).to_be_focused()
+                expect(page.locator("#settings-leagues")).to_be_visible()
+                page.keyboard.press("End")
+                expect(page.locator("#settings-tab-ai")).to_be_focused()
+                expect(page.locator("#ai-settings")).to_be_visible()
+                page.keyboard.press("Home")
+                expect(page.locator("#settings-tab-lineup")).to_be_focused()
+                page.keyboard.press("ArrowLeft")
+                expect(page.locator("#settings-tab-ai")).to_be_focused()
+                expect(page.locator("#ai-blurbs")).to_be_checked()
+                preferences = "Favor close games, especially an underdog with improving form."
+                page.locator("#ai-preferences").fill(preferences)
+                page.locator("#ai-weight").fill("100")
+                page.locator("#ai-generate").click()
+                prompt = page.locator("#ai-prompt").input_value()
+                reply = self.personal_ai_reply(self.personal_ai_snapshot(page), dict(a=50, b=100, c=0, d=90, e=80))
+                draft = json.dumps(reply)
+                page.locator("#ai-response").fill(draft)
+                self.open_settings(page, "leagues")
+                expect(page.locator("#ai-settings")).to_be_hidden()
+                self.open_settings(page)
+                self.open_settings(page, "ai")
+                expect(page.locator("#ai-response")).to_have_value(draft)
+                expect(page.locator("#ai-preferences")).to_have_value(preferences)
+                expect(page.locator("#ai-prompt")).to_have_value(prompt)
+                self.assertLessEqual(drawer.evaluate("el => el.scrollWidth"), drawer.evaluate("el => el.clientWidth") + 1)
+                self.assertLessEqual(page.evaluate("document.documentElement.scrollWidth"), width)
+                page.keyboard.press("Escape")
+                expect(drawer).to_be_hidden()
+                expect(button).to_be_focused()
+                button.click()
+                expect(page.locator("#settings-tab-ai")).to_be_focused()
+                expect(page.locator("#ai-response")).to_have_value(draft)
+                page.locator("h1").click()
+                expect(drawer).to_be_hidden()
+                button.click()
+                page.locator("#btn-filters-close").click()
+                expect(drawer).to_be_hidden()
+                expect(button).to_be_focused()
+                button.click()
+                page.locator("#btn-filters-close").focus()
+                page.keyboard.press("Tab")
+                page.keyboard.press("Tab")
+                expect(drawer).to_be_hidden()
+                self.assertTrue(drawer.evaluate("el => !el.contains(document.activeElement) && document.activeElement !== document.body"))
+
+                self.open_settings(page, "ai")
+                self.assertEqual(picks(), ["b", "c", "e"])
+                page.locator("#ai-blurbs").uncheck()
+                expect(page.locator("#story")).to_be_hidden()
+                expect(page.locator(".row__story")).to_have_count(0)
+                self.assertEqual(picks(), ["b", "c", "e"], "Hiding prose must retain the imported ratings")
+                expect(page.locator("#ai-prompt")).to_have_value(prompt)
+                expect(page.locator("#ai-response")).to_have_value(draft)
+                page.locator("#ai-apply").click()
+                expect(page.locator("#ai-error")).to_be_empty()
+                self.assertEqual(picks(), ["b", "d", "e"], "Importing ratings still works with blurbs hidden")
+                expect(page.locator("#story")).to_be_hidden()
+                expect(page.locator(".row__story")).to_have_count(0)
+                page.reload()
+                expect(page.locator("#story")).to_be_hidden()
+                expect(page.locator(".row__story")).to_have_count(0)
+                self.assertEqual(picks(), ["b", "d", "e"])
+                button.click()
+                expect(page.locator("#settings-tab-lineup")).to_be_focused()
+                self.open_settings(page, "ai")
+                expect(page.locator("#ai-blurbs")).not_to_be_checked()
+                expect(page.locator("#ai-prompt")).to_have_value(prompt)
+                page.locator("#ai-blurbs").check()
+                self.close_personal_ai(page)
+                expect(page.locator("#story-headlines > article .story-headline__title")).to_have_text("Your match headline.")
+                expect(page.locator("#nextup .row__story")).to_contain_text("Your preview for a.")
+                expect(page.locator('#picks [data-match-id="d"] .row__story')).to_contain_text("Your preview for d.")
+                expect(page.locator('li.row[data-id="c"] .row__story')).to_contain_text("Your preview for c.")
+                self.assertEqual(picks(), ["b", "d", "e"])
 
     def test_personal_ai_prompt_import_weight_persistence_and_reset(self):
         fixtures = self.SCORED + [
@@ -3129,20 +3308,14 @@ class BrowserChecks(unittest.TestCase):
             with self.subTest(width=width), self.page("after", width=width, html=html, touch=width < 600) as (page, feed):
                 picks = page.locator("#picks .pick")
                 self.assertEqual(picks.evaluate_all("els => els.map(e => e.dataset.matchId)"), ["b", "d", "e"])
-                button = page.locator("#btn-ai-settings")
-                button.click()
+                button = page.locator("#btn-menu")
+                self.open_settings(page, "ai")
                 dialog = page.locator("#ai-settings")
                 expect(dialog).to_be_visible()
-                self.assertTrue(dialog.evaluate("el => el.open && el.contains(document.activeElement)"))
-                for _ in range(12):
-                    page.keyboard.press("Tab")
-                    # A native dialog may hand focus to browser chrome between cycles; it must
-                    # never tab into the inert page's links or filter controls.
-                    self.assertTrue(dialog.evaluate("el => el.contains(document.activeElement) || document.activeElement === document.body"))
                 page.keyboard.press("Escape")
                 expect(dialog).to_be_hidden()
                 expect(button).to_be_focused()
-                button.click()
+                self.open_settings(page, "ai")
                 preferences = "Prefer close games and developing players. Avoid spoilers."
                 page.locator("#ai-preferences").fill(preferences)
                 page.locator("#ai-weight").fill("100")
@@ -3162,7 +3335,7 @@ class BrowserChecks(unittest.TestCase):
                 dialog.screenshot(path=str(self.artifacts / f"personal-ai-{width}.png"))
                 # The visitor leaves for their chat and can return after reloading this tab.
                 page.reload()
-                button.click()
+                self.open_settings(page, "ai")
                 expect(page.locator("#ai-prompt")).to_have_value(prompt)
                 expect(page.locator("#ai-preferences")).to_have_value(preferences)
                 expect(page.locator("#ai-weight")).to_have_value("100")
@@ -3174,7 +3347,7 @@ class BrowserChecks(unittest.TestCase):
                 page.locator("#ai-apply").click()
                 expect(page.locator("#ai-error")).to_be_empty()
                 self.close_personal_ai(page)
-                expect(page.locator("#story-lede")).to_have_text("Your match overview.")
+                expect(page.locator("#story-headlines > article .story-headline__title")).to_have_text("Your match headline.")
                 self.assertEqual(picks.evaluate_all("els => els.map(e => e.dataset.matchId)"), ["b", "c", "e"])
                 expect(page.locator("#nextup .row__story")).to_contain_text("Your preview for a.")
                 for mid in "bce":
@@ -3184,22 +3357,22 @@ class BrowserChecks(unittest.TestCase):
                 expect(page.locator('li.row[data-id="d"] .row__story')).to_have_count(0)
                 # A newly enabled service can add an unrated match after the prompt was copied.
                 # It still competes using its Outlook score instead of vanishing from the picks.
-                page.locator("#btn-menu").click()
+                self.open_settings(page)
                 page.locator('[data-kind="have"][data-key="peacock"]').click()
                 self.assertEqual(picks.evaluate_all("els => els.map(e => e.dataset.matchId)"), ["c", "e", "unavailable"])
                 expect(page.locator('#picks [data-match-id="unavailable"] .row__story')).to_have_count(0)
                 page.locator('[data-kind="have"][data-key="peacock"]').click()
                 page.locator("#btn-filters-close").click()
                 page.reload()
-                expect(page.locator("#story-lede")).to_have_text("Your match overview.")
+                expect(page.locator("#story-headlines > article .story-headline__title")).to_have_text("Your match headline.")
                 self.assertEqual(picks.evaluate_all("els => els.map(e => e.dataset.matchId)"), ["b", "c", "e"])
-                button.click()
+                self.open_settings(page, "ai")
                 page.locator("#ai-weight").fill("0")
                 self.close_personal_ai(page)
                 self.assertEqual(picks.evaluate_all("els => els.map(e => e.dataset.matchId)"), ["b", "d", "e"])
                 expect(page.locator('#picks [data-match-id="d"] .row__story')).to_have_count(0)
-                expect(page.locator("#story-lede")).to_have_text("Your match overview.")
-                button.click()
+                expect(page.locator("#story-headlines > article .story-headline__title")).to_have_text("Your match headline.")
+                self.open_settings(page, "ai")
                 page.locator("#ai-clear").click()
                 self.close_personal_ai(page)
                 expect(page.locator("#story")).to_be_hidden()
@@ -3208,12 +3381,11 @@ class BrowserChecks(unittest.TestCase):
                 self.assertEqual(feed["stories"], 0, "A personal import must not enable public AI requests")
 
     def test_bad_personal_ai_response_keeps_the_existing_recommendations(self):
-        story = self.overview_story()
-        story["overview"] = {"text": "Published overview stays here.", "sources": []}
-        html = render_page(build, fixtures=self.SCORED, stature=self.STATURE)
-        with self.page("after", html=html, story=story) as (page, _):
+        shared = self.shared_ai_payload(self.SCORED)
+        html = render_page(build, fixtures=self.SCORED, stature=self.STATURE, ai=False)
+        with self.page("after", html=html, shared=shared) as (page, _):
             before = page.locator("#picks .pick").evaluate_all("els => els.map(e => e.dataset.matchId)")
-            page.locator("#btn-ai-settings").click()
+            self.open_settings(page, "ai")
             page.locator("#ai-generate").click()
             valid = self.personal_ai_reply(self.personal_ai_snapshot(page))
             invalid = {"not JSON": "A conversational response without JSON."}
@@ -3238,47 +3410,49 @@ class BrowserChecks(unittest.TestCase):
                     page.locator("#ai-apply").click()
                     expect(page.locator("#ai-error")).to_be_visible()
                     self.assertTrue(page.locator("#ai-error").inner_text().strip())
-                    expect(page.locator("#story-lede")).to_have_text("Published overview stays here.")
+                    expect(page.locator("#story-headlines > article .story-headline__title")).to_have_text("The shared league headline")
                     self.assertEqual(page.locator("#picks .pick").evaluate_all("els => els.map(e => e.dataset.matchId)"), before)
                     self.assertFalse(page.evaluate("Boolean(window.__unsafeExecuted)"))
             # AI prose is text, even if it contains markup; a corrected reply remains usable after errors.
-            valid["overview"]["text"] = 'Your <img src=x onerror="window.__unsafeExecuted=true"> preview.'
+            valid["headlines"][0]["headline"] = 'Your <img src=x onerror="window.__unsafeExecuted=true"> preview.'
             page.locator("#ai-response").fill(json.dumps(valid))
             page.locator("#ai-apply").click()
             expect(page.locator("#ai-error")).to_be_empty()
             self.close_personal_ai(page)
-            expect(page.locator("#story-lede")).to_have_text(valid["overview"]["text"])
-            expect(page.locator("#story-lede img")).to_have_count(0)
+            expect(page.locator("#story-headlines > article .story-headline__title")).to_have_text(valid["headlines"][0]["headline"])
+            expect(page.locator("#story-headlines img")).to_have_count(0)
             self.assertFalse(page.evaluate("Boolean(window.__unsafeExecuted)"))
-            page.locator("#btn-ai-settings").click()
+            self.open_settings(page, "ai")
             page.locator("#ai-clear").click()
             self.close_personal_ai(page)
-            expect(page.locator("#story-lede")).to_have_text("Published overview stays here.")
+            expect(page.locator("#story-headlines > article .story-headline__title")).to_have_text("The shared league headline")
 
-    def test_personal_ai_overview_tracks_filters_and_completed_matches(self):
+    def test_personal_ai_headlines_do_not_fall_back_to_match_blurbs(self):
         fixtures = [("upcoming", "2026-10-07T17:05:00+00:00", "pre", "ESPN+", "eng.1"),
                     ("spanish", "2026-10-07T20:00:00+00:00", "pre", "ESPN+", "esp.1")]
         with self.page("after", html=render_page(build, fixtures=fixtures, ai=False)) as (page, feed):
-            page.locator("#btn-ai-settings").click()
+            self.open_settings(page, "ai")
             page.locator("#ai-generate").click()
             reply = self.personal_ai_reply(self.personal_ai_snapshot(page), overview_id="upcoming")
             page.locator("#ai-response").fill(json.dumps(reply))
             page.locator("#ai-apply").click()
             self.close_personal_ai(page)
-            expect(page.locator("#story-lede")).to_have_text("Your match overview.")
-            page.locator("#btn-menu").click()
+            expect(page.locator("#story-headlines > article .story-headline__title")).to_have_text("Your match headline.")
+            self.open_settings(page)
+            self.open_settings(page, "leagues")
             page.locator('#comp-pills [data-key="eng.1"]').click()
-            expect(page.locator("#story-lede")).to_contain_text("Your preview for spanish.")
-            expect(page.locator("#story-lede")).not_to_contain_text("Your match overview.")
+            expect(page.locator("#story")).to_be_hidden()
+            expect(page.locator('li.row[data-id="spanish"] .row__story')).to_contain_text("Your preview for spanish.")
+            self.open_settings(page, "leagues")
             page.locator('#comp-pills [data-key="eng.1"]').click()
             page.locator("#btn-filters-close").click()
-            expect(page.locator("#story-lede")).to_have_text("Your match overview.")
+            expect(page.locator("#story-headlines > article .story-headline__title")).to_have_text("Your match headline.")
             feed["data"] = scoreboard("post")
             page.clock.run_for(60000)
             expect(page.locator('li.row[data-id="upcoming"]')).to_have_attribute("data-state", "post")
-            expect(page.locator("#story-lede")).to_contain_text("Your preview for spanish.")
-            expect(page.locator("#story-lede")).not_to_contain_text("Your match overview.")
-            page.locator("#btn-menu").click()
+            expect(page.locator("#story")).to_be_hidden()
+            expect(page.locator('li.row[data-id="spanish"] .row__story')).to_contain_text("Your preview for spanish.")
+            self.open_settings(page)
             page.locator("#btn-clear").click()
             page.locator("#btn-filters-close").click()
             expect(page.locator("#story")).to_be_hidden()
@@ -3286,24 +3460,27 @@ class BrowserChecks(unittest.TestCase):
     def test_personal_ai_expiry_and_unavailable_browser_storage(self):
         html = render_page(build, fixtures=self.SCORED, stature=self.STATURE, ai=False)
         with self.page("after", html=html) as (page, _):
-            page.locator("#btn-ai-settings").click()
+            self.open_settings(page, "ai")
             page.locator("#ai-generate").click()
             reply = self.personal_ai_reply(self.personal_ai_snapshot(page))
             page.locator("#ai-response").fill(json.dumps(reply))
             page.locator("#ai-apply").click()
             self.close_personal_ai(page)
-            expect(page.locator("#story-lede")).to_have_text("Your match overview.")
+            expect(page.locator("#story-headlines > article .story-headline__title")).to_have_text("Your match headline.")
 
             # An old saved response must not revive merely because its fixture is still upcoming.
             page.evaluate("""() => {
                 const key = 'sso-personal-ai-v1', saved = JSON.parse(localStorage.getItem(key));
                 saved.pending.created_at -= 25 * 60 * 60 * 1000;
                 saved.applied.request.created_at -= 25 * 60 * 60 * 1000;
+                saved.applied.response.headlines.forEach(headline => {
+                    headline.expires_at = new Date(Date.parse(headline.expires_at) - 25 * 60 * 60 * 1000).toISOString();
+                });
                 localStorage.setItem(key, JSON.stringify(saved));
             }""")
             page.reload()
             expect(page.locator("#story")).to_be_hidden()
-            page.locator("#btn-ai-settings").click()
+            self.open_settings(page, "ai")
             expect(page.locator("#ai-status")).to_contain_text("expired")
             page.locator("#ai-response").fill(json.dumps(reply))
             page.locator("#ai-apply").click()
@@ -3315,7 +3492,7 @@ class BrowserChecks(unittest.TestCase):
                 Object.defineProperty(navigator, 'clipboard', {configurable: true,
                     value: {writeText: () => Promise.reject(new Error('Clipboard blocked'))}});
             }""")
-            page.locator("#btn-ai-settings").click()
+            self.open_settings(page, "ai")
             page.locator("#ai-generate").click()
             expect(page.locator("#ai-status")).to_contain_text("could not be saved")
             page.locator("#ai-copy").click()
@@ -3326,7 +3503,7 @@ class BrowserChecks(unittest.TestCase):
             page.locator("#ai-apply").click()
             expect(page.locator("#ai-status")).to_contain_text("could not be saved")
             self.close_personal_ai(page)
-            expect(page.locator("#story-lede")).to_have_text("Your match overview.")
+            expect(page.locator("#story-headlines > article .story-headline__title")).to_have_text("Your match headline.")
 
 
     @staticmethod
@@ -3350,7 +3527,7 @@ class BrowserChecks(unittest.TestCase):
         html = render_page(build, fixtures=fixtures, ai=False)
         for width in (1280, 390):
             with self.subTest(width=width), self.page("after", html=html, width=width) as (page, _):
-                page.locator("#btn-ai-settings").click()
+                self.open_settings(page, "ai")
                 page.locator("#ai-generate").click()
                 snapshot = self.personal_ai_snapshot(page)
                 reply = self.personal_ai_headline_reply(snapshot, [
@@ -3381,9 +3558,11 @@ class BrowserChecks(unittest.TestCase):
                 expect(more.locator(".story-headline__title").first).to_be_visible()
                 self.assertLessEqual(page.evaluate("document.documentElement.scrollWidth"), width)
                 self.full_page_shot(page, f"personal-headlines-{width}.png")
-                page.locator("#btn-menu").click()
+                self.open_settings(page)
+                self.open_settings(page, "leagues")
                 page.locator('#comp-pills [data-key="eng.1"]').click()
                 expect(lead).to_have_attribute("data-league", "esp.1")
+                self.open_settings(page, "leagues")
                 page.locator('#comp-pills [data-key="usa.1"]').click()
                 expect(page.locator("details.story-headlines__more")).to_have_count(0)
                 page.locator("#btn-filters-close").click()
@@ -3391,7 +3570,7 @@ class BrowserChecks(unittest.TestCase):
 
     def test_personal_ai_calendar_headlines_need_enabled_leagues_and_empty_replies_stay_empty(self):
         with self.page("after", html=render_page(build, fixtures=[], ai=False)) as (page, _):
-            page.locator("#btn-ai-settings").click()
+            self.open_settings(page, "ai")
             page.locator("#ai-generate").click()
             expect(page.locator("#ai-error")).to_be_empty()
             snapshot = self.personal_ai_snapshot(page)
@@ -3409,38 +3588,40 @@ class BrowserChecks(unittest.TestCase):
             page.reload()
             expect(page.locator("#story-headlines .story-headline__title")).to_have_text(reply["headlines"][0]["headline"])
             # Bulk league controls also cover leagues with no fixture pills on this quiet day.
-            page.locator("#btn-menu").click()
+            self.open_settings(page)
+            self.open_settings(page, "leagues")
             page.locator("#btn-clear-leagues").click()
             expect(page.locator("#story")).to_be_hidden()
-            page.locator("#btn-ai-settings").click()
+            self.open_settings(page, "ai")
             old_prompt = page.locator("#ai-prompt").input_value()
             page.locator("#ai-generate").click()
             expect(page.locator("#ai-error")).to_be_visible()
             expect(page.locator("#ai-prompt")).to_have_value(old_prompt)
             self.close_personal_ai(page)
-            page.locator("#btn-menu").click()
+            self.open_settings(page)
+            self.open_settings(page, "leagues")
             page.locator("#btn-select-leagues").click()
             expect(page.locator("#story")).to_be_visible()
             expect(page.locator("#story-headlines .story-headline__title")).to_have_text(reply["headlines"][0]["headline"])
-            page.locator("#btn-ai-settings").click()
+            self.open_settings(page, "ai")
             page.locator("#ai-generate").click()
             expect(page.locator("#ai-error")).to_be_empty()
             all_leagues = {league["id"] for league in self.personal_ai_snapshot(page)["league_order"]}
             self.assertEqual(all_leagues, set(build.LEAGUES))
             self.close_personal_ai(page)
-            page.locator("#btn-menu").click()
+            self.open_settings(page)
             page.locator("#btn-reset").click()
-            page.locator("#btn-ai-settings").click()
+            self.open_settings(page, "ai")
             page.locator("#ai-generate").click()
             default_leagues = {league["id"] for league in self.personal_ai_snapshot(page)["league_order"]}
             self.assertEqual(default_leagues, league_ids)
             self.close_personal_ai(page)
-            page.locator("#btn-menu").click()
+            self.open_settings(page)
             page.locator("#btn-clear").click()
             page.locator("#btn-filters-close").click()
             expect(page.locator("#story")).to_be_hidden()
         with self.page("after", html=render_page(build, fixtures=self.SCORED, ai=False)) as (page, _):
-            page.locator("#btn-ai-settings").click()
+            self.open_settings(page, "ai")
             page.locator("#ai-generate").click()
             snapshot = self.personal_ai_snapshot(page)
             for headlines in ([], [self.personal_ai_headline(snapshot, "eng.1", ["a"], "Below the interest threshold", 59)]):
@@ -3450,13 +3631,13 @@ class BrowserChecks(unittest.TestCase):
                 self.close_personal_ai(page)
                 expect(page.locator("#story")).to_be_hidden()
                 expect(page.locator('li.row[data-id="a"] .row__story')).to_contain_text("Your preview for a.")
-                page.locator("#btn-ai-settings").click()
+                self.open_settings(page, "ai")
 
     def test_bad_personal_ai_headlines_leave_the_accepted_response_in_place(self):
         fixtures = [("eng", "2026-10-07T18:00:00+00:00", "pre", "ESPN+", "eng.1"),
                     ("esp", "2026-10-07T19:00:00+00:00", "pre", "ESPN+", "esp.1")]
         with self.page("after", html=render_page(build, fixtures=fixtures, ai=False)) as (page, _):
-            page.locator("#btn-ai-settings").click()
+            self.open_settings(page, "ai")
             page.locator("#ai-generate").click()
             snapshot = self.personal_ai_snapshot(page)
             valid = self.personal_ai_headline_reply(snapshot, [self.personal_ai_headline(
@@ -3492,7 +3673,7 @@ class BrowserChecks(unittest.TestCase):
         fixtures = [("upcoming", "2026-10-07T17:05:00+00:00", "pre", "ESPN+", "eng.1"),
                     ("spanish", "2026-10-07T20:00:00+00:00", "pre", "ESPN+", "esp.1")]
         with self.page("after", html=render_page(build, fixtures=fixtures, ai=False)) as (page, feed):
-            page.locator("#btn-ai-settings").click()
+            self.open_settings(page, "ai")
             page.locator("#ai-generate").click()
             snapshot = self.personal_ai_snapshot(page)
             reply = self.personal_ai_headline_reply(snapshot, [
@@ -3512,26 +3693,38 @@ class BrowserChecks(unittest.TestCase):
             expect(page.locator("#story")).to_be_hidden()
             expect(page.locator('li.row[data-id="spanish"] .row__story')).to_contain_text("Your preview for spanish.")
 
-    def test_personal_ai_legacy_pending_prompt_can_still_be_completed(self):
-        with self.page("after", html=render_page(build, fixtures=self.SCORED, ai=False)) as (page, _):
-            page.locator("#btn-ai-settings").click()
+    def test_personal_ai_retires_old_prompts_and_rejects_new_overview_responses_without_losing_ratings(self):
+        with self.page("after", html=render_page(build, fixtures=self.SCORED, stature=self.STATURE, ai=False)) as (page, _):
+            self.open_settings(page, "ai")
             page.locator("#ai-generate").click()
             snapshot = self.personal_ai_snapshot(page)
-            page.evaluate("""() => {
-                const key = 'sso-personal-ai-v1', saved = JSON.parse(localStorage.getItem(key));
-                delete saved.pending.schema_version;
-                localStorage.setItem(key, JSON.stringify(saved));
-            }""")
+            old = self.personal_ai_legacy_reply(snapshot, dict(a=50, b=10, c=100, d=0, e=20))
+            self.seed_legacy_personal_ai(page, old)
             page.reload()
-            page.locator("#btn-ai-settings").click()
-            self.assertRegex(page.locator("#ai-prompt").input_value(), r'"version"\s*:\s*1')
-            page.locator("#ai-response").fill(json.dumps(self.personal_ai_reply(snapshot)))
+            expect(page.locator("#story")).to_be_hidden()
+            self.assertEqual(page.locator("#picks .pick").evaluate_all("els => els.map(e => e.dataset.matchId)"), ["b", "c", "e"])
+            self.open_settings(page, "ai")
+            expect(page.locator("#ai-prompt")).to_have_value("")
+            expect(page.locator("#ai-copy")).to_be_disabled()
+            page.locator("#ai-response").fill(json.dumps(old))
+            page.locator("#ai-apply").click()
+            expect(page.locator("#ai-error")).to_be_visible()
+            page.locator("#ai-generate").click()
+            fresh = self.personal_ai_snapshot(page)
+            self.assertNotEqual(fresh["request_id"], snapshot["request_id"])
+            self.assertRegex(page.locator("#ai-prompt").input_value(), r'"version"\s*:\s*2')
+            page.locator("#ai-response").fill(json.dumps(self.personal_ai_legacy_reply(fresh)))
+            page.locator("#ai-apply").click()
+            expect(page.locator("#ai-error")).to_contain_text("headline")
+            expect(page.locator("#story")).to_be_hidden()
+            self.assertEqual(page.locator("#picks .pick").evaluate_all("els => els.map(e => e.dataset.matchId)"), ["b", "c", "e"])
+            page.locator("#ai-response").fill(json.dumps(self.personal_ai_reply(fresh)))
             page.locator("#ai-apply").click()
             expect(page.locator("#ai-error")).to_be_empty()
             self.close_personal_ai(page)
-            expect(page.locator("#story-lede")).to_have_text("Your match overview.")
+            expect(page.locator("#story-headlines > article .story-headline__title")).to_have_text("Your match headline.")
             page.reload()
-            expect(page.locator("#story-lede")).to_have_text("Your match overview.")
+            expect(page.locator("#story-headlines > article .story-headline__title")).to_have_text("Your match headline.")
 
 
     def shared_ai_payload(self, fixtures, scores=None):
@@ -3561,7 +3754,7 @@ class BrowserChecks(unittest.TestCase):
                 expect(page.locator('#picks [data-match-id="c"] .row__story')).to_contain_text("Shared preview for c.")
                 expect(page.locator('li.row[data-id="d"] .row__story')).to_contain_text("Shared preview for d.")
                 expect(page.locator("#story-headlines > article .story-headline__by")).not_to_contain_text("Your AI")
-                page.locator("#btn-ai-settings").click()
+                self.open_settings(page, "ai")
                 page.locator("#ai-weight").fill("100")
                 page.locator("#ai-generate").click()
                 snapshot = self.personal_ai_snapshot(page)
@@ -3577,7 +3770,14 @@ class BrowserChecks(unittest.TestCase):
                 expect(page.locator("#nextup .row__story")).to_contain_text("Your preview for a.")
                 page.reload()
                 expect(title).to_have_text("My own league headline")
-                page.locator("#btn-ai-settings").click()
+                self.open_settings(page, "ai")
+                # An intentionally empty new headline list must not revive a shared headline.
+                local["headlines"] = []
+                page.locator("#ai-response").fill(json.dumps(local))
+                page.locator("#ai-apply").click()
+                expect(page.locator("#ai-error")).to_be_empty()
+                expect(page.locator("#story")).to_be_hidden()
+                self.assertEqual(picks.evaluate_all("els => els.map(e => e.dataset.matchId)"), ["b", "d", "e"])
                 page.locator("#ai-clear").click()
                 self.close_personal_ai(page)
                 expect(title).to_have_text("The shared league headline")
@@ -3597,9 +3797,11 @@ class BrowserChecks(unittest.TestCase):
         with self.page("after", html=html, shared=shared) as (page, feed):
             lead = page.locator("#story-headlines > article.story-headline")
             expect(lead).to_have_attribute("data-league", "eng.1")
-            page.locator("#btn-menu").click()
+            self.open_settings(page)
+            self.open_settings(page, "leagues")
             page.locator('#comp-pills [data-key="eng.1"]').click()
             expect(lead).to_have_attribute("data-league", "esp.1")
+            self.open_settings(page, "leagues")
             page.locator('#comp-pills [data-key="eng.1"]').click()
             page.locator("#btn-filters-close").click()
             expect(lead).to_have_attribute("data-league", "eng.1")
@@ -3628,7 +3830,7 @@ class BrowserChecks(unittest.TestCase):
                 expect(page.locator(".row__story")).to_have_count(0)
                 self.assertEqual(page.locator("#picks .pick").evaluate_all("els => els.map(e => e.dataset.matchId)"), ["b", "d", "e"])
                 self.assertFalse(page.evaluate("Boolean(window.__unsafeExecuted)"))
-                page.locator("#btn-menu").click()
+                self.open_settings(page)
                 page.locator("#btn-clear").click()
                 expect(page.locator("li.row:visible")).to_have_count(0)
                 page.locator("#btn-reset").click()
@@ -3666,7 +3868,7 @@ class BrowserChecks(unittest.TestCase):
             page.route("https://api.github.com/**", github)
             title = page.locator("#story-headlines > article .story-headline__title")
             expect(title).to_have_text("The shared league headline")
-            page.locator("#btn-ai-settings").click()
+            self.open_settings(page, "ai")
             page.locator("#ai-publish-section > summary").click()
             token = "github_pat_browser_test_only"
             page.locator("#ai-publish-token").fill(token)
@@ -3718,7 +3920,7 @@ class BrowserChecks(unittest.TestCase):
             count = len(calls)
             page.reload()
             expect(title).to_have_text(reply["headlines"][0]["headline"])
-            page.locator("#btn-ai-settings").click()
+            self.open_settings(page, "ai")
             page.locator("#ai-publish-section > summary").click()
             expect(page.locator("#ai-publish-token")).to_have_value("")
             expect(page.locator("#ai-publish-disconnect")).to_be_hidden()
@@ -3746,78 +3948,43 @@ class BrowserChecks(unittest.TestCase):
             self.close_personal_ai(page)
             expect(title).to_have_text("The shared league headline")
 
-    def test_legacy_ai_paragraphs_stay_collapsed_until_read_more_and_real_headlines_replace_them(self):
-        text = "A returning midfielder gives Arsenal a different passing option. Chelsea's narrow midfield may leave space out wide."
-        sources = [{"url": "https://news.example/team-news", "title": "Team news"}]
-        fixtures = [("upcoming", "2026-10-07T17:05:00+00:00", "pre", "ESPN+", "eng.1")]
-        for kind in ("personal", "shared", "published overview", "published tagged"):
-            shared, story = None, None
+    def test_cached_legacy_ratings_do_not_create_headlines_or_hide_shared_headlines(self):
+        scores = dict(a=50, b=10, c=100, d=0, e=20)
+        html = render_page(build, fixtures=self.SCORED, stature=self.STATURE, ai=False)
+        for kind in ("personal", "shared", "personal over shared"):
+            shared = self.shared_ai_payload(self.SCORED) if kind != "personal" else None
             if kind == "shared":
-                shared = self.shared_ai_payload(fixtures)
-                old = self.personal_ai_reply({"request_id": shared["response"]["request_id"], "matches": shared["fixtures"]})
-                old["overview"].update(text=text, sources=sources)
-                shared["response"] = old
-            elif kind.startswith("published"):
-                story = self.overview_story(sources)
-                if kind == "published overview":
-                    story.update(lede_items=[], overview={"text": text, "sources": sources})
-                else:
-                    story["lede_items"][0].update(text=text, segments=[{"text": text, "match_ids": ["upcoming"]}])
-            html = render_page(build, fixtures=fixtures, ai=story is not None)
+                shared["response"] = self.personal_ai_legacy_reply(
+                    {"request_id": shared["response"]["request_id"], "matches": shared["fixtures"]}, scores)
             for width in (1280, 390):
-                with self.subTest(source=kind, width=width), self.page("after", html=html, story=story, shared=shared, width=width) as (page, _):
-                    if kind == "personal":
-                        page.locator("#btn-ai-settings").click()
+                with self.subTest(source=kind, width=width), self.page("after", html=html, shared=shared, width=width) as (page, _):
+                    if kind != "shared":
+                        self.open_settings(page, "ai")
                         page.locator("#ai-generate").click()
-                        old = self.personal_ai_reply(self.personal_ai_snapshot(page))
-                        old["overview"].update(text=text, sources=sources)
-                        page.locator("#ai-response").fill(json.dumps(old))
-                        page.locator("#ai-apply").click()
-                        self.close_personal_ai(page)
-                    details, lede = page.locator("#story-details"), page.locator("#story-lede")
-                    expect(page.locator("#story-h")).to_have_text("Match outlook")
-                    expect(details).to_be_visible()
-                    self.assertFalse(details.evaluate("el => el.open"))
-                    expect(lede).to_have_text(text)
-                    expect(lede).to_be_hidden()
-                    self.assertNotIn(text, page.locator("body").inner_text())
-                    expect(page.locator("#story-headlines .story-headline__title:visible")).to_have_count(0)
-                    # Preserve the old paragraph, without pretending its first sentence is a headline.
-                    page.locator("#story-details > summary").click()
-                    expect(lede).to_be_visible()
-                    source = page.locator("#story-by a").first
-                    source.focus()
-                    page.evaluate("window.__legacySource = document.activeElement")
-                    page.clock.run_for(61000)
-                    expect(lede).to_be_visible()
-                    self.assertTrue(page.evaluate("window.__legacySource.isConnected && document.activeElement === window.__legacySource"))
-                    page.reload()
-                    expect(page.locator("#story-h")).to_have_text("Match outlook")
-                    expect(lede).to_be_hidden()
-                    self.assertFalse(details.evaluate("el => el.open"))
-                    # A response with a real headline switches formats and collapses its own lede.
-                    page.locator("#story-details > summary").click()
-                    page.locator("#btn-ai-settings").click()
+                        old = self.personal_ai_legacy_reply(self.personal_ai_snapshot(page), scores)
+                        self.seed_legacy_personal_ai(page, old)
+                        page.reload()
+                    self.assertEqual(page.locator("#picks .pick").evaluate_all("els => els.map(e => e.dataset.matchId)"), ["b", "c", "e"])
+                    expect(page.locator('li.row[data-id="c"] .row__story')).to_contain_text("Your preview for c.")
+                    if kind == "personal over shared":
+                        expect(page.locator("#story-headlines > article .story-headline__title")).to_have_text("The shared league headline")
+                        expect(page.locator("#story")).to_be_visible()
+                    else:
+                        expect(page.locator("#story")).to_be_hidden()
+                        self.assertIsNone(page.locator("#story").bounding_box(), "Missing headlines must not reserve a blank section")
+                    self.assertNotIn("Match outlook", page.locator("body").inner_text())
+                    self.assertNotIn("Your match overview.", page.locator("body").inner_text())
+                    self.open_settings(page, "ai")
                     page.locator("#ai-generate").click()
-                    snapshot = self.personal_ai_snapshot(page)
-                    headline = "Arsenal's returning midfielder changes the matchup"
-                    reply = self.personal_ai_headline_reply(snapshot, [self.personal_ai_headline(
-                        snapshot, "eng.1", ["upcoming"], headline, 90, lede=text, sources=sources)])
-                    page.locator("#ai-response").fill(json.dumps(reply))
+                    response = self.personal_ai_reply(self.personal_ai_snapshot(page))
+                    page.locator("#ai-response").fill(json.dumps(response))
                     page.locator("#ai-apply").click()
+                    expect(page.locator("#ai-error")).to_be_empty()
                     self.close_personal_ai(page)
-                    expect(page.locator("#story-headlines > article .story-headline__title")).to_have_text(headline)
-                    expect(details).to_be_hidden()
+                    expect(page.locator("#story-headlines > article .story-headline__title")).to_have_text("Your match headline.")
                     expect(page.locator("#story-headlines .story-headline__lede")).to_be_hidden()
-                    self.assertNotIn(text, page.locator("body").inner_text())
+                    self.assertNotIn("Your match overview.", page.locator("body").inner_text())
                     self.assertLessEqual(page.evaluate("document.documentElement.scrollWidth"), width)
-                    if kind != "personal":
-                        page.locator("#btn-ai-settings").click()
-                        page.locator("#ai-clear").click()
-                        self.close_personal_ai(page)
-                        expect(details).to_be_visible()
-                        self.assertFalse(details.evaluate("el => el.open"))
-                        expect(lede).to_be_hidden()
 
 
 # Exit status when the browser cannot start: the checks did not run, which says nothing about the page.
@@ -3827,7 +3994,8 @@ NOT_RUN = 77
 # A compact cross-engine pass through the interactions most sensitive to browser behavior.
 # Chromium still runs every check by default; WebKit smoke is an additional compatibility check.
 SMOKE_TESTS = (
-    "test_legacy_ai_paragraphs_stay_collapsed_until_read_more_and_real_headlines_replace_them",
+    "test_settings_tabs_preserve_drafts_and_ai_visibility_without_changing_ratings",
+    "test_cached_legacy_ratings_do_not_create_headlines_or_hide_shared_headlines",
     "test_shared_ai_defaults_reach_new_visitors_and_local_imports_take_precedence",
     "test_github_publication_checks_access_keeps_tokens_private_and_preserves_local_results",
     "test_personal_ai_headlines_prioritize_near_matches_and_expand_on_request",

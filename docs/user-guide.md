@@ -2,11 +2,11 @@
 
 [Open the site](https://caparomula.github.io/soccer-outlook/) · [Project home](../README.md)
 
-Soccer Outlook helps you find upcoming matches available through your US streaming services and TV channels. Start with **Lineup** in the bar beneath the title.
+Soccer Outlook helps you find upcoming matches available through your US streaming services and TV channels. Open the **Settings** gear in the bar beneath the title. Its three tabs contain **Lineup** for services, **Leagues** for competitions, and **AI** for headlines, blurbs and imported recommendations. Switching tabs keeps what you have entered; **Done** closes the window.
 
 ## Choose what you can watch
 
-In **Lineup**, tap a broadcaster or league to enable or disable it. Enabled and disabled choices have separate areas. You can also drag a pill between them; on a touchscreen, use its dotted handle.
+In **Settings → Lineup**, tap a broadcaster to enable or disable it; use **Settings → Leagues** for competitions. Enabled and disabled choices have separate areas. You can also drag a pill between them; on a touchscreen, use its dotted handle.
 
 Each group has **Select all** and **Clear all** buttons. Disabled choices are alphabetical. Drag enabled choices to change their order, or focus a pill and press **Alt + ↑** or **Alt + ↓**.
 
@@ -31,7 +31,7 @@ The older, ambiguous **Fox One** selection is cleared when you first load the up
 
 ### YouTube TV plans and add-ons
 
-Choose your plan and any add-ons you pay for in **Lineup**, instead of **Cable or live-TV bundle**. Each choice adds only its included channels. For example, select **YouTube TV (main plan)** and **YouTube TV Sports Plus** if you have both. The main plan is enabled by default; the other YouTube TV plans and add-ons start disabled. Your selections are saved like your other preferences.
+Choose your plan and any add-ons you pay for in **Settings → Lineup**, instead of **Cable or live-TV bundle**. Each choice adds only its included channels. For example, select **YouTube TV (main plan)** and **YouTube TV Sports Plus** if you have both. The main plan is enabled by default; the other YouTube TV plans and add-ons start disabled. Your selections are saved like your other preferences.
 
 | Choice | Soccer coverage included |
 | --- | --- |
@@ -49,9 +49,9 @@ Local affiliates vary by ZIP code. Check [YouTube TV's current plans and local l
 
 ### Quickly hide a league
 
-The bar shows emblems for enabled leagues with matches on your selected services in the displayed schedule, including folded results. It updates when you change services or the schedule's date window changes. A league can remain enabled without appearing in the strip; **Lineup** lists leagues with fixtures in the fetched schedule, even when none match your services or the displayed days. Tap an emblem to hide that league's matches; tap it again to show them. A hidden league's emblem is dimmed, keeping its colors, with a dashed outline and a small minus badge. Visible leagues have a solid green outline. A short notice offers **Undo**. The strip scrolls sideways if it does not fit.
+The bar shows emblems for enabled leagues with matches on your selected services in the displayed schedule, including folded results. It updates when you change services or the schedule's date window changes. A league can remain enabled without appearing in the strip; **Settings → Leagues** lists leagues with fixtures in the fetched schedule, even when none match your services or the displayed days. Tap an emblem to hide that league's matches; tap it again to show them. A hidden league's emblem is dimmed, keeping its colors, with a dashed outline and a small minus badge. Visible leagues have a solid green outline. A short notice offers **Undo**. The strip scrolls sideways if it does not fit.
 
-Hiding keeps the league in the strip while it has matching games and remembers the choice for your next visit. Disabling it in **Lineup** removes it from the strip. If you enable it again, it starts visible.
+Hiding keeps the league in the strip while it has matching games and remembers the choice for your next visit. Disabling it in **Settings → Leagues** removes it from the strip. If you enable it again, it starts visible.
 
 With a keyboard, Tab enters the strip; arrow keys, Home and End move between leagues, and Enter or Space toggles the focused league. If ESPN has no emblem for a league, the strip shows a short name instead.
 
@@ -61,15 +61,15 @@ Press and hold a league emblem to show only that league, still using your select
 
 If the solo league's last match leaves the displayed schedule, the page restores your previous selection automatically.
 
-With a keyboard, **Shift + Enter** or **Shift + Space** starts or ends the solo view. Your saved selections and hidden leagues stay intact, even if the solo league was previously hidden. Reloading the page or changing your league or broadcaster selections in **Lineup** ends the solo view; simply opening Lineup or reordering visible leagues does not.
+With a keyboard, **Shift + Enter** or **Shift + Space** starts or ends the solo view. Your saved selections and hidden leagues stay intact, even if the solo league was previously hidden. Reloading the page or changing your league or broadcaster selections in **Settings** ends the solo view; simply opening Settings, switching tabs or reordering visible leagues does not.
 
 ### Saved preferences and defaults
 
-Services, league selections, ordering and hidden leagues are saved in this browser's local storage. They do not synchronize between devices or browsers. Clearing site data removes them; private browsing may discard them when the session ends.
+Services, league selections, ordering, hidden leagues and AI-text visibility are saved in this browser's local storage. They do not synchronize between devices or browsers. Clearing site data removes them; private browsing may discard them when the session ends.
 
 Until you reset, a league you have explicitly enabled or disabled keeps that choice when it returns to a later schedule; a league you have never changed uses its default.
 
-**Reset to defaults** restores the default services and league selections, clears hidden leagues, and resets both orders.
+**Reset to defaults**, available on the **Lineup** and **Leagues** tabs, restores the default services and league selections, clears hidden leagues, and resets both orders. It resets both filter groups, whichever of those tabs you use.
 
 The default services, in preference order, are Apple TV, YouTube TV (main plan), HBO Max, Paramount+, Prime Video, Netflix and Disney+. YouTube TV includes its main-plan FOX channels, ESPN coverage and USA Network, so those do not need separate selections. Saved personal choices take precedence over these defaults; use **Reset to defaults** to adopt the current lineup and order.
 
@@ -89,7 +89,7 @@ The default leagues, in preference order, are:
 12. Ligue 1
 13. Copa del Rey
 
-All other tracked competitions start disabled, including national-team competitions and lower-division domestic leagues: England's Championship, USL Championship and USL League One. You can enable these in **Lineup**. A US national-team match does not bypass its competition filter. Existing saved selections and orders still apply; choose **Reset to defaults** to adopt this list. Leagues without fixtures in the fetched schedule do not appear in the panel, but their saved choices are kept for when they return.
+All other tracked competitions start disabled, including national-team competitions and lower-division domestic leagues: England's Championship, USL Championship and USL League One. You can enable these in **Settings → Leagues**. A US national-team match does not bypass its competition filter. Existing saved selections and orders still apply; choose **Reset to defaults** to adopt this list. Leagues without fixtures in the fetched schedule do not appear in the panel, but their saved choices are kept for when they return.
 
 ## Read the schedule
 
@@ -107,18 +107,20 @@ The header count and **Your lineup** totals cover the displayed days. **Elsewher
 
 **Top three** chooses the highest-scoring remaining matches across the displayed days, then presents them in kickoff order. It never repeats the top card's match. It can show one or two matches, or disappear when none qualify. With automatic recommendations, a current AI rating on any remaining candidate limits this section to rated matches; otherwise it uses the Outlook score and league priority. While a personal or shared AI response is active, all eligible matches can compete, including newly enabled matches outside that response, which use the site's normal scores.
 
-The site's automatic AI generation supplies ratings, with prose turned off. A maintainer can publish a chat response to supply shared headlines, match blurbs and ratings. You can override those with a personal response through **AI settings**, described below. A featured card without a blurb shows extra match facts and links instead. [How recommendations work](scoring.md) explains the scores and configurable alternatives.
+The site's automatic AI generation supplies ratings, with prose turned off. A maintainer can publish a chat response to supply shared headlines, match blurbs and ratings. You can override those with a personal response through **Settings → AI**, described below. A featured card without a blurb shows extra match facts and links instead. [How recommendations work](scoring.md) explains the scores and configurable alternatives.
 
 ### Use your own AI for blurbs
 
-Open **AI settings** to use a chat AI you already have access to, such as Copilot, Claude or ChatGPT. This is a copy-and-paste workflow: Soccer Outlook does not sign in to an AI account or send the prompt automatically.
+Open **Settings → AI** to use a chat AI you already have access to, such as Copilot, Claude or ChatGPT. This is a copy-and-paste workflow: Soccer Outlook does not sign in to an AI account or send the prompt automatically.
 
-1. Choose your services and leagues in **Lineup** first.
-2. In **AI settings**, describe what you enjoy watching—for example, close games, title races, a favorite club or matches happening this evening.
+The **Show AI headlines and match blurbs** switch controls whether AI text appears. Turning it off hides headlines and match blurbs while retaining AI ratings, rankings, saved responses and preferences. Your choice is remembered in this browser; turn it back on to show any still-current text.
+
+1. Choose your services in **Settings → Lineup** and competitions in **Settings → Leagues** first.
+2. In **Settings → AI**, describe what you enjoy watching—for example, close games, title races, a favorite club or matches happening this evening.
 3. Choose **Create prompt**, then **Copy prompt**, and paste it into your chat. Enable the chat's web search if you want current news. The prompt contains your enabled leagues that are not temporarily hidden, league order and preferences, plus the live and upcoming matches passing your current filters within today and the next three days. With services and leagues selected, you can create a prompt even when there are no matching fixtures, to ask about verified calendar developments such as a break or resumption.
 4. The chat is asked to return headline candidates, ratings and blurbs in one formatted JSON code block. Use the block's **Copy** button, if available, and paste the complete response into **AI response**, then choose **Apply response**. The app checks the response before using it; if it reports an error, your previous recommendations stay in place. Ask the chat to correct the response using the original prompt. If you have connected GitHub publishing, this button becomes **Apply & publish**, as explained below.
 
-The page shows one short headline above the featured matches when sufficiently interesting news passes your filters. **Read more** reveals its supporting text when there is any; **More headlines** holds other qualifying candidates. The chat considers every league in the prompt, including those without fixtures, but need not supply a headline for routine news. The app prefers stories about sooner matches, then the AI's editorial interest rating, with league priority breaking ties. If nothing qualifies, the headline area is omitted.
+The page shows one short, authored headline above the featured matches when sufficiently interesting news passes your filters. **Read more** reveals its supporting text when there is any; **More headlines** holds other qualifying candidates. The chat considers every league in the prompt, including those without fixtures, but need not supply a headline for routine news. The app prefers stories about sooner matches, then the AI's editorial interest rating, with league priority breaking ties. If no authored headline qualifies, the whole headline area is omitted, without a placeholder or overview paragraph.
 
 Match-specific blurbs appear with their match, including in the schedule. The prompt asks for concrete angles about players, coaches, tactics, rivalries or competitive stakes, supported by current reporting when web search is available. It asks the chat to avoid general football news, generic filler and repeating the schedule's times, venues or channels. A match still receives a rating when there is no useful supported angle; its blurb can be empty.
 
@@ -128,9 +130,9 @@ Recommendations still follow your services and league filters. A match headline 
 
 Your preferences and accepted response are saved in this browser. Recommendations expire **24 hours after the prompt was created**; individual headlines may expire sooner. Pasting the same response again does not refresh them. Use **Create prompt** and run it in your chat again for a new schedule, different interests or updated writing instructions; existing imports are not rewritten. After changing filters, existing matching recommendations can still be used; create another prompt to cover newly included matches or leagues.
 
-Older responses remain supported. Their overview appears under the neutral **Match outlook** label, collapsed behind **Read more**, while their ratings and match blurbs continue to work until expiry. This label is not an AI-written headline. If **AI settings** reports the older format, choose **Create prompt** and obtain a fresh response to get short authored headlines; the app does not turn the old paragraph into one automatically. The same compact display applies to older shared and automatically published overviews.
+Older saved responses keep their ratings and match blurbs until the original expiry, but their overview paragraphs no longer appear at the top or prevent shared headlines from appearing. Older saved prompts are retired; your preferences and accepted ratings stay intact. Choose **Create prompt** to request authored headlines. If your chat returns the old overview format for a new prompt, the app asks you to correct the response instead of accepting it. It does not turn paragraphs into headlines automatically.
 
-Choose **Restore site recommendations** to remove your personal import and return to available shared recommendations, then the site's automatic ratings where needed. This keeps your lineup and preference text and does not remove published defaults. A current personal response takes precedence, including an intentionally empty headline list. Applying a response without a publishing connection changes only this browser. Clearing site data removes local preferences and imports, and private browsing may not retain them. The prompt becomes visible to your chosen AI service when you paste it there. Source links supplied by a chat are references, not independent verification by Soccer Outlook.
+Choose **Restore site recommendations** to remove your personal import and return to available shared recommendations, then the site's automatic ratings where needed. This keeps your lineup and preference text and does not remove published defaults. Personal ratings take precedence, and a current-format personal response's intentionally empty headline list keeps the headline area empty. Applying a response without a publishing connection changes only this browser. Clearing site data removes local preferences and imports, and private browsing may not retain them. The prompt becomes visible to your chosen AI service when you paste it there. Source links supplied by a chat are references, not independent verification by Soccer Outlook.
 
 ### Publish recommendations for everyone
 
@@ -138,7 +140,7 @@ This optional control is for maintainers with write access to the Soccer Outlook
 
 1. Open [GitHub's fine-grained token form](https://github.com/settings/personal-access-tokens/new?name=Soccer%20Outlook%20publishing&target_name=caparomula&expires_in=30&contents=write). Alternatively, go to **GitHub Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token**.
 2. Choose **caparomula** as the resource owner, set an expiration, and select **Only select repositories → soccer-outlook**. Under repository permissions, grant **Contents: Read and write**. No Actions, Workflows or administration permission is needed. The link prefills some fields; check the repository selection yourself.
-3. In **AI settings → Publish site defaults**, enter the token and choose **Connect GitHub**. Paste it only into this publishing control, never into your AI chat or prompt. Connecting checks repository write access without publishing anything. The token stays only in this tab's memory; **Disconnect GitHub** or reloading forgets it.
+3. In **Settings → AI → Publish site defaults**, enter the token and choose **Connect GitHub**. Paste it only into this publishing control, never into your AI chat or prompt. Connecting checks repository write access without publishing anything. The token stays only in this tab's memory; **Disconnect GitHub** or reloading forgets it.
 4. Review the response you want everyone to see, then use **Apply & publish**. To publish an already accepted response or retry after a publishing failure, use **Publish saved response**.
 
 Publishing creates a GitHub commit and starts the normal site deployment. A successful save means the commit was accepted; visitors receive the new defaults after deployment finishes. A publishing failure leaves your personal response available so you can retry.
@@ -185,6 +187,6 @@ The schedule normally rebuilds three times a day. Live scores are checked roughl
 
 Open **Schedule and data details** in the footer for the build time, latest score check, coverage counts and any incomplete-data notice. The page warns when its build is more than 30 hours old.
 
-If a match is missing, check its league in **Lineup** and in the league strip, check your selected services, and check whether it falls within the displayed days. A known league rights deal does not always establish coverage for every fixture. Broadcast assignments can change, so confirm the listing in the broadcaster's app before kickoff.
+If a match is missing, check **Settings → Leagues** and the league strip, check your services in **Settings → Lineup**, and check whether it falls within the displayed days. A known league rights deal does not always establish coverage for every fixture. Broadcast assignments can change, so confirm the listing in the broadcaster's app before kickoff.
 
 For maintainers, [Development and maintenance](development.md) explains the data sources, update schedule and coverage report.

@@ -1349,7 +1349,7 @@ def priority_hint():
 def about_ai():
     """The footer's account of the AI's part, or of its absence: which model, doing what."""
     if not SETTINGS.ai:
-        return "Site-generated AI is turned off. Personal AI ratings and blurbs can still be imported through AI settings."
+        return "Site-generated AI is turned off. Personal AI ratings, headlines and blurbs can still be imported through Settings → AI."
     if SETTINGS.design == "ratings":
         def who(model):
             maker = providers.PROVIDER_NAMES[providers.MODELS[model]]
@@ -1360,26 +1360,27 @@ def about_ai():
                    "fill missing or newly listed ratings while keeping the day's accepted ratings. Its ratings are "
                    "editorial judgments, not predicted results")
         if not SETTINGS.overview_model and not SETTINGS.blurbs_model:
-            return ratings + ". Site-generated blurbs are turned off; AI settings can add personal ratings and text in your browser."
+            return ratings + ". Site-generated blurbs are turned off; Settings → AI can add personal ratings and text in your browser."
         text = ratings + "."
         if SETTINGS.overview_model:
-            text += (f" Then {who(SETTINGS.overview_model)}, searches the web and writes the overview at the top (marked "
-                     "AI Summary) about the matches of the days the page shows, on every service and in every competition, "
-                     "so it reads the same whatever you choose to see.")
+            text += (f" Then {who(SETTINGS.overview_model)}, searches the web and writes an overview paragraph for the "
+                     "generated AI data. That paragraph is not displayed in the headline area, which requires an "
+                     "authored headline.")
         if SETTINGS.blurbs_model:
             text += (f" For the cards, {who(SETTINGS.blurbs_model)}, searches the web for a blurb on each of the "
                      f"{story_candidates()} best-scored matches in the days the page shows.")
         each = "Each is" if SETTINGS.overview_model and SETTINGS.blurbs_model else "It is"
-        return text + (f" {each} published only with a page its own search returned, linked beside it; a day without one "
-                       "has none. AI settings can also add personal ratings and text in your browser.")
-    return ("The overview (marked AI Summary) and the match blurbs are written by Claude, Anthropic's AI model "
+        return text + (f" {each} published only with a page its own search returned as a source; without one, the text "
+                       "is omitted. Settings → AI can also add personal ratings and text in your browser.")
+    return ("Authored headlines and match blurbs are written by Claude, Anthropic's AI model "
             f"({SETTINGS.model}), once a day, early in the morning; the midday and evening rebuilds update fixtures, "
             "broadcasters and scores but keep the morning's text. Blurbs link to their sources; one that rests only on "
             "ESPN's table, form and stage is labelled \"ESPN table and form\". Claude supplies a general overview, league "
-            "context and a sourced blurb for every rated match. The overview focuses on the current day when possible and "
-            "looks further ahead when needed. Blurbs with no available matches are hidden; excluded phrases within a "
-            "relevant blurb are dimmed. One overview appears at the top; match-specific news stays with its match card or "
-            "schedule row. Claude also rates each upcoming match for popularity (25%), expected gameplay (35%) and "
+            "context and match blurbs. An authored headline appears at the top only while its referenced matches pass "
+            "your filters; supporting text is collapsed under Read more. It focuses on the current day when possible "
+            "and looks further ahead when needed. Blurbs with no available matches are hidden; excluded phrases within "
+            "a relevant blurb are dimmed. Match-specific news stays with its match card or schedule row. "
+            "Claude also rates each upcoming match for popularity (25%), expected gameplay (35%) and "
             "competitive impact (40%), without seeing the Outlook score; its ratings are editorial judgments, not "
             "predicted results.")
 
@@ -1405,9 +1406,9 @@ def about_scores():
         mix = shares({"ai": b["ai"], "outlook": b["outlook"]})
         return text + (f"A match's interest is {mix['ai']}% the AI rating and {mix['outlook']}% the Outlook score (the "
                        "Outlook score alone for a match without an AI rating), and its pick score is "
-                       f"{pick['interest']}% interest and {pick['league_priority']}% league priority, adjustable in Lineup.") + dots
+                       f"{pick['interest']}% interest and {pick['league_priority']}% league priority, adjustable in Settings → Leagues.") + dots
     return text + (f"A match's pick score is {pick['interest']}% the Outlook score and {pick['league_priority']}% league "
-                   "priority, adjustable in Lineup.") + dots
+                   "priority, adjustable in Settings → Leagues.") + dots
 
 
 def owner_pill_service(via):

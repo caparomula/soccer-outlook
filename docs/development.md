@@ -49,7 +49,7 @@ For a browser preview at a chosen local time, append a fragment such as `#at-202
 | [`settings.toml`](../settings.toml) | AI configuration, score weights and golden-dot thresholds. |
 | [`web/page.html`](../web/page.html) | Page structure. |
 | [`web/styles.css`](../web/styles.css) | Layout, themes and responsive styles. |
-| [`web/app.js`](../web/app.js) | Filters, saved preferences, match cards, scoring in the browser, details overlays and applying live updates. |
+| [`web/app.js`](../web/app.js) | Settings tabs, filters, saved preferences, match cards, scoring in the browser, details overlays and applying live updates. |
 | [`web/live.js`](../web/live.js) | Live-score requests, catch-up checks, timeouts and retry scheduling. |
 | [`web/personal-ai.js`](../web/personal-ai.js) | Personal AI prompt and response format, validation and import freshness. |
 | [`web/github-publish.js`](../web/github-publish.js) | Optional browser connection to GitHub and publication of accepted recommendations. |
@@ -109,7 +109,9 @@ Use a complete checkout of the baseline revision so its supporting files and ass
 
 ## Personal AI imports
 
-**AI settings** lets a visitor generate a prompt, run it in a chat of their choice, and paste the response back. This path makes no AI API requests, needs no AI provider credentials and does not modify `story.json`. Applying stays local unless the visitor connects the optional GitHub publishing control. The [user guide](user-guide.md#use-your-own-ai-for-blurbs) explains the controls.
+**Settings → AI** lets a visitor generate a prompt, run it in a chat of their choice, and paste the response back. This path makes no AI API requests, needs no AI provider credentials and does not modify `story.json`. Applying stays local unless the visitor connects the optional GitHub publishing control. The [user guide](user-guide.md#use-your-own-ai-for-blurbs) explains the controls.
+
+The single Settings menu has **Lineup**, **Leagues** and **AI** tabs. Tab changes preserve the existing form fields and their contents. The AI tab's **Show AI headlines and match blurbs** switch is a saved browser preference that controls text rendering only: ratings, pick order, saved imports, prompts and preferences remain unchanged. Filter resets affect services and leagues rather than clearing AI data.
 
 The prompt includes every enabled and unpaused league, league priority and user preferences, plus current filter-eligible live and upcoming fixtures with team facts and known coverage. It can be generated with no fixtures when services and leagues are selected, allowing the chat to research calendar developments. An empty schedule must not be interpreted as a break or the start of a season.
 
@@ -127,11 +129,11 @@ Each headline's `expires_at` must be an ISO timestamp after prompt creation and 
 
 The manual prompt asks for researched player, coach, tactical, rivalry or competitive-stakes angles when the chosen chat has web search. Headlines may connect a league's relevant stories, including a verified break or resumption; routine news should be omitted. It discourages unrelated club news, schedule repetition and generic filler. Users must enable search in their chat for current reporting. Manual imports do not run the same prompt, research tools or source-provenance checks as `story.py`; the published generation path is unchanged and its prose remains off by default.
 
-Imports and personal preferences are stored locally. The whole import expires 24 hours after prompt creation, and headlines may expire sooner. Saved version 1 prompts and responses remain supported. Their overview is displayed under **Match outlook**, collapsed behind **Read more**; ratings, match blurbs and expiry are preserved. Automatically published legacy overviews use the same compact display. **Match outlook** is a section label, not a fabricated headline. Version 2's authored headlines are unchanged.
+Imports and personal preferences are stored locally. The whole import expires 24 hours after prompt creation, and headlines may expire sooner. Saved version 1 responses retain their match ratings and blurbs until the original expiry; their overview paragraphs are not shown at the top. A version 1 personal response does not block version 2 shared headlines. Old saved version 1 prompts are discarded while preferences and applied recommendations are kept; **Settings → AI** directs the reader to **Create prompt**. Applying a version 1 response to a new version 2 prompt is rejected with instructions to return the requested headline fields.
 
-**AI settings** identifies saved older-format prompts or responses and directs the reader to **Create prompt**. A fresh chat response supplies the version 2 headline fields. The app does not migrate paragraphs into headlines or make new AI calls on its own.
+The top editorial area requires an authored headline. It never substitutes a generic heading or an overview paragraph. An older published story can still supply its actual `headline` with valid fixture references and collapsed supporting text; `overview` alone is insufficient. With no qualifying headline, the entire area is hidden. The app does not migrate paragraphs into headlines or make new AI calls on its own.
 
-Matching personal ratings take precedence over shared defaults, which take precedence over automatic `story.json` ratings while valid. The visitor's **Imported rating influence** controls personal ratings' blend with the Outlook score; league-priority weighting stays unchanged. Current filters apply to both personal and shared text. A personal response's empty headline list is respected rather than filled from shared content. Restoring site recommendations clears the personal result without resetting the lineup, preference text or shared defaults.
+Matching personal ratings take precedence over shared defaults, which take precedence over automatic `story.json` ratings while valid. The visitor's **Imported rating influence** controls personal ratings' blend with the Outlook score; league-priority weighting stays unchanged. Current filters apply to both personal and shared text. A version 2 personal response's empty headline list is respected rather than filled from shared content. Restoring site recommendations clears the personal result without resetting the lineup, preference text or shared defaults.
 
 ### Publishing shared defaults through GitHub
 
@@ -163,10 +165,12 @@ The `[ai]` table controls this behavior:
 | --- | --- |
 | `enabled = false` | Disable site-generated AI calls and prevent the browser from requesting `story.json`. Personal imports and shared defaults remain available; otherwise picks use the Outlook score and league priority. |
 | `design = "ratings"` | Rate upcoming fixtures within the display window. Optionally add separately researched overview text or card blurbs. |
-| `design = "full"` | Ask Claude for researched overview and league context, plus ratings and blurbs for upcoming fixtures. Requires a supported Claude Sonnet or Opus model. |
+| `design = "full"` | Ask Claude for an authored headline with fixture references, researched league context, ratings and match blurbs. Requires a supported Claude Sonnet or Opus model. |
 | `model`, `effort` | Choose the main model and its reasoning effort. |
-| `overview_model`, `overview_effort` | In the ratings design, add one researched overview covering the available slate across services and competitions. This overview is the same for every visitor. Leave both out to disable it. |
+| `overview_model`, `overview_effort` | In the ratings design, generate a researched paragraph in `story.json`'s `overview` field. This legacy output contains no authored headline and is not used in the homepage headline area. Leave both out to disable generation. |
 | `blurbs_model`, `blurbs_effort` | In the ratings design, research blurbs for six leading fixtures using the default league order. Individual visitors' filtered picks can include other matches without blurbs. Leave both out to disable this step. |
+
+The current headline path uses version 2 personal or shared responses. An authored full-design headline with valid fixture references also remains supported; enabling `overview_model` alone does not supply one.
 
 Supported model names and effort values are listed in `providers.py`; choose them in `settings.toml`. Add each configured provider's key as a repository Actions secret under **Settings → Secrets and variables → Actions**:
 
@@ -292,12 +296,12 @@ After publication, [the mapping script](../.github/scripts/mapping-issue.sh) mai
 | Symptom | What to check |
 | --- | --- |
 | Local build cannot fetch fixtures | Confirm that `curl` can reach ESPN from this machine. Unit and browser tests can still run without ESPN access, but they cannot produce a current real schedule. |
-| No AI prose | Automatic prose is off by default. For personal or shared responses, check expiry, filters and headline interest; a response can legitimately have no headlines or blurbs. For enabled automatic prose, check the provider key and generation log. |
+| No AI prose | Check **Settings → AI → Show AI headlines and match blurbs**, then response expiry, filters and headline interest. A response can legitimately have no headlines or blurbs. Automatic prose generation is off by default; when enabled, check its provider key and generation log. |
 | No AI ratings | Check `[ai] enabled`, the correct provider secret, whether generation returned ratings, and the result's freshness. Picks still use the Outlook score. |
 | A local `story.py` run does nothing | Its default mode is `keep`. Use `daily` or another generation mode, and supply `--previous` if reuse is wanted. |
 | A card has no blurb | A personal or shared response may not cover this fixture, may have expired, or may leave its blurb empty. Automatic text may be disabled, the match may not be one of the six researched candidates, or its text may have failed validation. Cards show match facts in its place. |
 | A pasted AI response is rejected | Use the complete JSON response for the current prompt, including every requested match ID and its unchanged request ID. Follow the reported error; create a new prompt if the old one has expired. |
-| I still see an overview instead of a headline | An older personal, shared or automatic response can contain a paragraph, now collapsed under **Match outlook → Read more**. Use **Create prompt** and obtain a fresh response for authored headline fields; copying an old prompt or reapplying its response retains the old format. |
+| No headline from an older response | Its ratings and match blurbs remain usable, but an overview paragraph cannot fill the headline area. Choose **Create prompt** for the current format; a version 1 personal response can still use available shared version 2 headlines. |
 | GitHub publishing fails | Check token expiry, the selected repository and Contents write permission. A concurrent edit requires reviewing the latest file before retrying. Your local response is retained; use **Publish saved response** once the issue is resolved. |
 | Published page has not changed | Check **Refresh outlook** and then the Pages deployment. A failed build preserves the prior site; documentation-only commits do not rebuild it. |
 | Browser checks cannot start | Install the selected Playwright browser and its system dependencies, or deliberately set `BROWSER_EXECUTABLE`. Exit code 77 means the browser could not start, not that the assertions passed. |

@@ -5,7 +5,7 @@
   var FOCUS_MS = 24 * 60 * 60000;
   var HEADLINE_MIN = 60;            // absolute editorial interest: routine fixture notices stay out
   var LIVE_MS = 125 * 60000;
-  var LS = { mode: 'ssg2-mode', have: 'ssg3-have', leagues: 'ssg5-leagues', compOff: 'ssg2-comp-off', paused: 'ssg1-league-paused', priority: 'ssg4-league-order', services: 'ssg4-service-order' };
+  var LS = { mode: 'ssg2-mode', have: 'ssg3-have', leagues: 'ssg5-leagues', compOff: 'ssg2-comp-off', paused: 'ssg1-league-paused', priority: 'ssg4-league-order', services: 'ssg4-service-order', aiBlurbs: 'ssg3-ai-blurbs' };
   var app = document.getElementById('app');
   var body = document.getElementById('outlook-body');
   var rows = Array.prototype.slice.call(document.querySelectorAll('li.row'));
@@ -123,6 +123,12 @@
   try { localStorage.removeItem(LS.mode); } catch (e) {}
   var drawerOpen = false;
   var drawer = document.getElementById('drawer'), btnMenu = document.getElementById('btn-menu');
+  var settingsTab = 'lineup', settingsTabs = Array.from(drawer.querySelectorAll('[data-settings-tab]'));
+  var showAIBlurbs = read(LS.aiBlurbs) !== false, aiBlurbs = document.getElementById('ai-blurbs');
+  aiBlurbs.checked = showAIBlurbs;
+  aiBlurbs.addEventListener('change', function () {
+    showAIBlurbs = aiBlurbs.checked; write(LS.aiBlurbs, showAIBlurbs); render(true);
+  });
   var storedHave = read(LS.have);
   // The former "fox" choice conflated app/provider sign-in with a full FOX One subscription.
   // Do not convert that ambiguous choice into paid access or presume any provider channels.
@@ -409,19 +415,45 @@
     if (compHidden(r)) return false;
     return true;
   }
-  // The lineup panel: opened from the Lineup button, closed by it, by Done, by Escape or by a tap
-  // outside. Opening moves focus into the panel; closing from the keyboard returns it to the button.
+  // One nonmodal Settings pane keeps filter controls and the AI workflow together. Switching tabs
+  // only changes visibility, so a draft response or prompt is never lost during a filter adjustment.
+  function setSettingsTab(name, focus) {
+    var selected = settingsTabs.find(function (tab) { return tab.dataset.settingsTab === name; });
+    if (!selected) return;
+    if (filterDrag) finishFilterDrag({ pointerId: filterDrag.id, type: 'pointercancel' });
+    settingsTab = name;
+    settingsTabs.forEach(function (tab) {
+      var active = tab === selected;
+      tab.setAttribute('aria-selected', String(active)); tab.tabIndex = active ? 0 : -1;
+      document.getElementById(tab.getAttribute('aria-controls')).hidden = !active;
+    });
+    document.getElementById('btn-reset').hidden = name === 'ai';
+    drawer.scrollTop = 0;
+    if (name === 'ai' && PERSONAL) PERSONAL.open();
+    if (focus) selected.focus({ preventScroll: true });
+  }
+  drawer.addEventListener('keydown', function (ev) {
+    var tab = ev.target.closest('[data-settings-tab]');
+    if (!tab || ['ArrowLeft', 'ArrowRight', 'Home', 'End'].indexOf(ev.key) < 0) return;
+    ev.preventDefault();
+    var index = settingsTabs.indexOf(tab);
+    if (ev.key === 'Home') index = 0;
+    else if (ev.key === 'End') index = settingsTabs.length - 1;
+    else index = (index + (ev.key === 'ArrowRight' ? 1 : -1) + settingsTabs.length) % settingsTabs.length;
+    setSettingsTab(settingsTabs[index].dataset.settingsTab, true);
+  });
   function positionDrawer() {
     if (!drawerOpen) return;
-    var rect = btnMenu.getBoundingClientRect(), width = Math.min(600, window.innerWidth - 32);
+    var rect = btnMenu.getBoundingClientRect(), width = drawer.offsetWidth;
     var top = Math.max(8, Math.min(rect.bottom + 8, window.innerHeight - 180));
-    var right = Math.min(Math.max(16, window.innerWidth - rect.right), window.innerWidth - width - 16);
-    drawer.style.setProperty('--drawer-top', top + 'px'); drawer.style.setProperty('--drawer-right', right + 'px');
+    var viewport = document.documentElement.clientWidth;
+    var left = Math.max(16, Math.min(rect.left, viewport - width - 16));
+    drawer.style.setProperty('--drawer-top', top + 'px'); drawer.style.setProperty('--drawer-left', left + 'px');
   }
   function setDrawer(open, refocus) {
     if (!open && filterDrag) finishFilterDrag({ pointerId: filterDrag.id, type: 'pointercancel' });
     drawerOpen = open; applyFilterUI();
-    if (open) { positionDrawer(); drawer.scrollTop = 0; drawer.focus({ preventScroll: true }); }
+    if (open) { hideDetailPreview(); positionDrawer(); setSettingsTab(settingsTab, true); }
     else if (refocus) btnMenu.focus({ preventScroll: true });
   }
   window.addEventListener('resize', positionDrawer);
@@ -432,10 +464,9 @@
   // them far down the page threw the reader hundreds of pixels back up. Only a Tab moves the page:
   // focus put back after a redraw uses preventScroll and stays where the reader left it.
   var bar = document.getElementById('bar'), tabbing = false;
-  // The bar is one line where it can be: Lineup, the league strip and the coffee link. The strip
-  // needs room for a run of emblems (five, or all of them when they are fewer); to make it, Lineup
-  // first drops its name and keeps its icon (tight: the styles say what that drops), and only where
-  // even that leaves too little (a narrow phone, a large text size) does the strip take the line
+  // The bar is one line where it can be: Settings, the league strip and the coffee link. The strip
+  // needs room for a run of emblems (five, or all of them when they are fewer); compact spacing helps,
+  // and where that leaves too little (a narrow phone, a large text size) the strip takes the line
   // below. Measured rather than set by width, since fonts, text size and the number of leagues
   // followed decide it.
   var STRIP_INLINE_PX = 190;
@@ -642,7 +673,8 @@
   }, true);
   document.addEventListener('focusin', function (ev) {
     var el = ev.target;
-    if (!tabbing || !bar || !el.closest || el.closest('.bar, #drawer, #match-preview, #match-dialog, #ai-settings')) return;
+    if (drawerOpen && !drawer.contains(el) && el !== btnMenu) setDrawer(false, false);
+    if (!tabbing || !bar || !el.closest || el.closest('.bar, #drawer, #match-preview, #match-dialog')) return;
     requestAnimationFrame(function () {
       if (document.activeElement !== el) return;
       var below = bar.getBoundingClientRect().bottom, rect = el.getBoundingClientRect();
@@ -664,6 +696,7 @@
     var b = ev.target.closest('button'); if (!b || !(b.closest('#controls') || b.closest('#drawer') || b === btnMenu)) return;
     if (b.hasAttribute('data-kind') && suppressFilterClick) { ev.preventDefault(); return; }
     if (b === btnMenu || b.id === 'btn-filters-close') { setDrawer(b === btnMenu ? !drawerOpen : false, b.id === 'btn-filters-close'); return; }
+    if (b.hasAttribute('data-settings-tab')) { setSettingsTab(b.dataset.settingsTab, true); return; }
     if (b.id === 'btn-reset') {
       clearStripView();
       HAVE = {}; SERVICES.owner.forEach(function (k) { HAVE[k] = true; }); storedHave = null;
@@ -869,7 +902,7 @@
     });
     if (!anyUpcoming) {
       var e = document.createElement('p'); e.className = 'empty';
-      e.textContent = 'No matches on your selected services and competitions in the next three days. Open Lineup to add services or competitions.';
+      e.textContent = 'No matches on your selected services and competitions in the next three days. Open Settings to add services or competitions.';
       frag.insertBefore(e, frag.firstChild);
     }
     // Rows not placed (outside the window) are parked out of sight.
@@ -1351,6 +1384,7 @@
   };
 
   function matchBlurb(r) {
+    if (!showAIBlurbs) return null;
     var personal = PERSONAL && PERSONAL.rating(r.getAttribute('data-id'));
     if (personal) return personal.blurb ? { note: personal.blurb, sources: personal.sources } : null;
     var shared = SHARED && SHARED.rating(r.getAttribute('data-id'));
@@ -1390,7 +1424,7 @@
     var week = upcoming(groups).filter(function (r) { return !compHidden(r) && r._state !== 'post'; });
     var host = document.getElementById('lineup'); host.innerHTML = '';
     var ids = serviceOrder().filter(function (id) { return HAVE[id]; });
-    if (!ids.length) { var e = document.createElement('p'); e.className = 'empty'; e.textContent = 'No services selected. Open "Lineup & filters" and tap the ones you have.'; host.appendChild(e); return; }
+    if (!ids.length) { var e = document.createElement('p'); e.className = 'empty'; e.textContent = 'No services selected. Open Settings, choose Lineup and tap the ones you have.'; host.appendChild(e); return; }
     ids.forEach(function (k) {
       var w = week.filter(function (r) { return r._svc === k; });
       var card = document.createElement('div'); card.className = 'svc svc-' + k + (w.length ? '' : ' svc--quiet'); card.setAttribute('data-svc', k);
@@ -1650,56 +1684,24 @@
       }
     });
   }
-  // Older responses have no authored headline. Keep their prose behind a neutral heading and
-  // disclosure rather than inventing a headline or letting a cached paragraph expand the page.
-  function renderOverview(o, personal) {
-    var storyEl = document.getElementById('story'), sources = Array.isArray(o.sources) ? o.sources : [];
-    var signature = JSON.stringify(['overview', !!personal, o.text, sources.map(function (src) { return src && src.url; })]);
-    if (storyEl._signature === signature) return;
-    storyEl._signature = signature;
-    keepFocus(function () {
-      headlineMode(false);
-      storyEl.hidden = false;
-      storyEl.removeAttribute('data-league');
-      setText(document.getElementById('story-h'), 'Match outlook');
-      document.getElementById('story-lede').textContent = o.text;
-      // The disclosure that the overview is written by AI; the footer says which model and how.
-      var storyBy = document.getElementById('story-by'); storyBy.textContent = personal ? 'Your AI summary' : 'AI Summary';
-      var links = sourceLinks(sources, 5);
-      if (links.childNodes.length) { storyBy.appendChild(document.createTextNode(' · ')); storyBy.appendChild(links); }
-    });
-  }
+  // Editorial precedence is separate from rating precedence: an older personal import can
+  // still rate matches without masking authored headlines in the shared site response.
   function renderEditorial(now) {
-    var source = PERSONAL, personal = true;
-    var headlines = source ? source.headlines() : null;
-    if (headlines === null && !(source && source.active())) {
-      source = SHARED; personal = false;
-      headlines = source ? source.headlines() : null;
-    }
-    if (headlines !== null) return renderHeadlines(headlines, now, personal);
-    if (source && source.active()) {
-      var overview = source.overview();
-      if (overview) return renderOverview(overview, personal);
-      // After a filter or live-state change, select one still-relevant imported match's
-      // text instead of keeping a paragraph about matches the visitor can no longer see.
-      var candidates = rows.filter(function (r) {
-        var note = source.rating(r.getAttribute('data-id'));
-        return note && note.blurb;
-      });
-      var soon = candidates.filter(function (r) { return r._k < now + FOCUS_MS; });
-      if (soon.length) candidates = soon;
-      else if (candidates.length) {
-        var earliest = Math.min.apply(Math, candidates.map(function (r) { return r._k; }));
-        candidates = candidates.filter(function (r) { return r._k < earliest + FOCUS_MS; });
-      }
-      candidates.sort(byRating);
-      if (candidates.length) {
-        var note = source.rating(candidates[0].getAttribute('data-id'));
-        return renderOverview({ text: note.blurb, sources: note.sources }, personal);
-      }
-    }
+    if (!showAIBlurbs) return renderHeadlines([], now, false);
+    var headlines = PERSONAL ? PERSONAL.headlines() : null;
+    if (headlines !== null) return renderHeadlines(headlines, now, true);
+    headlines = SHARED ? SHARED.headlines() : null;
+    if (headlines !== null) return renderHeadlines(headlines, now, false);
     var s = STORY.s, storyEl = document.getElementById('story');
-    if (s && s.overview) return renderOverview(s.overview);
+    // Retain an older published headline only when its own fixture references are complete
+    // and eligible. An overview or match blurb without a headline never fills this slot.
+    var title = s && typeof s.headline === 'string' ? s.headline.trim() : '';
+    var parts = s && Array.isArray(s.headline_segments) ? s.headline_segments : [];
+    var headlineRows = referencedRows({ segments: parts });
+    if (!title || title.length > 160 || !headlineRows.length ||
+        parts.map(function (part) { return part.text; }).join('').trim() !== title ||
+        !headlineRows.every(function (r) { return editorialPasses(r) && DAYS.concat(['live']).indexOf(r._b) !== -1 &&
+          r._state !== 'post' && (r._k >= now || r._b === 'live'); })) return renderHeadlines([], now, false);
     var lead = s && Array.isArray(s.lede_items) ? s.lede_items : [];
     function eligible(item) {
       var refs = referencedRows(item);
@@ -1726,33 +1728,32 @@
       blurbs.sort(function (a, b) { return b.interest - a.interest || firstKickoff(a) - firstKickoff(b); });
       lead = blurbs.length ? [blurbs[0]] : lead;
     }
-    var hasNear = lead.some(near), sources = [];
+    var sources = [];
     lead.forEach(function (item) {
       (Array.isArray(item.sources) ? item.sources : []).forEach(function (source) {
         if (source && typeof source.url === 'string' && !sources.some(function (s) { return s.url === source.url; })) sources.push(source);
       });
     });
     // Called every minute: rebuilding unchanged text would drop the focus and selection of anyone on it.
-    var signature = JSON.stringify([hasNear, sources.map(function (s) { return s.url; }), lead.map(function (item) {
+    var signature = JSON.stringify([title, sources.map(function (s) { return s.url; }), lead.map(function (item) {
       return item.segments.map(function (part) { var refs = rowsForIds(part.match_ids); return [part.text, !!(refs && refs.length && !refs.every(editorialPasses))]; });
     })]);
     if (storyEl._signature === signature) return;
     storyEl._signature = signature;
     keepFocus(function () {
       headlineMode(false);
-      storyEl.hidden = !lead.length;
+      storyEl.hidden = false;
+      document.getElementById('story-details').hidden = !lead.length;
       var lede = document.getElementById('story-lede'); lede.innerHTML = '';
       lead.forEach(function (item, i) {
         if (i) lede.appendChild(document.createTextNode(' '));
         lede.appendChild(editorialItem(item));
       });
-      document.getElementById('story-h').textContent = hasNear ? 'Match outlook' : 'Match outlook · Further ahead';
+      document.getElementById('story-h').textContent = title;
       if (lead.length && lead[0].league_id) storyEl.setAttribute('data-league', lead[0].league_id);
       else storyEl.removeAttribute('data-league');
-      // The page's disclosure that the overview is written by AI (Anthropic's Usage Policy asks for one
-      // on automatically published text); the footer says which model and how.
-      // Only over an overview: a hidden section keeps no AI label, so a page with AI off carries none at all.
-      var storyBy = document.getElementById('story-by'); storyBy.textContent = lead.length ? 'AI Summary' : '';
+      // Keep authorship and sources with the optional supporting text.
+      var storyBy = document.getElementById('story-by'); storyBy.textContent = lead.length ? 'AI headline' : '';
       var links = sourceLinks(sources, 4);
       if (links.childNodes.length) { storyBy.appendChild(document.createTextNode(' · ')); storyBy.appendChild(links); }
     });
@@ -1988,7 +1989,6 @@
   PERSONAL = window.SoccerOutlookPersonalAI.create({
     snapshot: personalSnapshot, lookup: personalLookup, leagueEligible: personalLeagueEligible, now: nowMs,
     defaultWeight: share(SCORING.blend.ai, SCORING.blend.outlook),
-    onOpen: function () { setDrawer(false, false); hideDetailPreview(); },
     onChange: function () { render(true); if (PUBLISHER) PUBLISHER.refresh(); },
     onApply: function () { if (PUBLISHER && PUBLISHER.connected()) PUBLISHER.publish(); }
   });

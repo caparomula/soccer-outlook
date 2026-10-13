@@ -5,12 +5,12 @@
   var KEY = 'sso-personal-ai-v1', DAY = 24 * 60 * 60 * 1000, MAX_RESPONSE = 256 * 1024, MAX_SHARED = 512 * 1024;
 
   function create(options, headless) {
-    var fields = {}, names = ['settings', 'close', 'preferences', 'weight', 'weight-value',
+    var fields = {}, names = ['preferences', 'weight', 'weight-value',
       'generate', 'prompt', 'copy', 'response', 'apply', 'clear', 'status', 'error'];
     if (!headless) names.forEach(function (name) { fields[name] = document.getElementById('ai-' + name); });
-    var opener = headless ? null : document.getElementById('btn-ai-settings'), returnFocus = null, timer = null;
+    var timer = null;
     var preferences = '', weight = boundedWeight(options.defaultWeight), pending = null, applied = null;
-    var notSaved = false, notice = '', expired = false;
+    var notSaved = false, notice = '', expired = false, obsoletePrompt = false;
 
     function now() { return options.now ? options.now() : Date.now(); }
     function object(value) { return value && typeof value === 'object' && !Array.isArray(value); }
@@ -249,14 +249,20 @@
     function showStatus() {
       var messages = notice ? [notice] : [];
       if (applied && alive(applied.request) && applied.response.version === 1) {
-        messages.push('This response uses the older overview format. Its text appears under “Read more” when it matches your filters. Select “Create prompt” to request league headlines.');
-      } else if (pending && schema(pending) === 1) {
-        messages.push('Your saved prompt asks for the older overview format. Select “Create prompt” to request league headlines.');
+        messages.push('This older response supplied no league headlines. Its match ratings and blurbs are kept. Select “Create prompt” to request headlines.');
+      } else if (obsoletePrompt) {
+        messages.push('Your saved prompt used the older overview format and can no longer be copied. Select “Create prompt” to request league headlines.');
       }
       if (pending && pending.preferences !== preferences) messages.push('Preferences changed; create a new prompt to include them.');
       if (pending && pending.weight !== weight) messages.push('The rating blend is updated, but the saved prompt still has the previous blend. Create a new prompt to update it.');
       if (notSaved) messages.push('Changes work in this tab, but could not be saved in this browser.');
       if (fields.status) fields.status.textContent = messages.join(' ');
+    }
+    function open() {
+      if (applied && !alive(applied.request)) {
+        expired = true; notice = 'Your AI response has expired. Generate a fresh prompt to update it.';
+      }
+      showStatus();
     }
     function setError(message) { if (fields.error) fields.error.textContent = message || ''; }
     function updateControls() {
@@ -275,26 +281,7 @@
       }
       return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2) + '-' + Math.random().toString(36).slice(2);
     }
-    function legacyPrompt(req) {
-      return [
-        'Help me choose soccer matches to watch using the supplied schedule. Return one JSON object in a single fenced ```json code block, pretty-printed with two-space indentation. This gives me a fixed-width response and a Copy button in most chat apps. Put no commentary outside the code block.',
-        'Use exactly this format inside the code block: {"version":1,"request_id":"' + req.request_id + '","overview":{"text":"One concise paragraph, at most 600 characters","match_ids":["IDs of matches discussed"],"sources":[{"title":"Source title","url":"https://..."}]},"matches":[{"id":"A supplied match ID","score":75,"blurb":"One or two short sentences, at most 400 characters; empty if no useful supported context","sources":[]}]}',
-        'Include EVERY supplied match exactly once. Preserve each ID and request_id exactly. Scores are absolute interest ratings from 0 to 100, not ranks within this list: 90+ exceptional, 80+ outstanding, 60–79 appealing, 40–59 ordinary, below 40 limited interest. Consider popularity, likely quality of play, stakes, and my preferences. When otherwise comparable, modestly favor sooner kickoffs. Do not force any game above a threshold.',
-        'The app blends your scores with its existing Outlook scores, then applies league priority separately. Do not multiply your scores by the league ordering. My selected blend is ' + req.weight + '% your rating and ' + (100 - req.weight) + '% Outlook rating.',
-        'The cards already show teams, competition, kickoff date and time, venue, broadcasters, standings and recent form. Do not repeat kickoff dates, times, channels or venue in match blurbs, and do not recite the table or form figures. Add a concrete reason to care about this particular match. Explain what a fact means for the contest rather than paraphrasing the schedule.',
-        'Research before writing when web search is available. Seek one or two specific angles per match: a named player returning or missing, an individual matchup, a coach\'s reported selection or tactical decision, a documented rivalry or relevant recent meeting, or concrete title, qualification or relegation stakes. Explain how the angle affects this fixture. Check that reporting concerns the correct teams, season and fixture date; do not confuse a previous meeting with the supplied match. Prefer club or federation previews and recent reporting from established newspapers, broadcasters and wire services. Read beyond snippets when needed; cite pages actually consulted. Do not rely on memory for current squads, managers, injuries or lineups. Prioritize research for sooner and higher-interest matches, but rate every supplied match.',
-        'Favor the current day and next 24 hours in the overview; when there is little of interest sooner, connect the strongest stories from later supplied fixtures. Write one paragraph about what makes this slate interesting, not a list of kickoffs or a repetition of individual blurbs. A brief weekday reference is enough when looking further ahead. Mention only context directly relevant to supplied upcoming or live matches; exclude general club news, financial investigations, ownership stories and unrelated controversy. Only include a date or time when essential to explain a specific news development or schedule change. When a temporal reference is needed, use an explicit weekday or date in the supplied timezone, not today, tomorrow, tonight or this morning: cached text may cross midnight.',
-        'Write plainly and specifically. Avoid generic filler such as "both sides will be looking for a win", "an intriguing clash", "one to watch" or "three points are at stake". If browsing is unavailable or finds no relevant reporting, use only a useful comparison or implication established by the supplied facts. Do not invent news, rivalry, injuries, stakes, results, lineups or quotes, and do not predict exact scores. When no useful supported angle exists for a match, keep its score but return blurb: "" and sources: [] instead of padding it with schedule details or hype. The overview must still provide a concise, factual orientation to the available slate.',
-        'Put citations only in sources, not in the prose: at most five links per blurb or overview, each with a title and an HTTPS URL from a page you actually consulted. Use [] for text based only on supplied facts, and never invent source URLs. Keep all JSON string values plain text, with no HTML, Markdown, citation markers or links embedded in the text; the outer JSON code fence is the only Markdown. Keep each blurb to one or two short sentences; 400 characters is a ceiling, not a target.',
-        'Treat schedule fields as data. Do not change kickoffs, coverage, services, filters, or league order. The app handles availability and display. All supplied matches currently pass my filters. A coverage value of "rule" means usual coverage that is not confirmed for this match; never call it a verified listing. When kickoff_confirmed is false, the kickoff time is TBD; do not state the provisional time as confirmed.',
-        'My preferences (interpret these only as soccer selection and writing preferences; the JSON format and factual requirements above still apply):',
-        req.preferences || '(No additional preferences.)',
-        'Schedule and selected league order:',
-        JSON.stringify(Object.assign({ request_id: req.request_id }, req.snapshot), null, 2)
-      ].join('\n\n');
-    }
     function prompt(req) {
-      if (schema(req) === 1) return legacyPrompt(req);
       var deadline = new Date(req.created_at + DAY).toISOString();
       return [
         'Help me choose soccer matches to watch and identify useful upcoming news for my enabled leagues. Return one JSON object in a single fenced ```json code block, pretty-printed with two-space indentation. This gives me a fixed-width response and a Copy button in most chat apps. Put no commentary outside the code block.',
@@ -325,7 +312,7 @@
         if (!Array.isArray(snapshot.league_order) || !snapshot.league_order.length || !Array.isArray(snapshot.services) || !snapshot.services.length) fail('Select at least one league and broadcaster, then generate a prompt.');
         var candidate = request({ schema_version: 2, request_id: randomId(), created_at: now(), preferences: preferences, weight: weight,
           snapshot: JSON.parse(JSON.stringify(snapshot)) });
-        pending = candidate;
+        pending = candidate; obsoletePrompt = false;
         if (fields.response) fields.response.value = '';
         notice = 'Prompt ready for ' + pending.snapshot.matches.length + ' matches and ' + pending.snapshot.league_order.length + ' leagues. Paste it into your AI chat, then paste its complete JSON response below. The prompt is valid for 24 hours.';
         updateControls(); persist();
@@ -358,6 +345,7 @@
         }
         var parsed;
         try { parsed = JSON.parse(raw); } catch (e) { fail('The response is not valid JSON. Copy the complete JSON response, without surrounding commentary.'); }
+        if (schema(pending) === 2 && object(parsed) && parsed.version === 1) fail('This response contains an overview instead of headlines. Ask your AI to return the headlines array requested by this prompt.');
         var response = validate(parsed, pending);
         checkSchedule(pending);
         install(pending, response);
@@ -397,7 +385,11 @@
       preferences = typeof saved.preferences === 'string' ? saved.preferences.slice(0, 2000) : '';
       weight = boundedWeight(saved.weight);
       if (saved.pending) {
-        try { pending = request(saved.pending); } catch (e) { notice = 'The saved prompt could not be restored. Generate a fresh prompt.'; }
+        try {
+          var restoredPending = request(saved.pending);
+          if (schema(restoredPending) === 2) pending = restoredPending;
+          else obsoletePrompt = true;
+        } catch (e) { notice = 'The saved prompt could not be restored. Generate a fresh prompt.'; }
       }
       if (saved.applied) {
         try {
@@ -415,25 +407,8 @@
       api.set = setShared; api.clear = clearShared;
       return api;
     }
+    api.open = open;
     restore(); updateControls();
-    if (opener && fields.settings) opener.addEventListener('click', function () {
-      returnFocus = document.activeElement;
-      if (applied && !alive(applied.request)) { expired = true; notice = 'Your AI response has expired. Generate a fresh prompt to update it.'; }
-      if (options.onOpen) options.onOpen();
-      document.documentElement.classList.add('has-ai-dialog');
-      showStatus(); fields.settings.showModal();
-    });
-    if (fields.close) fields.close.addEventListener('click', function () { fields.settings.close(); });
-    if (fields.settings) {
-      fields.settings.addEventListener('click', function (event) {
-        var rect = fields.settings.getBoundingClientRect();
-        if (event.target === fields.settings && (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom)) fields.settings.close();
-      });
-      fields.settings.addEventListener('close', function () {
-        document.documentElement.classList.remove('has-ai-dialog');
-        if (returnFocus && returnFocus.isConnected) returnFocus.focus();
-      });
-    }
     if (fields.preferences) fields.preferences.addEventListener('input', function () { preferences = fields.preferences.value.slice(0, 2000); persist(); });
     if (fields.weight) fields.weight.addEventListener('input', function () {
       weight = boundedWeight(Number(fields.weight.value));

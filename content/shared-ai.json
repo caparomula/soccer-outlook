@@ -1,0 +1,111 @@
+{
+  "version": 1,
+  "created_at": 1791869508912,
+  "weight": 70,
+  "leagues": [
+    "uefa.champions",
+    "usa.1"
+  ],
+  "fixtures": [
+    {
+      "id": "401915418",
+      "kickoff": "2026-10-13T16:45:00Z",
+      "league_id": "uefa.champions"
+    },
+    {
+      "id": "401915412",
+      "kickoff": "2026-10-13T19:00:00Z",
+      "league_id": "uefa.champions"
+    },
+    {
+      "id": "401915435",
+      "kickoff": "2026-10-13T19:00:00Z",
+      "league_id": "uefa.champions"
+    },
+    {
+      "id": "401915407",
+      "kickoff": "2026-10-14T19:00:00Z",
+      "league_id": "uefa.champions"
+    },
+    {
+      "id": "761868",
+      "kickoff": "2026-10-15T00:30:00Z",
+      "league_id": "usa.1"
+    }
+  ],
+  "response": {
+    "version": 2,
+    "request_id": "authored-6a891470e0ad244cd942c232",
+    "headlines": [
+      {
+        "league_id": "uefa.champions",
+        "headline": "Champions League powers face upset threats",
+        "lede": "Atlético test a struggling United on Tuesday, while Barcelona visit Galatasaray’s formidable home ground. Manchester City face PSG on Wednesday.",
+        "interest": 82,
+        "match_ids": [
+          "401915412",
+          "401915435",
+          "401915407"
+        ],
+        "sources": [
+          {
+            "title": "Atlético Madrid vs Man Utd: Champions League preview — Opta Analyst",
+            "url": "https://theanalyst.com/articles/atletico-madrid-vs-man-utd-prediction-champions-league-preview-10-2026"
+          },
+          {
+            "title": "Galatasaray vs Barcelona: preview and team news — Sports Mole",
+            "url": "https://www.sportsmole.co.uk/football/galatasaray/champions-league/preview/galatasaray-vs-barcelona-prediction-team-news-lineups_606695.html"
+          },
+          {
+            "title": "Man City vs PSG: Champions League preview — Opta Analyst",
+            "url": "https://theanalyst.com/articles/man-city-vs-psg-prediction-champions-league-preview-10-2026"
+          }
+        ],
+        "expires_at": "2026-10-14T05:31:48.912Z"
+      },
+      {
+        "league_id": "usa.1",
+        "headline": "St. Louis target Vancouver’s Western Conference lead",
+        "lede": "Second-placed St. Louis trail Vancouver by one point before Wednesday’s meeting, giving the hosts a chance to move ahead of the Western Conference leaders.",
+        "interest": 76,
+        "match_ids": [
+          "761868"
+        ],
+        "sources": [],
+        "expires_at": "2026-10-14T05:31:48.912Z"
+      }
+    ],
+    "matches": [
+      {
+        "id": "401915418",
+        "score": 59.5,
+        "blurb": "",
+        "sources": []
+      },
+      {
+        "id": "401915412",
+        "score": 71.5,
+        "blurb": "",
+        "sources": []
+      },
+      {
+        "id": "401915435",
+        "score": 69.9,
+        "blurb": "",
+        "sources": []
+      },
+      {
+        "id": "401915407",
+        "score": 77.9,
+        "blurb": "",
+        "sources": []
+      },
+      {
+        "id": "761868",
+        "score": 64.5,
+        "blurb": "",
+        "sources": []
+      }
+    ]
+  }
+}
