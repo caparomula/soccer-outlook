@@ -1038,7 +1038,7 @@ class BrowserChecks(unittest.TestCase):
                 self.assertEqual(keys(page, "comp", "false"), hidden_leagues)
                 expect(page.locator('li.row:visible')).to_have_count(len(league_order))
                 page.locator("#btn-menu").click()
-                expect(page.locator("#filter-sum")).to_have_text(f"7 services, {len(hidden_leagues)} competitions hidden")
+                expect(page.locator("#drawer [role=tablist]")).to_be_visible()
                 self.assertLessEqual(page.evaluate("document.documentElement.scrollWidth"), width)
                 page.locator("#drawer").screenshot(path=str(self.artifacts / f"bulk-filters-{width}.png"))
 
@@ -1332,9 +1332,11 @@ class BrowserChecks(unittest.TestCase):
             expect(page.locator("#drawer")).to_be_visible()
             self.open_settings(page)
             page.locator("#btn-clear").click()
-            expect(page.locator("#filter-sum")).to_contain_text("0 services")
+            expect(page.locator('[data-kind="have"][aria-pressed="true"]')).to_have_count(0)
             page.locator("#btn-reset").click()
-            expect(page.locator("#filter-sum")).to_contain_text("7 services")
+            self.assertEqual(page.locator('#have-enabled .fpill').evaluate_all(
+                "buttons => buttons.map(button => button.dataset.key)"),
+                ["apple", "yttv", "hbo", "para", "prime", "netflix", "disney"])
             self.assertEqual(feed["requests"], 0)
 
     def test_failed_scoreboard_preserves_scores(self):
@@ -3295,6 +3297,7 @@ class BrowserChecks(unittest.TestCase):
                 expect(page.locator("#btn-ai-settings, #ai-close")).to_have_count(0)
                 expect(button).to_have_accessible_name(re.compile("Settings"))
                 button.click()
+                expect(drawer).to_have_accessible_name("Settings")
                 expect(page.locator("#settings-tab-lineup")).to_be_focused()
                 expect(page.locator("#settings-lineup")).to_be_visible()
                 expect(page.locator("#settings-leagues")).to_be_hidden()

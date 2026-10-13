@@ -386,16 +386,9 @@
   }
   function evaluateAll() { rows.forEach(evaluateRow); }
 
-  function filterSummary() {
-    var n = Object.keys(HAVE).length, c = Object.keys(compOff).length, parts = [];
-    parts.push(n + (n === 1 ? ' service' : ' services'));
-    if (c) parts.push(c + (c === 1 ? ' competition hidden' : ' competitions hidden'));
-    return parts.join(', ');
-  }
   function applyFilterUI() {
     renderFilterGroups();
     drawer.hidden = !drawerOpen; btnMenu.setAttribute('aria-expanded', String(drawerOpen));
-    document.getElementById('filter-sum').textContent = filterSummary();
     drawer.querySelectorAll('.fpill').forEach(function (b) {
       var k = b.getAttribute('data-key'), comp = b.getAttribute('data-kind') === 'comp';
       var on = comp ? followed(k) : !!HAVE[k];
