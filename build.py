@@ -1847,8 +1847,12 @@ def build_page(matches, cache, built_at, failed, today, skipped=(), site_url=Non
 
     svc_meta = {"order": SERVICE_RANK, "name": SERVICES, "owner": OWNER,
                 "leagues": {league: info["name"] for league, info in LEAGUES.items()},
-                "league_default_off": [league for league, info in LEAGUES.items() if info.get("default_off")]}
-    used = set()
+                "league_default_off": [league for league, info in LEAGUES.items() if info.get("default_off")],
+                "league_icons": {league: logo_key(url) for league, url in LEAGUE_LOGOS.items()
+                                 if league in LEAGUES and url and logo_key(url) in cache}}
+    # A sourced calendar headline can concern a league without fixtures in this window.
+    # Keep its already available artwork without fetching additional images.
+    used = set(svc_meta["league_icons"].values())
     for m in matches:
         used.update([m.home.logo_key, m.away.logo_key])
         if LEAGUE_LOGOS.get(m.league):

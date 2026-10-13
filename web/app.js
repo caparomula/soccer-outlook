@@ -1640,6 +1640,17 @@
       seen[key] = true; return true;
     });
   }
+  function headlineTitle(heading, text, leagues) {
+    heading.replaceChildren();
+    leagues.filter(function (id, index) { return leagues.indexOf(id) === index; }).forEach(function (id) {
+      var key = SERVICES.league_icons && SERVICES.league_icons[id];
+      if (typeof key !== 'string' || !/^[A-Za-z0-9_-]+$/.test(key)) return;
+      var emblem = document.createElement('i');
+      emblem.className = 'lg l-' + key + (id === 'uefa.champions' ? ' lg--monochrome' : '');
+      emblem.setAttribute('aria-hidden', 'true'); heading.appendChild(emblem);
+    });
+    var label = document.createElement('span'); label.textContent = text; heading.appendChild(label);
+  }
   function renderHeadlines(items, now, personal) {
     var chosen = rankedHeadlines(items, now), storyEl = document.getElementById('story');
     var signature = JSON.stringify(['headlines', !!personal, chosen]);
@@ -1656,7 +1667,7 @@
         var el = document.createElement('article'); el.className = 'story-headline';
         el.setAttribute('data-league', item.league_id); el.setAttribute('data-interest', item.interest);
         var heading = document.createElement(main ? 'h2' : 'h3'); heading.className = 'story-headline__title';
-        heading.textContent = item.headline; el.appendChild(heading);
+        headlineTitle(heading, item.headline, [item.league_id]); el.appendChild(heading);
         var by = document.createElement('p'); by.className = 'story-headline__by';
         by.textContent = (personal ? 'Your AI headline · ' : 'AI headline · ') + (leagueNames[item.league_id] || item.league_id); el.appendChild(by);
         var links = sourceLinks(item.sources, 5);
@@ -1683,6 +1694,7 @@
         more.appendChild(list); host.appendChild(more);
       }
     });
+    watchIcons();
   }
   // Editorial precedence is separate from rating precedence: an older personal import can
   // still rate matches without masking authored headlines in the shared site response.
@@ -1749,7 +1761,7 @@
         if (i) lede.appendChild(document.createTextNode(' '));
         lede.appendChild(editorialItem(item));
       });
-      document.getElementById('story-h').textContent = title;
+      headlineTitle(document.getElementById('story-h'), title, headlineRows.map(function (r) { return r._lg; }));
       if (lead.length && lead[0].league_id) storyEl.setAttribute('data-league', lead[0].league_id);
       else storyEl.removeAttribute('data-league');
       // Keep authorship and sources with the optional supporting text.
@@ -1757,6 +1769,7 @@
       var links = sourceLinks(sources, 4);
       if (links.childNodes.length) { storyBy.appendChild(document.createTextNode(' · ')); storyBy.appendChild(links); }
     });
+    watchIcons();
   }
   function applyStory(s) {
     if (!s || typeof s !== 'object' || s.version !== 1) return;
