@@ -141,7 +141,7 @@
     <button type="button" class="fbtn" id="ai-close" aria-label="Close AI settings" autofocus>Close</button>
   </div>
   <p id="ai-settings-intro">Ask your chat AI for ranked league headlines, match blurbs and ratings. Copy the prompt into your chat, then paste its response here.</p>
-  <p class="ai-settings__hint">The prompt uses matches that pass your current Lineup filters, plus your preferences below. Nothing is sent automatically. Your preferences and imported recommendations stay in this browser.</p>
+  <p class="ai-settings__hint">The prompt uses matches that pass your current Lineup filters, plus your preferences below. Your AI chat is separate from this site. Recommendations stay in this browser unless you connect GitHub below to publish site defaults.</p>
 
   <section class="ai-settings__step" aria-labelledby="ai-preferences-heading">
     <h3 id="ai-preferences-heading">1. Set your preferences</h3>
@@ -174,6 +174,22 @@
   </section>
   <p class="ai-settings__status" id="ai-status" role="status" aria-live="polite"></p>
   <p class="ai-settings__error" id="ai-error" role="alert"></p>
+
+  <details class="ai-publish" id="ai-publish-section" data-repository="caparomula/soccer-outlook" data-branch="main" data-path="content/shared-ai.json">
+    <summary>Publish site defaults</summary>
+    <p>For repository maintainers: publish your applied headlines, match blurbs and ratings for everyone who visits the site. Once connected, <strong>Apply &amp; publish</strong> saves each accepted response to <a href="https://github.com/caparomula/soccer-outlook" target="_blank" rel="noopener noreferrer">caparomula/soccer-outlook</a>, on its main branch.</p>
+    <p class="ai-settings__hint" id="ai-publish-token-help">Create a <a href="https://github.com/settings/personal-access-tokens/new?name=Soccer%20Outlook%20publishing&amp;target_name=caparomula&amp;contents=write&amp;expires_in=30" target="_blank" rel="noopener noreferrer">fine-grained GitHub token</a> for only this repository with <strong>Contents: read and write</strong>. No workflow permission is needed. The token stays in this tab's memory until you disconnect or reload; it is never saved in browser storage.</p>
+    <label for="ai-publish-token">GitHub token</label>
+    <input type="password" id="ai-publish-token" autocomplete="off" spellcheck="false" autocapitalize="none" maxlength="512" aria-describedby="ai-publish-token-help">
+    <div class="ai-settings__actions ai-publish__actions">
+      <button type="button" class="fbtn" id="ai-publish-connect">Connect GitHub</button>
+      <button type="button" class="fbtn" id="ai-publish-disconnect" hidden>Disconnect GitHub</button>
+      <button type="button" class="fbtn" id="ai-publish-saved" disabled>Publish saved response</button>
+    </div>
+    <p class="ai-settings__hint">Connecting checks repository access without publishing anything. Publishing shares the recommendations, not your prompt, preferences or broadcaster choices. A successful save still needs the site's deployment to finish.</p>
+    <p class="ai-settings__status" id="ai-publish-status" role="status" aria-live="polite"></p>
+    <p class="ai-settings__error" id="ai-publish-error" role="alert"></p>
+  </details>
 </dialog>
 
 <script>

@@ -1,6 +1,6 @@
 # Development and maintenance
 
-Soccer Outlook is a static site. Python fetches fixtures and builds the page; JavaScript applies the visitor's preferences and updates live scores. Published AI ratings are optional and stored separately as `story.json`. Visitors can also import personal AI recommendations through a browser-only copy-and-paste workflow.
+Soccer Outlook is a static site. Python fetches fixtures and builds the page; JavaScript applies the visitor's preferences and updates live scores. Automatic AI ratings are optional and stored separately as `story.json`. Visitors can import personal AI recommendations through a browser-only copy-and-paste workflow. Authorized maintainers can publish those recommendations as shared defaults through GitHub's API, without an application server.
 
 For how the page works, see the [user guide](user-guide.md). For the ranking formula and default league order, see [scoring](scoring.md).
 
@@ -52,6 +52,8 @@ For a browser preview at a chosen local time, append a fragment such as `#at-202
 | [`web/app.js`](../web/app.js) | Filters, saved preferences, match cards, scoring in the browser, details overlays and applying live updates. |
 | [`web/live.js`](../web/live.js) | Live-score requests, catch-up checks, timeouts and retry scheduling. |
 | [`web/personal-ai.js`](../web/personal-ai.js) | Personal AI prompt and response format, validation and import freshness. |
+| [`web/github-publish.js`](../web/github-publish.js) | Optional browser connection to GitHub and publication of accepted recommendations. |
+| `content/shared-ai.json` | Optional public recommendation defaults, created by an authorized maintainer's first publication and copied into the generated site. |
 | [`web/favicon.svg`](../web/favicon.svg), [`web/favicon.png`](../web/favicon.png) | Editable soccer-ball artwork and its 64 × 64 PNG browser icon. |
 | [`web/logos/`](../web/logos/README.md) | Compact official league artwork used instead of unsuitable ESPN wordmarks, with source attribution. |
 | [`story.py`](../story.py) | Generate, validate and reuse optional AI ratings and text. |
@@ -63,7 +65,7 @@ For a browser preview at a chosen local time, append a fragment such as `#at-202
 
 The generator inlines the HTML, CSS and JavaScript assets into the page. Rebuild after editing them. Full builds copy `web/favicon.png` beside the HTML; the PNG works in browsers that do not support SVG favicons. If the SVG artwork changes, re-export the PNG at 64 × 64 with a transparent background. Fragment builds leave the icon to the host page.
 
-Deployment consists of `index.html`, `favicon.png`, `sitemap.xml`, the `premier-league/`, `mls/` and `paramount-plus/` schedule pages, optional `story.json`, an optional IndexNow key file and a `.nojekyll` file; there is no application server or JavaScript bundler. Generated files in `site/` and test artifacts in `work/` are ignored by Git.
+Deployment consists of `index.html`, `favicon.png`, `sitemap.xml`, the `premier-league/`, `mls/` and `paramount-plus/` schedule pages, optional `shared-ai.json` and `story.json`, an optional IndexNow key file and a `.nojekyll` file; there is no application server or JavaScript bundler. Generated files in `site/` and test artifacts in `work/` are ignored by Git.
 
 Full pages allow search indexing and include a descriptive title, summary, canonical URL and sharing metadata in the document head. Each build writes three focused league/service schedules and a sitemap listing the homepage and those pages, dated with the schedule rebuild time. These public schedules use Eastern time and do not apply personal browser filters. Fragment builds leave search metadata and discovery files to the host. The workflows use the repository's GitHub Pages URL by default; for a custom domain, set the repository Actions variable `SITE_URL` to its public directory URL. This keeps generation and IndexNow submission aligned. Use `--site-url` for other public deployments so their canonical links point to the correct site.
 
@@ -107,7 +109,7 @@ Use a complete checkout of the baseline revision so its supporting files and ass
 
 ## Personal AI imports
 
-**AI settings** lets a visitor generate a prompt, run it in a chat of their choice, and paste the response back. This path makes no AI API requests, needs no provider credentials and does not modify `story.json`. The [user guide](user-guide.md#use-your-own-ai-for-blurbs) explains the controls.
+**AI settings** lets a visitor generate a prompt, run it in a chat of their choice, and paste the response back. This path makes no AI API requests, needs no AI provider credentials and does not modify `story.json`. Applying stays local unless the visitor connects the optional GitHub publishing control. The [user guide](user-guide.md#use-your-own-ai-for-blurbs) explains the controls.
 
 The prompt includes every enabled and unpaused league, league priority and user preferences, plus current filter-eligible live and upcoming fixtures with team facts and known coverage. It can be generated with no fixtures when services and leagues are selected, allowing the chat to research calendar developments. An empty schedule must not be interpreted as a break or the start of a season.
 
@@ -127,7 +129,21 @@ The manual prompt asks for researched player, coach, tactical, rivalry or compet
 
 Imports and personal preferences are stored locally. The whole import expires 24 hours after prompt creation, and headlines may expire sooner. Saved version 1 prompts and responses remain supported with their original overview format. Updating the app does not rewrite an imported paragraph: choose **Create prompt** and obtain a fresh response to use version 2.
 
-Matching imported ratings take precedence over published ratings while valid. The visitor's **Imported rating influence** controls their blend with the Outlook score; league-priority weighting stays unchanged. Current filters also apply to imported text. Restoring site recommendations clears the imported result without resetting the lineup or preference text.
+Matching personal ratings take precedence over shared defaults, which take precedence over automatic `story.json` ratings while valid. The visitor's **Imported rating influence** controls personal ratings' blend with the Outlook score; league-priority weighting stays unchanged. Current filters apply to both personal and shared text. A personal response's empty headline list is respected rather than filled from shared content. Restoring site recommendations clears the personal result without resetting the lineup, preference text or shared defaults.
+
+### Publishing shared defaults through GitHub
+
+The collapsible **Publish site defaults** control uses a fine-grained personal access token restricted to this repository with **Contents: read/write**. See the [token setup instructions](user-guide.md#publish-recommendations-for-everyone). The browser checks the repository's `permissions.push` before enabling publishing. The token stays in memory and is sent only to GitHub's API; it is not saved in local storage or included in the prompt or published content. Reloading requires reconnection. This is token authentication, not an OAuth login or a connection to GitHub Copilot.
+
+When connected, **Apply & publish** first accepts the response locally and then publishes it; **Publish saved response** publishes the accepted result without requiring another import. Publication reads the current `content/shared-ai.json` SHA, then updates that file on `main` through the GitHub Contents API. The SHA guards against concurrent edits. A rejected or failed publication must not discard the local import or be reported as a completed deployment.
+
+The shared file contains a version-1 envelope with `created_at` (the original timestamp in milliseconds), `weight` (the publisher's current blend), `leagues` (IDs), `fixtures` (`id`, `kickoff`, `league_id`) and the validated version-1 or version-2 `response`. The export omits the full prompt, preference text, broadcaster selections and credentials. Text and source links in the accepted response are public. Publishing or rebuilding must not extend the original 24-hour lifetime, and individual headlines can expire earlier. The browser validates the envelope with limits of 512 KiB overall and 256 KiB for its response, then uses the saved blend for shared ratings.
+
+The refresh workflow watches `content/shared-ai.json`; a commit triggers the normal checks, build and Pages deployment. The source file on `main` is authoritative. Full builds copy fresh shared data to `site/shared-ai.json`; missing, invalid or expired input is omitted without blocking the schedule. Do not publish directly to `gh-pages`, because the next refresh replaces that branch. An accepted API update means the commit exists, not that Pages has finished deploying it. The browser checks for shared updates every ten minutes while visible, applies each reader's filters and falls back to automatic ratings as shared recommendations expire or no longer match fixtures.
+
+For a fork, update the fixed `REPOSITORY`, `BRANCH` and `PATH` in `web/github-publish.js`, the matching `data-repository`, `data-branch` and `data-path` on the publishing section in `web/page.html`, and the section's repository and token-creation links. A mismatch disables publishing. If you change the content path, update `SHARED_AI_SOURCE` in `build.py` and the refresh workflow's path filter too. The credentials never determine which repository or file the UI can write.
+
+GitHub's [REST API supports browser CORS](https://docs.github.com/en/rest/using-the-rest-api/using-cors-and-jsonp-to-make-cross-origin-requests), so this route needs no backend. The [Contents API](https://docs.github.com/en/rest/repos/contents#create-or-update-file-contents) accepts a repository-scoped token with Contents write permission; editing the shared JSON does not require Workflows or Actions write access. Do not put a shared owner token or OAuth client secret into the generated page.
 
 ### A future GitHub Copilot connection
 
@@ -137,13 +153,13 @@ That connection is **not implemented**. The current GitHub Pages deployment cann
 
 ## Configure published AI ratings and text
 
-The current [`settings.toml`](../settings.toml) configuration enables the **ratings** design with `gpt-6.1-sol` at `low` effort. It requests scores without web research. The optional published overview and card blurbs are disabled, so a page without AI prose is expected unless the visitor imports a personal response.
+The current [`settings.toml`](../settings.toml) configuration enables the **ratings** design with `gpt-6.1-sol` at `low` effort. It requests scores without web research. The optional automatically generated overview and card blurbs are disabled; manual personal or shared responses can still supply prose.
 
 The `[ai]` table controls this behavior:
 
 | Setting | Effect |
 | --- | --- |
-| `enabled = false` | Disable site-generated AI calls and prevent the browser from requesting `story.json`. Personal imports remain available; otherwise picks use the Outlook score and league priority. |
+| `enabled = false` | Disable site-generated AI calls and prevent the browser from requesting `story.json`. Personal imports and shared defaults remain available; otherwise picks use the Outlook score and league priority. |
 | `design = "ratings"` | Rate upcoming fixtures within the display window. Optionally add separately researched overview text or card blurbs. |
 | `design = "full"` | Ask Claude for researched overview and league context, plus ratings and blurbs for upcoming fixtures. Requires a supported Claude Sonnet or Opus model. |
 | `model`, `effort` | Choose the main model and its reasoning effort. |
@@ -226,7 +242,7 @@ The workflow also runs on relevant changes to `main`, and can be started from **
 Each run:
 
 1. Runs unit and browser checks.
-2. Builds the HTML, AI facts, mapping report and source-health report.
+2. Builds the HTML, AI facts, mapping report and source-health report, and copies any fresh shared recommendations.
 3. Checks source health and verifies that the page's match count agrees with the report and that the document is complete. A genuinely small or empty schedule can pass.
 4. Generates or reuses optional AI data. Scheduled runs use `daily`; ordinary pushes use `keep`, with the configuration-change exceptions above.
 5. Replaces the `gh-pages` branch with a single commit containing the generated site.
@@ -274,11 +290,12 @@ After publication, [the mapping script](../.github/scripts/mapping-issue.sh) mai
 | Symptom | What to check |
 | --- | --- |
 | Local build cannot fetch fixtures | Confirm that `curl` can reach ESPN from this machine. Unit and browser tests can still run without ESPN access, but they cannot produce a current real schedule. |
-| No AI prose | Expected with the current published ratings-only settings unless the visitor imports a personal response. For imports, check expiry and whether referenced matches still pass filters. For enabled published prose, check the provider key and generation log. |
+| No AI prose | Automatic prose is off by default. For personal or shared responses, check expiry, filters and headline interest; a response can legitimately have no headlines or blurbs. For enabled automatic prose, check the provider key and generation log. |
 | No AI ratings | Check `[ai] enabled`, the correct provider secret, whether generation returned ratings, and the result's freshness. Picks still use the Outlook score. |
 | A local `story.py` run does nothing | Its default mode is `keep`. Use `daily` or another generation mode, and supply `--previous` if reuse is wanted. |
-| A card has no blurb | A personal import may not cover this fixture, may have expired, or may leave the blurb empty when no useful supported angle exists. Published text may be disabled, the match may not be one of the six researched candidates, or its text may have failed validation. Cards show match facts in its place. |
+| A card has no blurb | A personal or shared response may not cover this fixture, may have expired, or may leave its blurb empty. Automatic text may be disabled, the match may not be one of the six researched candidates, or its text may have failed validation. Cards show match facts in its place. |
 | A pasted AI response is rejected | Use the complete JSON response for the current prompt, including every requested match ID and its unchanged request ID. Follow the reported error; create a new prompt if the old one has expired. |
+| GitHub publishing fails | Check token expiry, the selected repository and Contents write permission. A concurrent edit requires reviewing the latest file before retrying. Your local response is retained; use **Publish saved response** once the issue is resolved. |
 | Published page has not changed | Check **Refresh outlook** and then the Pages deployment. A failed build preserves the prior site; documentation-only commits do not rebuild it. |
 | Browser checks cannot start | Install the selected Playwright browser and its system dependencies, or deliberately set `BROWSER_EXECUTABLE`. Exit code 77 means the browser could not start, not that the assertions passed. |
 | A fixture is missing | Check enabled services and leagues, the displayed date window, known coverage and the page's data details for incomplete ESPN requests. |

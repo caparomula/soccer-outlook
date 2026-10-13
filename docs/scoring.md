@@ -12,13 +12,13 @@ All recommendations follow the same lineup rules as the schedule. Temporarily hi
 
 The candidate window is today and the three following days, with each day starting at 4 am in the visitor's time zone. Finished matches are excluded. The daily AI ratings use the equivalent window in Eastern time, so the edges can differ for visitors elsewhere. A match with a time still to be confirmed can enter the top three, but not Next up.
 
-With site recommendations, if any remaining candidate has a valid AI rating, the top three use only rated candidates. This keeps a match scored by Outlook alone from gaining an advantage simply because its AI rating is missing. If no candidate has an AI rating, the Outlook score and league priority supply the ranking instead.
+With automatic recommendations, if any remaining candidate has a valid AI rating, the top three use only rated candidates. This keeps a match scored by Outlook alone from gaining an advantage simply because its AI rating is missing. If no candidate has an AI rating, the Outlook score and league priority supply the ranking instead.
 
-While a personal AI import is active for at least one eligible match, all eligible candidates can compete. Matches outside the import use their published AI rating when available, or the Outlook score otherwise, with league priority still applied. This lets newly enabled matches enter the top three without requiring another import first. Fewer than three eligible candidates produce fewer cards; no candidates hide the section.
+While a personal or shared AI response is active for at least one eligible match, all eligible candidates can compete. Matches outside those responses use their automatic AI rating when available, or the Outlook score otherwise, with league priority still applied. This lets newly enabled matches enter the top three without requiring another import first. Fewer than three eligible candidates produce fewer cards; no candidates hide the section.
 
 ## The pick score
 
-With the current weights:
+For automatic AI ratings, the current weights are:
 
 ```text
 match interest = 70% AI rating + 30% Outlook score
@@ -27,15 +27,17 @@ pick score    = 95% match interest + 5% league priority
 
 For example, an AI rating of 60 and an Outlook score of 50 give match interest of 57. With league priority 80, the pick score is `0.95 × 57 + 0.05 × 80 = 58.15`, displayed as 58.2 in its tooltip.
 
-The weights are proportions: each pair in `[blend]` is divided by its sum, so it need not add up to 100. Without an AI rating, match interest is the Outlook score alone; on an older page without an Outlook score, an available AI rating can stand alone. Neither available means no pick score. Turning published AI off leaves Outlook and league priority active.
+The weights are proportions: each pair in `[blend]` is divided by its sum, so it need not add up to 100. Without an AI rating, match interest is the Outlook score alone; on an older page without an Outlook score, an available AI rating can stand alone. Neither available means no pick score. Turning automatic AI off leaves personal and shared responses, Outlook and league priority available.
 
-An accepted response in **AI settings** replaces the published AI rating for each matching fixture. **Imported rating influence** replaces the 70/30 interest split for those matches: an influence of 50% means equal parts imported rating and Outlook score. It does not change the 95/5 interest/league-priority split or scoring for other fixtures. Imported ratings reflect the preferences you put in your prompt, so they need not match the site's standard rating dimensions below. They expire 24 hours after prompt creation; **Restore site recommendations** removes them immediately. See [Use your own AI for blurbs](user-guide.md#use-your-own-ai-for-blurbs).
+For each fixture, a valid personal rating takes precedence over a shared rating, then the automatic AI rating. **Imported rating influence** replaces the 70/30 interest split for your personally imported matches: an influence of 50% means equal parts imported rating and Outlook score. Shared ratings use the blend their publisher saved. Neither changes the 95/5 interest/league-priority split; your league order still applies.
+
+Personal and shared ratings reflect the preferences in the prompt that produced them, so they need not match the site's standard rating dimensions below. Both expire 24 hours after their original prompt; publishing does not renew them. **Restore site recommendations** removes your personal import and returns to shared or automatic recommendations without deleting the shared defaults. See [Use your own AI for blurbs](user-guide.md#use-your-own-ai-for-blurbs).
 
 The browser ranks by the unrounded blend. Tooltips and dots use the score rounded to one decimal. A tooltip identifies the rating model and lists the score's parts.
 
 ## AI rating
 
-The current configuration uses `gpt-6.1-sol` at `low` effort in the `ratings` design. It rates supplied fixture facts without web research. Overview and match-blurb generation are optional and currently off. The `full` design instead uses Claude's researched context alongside those facts.
+The automatic configuration uses `gpt-6.1-sol` at `low` effort in the `ratings` design. It rates supplied fixture facts without web research. Automatic overview and match-blurb generation are optional and currently off; personal or shared chat responses can still supply text. The `full` design instead uses Claude's researched context alongside those facts.
 
 [story.py](../story.py) requires three integer ratings from 0 to 100 and calculates their weighted total:
 
@@ -47,7 +49,7 @@ The current configuration uses `gpt-6.1-sol` at `low` effort in the `ratings` de
 
 The prompt uses a common scale across days and competitions: 40 is routine, 60 notably appealing, 80 exceptional, and 95 a rare global event or decisive final. A quiet slate is not a reason to inflate ratings. Invalid or missing components cause that rating to be rejected. These weights are fixed in `story.py`, separate from the adjustable blend in `settings.toml`.
 
-The AI does not receive the Outlook score or its betting inputs. The two assessments contribute different information; agreement between them is not a guarantee of a good match.
+The automatic AI rating request does not include the Outlook score or its betting inputs. The two assessments contribute different information; agreement between them is not a guarantee of a good match.
 
 ## Outlook score
 

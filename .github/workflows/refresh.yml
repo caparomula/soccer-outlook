@@ -28,7 +28,7 @@ on:
         default: refresh
   push:
     branches: [main]
-    paths: ["**/*.py", "settings.toml", "rights.toml", "watch-links.toml", "web/**", "tests/**", ".github/workflows/**", ".github/scripts/**"]
+    paths: ["**/*.py", "settings.toml", "rights.toml", "watch-links.toml", "content/shared-ai.json", "web/**", "tests/**", ".github/workflows/**", ".github/scripts/**"]
 
 permissions:
   contents: write

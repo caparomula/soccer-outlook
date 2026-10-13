@@ -1,5 +1,6 @@
 """Offline browser checks; run with python3 -m tests.browser --help."""
 import argparse
+import base64
 from copy import deepcopy
 from datetime import datetime, timedelta
 from contextlib import contextmanager
@@ -38,7 +39,7 @@ class BrowserChecks(unittest.TestCase):
     engine = "chromium"
 
     @contextmanager
-    def page(self, target, *, width=1280, theme="light", at="20261007-1300", html=None, story=None, touch=False, locale="en-US",
+    def page(self, target, *, width=1280, theme="light", at="20261007-1300", html=None, story=None, shared=None, touch=False, locale="en-US",
              built_at=BUILT_AT):
         context = self.browser.new_context(
             viewport={"width": width, "height": 900 if width > 600 else 844},
@@ -48,7 +49,8 @@ class BrowserChecks(unittest.TestCase):
         errors = []
         page.on("pageerror", lambda error: errors.append(str(error)))
         # "hold" names a part of a scoreboard path whose answers wait in "held" for the test to send.
-        feed = {"data": {"events": []}, "fail": False, "requests": 0, "hold": None, "held": [], "stories": 0}
+        feed = {"data": {"events": []}, "fail": False, "requests": 0, "hold": None, "held": [], "stories": 0,
+                "shared": 0, "shared_data": shared, "shared_fail": False}
 
         def route_request(route):
             url = urlsplit(route.request.url)
@@ -68,6 +70,15 @@ class BrowserChecks(unittest.TestCase):
                     route.fulfill(status=404, body="No fixture story")
                 else:
                     route.fulfill(content_type="application/json", body=json.dumps(story))
+            elif url.path.endswith("/shared-ai.json"):
+                feed["shared"] += 1
+                if feed["shared_fail"]:
+                    route.fulfill(status=503, body="Shared recommendations unavailable")
+                elif feed["shared_data"] is None:
+                    route.fulfill(status=404, body="No shared recommendations")
+                else:
+                    payload = feed["shared_data"]
+                    route.fulfill(content_type="application/json", body=payload if isinstance(payload, str) else json.dumps(payload))
             elif url.hostname != "127.0.0.1":
                 # Stable offline screenshots: use the same fallback fonts on both pages.
                 route.fulfill(content_type="text/css", body="")
@@ -84,7 +95,7 @@ class BrowserChecks(unittest.TestCase):
             page.clock.run_for(1)
             if feed["requests"]:
                 expect(page.locator("#livenote")).to_contain_text("last checked")
-            if story is not None:
+            if story is not None or shared is not None:
                 page.wait_for_load_state("networkidle")
             self.assertEqual(errors, [], f"JavaScript startup errors in {target}")
             yield page, feed
@@ -3522,6 +3533,219 @@ class BrowserChecks(unittest.TestCase):
             expect(page.locator("#story-lede")).to_have_text("Your match overview.")
 
 
+    def shared_ai_payload(self, fixtures, scores=None):
+        matches = [{"id": f[0], "kickoff": f[1], "league_id": f[4] if len(f) > 4 else "eng.1"} for f in fixtures]
+        snapshot = {"now": BUILT_AT.isoformat(), "matches": matches, "request_id": "browser-shared-request"}
+        headlines = [self.personal_ai_headline(snapshot, matches[0]["league_id"], [matches[0]["id"]], "The shared league headline", 80)]
+        response = self.personal_ai_headline_reply(snapshot, headlines)
+        for match in response["matches"]:
+            match["blurb"] = f'Shared preview for {match["id"]}.'
+            match["score"] = (scores or {}).get(match["id"], 50)
+        return {"version": 1, "created_at": int(BUILT_AT.timestamp() * 1000), "weight": 100,
+                "leagues": list(dict.fromkeys(match["league_id"] for match in matches)), "fixtures": matches, "response": response}
+
+    def test_shared_ai_defaults_reach_new_visitors_and_local_imports_take_precedence(self):
+        html = render_page(build, fixtures=self.SCORED, stature=self.STATURE, ai=False)
+        shared = self.shared_ai_payload(self.SCORED, dict(a=50, b=10, c=100, d=0, e=20))
+        for width in (1280, 390):
+            with self.subTest(width=width), self.page("after", html=html, shared=shared, width=width) as (page, feed):
+                title = page.locator("#story-headlines > article .story-headline__title")
+                picks = page.locator("#picks .pick")
+                expect(title).to_have_text("The shared league headline")
+                self.assertGreater(feed["shared"], 0)
+                self.assertEqual(feed["stories"], 0)
+                self.assertIsNone(page.evaluate("localStorage.getItem('sso-personal-ai-v1')"))
+                self.assertEqual(picks.evaluate_all("els => els.map(e => e.dataset.matchId)"), ["b", "c", "e"])
+                expect(page.locator("#nextup .row__story")).to_contain_text("Shared preview for a.")
+                expect(page.locator('#picks [data-match-id="c"] .row__story')).to_contain_text("Shared preview for c.")
+                expect(page.locator('li.row[data-id="d"] .row__story')).to_contain_text("Shared preview for d.")
+                expect(page.locator("#story-headlines > article .story-headline__by")).not_to_contain_text("Your AI")
+                page.locator("#btn-ai-settings").click()
+                page.locator("#ai-weight").fill("100")
+                page.locator("#ai-generate").click()
+                snapshot = self.personal_ai_snapshot(page)
+                local = self.personal_ai_headline_reply(snapshot, [self.personal_ai_headline(snapshot, "eng.1", ["a"], "My own league headline", 90)])
+                for match in local["matches"]:
+                    match["score"] = dict(a=50, b=100, c=0, d=90, e=80)[match["id"]]
+                page.locator("#ai-response").fill(json.dumps(local))
+                page.locator("#ai-apply").click()
+                expect(page.locator("#ai-error")).to_be_empty()
+                self.close_personal_ai(page)
+                expect(title).to_have_text("My own league headline")
+                self.assertEqual(picks.evaluate_all("els => els.map(e => e.dataset.matchId)"), ["b", "d", "e"])
+                expect(page.locator("#nextup .row__story")).to_contain_text("Your preview for a.")
+                page.reload()
+                expect(title).to_have_text("My own league headline")
+                page.locator("#btn-ai-settings").click()
+                page.locator("#ai-clear").click()
+                self.close_personal_ai(page)
+                expect(title).to_have_text("The shared league headline")
+                self.assertEqual(picks.evaluate_all("els => els.map(e => e.dataset.matchId)"), ["b", "c", "e"])
+                expect(page.locator("#nextup .row__story")).to_contain_text("Shared preview for a.")
+                self.assertLessEqual(page.evaluate("document.documentElement.scrollWidth"), width)
+
+    def test_shared_ai_headlines_follow_filters_finals_rescheduling_and_expiry(self):
+        fixtures = [("upcoming", "2026-10-07T17:05:00+00:00", "pre", "ESPN+", "eng.1"),
+                    ("spanish", "2026-10-07T20:00:00+00:00", "pre", "ESPN+", "esp.1")]
+        shared = self.shared_ai_payload(fixtures)
+        snapshot = {"now": BUILT_AT.isoformat()}
+        shared["response"]["headlines"] = [
+            self.personal_ai_headline(snapshot, "eng.1", ["upcoming"], "The shared English headline", 90, expires_at="2026-10-07T17:10:00Z"),
+            self.personal_ai_headline(snapshot, "esp.1", ["spanish"], "The shared Spanish headline", 80, expires_at="2026-10-07T17:10:00Z")]
+        html = render_page(build, fixtures=fixtures, ai=False)
+        with self.page("after", html=html, shared=shared) as (page, feed):
+            lead = page.locator("#story-headlines > article.story-headline")
+            expect(lead).to_have_attribute("data-league", "eng.1")
+            page.locator("#btn-menu").click()
+            page.locator('#comp-pills [data-key="eng.1"]').click()
+            expect(lead).to_have_attribute("data-league", "esp.1")
+            page.locator('#comp-pills [data-key="eng.1"]').click()
+            page.locator("#btn-filters-close").click()
+            expect(lead).to_have_attribute("data-league", "eng.1")
+            feed["data"] = scoreboard("post")
+            page.clock.run_for(60000)
+            expect(lead).to_have_attribute("data-league", "esp.1")
+            page.evaluate("location.hash = '#at-20261007-1311'")
+            expect(page.locator("#story")).to_be_hidden()
+            expect(page.locator('li.row[data-id="spanish"] .row__story')).to_contain_text("Shared preview for spanish.")
+        moved = [(fixtures[0][0], "2026-10-07T19:00:00+00:00", *fixtures[0][2:]), fixtures[1]]
+        with self.page("after", html=render_page(build, fixtures=moved, ai=False), shared=shared) as (page, _):
+            expect(page.locator("#story-headlines > article.story-headline")).to_have_attribute("data-league", "esp.1")
+            expect(page.locator('li.row[data-id="upcoming"] .row__story')).to_have_count(0)
+
+    def test_missing_invalid_or_expired_shared_ai_keeps_the_schedule_working(self):
+        valid = self.shared_ai_payload(self.SCORED)
+        expired = deepcopy(valid)
+        expired["created_at"] -= 25 * 60 * 60 * 1000
+        expired["response"]["headlines"][0]["expires_at"] = "2026-10-07T16:00:00Z"
+        unsafe = deepcopy(valid)
+        unsafe["response"]["headlines"][0]["sources"][0]["url"] = "javascript:window.__unsafeExecuted=true"
+        html = render_page(build, fixtures=self.SCORED, stature=self.STATURE, ai=False)
+        for name, shared in (("missing", None), ("bad JSON", "{broken"), ("expired", expired), ("unsafe", unsafe)):
+            with self.subTest(shared=name), self.page("after", html=html, shared=shared) as (page, feed):
+                expect(page.locator("#story")).to_be_hidden()
+                expect(page.locator(".row__story")).to_have_count(0)
+                self.assertEqual(page.locator("#picks .pick").evaluate_all("els => els.map(e => e.dataset.matchId)"), ["b", "d", "e"])
+                self.assertFalse(page.evaluate("Boolean(window.__unsafeExecuted)"))
+                page.locator("#btn-menu").click()
+                page.locator("#btn-clear").click()
+                expect(page.locator("li.row:visible")).to_have_count(0)
+                page.locator("#btn-reset").click()
+                page.locator("#btn-filters-close").click()
+                expect(page.locator('li.row[data-id="a"]')).to_be_visible()
+
+    def test_github_publication_checks_access_keeps_tokens_private_and_preserves_local_results(self):
+        html = render_page(build, fixtures=self.SCORED, ai=False)
+        shared = self.shared_ai_payload(self.SCORED)
+        with self.page("after", html=html, shared=shared) as (page, _):
+            calls, published = [], []
+            server = {"push": False, "put_status": 200, "exists": True, "get_status": 200}
+
+            def github(route):
+                req = route.request
+                parsed = urlsplit(req.url)
+                body = req.post_data_json if req.method == "PUT" else None
+                calls.append({"method": req.method, "url": req.url, "headers": req.headers, "body": body})
+                if parsed.path == "/repos/caparomula/soccer-outlook" and req.method == "GET":
+                    route.fulfill(content_type="application/json", body=json.dumps({"permissions": {"push": server["push"]}}))
+                elif parsed.path == "/repos/caparomula/soccer-outlook/contents/content/shared-ai.json" and req.method == "GET":
+                    status = server["get_status"] if server["get_status"] != 200 else 200 if server["exists"] else 404
+                    route.fulfill(status=status, content_type="application/json",
+                                  body=json.dumps({"type": "file", "sha": "existing-file-sha"}) if server["exists"] else "{}")
+                elif parsed.path == "/repos/caparomula/soccer-outlook/contents/content/shared-ai.json" and req.method == "PUT":
+                    published.append(json.loads(base64.b64decode(body["content"])))
+                    if server["put_status"] == 200:
+                        route.fulfill(content_type="application/json", body=json.dumps({"commit": {"sha": "test-commit",
+                            "html_url": "https://github.com/caparomula/soccer-outlook/commit/test-commit"}}))
+                    else:
+                        route.fulfill(status=server["put_status"], content_type="application/json", body=json.dumps({"message": "sha does not match"}))
+                else:
+                    self.fail(f"Unexpected mocked GitHub request: {req.method} {req.url}")
+
+            page.route("https://api.github.com/**", github)
+            title = page.locator("#story-headlines > article .story-headline__title")
+            expect(title).to_have_text("The shared league headline")
+            page.locator("#btn-ai-settings").click()
+            page.locator("#ai-publish-section > summary").click()
+            token = "github_pat_browser_test_only"
+            page.locator("#ai-publish-token").fill(token)
+            page.locator("#ai-publish-connect").click()
+            expect(page.locator("#ai-publish-error")).to_be_visible()
+            expect(page.locator("#ai-publish-token")).to_have_value("")
+            self.assertEqual([call["method"] for call in calls], ["GET"])
+            expect(title).to_have_text("The shared league headline")
+            server["push"] = True
+            page.locator("#ai-publish-token").fill(token)
+            page.locator("#ai-publish-connect").click()
+            expect(page.locator("#ai-publish-disconnect")).to_be_visible()
+            expect(page.locator("#ai-publish-error")).to_be_empty()
+            expect(page.locator("#ai-publish-token")).to_have_value("")
+            self.assertEqual([call["method"] for call in calls], ["GET", "GET"], "Connecting must not publish anything")
+            private_preference = "PRIVATE_WATCHING_PREFERENCES_SENTINEL"
+            page.locator("#ai-preferences").fill(private_preference)
+            page.locator("#ai-generate").click()
+            snapshot = self.personal_ai_snapshot(page)
+            reply = self.personal_ai_headline_reply(snapshot, [self.personal_ai_headline(snapshot, "eng.1", ["a"], "My published league headline", 90)])
+            page.locator("#ai-response").fill(json.dumps(reply))
+            page.locator("#ai-apply").click()
+            expect(page.locator("#ai-publish-status")).to_contain_text("deployment pending")
+            expect(title).to_have_text("My published league headline")
+            self.assertEqual([call["method"] for call in calls], ["GET", "GET", "GET", "PUT"])
+            self.assertIn("ref=main", calls[-2]["url"])
+            self.assertEqual(calls[-1]["body"]["branch"], "main")
+            self.assertEqual(calls[-1]["body"]["sha"], "existing-file-sha")
+            public = published[-1]
+            self.assertEqual(set(public), {"version", "created_at", "weight", "leagues", "fixtures", "response"})
+            self.assertTrue(all(set(fixture) == {"id", "kickoff", "league_id"} for fixture in public["fixtures"]))
+            self.assertEqual(public["response"]["headlines"][0]["headline"], "My published league headline")
+            self.assertNotIn(private_preference, json.dumps(public))
+            self.assertNotIn(token, json.dumps(public))
+            self.assertNotIn(token, page.url)
+            self.assertNotIn(token, page.evaluate("JSON.stringify([Object.entries(localStorage), Object.entries(sessionStorage)])"))
+            self.assertTrue(all(call["headers"].get("authorization") == "Bearer " + token for call in calls))
+            # A conflicting write fails once; the response the reader just applied remains local.
+            server["put_status"] = 409
+            reply["headlines"][0]["headline"] = "My newer local headline survives a conflict"
+            page.locator("#ai-response").fill(json.dumps(reply))
+            page.locator("#ai-apply").click()
+            expect(page.locator("#ai-publish-error")).to_be_visible()
+            expect(title).to_have_text(reply["headlines"][0]["headline"])
+            self.assertEqual(len(published), 2)
+            page.clock.run_for(1000)
+            self.assertEqual(len(published), 2, "A conflict must not silently retry a write")
+            self.close_personal_ai(page)
+            count = len(calls)
+            page.reload()
+            expect(title).to_have_text(reply["headlines"][0]["headline"])
+            page.locator("#btn-ai-settings").click()
+            page.locator("#ai-publish-section > summary").click()
+            expect(page.locator("#ai-publish-token")).to_have_value("")
+            expect(page.locator("#ai-publish-disconnect")).to_be_hidden()
+            self.assertEqual(len(calls), count, "Reloading must not restore a GitHub token or republish")
+            # Publishing an existing local response also creates the shared file on first use.
+            server.update(exists=False, put_status=200)
+            page.locator("#ai-publish-token").fill(token)
+            page.locator("#ai-publish-connect").click()
+            expect(page.locator("#ai-publish-disconnect")).to_be_visible()
+            page.locator("#ai-publish-saved").click()
+            expect(page.locator("#ai-publish-status")).to_contain_text("deployment pending")
+            self.assertEqual(calls[-1]["method"], "PUT")
+            self.assertNotIn("sha", calls[-1]["body"])
+            self.assertEqual(published[-1]["response"]["headlines"][0]["headline"], reply["headlines"][0]["headline"])
+            server["get_status"] = 403
+            writes = len(published)
+            page.locator("#ai-publish-saved").click()
+            expect(page.locator("#ai-publish-error")).to_be_visible()
+            self.assertEqual(calls[-1]["method"], "GET")
+            self.assertEqual(len(published), writes, "Loss of access must not be mistaken for a missing file")
+            expect(title).to_have_text(reply["headlines"][0]["headline"])
+            page.locator("#ai-publish-disconnect").click()
+            expect(page.locator("#ai-publish-saved")).to_be_disabled()
+            page.locator("#ai-clear").click()
+            self.close_personal_ai(page)
+            expect(title).to_have_text("The shared league headline")
+
+
 # Exit status when the browser cannot start: the checks did not run, which says nothing about the page.
 # 77 is automake's "skipped"; Python and argparse already use 1 and 2 for their own errors.
 NOT_RUN = 77
@@ -3529,6 +3753,8 @@ NOT_RUN = 77
 # A compact cross-engine pass through the interactions most sensitive to browser behavior.
 # Chromium still runs every check by default; WebKit smoke is an additional compatibility check.
 SMOKE_TESTS = (
+    "test_shared_ai_defaults_reach_new_visitors_and_local_imports_take_precedence",
+    "test_github_publication_checks_access_keeps_tokens_private_and_preserves_local_results",
     "test_personal_ai_headlines_prioritize_near_matches_and_expand_on_request",
     "test_personal_ai_prompt_import_weight_persistence_and_reset",
     "test_lineup_persists_and_resets",

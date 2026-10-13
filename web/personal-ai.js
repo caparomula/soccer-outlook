@@ -1,14 +1,14 @@
-// Optional, browser-local recommendations copied to and from the reader's chosen AI.
-// No prompt, preferences, or response leaves the browser through this module.
+// Browser-local recommendations and a shared reader with the same validation and freshness rules.
+// No automatic network access; callers may explicitly publish the sanitized export.
 (function (global) {
   'use strict';
-  var KEY = 'sso-personal-ai-v1', DAY = 24 * 60 * 60 * 1000, MAX_RESPONSE = 256 * 1024;
+  var KEY = 'sso-personal-ai-v1', DAY = 24 * 60 * 60 * 1000, MAX_RESPONSE = 256 * 1024, MAX_SHARED = 512 * 1024;
 
-  function create(options) {
+  function create(options, headless) {
     var fields = {}, names = ['settings', 'close', 'preferences', 'weight', 'weight-value',
       'generate', 'prompt', 'copy', 'response', 'apply', 'clear', 'status', 'error'];
-    names.forEach(function (name) { fields[name] = document.getElementById('ai-' + name); });
-    var opener = document.getElementById('btn-ai-settings'), returnFocus = null, timer = null;
+    if (!headless) names.forEach(function (name) { fields[name] = document.getElementById('ai-' + name); });
+    var opener = headless ? null : document.getElementById('btn-ai-settings'), returnFocus = null, timer = null;
     var preferences = '', weight = boundedWeight(options.defaultWeight), pending = null, applied = null;
     var notSaved = false, notice = '', expired = false;
 
@@ -18,6 +18,10 @@
       return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, Math.min(100, Math.round(value))) : 70;
     }
     function fail(message) { throw new Error(message); }
+    function byteSize(value) { return global.TextEncoder ? new TextEncoder().encode(value).length : new Blob([value]).size; }
+    function exactKeys(value, allowed, label) {
+      if (!object(value) || Object.keys(value).some(function (key) { return allowed.indexOf(key) === -1; })) fail(label + ' contains unsupported fields.');
+    }
     function text(value, maximum, label, empty) {
       if (typeof value !== 'string') fail(label + ' must be text.');
       value = value.trim().replace(/\s+/g, ' ');
@@ -44,7 +48,7 @@
         return { title: title, url: parsed.href };
       });
     }
-    function request(value) {
+    function request(value, shared) {
       if (!object(value) || typeof value.request_id !== 'string' || !/^[a-zA-Z0-9_-]{8,100}$/.test(value.request_id) ||
           typeof value.created_at !== 'number' || !Number.isFinite(value.created_at) || value.created_at > now() + 5 * 60000 ||
           typeof value.preferences !== 'string' || value.preferences.length > 2000 ||
@@ -57,7 +61,7 @@
       var leagues = Object.create(null);
       if (schema(value) === 2) {
         if (!Array.isArray(value.snapshot.league_order) || !value.snapshot.league_order.length ||
-            !Array.isArray(value.snapshot.services) || !value.snapshot.services.length) fail('Select at least one league and broadcaster, then generate a prompt.');
+            (!shared && (!Array.isArray(value.snapshot.services) || !value.snapshot.services.length))) fail('Select at least one league and broadcaster, then generate a prompt.');
         value.snapshot.league_order.forEach(function (league) {
           if (!object(league)) fail('The saved league order is invalid. Generate a new prompt.');
           var key = leagueId(league.id);
@@ -140,6 +144,7 @@
     function alive(req) { return !!req && now() < req.created_at + DAY; }
     function currentMatch(key) {
       if (options.lookup) return options.lookup(key);
+      if (!options.snapshot) return null;
       var snapshot = options.snapshot();
       var match = snapshot.matches.find(function (item) { return item.id === key; });
       return match ? Object.assign({ eligible: true }, match) : null;
@@ -158,7 +163,7 @@
       if (!applied || !alive(applied.request) || applied.response.version !== 2) return null;
       return applied.response.headlines.filter(function (item) {
         var eligible = options.leagueEligible ? options.leagueEligible(item.league_id) :
-          options.snapshot().services.length && options.snapshot().league_order.some(function (league) { return league.id === item.league_id; });
+          options.snapshot && options.snapshot().services.length && options.snapshot().league_order.some(function (league) { return league.id === item.league_id; });
         return eligible && now() < Date.parse(item.expires_at) && item.match_ids.every(function (key) { return !!rating(key); });
       });
     }
@@ -169,6 +174,58 @@
       req.snapshot.matches.forEach(function (match) { applied.fixtures[match.id] = match; });
       expired = false;
       scheduleExpiry();
+    }
+    function sharedCandidate(value) {
+      var raw;
+      try { raw = JSON.stringify(value); } catch (e) { fail('Shared AI data must be a JSON object.'); }
+      if (!raw || byteSize(raw) > MAX_SHARED) fail('Shared AI data must be a JSON object no larger than 512 KB.');
+      // Detach from the caller before validation; later mutations cannot change an installed response.
+      value = JSON.parse(raw);
+      exactKeys(value, ['version', 'created_at', 'weight', 'leagues', 'fixtures', 'response'], 'Shared AI data');
+      if (value.version !== 1 || !Array.isArray(value.leagues) || !value.leagues.length || value.leagues.length > 1000 ||
+          !Array.isArray(value.fixtures) || value.fixtures.length > 1000 || !object(value.response)) fail('Shared AI data has an invalid format.');
+      if (byteSize(JSON.stringify(value.response)) > MAX_RESPONSE) fail('The shared AI response is larger than 256 KB.');
+      var fixtures = value.fixtures.map(function (match) {
+        exactKeys(match, ['id', 'kickoff', 'league_id'], 'A shared fixture');
+        if (typeof match.kickoff !== 'string' || !Number.isFinite(Date.parse(match.kickoff))) fail('A shared fixture has an invalid kickoff.');
+        return { id: id(match.id), kickoff: new Date(Date.parse(match.kickoff)).toISOString(), league_id: leagueId(match.league_id) };
+      });
+      var req = request({ schema_version: 2, request_id: value.response.request_id, created_at: value.created_at,
+        weight: value.weight, preferences: '', snapshot: { matches: fixtures,
+          league_order: value.leagues.map(function (key) { return { id: leagueId(key) }; }) } }, true);
+      if (!alive(req)) fail('The shared AI response has expired. Generate a fresh response before publishing.');
+      var response = validate(value.response, req);
+      return { request: req, response: response, payload: { version: 1, created_at: req.created_at, weight: req.weight,
+        leagues: req.snapshot.league_order.map(function (league) { return league.id; }), fixtures: fixtures, response: response } };
+    }
+    function exportShared() {
+      if (!applied) fail('Apply an AI response before publishing it.');
+      if (!alive(applied.request)) fail('This AI response has expired. Generate a fresh response before publishing.');
+      checkSchedule(applied.request);
+      var req = applied.request, leagues = [], seen = Object.create(null);
+      (req.snapshot.league_order || []).forEach(function (league) {
+        var key = leagueId(league.id);
+        if (!seen[key]) { leagues.push(key); seen[key] = true; }
+      });
+      var fixtures = req.snapshot.matches.map(function (match) {
+        var key = leagueId(match.league_id);
+        if (!seen[key]) { leagues.push(key); seen[key] = true; }
+        return { id: match.id, kickoff: match.kickoff, league_id: key };
+      });
+      // Validation strips unused AI fields; no prompt, preferences, providers, or full fixture facts are exported.
+      return sharedCandidate({ version: 1, created_at: req.created_at, weight: weight, leagues: leagues,
+        fixtures: fixtures, response: applied.response }).payload;
+    }
+    function setShared(value) {
+      var candidate = sharedCandidate(value);
+      install(candidate.request, candidate.response);
+      weight = candidate.request.weight;
+      if (options.onChange) options.onChange();
+    }
+    function clearShared() {
+      applied = null; expired = false; clearTimeout(timer);
+      weight = boundedWeight(options.defaultWeight);
+      if (options.onChange) options.onChange();
     }
     function scheduleExpiry() {
       clearTimeout(timer);
@@ -270,10 +327,14 @@
       } catch (e) { setError(e.message); }
     }
     function checkSchedule(req) {
-      var snapshot = options.snapshot(), current = Object.create(null);
-      (snapshot.all_matches || snapshot.matches).forEach(function (match) { current[match.id] = match; });
+      var current = Object.create(null);
+      if (options.snapshot) {
+        var snapshot = options.snapshot();
+        (snapshot.all_matches || snapshot.matches).forEach(function (match) { current[match.id] = match; });
+      }
       req.snapshot.matches.forEach(function (match) {
-        if (current[match.id] && Date.parse(current[match.id].kickoff) !== Date.parse(match.kickoff)) fail('A kickoff has changed since this prompt was created. Generate a new prompt for the updated schedule.');
+        var found = current[match.id] || (options.lookup && options.lookup(match.id));
+        if (found && Date.parse(found.kickoff) !== Date.parse(match.kickoff)) fail('A kickoff has changed since this prompt was created. Generate a new prompt for the updated schedule.');
       });
     }
     function apply() {
@@ -282,7 +343,7 @@
         if (!pending) fail('Generate a prompt before importing a response.');
         if (!alive(pending)) fail('This prompt is more than 24 hours old. Generate a new prompt for the current schedule.');
         var raw = fields.response.value;
-        var bytes = global.TextEncoder ? new TextEncoder().encode(raw).length : new Blob([raw]).size;
+        var bytes = byteSize(raw);
         if (bytes > MAX_RESPONSE) fail('The response is too large. Paste only the requested JSON, up to 256 KB.');
         raw = raw.trim();
         if (raw.slice(0, 3) === '```') {
@@ -298,6 +359,7 @@
         notice = 'Your AI response is applied in this browser for up to 24 hours from prompt creation. It follows your lineup filters.';
         updateControls(); persist();
         if (options.onChange) options.onChange();
+        if (options.onApply) options.onApply();
       } catch (e) { setError(e.message); }
     }
     function clear() {
@@ -341,6 +403,13 @@
       }
     }
 
+    var api = { rating: rating, overview: overview, headlines: headlines, weight: function () { return weight; }, active: active,
+      exportShared: exportShared,
+      status: function () { return { active: active(), expired: expired || !!applied && !alive(applied.request), saved: !notSaved }; } };
+    if (headless) {
+      api.set = setShared; api.clear = clearShared;
+      return api;
+    }
     restore(); updateControls();
     if (opener && fields.settings) opener.addEventListener('click', function () {
       returnFocus = document.activeElement;
@@ -370,8 +439,7 @@
     if (fields.copy) fields.copy.addEventListener('click', copy);
     if (fields.apply) fields.apply.addEventListener('click', apply);
     if (fields.clear) fields.clear.addEventListener('click', clear);
-    return { rating: rating, overview: overview, headlines: headlines, weight: function () { return weight; }, active: active,
-      status: function () { return { active: active(), expired: expired || !!applied && !alive(applied.request), saved: !notSaved }; } };
+    return api;
   }
-  global.SoccerOutlookPersonalAI = { create: create };
+  global.SoccerOutlookPersonalAI = { create: create, createShared: function (options) { return create(options, true); } };
 })(window);

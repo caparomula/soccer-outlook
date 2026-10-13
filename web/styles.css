@@ -230,6 +230,13 @@ html.has-ai-dialog, .has-ai-dialog body { overflow: hidden; }
 .ai-settings__status { color: var(--accent); }
 .ai-settings__error { color: var(--loss); }
 .ai-settings__status:empty, .ai-settings__error:empty { display: none; }
+.ai-publish { margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--line); }
+.ai-publish > summary { width: fit-content; padding: 5px 0; color: var(--muted); cursor: pointer; font-weight: 600; }
+.ai-publish > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+.ai-publish input[type="password"] { display: block; width: 100%; padding: 9px 11px; border: 1px solid var(--line-strong);
+  border-radius: 7px; background: var(--bg); color: var(--fg); font: 16px/1.4 var(--body); }
+.ai-publish__actions { margin-top: 10px; }
+.ai-publish .fbtn[hidden] { display: none; }
 @media (max-width: 600px) {
   .ai-settings { padding: 16px; }
   .ai-settings__head h2 { font-size: 21px; }

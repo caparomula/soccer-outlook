@@ -12,9 +12,9 @@ Choose subscriptions and channels you can actually watch. FOX One's paid subscri
 - **Top three:** up to three other recommended matches, selected by interest and shown in kickoff order.
 - **Daily schedule:** kickoff times, broadcasters, team form, standings and match details. A day changes at 4 am in your time zone so late games stay with their evening.
 - **Viewing links:** click an underlined provider chip to open a supported match page. Links follow your selected services; manually supplied YouTube TV links are available only while the match is live.
-- **Your own AI:** open **AI settings** to copy a prompt into your preferred chat, then paste its response back for personal headlines, match blurbs and ratings. Add your interests to the prompt and choose how much its ratings influence recommendations. No AI account connection is required.
+- **Your own AI:** open **AI settings** to copy a prompt into your preferred chat, then paste its response back for personal headlines, match blurbs and ratings. Add your interests to the prompt and choose how much its ratings influence recommendations. No AI account connection is required. Repository maintainers can also [publish a response as the site's shared defaults](docs/user-guide.md#publish-recommendations-for-everyone).
 
-ESPN supplies fixtures and live scores. When a match only has usual coverage, the builder checks the broadcaster's public schedule for a match-specific listing. Liga MX also gets a check for TUDN and Univision simulcasts that may be missing from ESPN. Confirmed listings replace the uncertainty label; **Details** links to the source or explains why coverage remains unconfirmed. The project maps US broadcast coverage in [rights.toml](rights.toml). Its recommendations combine an AI rating, an Outlook score calculated from fixture and broadcast data, and your league preferences. The published site uses OpenAI's `gpt-6.1-sol` for daily ratings, with automatic overviews and match blurbs turned off. You can add personal headlines and blurbs through [AI settings](docs/user-guide.md#use-your-own-ai-for-blurbs); imported recommendations stay in your browser and expire within 24 hours of prompt creation.
+ESPN supplies fixtures and live scores. When a match only has usual coverage, the builder checks the broadcaster's public schedule for a match-specific listing. Liga MX also gets a check for TUDN and Univision simulcasts that may be missing from ESPN. Confirmed listings replace the uncertainty label; **Details** links to the source or explains why coverage remains unconfirmed. The project maps US broadcast coverage in [rights.toml](rights.toml). Its recommendations combine an AI rating, an Outlook score calculated from fixture and broadcast data, and your league preferences. The site uses OpenAI's `gpt-6.1-sol` for daily ratings, with automatic overviews and match blurbs turned off. Personal imports take precedence over shared recommendations; both expire within 24 hours of their original prompt. Applying a response stays local unless you connect GitHub publishing in **AI settings**.
 
 ## Guides
 
@@ -35,7 +35,7 @@ python3 build.py --out site/index.html --facts work/facts.json --warnings work/m
 python3 -m http.server 8000 --directory site
 ```
 
-Open `http://localhost:8000` in your browser. Building the schedule needs no API key and makes no AI calls. Without a current `site/story.json`, recommendations use the Outlook score and league priority. See the [development guide](docs/development.md) for optional AI generation and browser tests.
+Open `http://localhost:8000` in your browser. Building the schedule needs no API key and makes no AI calls. Without current personal, shared or automatic AI ratings, recommendations use the Outlook score and league priority. See the [development guide](docs/development.md) for optional AI generation and browser tests.
 
 Page structure, styles and browser behavior live in [web/](web/). Rebuild after editing them: the generator embeds those files in the HTML. [settings.toml](settings.toml) controls AI and scoring; [build.py](build.py) defines tracked leagues and the default lineup.
 

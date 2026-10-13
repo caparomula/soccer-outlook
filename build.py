@@ -2,8 +2,9 @@
 """Build Soccer Outlook, a soccer schedule filtered by the viewer's US services and leagues.
 
 Fetch fixtures and standings from ESPN, map US broadcasters through rights.toml, and write the main
-HTML file with web/page.html, web/styles.css, web/live.js, web/personal-ai.js and web/app.js embedded. Full builds also write
-three public schedule pages, a sitemap, a PNG favicon and an IndexNow ownership file. The default
+HTML file with web/page.html, web/styles.css, web/live.js, web/personal-ai.js,
+web/github-publish.js and web/app.js embedded. Full builds also write three public schedule pages,
+a sitemap, a PNG favicon, an IndexNow ownership file and any fresh shared AI defaults. The default
 fetch covers yesterday, today and four days ahead in Eastern time. Before 4 am Eastern, it also
 fetches the preceding date so the previous evening's results are retained. The browser displays
 today and three later days, with each day starting at 4 am in the viewer's time zone, plus recent results.
@@ -1987,7 +1988,167 @@ WEB_DIR = Path(__file__).resolve().parent / "web"
 TEMPLATE = (WEB_DIR.joinpath("page.html").read_text(encoding="utf-8")
             .replace("@@STYLES@@", WEB_DIR.joinpath("styles.css").read_text(encoding="utf-8"))
             .replace("@@SCRIPT@@", "\n".join(WEB_DIR.joinpath(name).read_text(encoding="utf-8")
-                                            for name in ("live.js", "personal-ai.js", "app.js"))))
+                                            for name in ("live.js", "personal-ai.js", "github-publish.js", "app.js"))))
+
+
+SHARED_AI_SOURCE = Path(__file__).resolve().parent / "content" / "shared-ai.json"
+SHARED_AI_MAX_BYTES = 512 * 1024
+
+
+def write_shared_ai(output_dir, built_at, source=None):
+    """Copy fresh public defaults without letting an optional import stop the schedule.
+
+    The browser performs full response validation. This publication gate also bounds input,
+    checks the public envelope and rejects unexpected fields so a saved private session cannot
+    accidentally become a public artifact. Copy the original bytes: rebuilding never renews an
+    import or its individual headlines. Missing, expired or invalid input removes an older output.
+    """
+    source = Path(source) if source is not None else SHARED_AI_SOURCE
+    destination = Path(output_dir) / "shared-ai.json"
+
+    def fields(value, names):
+        if not isinstance(value, dict) or set(value) != set(names.split()):
+            raise ValueError("unexpected or missing public fields")
+
+    def array(value, maximum):
+        if not isinstance(value, list) or len(value) > maximum:
+            raise ValueError("invalid public list")
+        return value
+
+    def source_fields(value):
+        for item in array(value, 5):
+            fields(item, "title url")
+            text(item["title"], 200)
+            text(item["url"], 2048)
+            parsed = urllib.parse.urlsplit(item["url"])
+            if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password or re.search(r"[\x00-\x20\x7f]", item["url"]):
+                raise ValueError("sources must use HTTPS without credentials")
+
+    def text(value, maximum, empty=False):
+        if not isinstance(value, str) or len(value) > maximum or (not empty and not value.strip()):
+            raise ValueError("invalid public text field")
+
+    def number(value):
+        return type(value) is int or (type(value) is float and math.isfinite(value))
+
+    def score(value):
+        if not number(value) or not 0 <= value <= 100:
+            raise ValueError("invalid interest score")
+
+    def references(value, ids):
+        refs = array(value, len(ids))
+        if any(not isinstance(key, str) or key not in ids for key in refs) or len(set(refs)) != len(refs):
+            raise ValueError("invalid referenced fixture IDs")
+
+    def timestamp(value):
+        text(value, 40)
+        if not re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})", value):
+            raise ValueError("timestamps must specify an ISO date, time and timezone")
+        try:
+            return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp() * 1000
+        except ValueError:
+            raise ValueError("invalid timestamp") from None
+
+    def invalid_constant(_):
+        raise ValueError("non-finite JSON number")
+
+    def unique_fields(pairs):
+        value = {}
+        for key, item in pairs:
+            if key in value:
+                raise ValueError("duplicate JSON field")
+            value[key] = item
+        return value
+
+    try:
+        if destination.resolve() == source.resolve():
+            raise ValueError("the source and publication destination must be different files")
+        destination.unlink(missing_ok=True)
+        if not source.exists():
+            return False
+        with source.open("rb") as stream:
+            raw = stream.read(SHARED_AI_MAX_BYTES + 1)
+        if len(raw) > SHARED_AI_MAX_BYTES:
+            raise ValueError("file exceeds 512 KiB")
+        value = json.loads(raw, parse_constant=invalid_constant, object_pairs_hook=unique_fields)
+        fields(value, "version created_at weight leagues fixtures response")
+        now = built_at.timestamp() * 1000
+        if type(value["version"]) is not int or value["version"] != 1:
+            raise ValueError("unsupported envelope version")
+        if not number(value["created_at"]) or not 0 < value["created_at"] <= now + 5 * 60 * 1000:
+            raise ValueError("invalid prompt creation timestamp")
+        if not number(value["weight"]) or not 0 <= value["weight"] <= 100:
+            raise ValueError("invalid rating weight")
+        leagues = array(value["leagues"], len(LEAGUES))
+        if not leagues or any(not isinstance(league, str) or league not in LEAGUES for league in leagues) or len(set(leagues)) != len(leagues):
+            raise ValueError("invalid league list")
+        fixtures = array(value["fixtures"], 1000)
+        ids = set()
+        fixture_leagues = {}
+        for fixture in fixtures:
+            fields(fixture, "id kickoff league_id")
+            if not isinstance(fixture["id"], str) or not re.fullmatch(r"[a-zA-Z0-9_-]{1,100}", fixture["id"]) or fixture["id"] in ids:
+                raise ValueError("invalid or duplicate fixture ID")
+            if fixture["league_id"] not in leagues or not isinstance(fixture["kickoff"], str):
+                raise ValueError("invalid fixture league or kickoff")
+            timestamp(fixture["kickoff"])
+            ids.add(fixture["id"])
+            fixture_leagues[fixture["id"]] = fixture["league_id"]
+        response = value["response"]
+        if not isinstance(response, dict) or type(response.get("version")) is not int or response["version"] not in (1, 2):
+            raise ValueError("unsupported response version")
+        fields(response, "version request_id matches " + ("headlines" if response["version"] == 2 else "overview"))
+        if not isinstance(response["request_id"], str) or not re.fullmatch(r"[a-zA-Z0-9_-]{8,100}", response["request_id"]):
+            raise ValueError("invalid response request ID")
+        ratings = array(response["matches"], 1000)
+        rated = set()
+        for rating in ratings:
+            fields(rating, "id score blurb sources")
+            if not isinstance(rating["id"], str) or rating["id"] not in ids or rating["id"] in rated:
+                raise ValueError("invalid or duplicate response fixture ID")
+            score(rating["score"])
+            text(rating["blurb"], 400, empty=True)
+            source_fields(rating["sources"])
+            rated.add(rating["id"])
+        if rated != ids:
+            raise ValueError("response must cover every fixture")
+        if response["version"] == 2:
+            seen = set()
+            for item in array(response["headlines"], len(leagues)):
+                fields(item, "league_id headline lede interest match_ids sources expires_at")
+                if not isinstance(item["league_id"], str) or item["league_id"] not in leagues or item["league_id"] in seen:
+                    raise ValueError("invalid headline league")
+                seen.add(item["league_id"])
+                text(item["headline"], 80)
+                text(item["lede"], 240, empty=True)
+                expires = timestamp(item["expires_at"])
+                if not value["created_at"] < expires <= value["created_at"] + 24 * 60 * 60 * 1000:
+                    raise ValueError("headline expiry must be within the original prompt's 24-hour window")
+                score(item["interest"])
+                references(item["match_ids"], ids)
+                if any(fixture_leagues[key] != item["league_id"] for key in item["match_ids"]):
+                    raise ValueError("headline references must belong to its league")
+                source_fields(item["sources"])
+                if not item["match_ids"] and not item["sources"]:
+                    raise ValueError("calendar headlines must include a source")
+        else:
+            fields(response["overview"], "text match_ids sources")
+            text(response["overview"]["text"], 600)
+            references(response["overview"]["match_ids"], ids)
+            if not response["overview"]["match_ids"]:
+                raise ValueError("overview must reference at least one fixture")
+            source_fields(response["overview"]["sources"])
+        if len(json.dumps(response, ensure_ascii=False, separators=(",", ":")).encode("utf-8")) > 256 * 1024:
+            raise ValueError("response exceeds 256 KiB")
+        if now >= value["created_at"] + 24 * 60 * 60 * 1000:
+            return False
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(raw)
+        return True
+    except (OSError, ValueError, TypeError, UnicodeError, RecursionError) as error:
+        prefix = "::warning title=Shared AI defaults::" if os.environ.get("GITHUB_ACTIONS") else "WARN Shared AI defaults: "
+        print(prefix + "Not published: " + str(error), file=sys.stderr)
+        return False
 
 
 # ----------------------------------------------------------------------------------------------
@@ -2128,6 +2289,7 @@ def main():
     if not args.fragment:
         # A separate PNG supports Safari versions without SVG/data-URI favicons.
         output_dir = Path(args.out).resolve().parent
+        write_shared_ai(output_dir, built_at)
         output_dir.joinpath("favicon.png").write_bytes(WEB_DIR.joinpath("favicon.png").read_bytes())
         public_pages = discovery.pages(sys.modules[__name__], matches, cache, built_at, args.site_url,
                                        failed=failed, skipped=quality.skipped_events, head_extra=head_extra,

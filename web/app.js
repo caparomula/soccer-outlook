@@ -29,6 +29,7 @@
   if (!Array.isArray(SCORING.dots) || SCORING.dots.length !== 4) SCORING.dots = [35, 45, 55, 68];   // a page from before the dots
   var AI_ON = app.getAttribute('data-ai') !== 'off';
   var PERSONAL = null;              // optional, private ratings/text imported by this visitor
+  var SHARED = null, PUBLISHER = null; // repository-published manual response and optional owner connection
   function rankOf(id) { var i = serviceOrder().indexOf(id); return i < 0 ? 99 : i; }
   var SHORT = { cable: 'Cable / live TV', ota: 'Antenna', free: 'Free app' };   // compact names for generic access options
   function escHtml(t) { return String(t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
@@ -786,7 +787,7 @@
     renderFilterGroups();
     var groups = {}; ORDER.forEach(function (b) { groups[b] = []; });
     var sig = Object.keys(HAVE).join(',') + '|' + Object.keys(compOff).join(',') + '|' + JSON.stringify(compChoice) + '|' + soloLeague + '|';
-    sig += (PERSONAL && PERSONAL.active() ? 'personal' : 'site') + '|';
+    sig += (PERSONAL && PERSONAL.active() ? 'personal' : SHARED && SHARED.active() ? 'shared' : 'site') + '|';
     var all = {}; ORDER.forEach(function (b) { all[b] = []; });
     rows.forEach(function (r) {
       var b = bucketOf(r, now);
@@ -893,12 +894,15 @@
   // else who answered; '' for a story that records neither.
   function raterName(rating) {
     if (rating && rating._personal) return 'your imported AI response';
+    if (rating && rating._shared) return 'the site’s shared AI response';
     var s = STORY.s || {}, name = typeof s.requested_model === 'string' && s.requested_model ? s.requested_model : s.model;
     return typeof name === 'string' ? name : '';
   }
   function ratingOf(r) {
     var personal = PERSONAL && PERSONAL.rating(r.getAttribute('data-id'));
     if (personal) return Object.assign({ _personal: true }, personal);
+    var shared = SHARED && SHARED.rating(r.getAttribute('data-id'));
+    if (shared) return Object.assign({ _shared: true }, shared);
     var rating = STORY.rankings && STORY.rankings[r.getAttribute('data-id')];
     return rating && typeof rating.score === 'number' && rating.score >= 0 && rating.score <= 100 ? rating : null;
   }
@@ -907,8 +911,8 @@
   // visitor's league priority. All run from 0 to 100; null only on a page built without scores.
   function interestOf(r) {
     var rating = ratingOf(r), own = r._outlook, b = SCORING.blend;
-    if (rating && rating._personal) {
-      var weight = PERSONAL.weight();
+    if (rating && (rating._personal || rating._shared)) {
+      var weight = rating._personal ? PERSONAL.weight() : SHARED.weight();
       return own === null ? rating.score : (rating.score * weight + own * (100 - weight)) / 100;
     }
     if (rating && own !== null && b.ai + b.outlook > 0) return (rating.score * b.ai + own * b.outlook) / (b.ai + b.outlook);
@@ -951,7 +955,7 @@
     var rating = ratingOf(r), own = r._outlook, b = SCORING.blend, both = rating && own !== null;
     var lines = [share(b.interest, b.league_priority) + '% ' + (both ? 'interest' : own !== null ? 'Outlook score' : 'AI rating') +
       ' (' + oneDecimal(interestOf(r)) + ') + ' + share(b.league_priority, b.interest) + '% league priority (' + Math.round(leaguePriority(r)) + ').'];
-    var aiShare = rating && rating._personal ? PERSONAL.weight() : share(b.ai, b.outlook);
+    var aiShare = rating && rating._personal ? PERSONAL.weight() : rating && rating._shared ? SHARED.weight() : share(b.ai, b.outlook);
     if (both) lines.push('Interest: ' + aiShare + '% AI rating (' + rating.score + ') + ' + (100 - aiShare) + '% Outlook score (' + own + ').');
     if (rating) lines.push('AI rating' + (raterName(rating) ? ' by ' + raterName(rating) : '') + ': ' + ratingDetails(rating) + '.');
     if (own !== null) {
@@ -1181,6 +1185,7 @@
   }
   function ratingDetails(rating) {
     if (rating._personal) return rating.score + '/100, based on your prompt preferences';
+    if (rating._shared) return rating.score + '/100, from the site’s shared recommendations';
     return 'Popularity ' + rating.popularity + ' · Expected gameplay ' + rating.gameplay + ' · Competitive impact ' + rating.impact;
   }
   // The top three are the best matches the viewer can watch: from the same matches as the top card and
@@ -1196,7 +1201,7 @@
   // Fewer than three in the window make fewer cards.
   function renderPicks(now) {
     var available = availableUpcoming(now).filter(function (r) { return r !== nextRow; });
-    if (!(PERSONAL && PERSONAL.active()) && available.some(function (r) { return ratingOf(r); })) {
+    if (!(PERSONAL && PERSONAL.active()) && !(SHARED && SHARED.active()) && available.some(function (r) { return ratingOf(r); })) {
       available = available.filter(function (r) { return ratingOf(r); });
     }
     var chosen = available.sort(byRating).slice(0, 3);
@@ -1348,6 +1353,8 @@
   function matchBlurb(r) {
     var personal = PERSONAL && PERSONAL.rating(r.getAttribute('data-id'));
     if (personal) return personal.blurb ? { note: personal.blurb, sources: personal.sources } : null;
+    var shared = SHARED && SHARED.rating(r.getAttribute('data-id'));
+    if (shared) return shared.blurb ? { note: shared.blurb, sources: shared.sources } : null;
     var rating = ratingOf(r), note = STORY.notes[r.getAttribute('data-id')];
     if (rating && typeof rating.blurb === 'string' && rating.blurb) return { note: rating.blurb, sources: rating.sources };
     if (note) return note;
@@ -1594,9 +1601,9 @@
       seen[key] = true; return true;
     });
   }
-  function renderHeadlines(items, now) {
+  function renderHeadlines(items, now, personal) {
     var chosen = rankedHeadlines(items, now), storyEl = document.getElementById('story');
-    var signature = JSON.stringify(['headlines', chosen]);
+    var signature = JSON.stringify(['headlines', !!personal, chosen]);
     if (storyEl._signature === signature) return;
     storyEl._signature = signature;
     keepFocus(function () {
@@ -1612,7 +1619,7 @@
         var heading = document.createElement(main ? 'h2' : 'h3'); heading.className = 'story-headline__title';
         heading.textContent = item.headline; el.appendChild(heading);
         var by = document.createElement('p'); by.className = 'story-headline__by';
-        by.textContent = 'Your AI headline · ' + (leagueNames[item.league_id] || item.league_id); el.appendChild(by);
+        by.textContent = (personal ? 'Your AI headline · ' : 'AI headline · ') + (leagueNames[item.league_id] || item.league_id); el.appendChild(by);
         var links = sourceLinks(item.sources, 5);
         if (item.lede || links.childNodes.length) {
           var detail = document.createElement('details'); detail.className = 'story-headline__details';
@@ -1658,15 +1665,20 @@
     });
   }
   function renderEditorial(now) {
-    var headlines = PERSONAL ? PERSONAL.headlines() : null;
-    if (headlines !== null) return renderHeadlines(headlines, now);
-    if (PERSONAL && PERSONAL.active()) {
-      var overview = PERSONAL.overview();
-      if (overview) return renderOverview(overview, true);
+    var source = PERSONAL, personal = true;
+    var headlines = source ? source.headlines() : null;
+    if (headlines === null && !(source && source.active())) {
+      source = SHARED; personal = false;
+      headlines = source ? source.headlines() : null;
+    }
+    if (headlines !== null) return renderHeadlines(headlines, now, personal);
+    if (source && source.active()) {
+      var overview = source.overview();
+      if (overview) return renderOverview(overview, personal);
       // After a filter or live-state change, select one still-relevant imported match's
       // text instead of keeping a paragraph about matches the visitor can no longer see.
       var candidates = rows.filter(function (r) {
-        var note = PERSONAL.rating(r.getAttribute('data-id'));
+        var note = source.rating(r.getAttribute('data-id'));
         return note && note.blurb;
       });
       var soon = candidates.filter(function (r) { return r._k < now + FOCUS_MS; });
@@ -1677,8 +1689,8 @@
       }
       candidates.sort(byRating);
       if (candidates.length) {
-        var note = PERSONAL.rating(candidates[0].getAttribute('data-id'));
-        return renderOverview({ text: note.blurb, sources: note.sources }, true);
+        var note = source.rating(candidates[0].getAttribute('data-id'));
+        return renderOverview({ text: note.blurb, sources: note.sources }, personal);
       }
     }
     var s = STORY.s, storyEl = document.getElementById('story');
@@ -1786,6 +1798,29 @@
   function checkStory() {
     if (STORY.s && !storyIsCurrent(STORY.s, STORY.written, nowMs())) clearStory(false);
     if (!document.hidden && Date.now() - storyAskedAt >= STORY_EVERY_MS) loadStory();
+    if (!document.hidden && Date.now() - sharedAskedAt >= STORY_EVERY_MS) loadShared();
+  }
+
+  // Owner-published manual recommendations are independent of automatic AI generation. Keep a
+  // validated result through transient network errors; the reader enforces its original expiry.
+  var sharedAskedAt = 0;
+  function loadShared() {
+    if (!SHARED || !window.fetch || location.protocol === 'file:') return;
+    sharedAskedAt = Date.now();
+    var controller = new AbortController(), timeout = setTimeout(function () { controller.abort(); }, 20000);
+    fetch('shared-ai.json', { cache: 'no-cache', credentials: 'omit', signal: controller.signal })
+      .then(function (response) {
+        if (response.status === 404) { SHARED.clear(); return null; }
+        if (!response.ok) return null;
+        var length = Number(response.headers.get('content-length'));
+        if (length > 512 * 1024) return null;
+        return response.text();
+      })
+      .then(function (text) {
+        if (text && new TextEncoder().encode(text).length <= 512 * 1024) SHARED.set(JSON.parse(text));
+      })
+      .catch(function () {})
+      .finally(function () { clearTimeout(timeout); });
   }
 
   // ---- live scores: row presentation; transport and polling live in web/live.js ---------------
@@ -1941,15 +1976,22 @@
   }
   evaluateAll();
   applyFilterUI();
+  SHARED = window.SoccerOutlookPersonalAI.createShared({
+    lookup: personalLookup, leagueEligible: personalLeagueEligible, now: nowMs,
+    onChange: function () { render(true); }
+  });
   PERSONAL = window.SoccerOutlookPersonalAI.create({
     snapshot: personalSnapshot, lookup: personalLookup, leagueEligible: personalLeagueEligible, now: nowMs,
     defaultWeight: share(SCORING.blend.ai, SCORING.blend.outlook),
     onOpen: function () { setDrawer(false, false); hideDetailPreview(); },
-    onChange: function () { render(true); }
+    onChange: function () { render(true); if (PUBLISHER) PUBLISHER.refresh(); },
+    onApply: function () { if (PUBLISHER && PUBLISHER.connected()) PUBLISHER.publish(); }
   });
+  PUBLISHER = window.SoccerOutlookGitHubPublish.create({ personal: PERSONAL });
   render(true);
   checkStale();
   loadStory();
+  loadShared();
   window.addEventListener('hashchange', function () { render(true); checkStory(); });
   setTimeout(liveScores.poll, 0);
   setInterval(function () { render(false); checkStale(); checkStory(); }, 60000);
