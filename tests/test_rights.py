@@ -74,6 +74,21 @@ class Regressions(unittest.TestCase):
             with self.subTest(not_carried=name):
                 self.assertNotIn("fubo", via(name))
 
+    def test_fubotv_listing_requires_paid_fubo_not_the_free_network(self):
+        # ESPN's alternate name was unrecognized, hiding FuboTV-only Ligue 1 listings.
+        for name in ("FuboTV", " fubotv "):
+            with self.subTest(name=name):
+                outlet = build.map_outlet(name, "fra.1")
+                self.assertTrue(outlet.known)
+                self.assertFalse(outlet.free)
+                self.assertEqual(outlet.label, "Fubo")
+                self.assertEqual(set(outlet.via), {"fubo"})
+                self.assertEqual(build.evaluate([outlet], None, {"fubo"}),
+                                 ("fubo", "listed", "Fubo"))
+                self.assertEqual(build.evaluate([outlet], None, {"free", "yttv"}),
+                                 ("", "none", ""))
+        self.assertIn("free", via("Fubo Sports Network"))
+
     def test_fox_provider_channels_grant_only_the_selected_channel(self):
         channels = {"foxlocal": "FOX", "fs1": "FS1", "fs2": "FS2",
                     "foxdeportes": "Fox Deportes", "btn": "Big Ten Network"}

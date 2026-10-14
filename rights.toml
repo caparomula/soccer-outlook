@@ -76,7 +76,11 @@
 "Galavisión"                = { espn = ["Galavision"], es = true }
 "TyC Sports"                = { es = true }
 "ViX"                       = { es = true }
-"Fubo"                      = {}
+# ESPN also uses the service's former name, FuboTV. This is the paid subscription,
+# not the free Fubo Sports Network below. Alias checked 2026-10-14:
+# Rebrand: https://ir.fubo.tv/news/news-details/2023/FuboTV-Rebrands-as-Fubo-Launches-Ad-Campaign-Co-Produced-by-Ryan-Reynolds-Maximum-Effort-Productions-Featuring-Kevin-Garnett-and-Mark-Sanchez/default.aspx
+# Free network distinction: https://www.fubosportsnetwork.com/
+"Fubo"                      = { espn = ["FuboTV"] }
 "Fubo Sports Network"       = { free = true }
 "beIN Sports"               = {}
 "beIN Sports XTRA"          = {}
