@@ -79,6 +79,10 @@ class BrowserChecks(unittest.TestCase):
                 else:
                     payload = feed["shared_data"]
                     route.fulfill(content_type="application/json", body=payload if isinstance(payload, str) else json.dumps(payload))
+            elif url.path.endswith("/schedule.json"):
+                # Most fixtures exercise the embedded schedule. Keep its optional update request
+                # deterministic across reloads; browser_schedule overrides this with real snapshots.
+                route.fulfill(status=404, body="No fixture schedule update")
             elif url.hostname != "127.0.0.1":
                 # Stable offline screenshots: use the same fallback fonts on both pages.
                 route.fulfill(content_type="text/css", body="")
@@ -2052,6 +2056,62 @@ class BrowserChecks(unittest.TestCase):
                 # far, on the top card, is the only match left to watch, so there are none.
                 expect(page.locator("#picks-section")).to_be_hidden()
                 expect(page.locator('li.row[data-id="far"]')).to_have_count(1)
+
+    def test_automatic_league_headlines_share_filters_toggle_and_match_news(self):
+        fixtures = [("upcoming", "2026-10-07T17:05:00+00:00", "pre", "Paramount+", "uefa.champions"),
+                    ("mls", "2026-10-07T19:00:00+00:00", "pre", "Apple TV", "usa.1"),
+                    ("later", "2026-10-09T18:00:00+00:00", "pre", "USA Network", "eng.1"),
+                    ("unavailable", "2026-10-07T20:00:00+00:00", "pre", "Peacock", "usa.nwsl"),
+                    ("finished", "2026-10-07T16:00:00+00:00", "post", "ESPN+", "esp.1")]
+        story = self.tagged_story()
+        story.pop("headline"); story.pop("headline_segments")
+        story["lede_items"], story["forecast"] = [], {"items": []}
+        story["league_blurbs"] = [dict(league_id=league, interest=interest, headline=headline,
+                                      text=text, match_ids=[mid], segments=[{"text": text, "match_ids": [mid]}], sources=[])
+                                 for mid, league, interest, headline, text in (
+                                     ("upcoming", "uefa.champions", 97, "Champions League contenders welcome a returning playmaker", "European opponents adjust their midfield plans."),
+                                     ("mls", "usa.1", 80, "MLS playoff rivals face a decisive meeting", "A win could change the playoff positions."),
+                                     ("later", "eng.1", 95, "Premier League title rivals prepare a tactical test", "Both coaches face selection decisions."),
+                                     ("unavailable", "usa.nwsl", 100, "NWSL finalists renew their rivalry", "This is outside the selected services."),
+                                     ("finished", "esp.1", 100, "La Liga contenders complete their meeting", "This match is already over."))]
+        # A title cannot borrow another league's fixture or silently omit a missing reference.
+        story["league_blurbs"] += [dict(story["league_blurbs"][0], league_id="eng.fa", headline="FA Cup mismatched reference"),
+                                   dict(story["league_blurbs"][0], match_ids=["upcoming", "missing"], headline="Champions League incomplete references")]
+        story["notes"] = {"upcoming": {"note": "The returning midfielder gives the coach another pressing option.", "sources": []}}
+        for width in (1280, 390):
+            with self.subTest(width=width), self.page("after", width=width, html=render_page(build, fixtures=fixtures, league_logos=True), story=story) as (page, feed):
+                expect(page.locator('#story')).to_be_hidden()
+                expect(page.locator('.row__story')).to_have_count(0)
+                self.enable_ai_text(page)
+                lead = page.locator('#story-headlines > article.story-headline')
+                expect(lead.locator('.story-headline__title')).to_have_text(story['league_blurbs'][0]['headline'])
+                expect(lead.locator('.story-headline__title .lg')).to_have_count(1)
+                expect(lead.locator('.story-headline__lede')).to_be_hidden()
+                expect(page.locator('.story-headlines__more > summary')).to_have_text('More headlines (2)')
+                lead.locator('summary').click()
+                expect(lead.locator('.story-headline__lede')).to_have_text(story['league_blurbs'][0]['text'])
+                expect(page.locator('li.row[data-id="upcoming"] .row__story')).to_contain_text(story['notes']['upcoming']['note'])
+                expect(page.locator('#nextup .row__story')).to_contain_text(story['notes']['upcoming']['note'])
+                self.open_settings(page)
+                page.locator('[data-kind="have"][data-key="para"]').click()
+                expect(lead).to_have_attribute('data-league', 'usa.1')
+                self.open_settings(page, 'leagues')
+                page.locator('[data-kind="comp"][data-key="usa.1"]').click()
+                expect(lead).to_have_attribute('data-league', 'eng.1')
+                self.open_settings(page)
+                page.locator('[data-kind="have"][data-key="para"]').click()
+                expect(lead).to_have_attribute('data-league', 'uefa.champions')
+                self.open_settings(page, 'ai')
+                page.locator('#ai-blurbs').uncheck()
+                expect(page.locator('#story')).to_be_hidden()
+                expect(page.locator('.row__story')).to_have_count(0)
+                page.locator('#ai-blurbs').check()
+                self.close_personal_ai(page)
+                feed['data'] = scoreboard('post')
+                page.clock.run_for(60000)
+                expect(lead).to_have_attribute('data-league', 'eng.1')
+                expect(page.locator('#story-headlines article[data-league="uefa.champions"]')).to_have_count(0)
+                self.assertLessEqual(page.evaluate('document.documentElement.scrollWidth'), width)
 
     def test_top_three_select_by_rating_but_display_chronologically(self):
         fixtures = [("low", "2026-10-07T17:30:00+00:00", "pre", "Apple TV", "usa.1"),
@@ -4661,6 +4721,7 @@ NOT_RUN = 77
 # A compact cross-engine pass through the interactions most sensitive to browser behavior.
 # Chromium still runs every check by default; WebKit smoke is an additional compatibility check.
 SMOKE_TESTS = (
+    "test_automatic_league_headlines_share_filters_toggle_and_match_news",
     "test_rating_dots_open_focused_breakdown_by_hover_touch_and_keyboard",
     "test_league_emblems_show_vitals_in_each_role_without_changing_filters",
     "test_league_vitals_handle_cups_without_standings_or_badges",

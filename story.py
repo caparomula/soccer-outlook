@@ -139,11 +139,12 @@ PUBLISH_TOOL = {
                 "description": "A general overview in one short paragraph, at most 450 characters total. One to three tagged sentences connecting the day's available fixtures and pertinent match news. Prioritize current-day fixtures on the default services and enabled competitions; look further ahead when none qualify. Every claim must be tied to supplied fixtures and to pages read in this session. Do not repeat the individual match blurbs.",
             },
             "league_blurbs": {
-                "type": "array", "description": "One independently usable paragraph for EVERY league_candidates entry. Rate its news interest independently of service filters. Do not omit later leagues.",
+                "type": "array", "description": "One authored headline and supporting paragraph for EVERY league_candidates entry. Rate its news interest independently of service filters. Do not omit later leagues.",
                 "items": {"type": "object", "additionalProperties": False,
-                          "required": ["league_id", "interest", "segments", "sources"],
+                          "required": ["league_id", "headline", "interest", "segments", "sources"],
                           "properties": {
                               "league_id": {"type": "string", "description": "Exact league_candidates league_id."},
+                              "headline": {"type": "string", "description": "An authored headline, ideally 3–8 words and never more than 160 characters. Naturally mention the league or competition. State the specific upcoming story, supported by this entry's paragraph and sources. Never use generic headings such as Match outlook."},
                               "interest": {"type": "integer", "description": "0–100 editorial interest of this fixture-specific story: routine useful context to unusually compelling stakes/news. Not match quality or an outcome probability."},
                               "segments": {"type": "array", "items": SEGMENT_SCHEMA,
                                            "description": "One short paragraph, one to three sentences, at most 450 characters total. Tag each match-specific phrase. Reference only supplied upcoming fixtures from this league."},
@@ -172,12 +173,17 @@ PUBLISH_TOOL = {
     },
 }
 
-FOCUS_GUIDE = ("Supply exactly one league_blurbs paragraph for EVERY league_candidates entry, even leagues whose "
-               "next fixtures are beyond 24 hours. Each paragraph is independently usable: one to three sentences, "
+FOCUS_GUIDE = ("Supply exactly one league_blurbs entry with an authored headline and supporting paragraph for EVERY "
+               "league_candidates entry, even leagues whose next fixtures are beyond 24 hours. Each headline should "
+               "be 3–8 words, never more than 160 characters, and naturally mention the league or competition. "
+               "State the specific upcoming story: for example, 'Champions League contenders face injury tests' only "
+               "when the reporting supports it. Avoid generic headings such as 'Match outlook' or 'League preview'. "
+               "The headline must be supported by its paragraph and sources, without adding new claims. "
+               "The browser shows the strongest eligible headline, with other headlines available on demand and "
+               "the paragraph collapsed behind Read more. Each paragraph is independently usable: one to three sentences, "
                "at most 450 characters, about a supplied upcoming fixture or fixtures in that league. Prefer "
                "fixtures with watch_on in that league's nearest supplied window. Assign an interest score from "
-               "0 to 100 for the story itself. These paragraphs supply section context and a fallback when the "
-               "general overview has no eligible fixtures after filtering. The browser prioritizes the rolling next 24 hours after service and "
+               "0 to 100 for the story itself. The browser prioritizes the rolling next 24 hours after service and "
                "competition filters, then the nearest later 24-hour window. There is no minimum score "
                "for a blurb: always offer useful fixture-specific context, including later leagues. "
                "Research fresh match previews, competitive stakes, player availability and scheduling context. "
@@ -858,8 +864,16 @@ def news_matches(facts):
     return matches
 
 
+def authored_headline(value):
+    """Accept authored text only; a legacy paragraph never becomes a generated heading."""
+    if not isinstance(value, str):
+        return ""
+    text = re.sub(r"\s+", " ", value).strip()
+    return text if 0 < len(text) <= 160 else ""
+
+
 def clean_blurbs(raw, facts, seen, links):
-    """One paragraph per league, trimmed to whole sentences rather than rejected when long."""
+    """One headline and paragraph per league; legacy paragraphs remain usable without a heading."""
     leagues = {group["league_id"]: {m["id"] for m in group["matches"]} for group in facts.get("league_candidates", [])}
     near_ids = {m["id"] for m in facts.get("next_24_hours", [])}
     blurbs = {}
@@ -875,6 +889,9 @@ def clean_blurbs(raw, facts, seen, links):
                           trim_to=LIMITS["league"], max_len=LIMITS["league"])
         if kept:
             blurbs[league] = dict(kept, league_id=league, interest=interest)
+            headline = authored_headline(blurb.get("headline"))
+            if headline:
+                blurbs[league]["headline"] = headline
     return list(blurbs.values())
 
 
@@ -946,13 +963,12 @@ def set_lede(story, lede_items):
 
 
 def missing_news(story, facts):
-    """What a publication still lacks: the overview (when there is news to write about), league
-    paragraphs and league_order entries."""
+    """What new output still lacks: overview, league headline/paragraph pairs and league order."""
     story = story or {}
     return {
         "overview": bool(news_matches(facts)) and not story.get("lede_items"),
         "leagues": sorted({g["league_id"] for g in facts.get("league_candidates", [])}
-                          - {b["league_id"] for b in story.get("league_blurbs", [])}),
+                          - {b["league_id"] for b in story.get("league_blurbs", []) if authored_headline(b.get("headline"))}),
         "order": sorted({league["league_id"] for league in facts.get("leagues", [])} - set(story.get("league_order", []))),
     }
 
@@ -963,7 +979,8 @@ def repair_request(missing):
     if missing["overview"]:
         asks.append("lede_items: the overview, one to three fixture-tagged sentences, each citing a page read in this session")
     if missing["leagues"]:
-        asks.append("league_blurbs for " + ", ".join(missing["leagues"]) + ": one paragraph each within 450 characters, "
+        asks.append("league_blurbs for " + ", ".join(missing["leagues"]) + ": an authored headline naturally naming the league "
+                    "(ideally 3–8 words, at most 160 characters) and a supporting paragraph within 450 characters, "
                     "fixture references within that league; when no reporting applies, write from the supplied facts and "
                     "leave its sources empty")
     if missing["order"]:
@@ -973,7 +990,7 @@ def repair_request(missing):
 
 
 def merge_news(first, second):
-    """Adds a repair's parts to the first publication without replacing anything it accepted."""
+    """Add repaired output; upgrade an unheaded paragraph only as a coherent headline/lede pair."""
     if not second:
         return first
     out = dict(first)
@@ -982,7 +999,9 @@ def merge_news(first, second):
         out.update(headline=second.get("headline", ""), headline_segments=second.get("headline_segments", []))
     blurbs = {b["league_id"]: b for b in first.get("league_blurbs", [])}
     for b in second.get("league_blurbs", []):
-        blurbs.setdefault(b["league_id"], b)
+        previous = blurbs.get(b["league_id"])
+        if previous is None or (not authored_headline(previous.get("headline")) and authored_headline(b.get("headline"))):
+            blurbs[b["league_id"]] = b
     out["league_blurbs"] = list(blurbs.values())
     out["league_order"] = list(dict.fromkeys(first.get("league_order", []) + second.get("league_order", [])))
     if not first.get("notes") and second.get("notes"):
@@ -1232,7 +1251,7 @@ def user_prompt(facts, budget):
             f"{', '.join(facts['owner_services'])}.\n\n"
             f"Here are the candidate matches. {FACTS_GUIDE}\n\n"
             f"{compact(news_view(facts))}\n\n"
-            "Write a paragraph for every supplied league, plus up to eight researched match notes. Rank all supplied leagues "
+            "Write an authored headline and supporting paragraph for every supplied league, plus up to eight researched match notes. Rank all supplied leagues "
             "in league_order by general viewing interest for the editorial output; the browser uses the visitor's saved order or the configured default. Use the match ids exactly as given. "
             f"{FORECAST_GUIDE} "
             f"You have up to {budget[0]} web searches and {budget[1]} page reads.")
@@ -1253,7 +1272,7 @@ def earlier_news(previous):
                          for mid, n in (previous.get("notes") or {}).items() if isinstance(n, dict)]}
     if isinstance(previous.get("forecast"), dict):
         earlier["forecast"] = {"items": [item(i) for i in previous["forecast"].get("items") or [] if isinstance(i, dict)]}
-    earlier["league_blurbs"] = [item(b, "league_id", "interest") for b in previous.get("league_blurbs") or [] if isinstance(b, dict)]
+    earlier["league_blurbs"] = [item(b, "league_id", "headline", "interest") for b in previous.get("league_blurbs") or [] if isinstance(b, dict)]
     earlier["league_order"] = previous.get("league_order") or []
     return earlier
 
@@ -1271,7 +1290,7 @@ def refresh_prompt(facts, previous, budget):
             "since they were written: team news, confirmed lineups, injuries and suspensions, and results that change "
             "what is at stake. Drop general club news from the earlier story even if still true; every retained note "
             "must affect a specific upcoming fixture. Keep qualifying notes with their sources exactly as given; revise or replace "
-            "the others, and add notes for matches that have become the day's stories. Supply a paragraph for every league, "
+            "the others, and add notes for matches that have become the day's stories. Supply an authored headline and supporting paragraph for every league, "
             "including later options for filter changes; past results are context, not the lead. Notes are only for matches in the lists "
             "above. Rank every supplied league in league_order by general viewing interest for the editorial output; this does not override the visitor's saved order or the configured default. "
             "Use the match ids exactly as given. "
@@ -1353,13 +1372,13 @@ def write_news(client, facts, model, effort, mode, previous, totals, links, seen
             if story and (missing["overview"] or missing["leagues"]) and not repaired and attempt < MAX_REQUESTS:
                 repaired = True
                 log(f"asking for the missing parts: overview={missing['overview']}, "
-                    f"{len(missing['leagues'])} league blurb(s), {len(missing['order'])} league_order entries")
+                    f"{len(missing['leagues'])} league headline/paragraph pair(s), {len(missing['order'])} league_order entries")
                 messages.append({"role": "assistant", "content": message.content})
                 messages.append({"role": "user", "content": [{
                     "type": "tool_result", "tool_use_id": call.id, "is_error": True, "content": repair_request(missing)}]})
                 continue
             if story and (missing["overview"] or missing["leagues"]):
-                log(f"news incomplete: overview={not missing['overview']}, {len(missing['leagues'])} league(s) without a paragraph")
+                log(f"news incomplete: overview={not missing['overview']}, {len(missing['leagues'])} league(s) without a headline/paragraph pair")
             break
         if message.stop_reason == "pause_turn":
             messages.append({"role": "assistant", "content": message.content})

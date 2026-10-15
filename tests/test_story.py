@@ -253,7 +253,9 @@ RUN_FACTS = {
 
 
 def blurb(league, mid, sources=()):
-    return {"league_id": league, "interest": 50, "segments": [{"text": f"Context for {mid}.", "match_ids": [mid]}], "sources": list(sources)}
+    competition = {"eng.1": "Premier League", "esp.1": "La Liga"}.get(league, league)
+    return {"league_id": league, "headline": f"{competition} contenders face a test", "interest": 50,
+            "segments": [{"text": f"Context for {mid}.", "match_ids": [mid]}], "sources": list(sources)}
 
 
 def publication(**over):
@@ -361,6 +363,8 @@ class Requests(unittest.TestCase):
         with patch.dict(sys.modules, {"anthropic": sdk.module}), patch.object(story, "log", lambda *_: None):
             result, _ = story.write_story(RUN_FACTS, "claude-fable-5-1", "max", "full", None, totals())
         self.assertTrue(result["rankings"])
+        self.assertEqual([item["headline"] for item in result["league_blurbs"]],
+                         ["Premier League contenders face a test", "La Liga contenders face a test"])
         self.assertEqual(len(sdk.research_calls()), 1)
         self.assertTrue(sdk.rating_calls())
         for call in sdk.calls:
@@ -371,6 +375,39 @@ class Requests(unittest.TestCase):
             self.assertNotIn("tool_choice", call)
             self.assertNotIn("thinking", call)  # Fable's adaptive thinking is always on.
         self.assertEqual(sdk.rating_calls()[0]["output_config"]["format"]["schema"], story.RATING_SCHEMA)
+
+    def test_authored_league_headlines_survive_full_generation_and_refresh_input(self):
+        sdk = FakeSDK([news_reply(publication(), read=[READ])])
+        result, _ = run(sdk)
+        headline = "Premier League contenders face a test"
+        self.assertEqual(result["league_blurbs"][0]["headline"], headline)
+        previous = dict(result, generated_at="2026-10-08T12:00:00Z")
+        self.assertEqual(story.earlier_news(previous)["league_blurbs"][0]["headline"], headline)
+        refreshed = FakeSDK([news_reply(story.earlier_news(previous))])
+        output, _ = run(refreshed, mode="refresh", previous=previous)
+        self.assertEqual(output["league_blurbs"][0]["headline"], headline)
+        self.assertIn(headline, refreshed.research_calls()[0]["messages"][0]["content"])
+        schema = sdk.research_calls()[0]["tools"][-1]["input_schema"]["properties"]["league_blurbs"]["items"]
+        self.assertIn("headline", schema["required"])
+        self.assertIn("naturally mention the league", sdk.research_calls()[0]["messages"][0]["content"])
+
+    def test_missing_league_headline_is_repaired_as_a_supported_headline_paragraph_pair(self):
+        first = publication()
+        first["league_blurbs"][0].pop("headline")
+        repaired = blurb("eng.1", "1", [READ])
+        repaired["headline"] = "Premier League leaders face injury test"
+        repaired["segments"] = [{"text": "Reporting explains the injury test.", "match_ids": ["1"]}]
+        second = publication(lede_items=[], league_blurbs=[repaired], notes=[], league_order=[])
+        sdk = FakeSDK([news_reply(first, read=[READ]), news_reply(second)])
+        result, _ = run(sdk)
+        self.assertEqual(len(sdk.research_calls()), 2)
+        self.assertEqual(result["league_blurbs"][0]["headline"], repaired["headline"])
+        self.assertEqual(result["league_blurbs"][0]["text"], "Reporting explains the injury test.")
+        self.assertEqual(result["league_blurbs"][1]["headline"], first["league_blurbs"][1]["headline"])
+        prompt = sdk.research_calls()[1]["messages"][-1]["content"][0]["content"]
+        self.assertIn("authored headline", prompt)
+        self.assertIn("eng.1", prompt)
+        self.assertNotIn("esp.1", prompt)
 
     def test_research_prompt_sends_each_fixture_once_and_no_rating_candidates(self):
         sdk = FakeSDK([news_reply(publication(), read=[READ])])
@@ -1194,6 +1231,18 @@ class LeagueBlurbs(unittest.TestCase):
                 result = story.clean_story(raw_story(league_blurbs=[bad, good, dict(good, interest=99)]), self.FACTS, SEEN)
                 self.assertEqual(len(result["league_blurbs"]), 1)
                 self.assertEqual(result["league_blurbs"][0]["interest"], 50)
+
+    def test_authored_headline_validation_preserves_legacy_paragraph_without_inventing_title(self):
+        base = dict(item(), league_id="eng.1", interest=50)
+        for headline in (None, "", "   ", 42, "x" * 161):
+            raw = raw_story(league_blurbs=[dict(base, headline=headline)])
+            saved = story.clean_story(raw, self.FACTS, SEEN)
+            self.assertEqual(len(saved["league_blurbs"]), 1)
+            self.assertNotIn("headline", saved["league_blurbs"][0])
+            self.assertIn("eng.1", story.missing_news(saved, self.FACTS)["leagues"])
+        raw = raw_story(league_blurbs=[dict(base, headline="  Premier League title race tightens  ")])
+        saved = story.clean_story(raw, self.FACTS, SEEN)["league_blurbs"][0]
+        self.assertEqual(saved["headline"], "Premier League title race tightens")
 
     def test_refresh_keeps_blurb_sources(self):
         self.assertIn(story.url_key(SOURCE), story.earlier_sources({"league_blurbs": [{"sources": [{"url": SOURCE}]}]}))

@@ -1869,6 +1869,21 @@
   }
   // Editorial precedence is separate from rating precedence: an older personal import can
   // still rate matches without masking authored headlines in the shared site response.
+  function automaticHeadlines(story, now) {
+    return (story && Array.isArray(story.league_blurbs) ? story.league_blurbs : []).map(function (item) {
+      if (!item || typeof item !== 'object') return null;
+      var headline = typeof item.headline === 'string' ? item.headline.trim() : '';
+      var refs = referencedRows(item), declared = rowsForIds(item.match_ids);
+      if (!headline || headline.length > 160 || !Number.isInteger(item.interest) || item.interest < 0 || item.interest > 100 ||
+          !refs.length || !declared || declared.length !== refs.length || declared.some(function (r) { return refs.indexOf(r) < 0; }) ||
+          !refs.every(function (r) { return r._lg === item.league_id && editorialPasses(r) && DAYS.concat(['live']).indexOf(r._b) !== -1 &&
+            r._state !== 'post' && (r._k >= now || r._b === 'live'); })) return null;
+      return { league_id: item.league_id, headline: headline, interest: item.interest,
+        match_ids: refs.map(function (r) { return r.getAttribute('data-id'); }),
+        lede: typeof item.text === 'string' ? item.text : item.segments.map(function (part) { return part.text; }).join(''),
+        sources: Array.isArray(item.sources) ? item.sources : [] };
+    }).filter(Boolean);
+  }
   function renderEditorial(now) {
     if (!showAIBlurbs) return renderHeadlines([], now, false);
     var headlines = PERSONAL ? PERSONAL.headlines() : null;
@@ -1876,6 +1891,12 @@
     headlines = SHARED ? SHARED.headlines() : null;
     if (headlines !== null) return renderHeadlines(headlines, now, false);
     var s = STORY.s, storyEl = document.getElementById('story');
+    // Current automatic responses contain a researched headline with each league paragraph.
+    // They use the same ranking and disclosures as imported headlines; legacy paragraphs
+    // without an authored title remain match context rather than becoming invented headlines.
+    if (s && Array.isArray(s.league_blurbs) && s.league_blurbs.some(function (item) { return item && typeof item.headline === 'string' && item.headline.trim(); })) {
+      return renderHeadlines(automaticHeadlines(s, now), now, false);
+    }
     // Retain an older published headline only when its own fixture references are complete
     // and eligible. An overview or match blurb without a headline never fills this slot.
     var title = s && typeof s.headline === 'string' ? s.headline.trim() : '';
