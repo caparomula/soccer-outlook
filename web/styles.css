@@ -178,7 +178,12 @@ a { color: inherit; }
 .pick .match__body { margin-top: 12px; }
 .pick .row__teams { flex-direction: column; align-items: stretch; gap: 9px; }
 .pick .row__teams > .vs { display: none; }
-.pick .team .score { margin-left: auto; }
+/* Both stacked teams share the full text width. Reserve a column for form so differing
+   table positions, points and season records cannot shift the five squares. */
+.pick .team__txt { flex: 1; }
+.pick .team__sub { display: grid; grid-template-columns: minmax(0, 1fr) 48px; }
+.pick .team__table { overflow-wrap: anywhere; }
+.pick .team .score { margin-left: auto; min-width: calc(2ch + 6px); text-align: right; }
 .pick .row__meta { margin-top: 10px; gap: 3px 8px; }
 .pick .venue { flex-basis: 100%; }
 .pick .venue::before { content: none; }
