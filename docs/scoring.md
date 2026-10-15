@@ -51,7 +51,7 @@ League priority uses the same saved order and 0–100 scale described below. The
 
 ## AI rating
 
-Automatic league headlines carry their own authored title and editorial interest score. Their carousel cards show the supporting paragraph directly beneath the league emblem and headline. The automatic configuration uses `claude-opus-5-5` at `max` effort in the `full` design. It combines researched context with supplied fixture facts to generate daily ratings, headlines and match blurbs. Personal or shared chat responses can still take precedence. The optional `ratings` design instead requests scores from supplied facts without research.
+Automatic league headlines carry their own authored title and editorial interest score. Their carousel cards show the supporting paragraph directly beneath the league emblem and headline. The automatic configuration uses `claude-opus-5-5` at `high` effort in the `full` design. It combines researched context with supplied fixture facts to generate daily ratings, headlines and match blurbs. Personal or shared chat responses can still take precedence. The optional `ratings` design instead requests scores from supplied facts without research.
 
 [story.py](../story.py) requires three integer ratings from 0 to 100 and calculates their weighted total:
 

@@ -17,6 +17,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import build  # noqa: E402
+import history  # noqa: E402
 import providers  # noqa: E402
 import story  # noqa: E402   (imports without the anthropic package, which only write_story needs)
 
@@ -712,12 +713,12 @@ class Checkpoints(unittest.TestCase):
             value = datetime(2026, 10, 7, 17, tzinfo=timezone.utc)
             return value.astimezone(tz) if tz else value.replace(tzinfo=None)
 
-    def invoke(self, folder, sdk, mode="daily", previous=None):
+    def invoke(self, folder, sdk, mode="daily", previous=None, settings=FULL, extra=()):
         folder = Path(folder)
         (folder / "facts.json").write_text(json.dumps(RUN_FACTS))
-        (folder / "settings.toml").write_text(FULL)
+        (folder / "settings.toml").write_text(settings)
         args = ["story.py", "--facts", str(folder / "facts.json"), "--out", str(folder / "story.json"),
-                "--usage-out", str(folder / "usage.json"), "--settings", str(folder / "settings.toml"), "--mode", mode]
+                "--usage-out", str(folder / "usage.json"), "--settings", str(folder / "settings.toml"), "--mode", mode, *extra]
         if previous is not None:
             (folder / "previous.json").write_text(json.dumps(previous))
             args += ["--previous", str(folder / "previous.json")]
@@ -885,6 +886,102 @@ class Checkpoints(unittest.TestCase):
             result = self.invoke(folder, sdk, "keep", previous=complete)
             self.assertEqual(result, complete)
             self.assertFalse(sdk.calls)
+
+
+class EffortTransition(unittest.TestCase):
+    Clock = Checkpoints.Clock
+    invoke = Checkpoints.invoke
+    MAX = FULL.replace('effort = "medium"', 'effort = "max"')
+    HIGH = FULL.replace('effort = "medium"', 'effort = "high"')
+
+    class SDK(FakeSDK):
+        def stream(self, **kwargs):
+            with super().stream(**kwargs) as response:
+                message = response.get_final_message()
+            message.model = kwargs["model"]
+            return contextlib.nullcontext(SimpleNamespace(get_final_message=lambda: message))
+
+    @staticmethod
+    def stop_after_one(futures):
+        yield next(iter(futures))
+        raise KeyboardInterrupt
+
+    def max_checkpoint(self, folder):
+        with patch.object(story, "RATING_CHUNK", 2), patch.object(story, "as_completed", self.stop_after_one), \
+                self.assertRaises(KeyboardInterrupt):
+            self.invoke(folder, self.SDK([news_reply(publication(), read=[READ])]), settings=self.MAX)
+        return json.loads((Path(folder) / "story.json").read_text())
+
+    def test_high_transition_preserves_fallback_research_ratings_and_archive_provenance(self):
+        with tempfile.TemporaryDirectory() as folder:
+            old = self.max_checkpoint(folder)
+            fallback = self.invoke(folder, self.SDK([]), previous=old, settings=self.HIGH, extra=["--fallback-only"])
+            self.assertEqual(fallback, old)
+            self.assertEqual((Path(folder) / "story.json").read_bytes(), (Path(folder) / "previous.json").read_bytes())
+            sdk = self.SDK([])
+            result = self.invoke(folder, sdk, "keep", settings=self.HIGH)
+            self.assertFalse(sdk.research_calls())
+            self.assertEqual([f["id"] for c in sdk.rating_calls() for f in FakeSDK.fixtures(c)], ["3", "4", "5"])
+            self.assertTrue(all(c["output_config"]["effort"] == "high" for c in sdk.calls))
+            self.assertEqual((result["effort"], result["requested_effort"]), ("mixed", "high"))
+            self.assertEqual(result["league_blurbs"], old["league_blurbs"])
+            self.assertEqual((result["generated_at"], result["focus_until"]), (old["generated_at"], old["focus_until"]))
+            self.assertEqual(result["research_provenance"], {"model": "claude-opus-5-5", "effort": "max",
+                                                            "generated_at": old["generated_at"], "timestamp_scope": "story_bundle"})
+            self.assertEqual(result["rankings"]["1"]["provenance"]["effort"], "max")
+            self.assertEqual(result["rankings"]["3"]["provenance"]["effort"], "high")
+            self.assertEqual(result["rankings"]["1"]["provenance"]["timestamp_scope"], "story_bundle")
+            self.assertEqual(result["rankings"]["3"]["provenance"]["timestamp_scope"], "rating_response")
+            self.assertNotIn("generation", result)
+            config = providers.check_ai(dict(enabled=True, design="full", model="claude-opus-5-5", effort="high"))[0]
+            self.assertTrue(story.written_by(result, config))
+            kept_sdk = self.SDK([])
+            self.assertEqual(self.invoke(folder, kept_sdk, previous=result, settings=self.HIGH), result)
+            self.assertFalse(kept_sdk.calls)
+            meta, ratings = history.automatic_source(result, self.Clock.now(timezone.utc))
+            self.assertEqual((meta["effort"], meta["requested_effort"]), ("mixed", "high"))
+            self.assertEqual((ratings["1"]["provenance"]["effort"], ratings["3"]["provenance"]["effort"]), ("max", "high"))
+            self.assertEqual(ratings["1"]["provenance"]["timestamp_scope"], "story_bundle")
+            self.assertEqual(ratings["3"]["provenance"]["timestamp_scope"], "rating_response")
+
+    def test_interrupted_mixed_result_resumes_only_remaining_high_work(self):
+        with tempfile.TemporaryDirectory() as folder:
+            old = self.max_checkpoint(folder)
+            with patch.object(story, "RATING_CHUNK", 1), patch.object(story, "as_completed", self.stop_after_one), \
+                    self.assertRaises(KeyboardInterrupt):
+                self.invoke(folder, self.SDK([]), "keep", settings=self.HIGH)
+            mixed = json.loads((Path(folder) / "story.json").read_text())
+            self.assertEqual(set(mixed["rankings"]), {"1", "2", "3"})
+            self.assertEqual(mixed["generation"]["status"], "partial")
+            sdk = self.SDK([])
+            result = self.invoke(folder, sdk, "keep", settings=self.HIGH)
+            self.assertEqual([f["id"] for c in sdk.rating_calls() for f in FakeSDK.fixtures(c)], ["4", "5"])
+            self.assertFalse(sdk.research_calls())
+            self.assertEqual(result["rankings"]["1"], mixed["rankings"]["1"])
+            self.assertEqual(result["rankings"]["3"], mixed["rankings"]["3"])
+            self.assertEqual(result["focus_until"], old["focus_until"])
+
+    def test_explicit_full_and_cli_overrides_do_not_bridge_efforts(self):
+        for mode, extra in (("full", []), ("keep", ["--effort", "max"]),
+                            ("keep", ["--model", "claude-fable-5-1"])):
+            with self.subTest(mode=mode, extra=extra), tempfile.TemporaryDirectory() as folder:
+                old = self.max_checkpoint(folder)
+                sdk = self.SDK([news_reply(publication(), read=[READ])])
+                result = self.invoke(folder, sdk, mode, previous=old, settings=self.HIGH, extra=extra)
+                self.assertEqual(len(sdk.research_calls()), 1)
+                self.assertEqual(result["ranking_coverage"]["carried"], 0)
+                self.assertNotIn("requested_effort", result)
+
+    def test_completed_expired_other_day_or_other_model_results_never_bridge(self):
+        for changed in ({"generation": {}}, {"date": "2026-10-06"}, {"focus_until": "2026-10-07T16:00:00Z"},
+                        {"model": "claude-fable-5-1", "requested_model": "claude-fable-5-1"}):
+            with self.subTest(changed=changed), tempfile.TemporaryDirectory() as folder:
+                old = dict(self.max_checkpoint(folder), **changed)
+                (Path(folder) / "story.json").write_text(json.dumps(old))
+                sdk = self.SDK([news_reply(publication(), read=[READ])])
+                result = self.invoke(folder, sdk, "daily", previous=old, settings=self.HIGH)
+                self.assertEqual(len(sdk.research_calls()), 1)
+                self.assertEqual(result["ranking_coverage"]["carried"], 0)
 
 
 class Switch(unittest.TestCase):

@@ -179,7 +179,7 @@ That connection is **not implemented**. The current GitHub Pages deployment cann
 
 ## Configure published AI ratings and text
 
-The current [`settings.toml`](../settings.toml) configuration enables the **full** design with `claude-opus-5-5` at `max` effort. It researches daily headlines and match blurbs and generates ratings. Scheduled full builds reuse a compatible same-day result; lightweight schedule refreshes never invoke AI. Set the repository secret `ANTHROPIC_API_KEY` for generation. Manual personal or shared responses can still take precedence.
+The current [`settings.toml`](../settings.toml) configuration enables the **full** design with `claude-opus-5-5` at `high` effort. It researches daily headlines and match blurbs and generates ratings. Scheduled full builds reuse a compatible same-day result; lightweight schedule refreshes never invoke AI. Set the repository secret `ANTHROPIC_API_KEY` for generation. Manual personal or shared responses can still take precedence.
 
 The `[ai]` table controls this behavior:
 
@@ -232,6 +232,8 @@ The settings take precedence over the mode's research design. `--ignore-switch` 
 The workflow also uses two preparation options that make no API calls: `--fallback-only` saves a compatible, fresh same-day result before setup, and `--needs-sdk` prints `anthropic` only when the planned work may need that SDK. Both take the same facts, previous result and mode arguments as generation.
 
 Changing the configured model, effort, design or optional text models triggers new generation on the next build when the previous story records a different configuration. Changing scoring weights alone does not require a new AI call. The workflow also detects a published page with AI disabled, so turning AI back on requests the day's result.
+
+There is one recovery exception: changing `max` to `high` can finish a fresh, same-day partial full-design result from the exact same model. Its accepted research and ratings are retained, and only missing work uses high effort. The original file remains an unchanged fallback before generation starts; neither its timestamp nor freshness deadline is extended. Completed results, other model changes, expired results, an explicit `full` run and conflicting command-line overrides do not use this bridge. A mixed result records `requested_effort: "high"` for reuse planning, `effort: "mixed"` for the bundle, the research's original provenance, and each rating's model, effort and timestamp. Inferred legacy timestamps are marked `story_bundle`; newly received ratings are marked `rating_response`. The history archive preserves those origins instead of attributing retained max-effort ratings to high effort or inventing their completion times.
 
 If a provider key is missing or generation fails, `story.py` reuses a matching result from the same day when available. Otherwise it writes no new result, and the schedule remains usable with the Outlook score. Deleting a key is therefore not a reliable way to turn existing AI content off; use `enabled = false`.
 

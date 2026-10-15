@@ -1064,6 +1064,8 @@ def earlier_ratings(previous, ids):
                    for s in r.get("sources") or [] if isinstance(s, dict) and isinstance(s.get("url"), str) and url_key(s["url"])]
         if isinstance(r.get("blurb"), str) and r["blurb"].strip() and sources:
             out[mid].update(blurb=clip(r["blurb"], LIMITS["blurb"]), sources=sources)
+        if isinstance(r.get("provenance"), dict):
+            out[mid]["provenance"] = copy.deepcopy(r["provenance"])
     return out
 
 
@@ -1479,6 +1481,9 @@ def write_story(facts, model, effort, mode, previous, totals, checkpoint=None):
 
     def accepted_news(value, by):
         nonlocal news, served
+        if previous and previous.get("requested_effort"):
+            value["research_provenance"] = dict(model=by or model, effort=effort,
+                generated_at=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), timestamp_scope="research_response")
         news, served = value, by
         if checkpoint:
             checkpoint(full_snapshot(news, {}, earlier, candidates, partial=True, research_complete=True), served)
@@ -1486,6 +1491,8 @@ def write_story(facts, model, effort, mode, previous, totals, checkpoint=None):
     if resuming and previous["generation"].get("research_complete") is True:
         # Recheck fixture references against this build, using only sources the saved run accepted.
         news = clean_story(earlier_news(previous), facts, seen, links)
+        if isinstance(previous.get("research_provenance"), dict):
+            news["research_provenance"] = copy.deepcopy(previous["research_provenance"])
         served = previous.get("model") or model
         log("resuming saved research; no new research request")
     else:
@@ -1526,6 +1533,10 @@ def write_story(facts, model, effort, mode, previous, totals, checkpoint=None):
     log(f"rating {len(wanted)} of {len(candidates)} fixtures" + (f"; keeping {len(candidates) - len(wanted)} rated earlier today" if earlier else ""))
     rate = partial(rate_chunk, client, model, effort)
     def accepted_ratings(fresh, by):
+        if previous and previous.get("requested_effort"):
+            for rating in fresh.values():
+                rating.setdefault("provenance", dict(model=by or model, effort=effort,
+                    generated_at=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), timestamp_scope="rating_response"))
         if checkpoint:
             checkpoint(full_snapshot(story, fresh, earlier, candidates, partial=True, research_complete=news is not None), by or served)
 
@@ -1690,7 +1701,29 @@ def written_by(story, config):
         (story.get(f"{job}_model"), story.get(f"{job}_effort")) == (config.get(f"{job}_model"), config.get(f"{job}_effort"))
         for job in ("overview", "blurbs"))
     return (story.get("kind") in kinds and (story.get("requested_model") or story.get("model")) == config["model"]
-            and story.get("effort") == config["effort"] and same_overview)
+            and (story.get("requested_effort") or story.get("effort")) == config["effort"] and same_overview)
+
+
+def max_to_high(story, config):
+    """Recognize only the same-model max→high change; freshness/partial checks stay with the caller."""
+    return bool(isinstance(story, dict) and config and config["design"] == "full" and config["effort"] == "high"
+                and story.get("kind") in ("full", "refresh") and story.get("model") == config["model"]
+                and (story.get("requested_model") or story.get("model")) == config["model"]
+                and (story.get("requested_effort") or story.get("effort")) == "max")
+
+
+def transition_effort(previous, effort):
+    """Keep accepted work's original provenance while changing the effort for unfinished work."""
+    result = copy.deepcopy(previous)
+    origin = {key: previous[key] for key in ("model", "effort", "generated_at")}
+    origin["timestamp_scope"] = "story_bundle"
+    result["requested_effort"] = effort
+    if previous.get("generation", {}).get("research_complete") is True:
+        result.setdefault("research_provenance", dict(origin))
+    for rating in result.get("rankings", {}).values():
+        if isinstance(rating, dict):
+            rating.setdefault("provenance", dict(origin))
+    return result
 
 
 def load_previous(path):
@@ -1711,6 +1744,25 @@ def save(path, story):
             temporary = f.name
             json.dump(story, f, ensure_ascii=False, indent=1)
         os.replace(temporary, path)
+    finally:
+        if temporary and os.path.exists(temporary):
+            os.unlink(temporary)
+
+
+def copy_fallback(source, target):
+    """Preserve a validated transition fallback byte for byte, without changing its provenance."""
+    if os.path.abspath(source) == os.path.abspath(target):
+        return
+    with open(source, "rb") as f:
+        contents = f.read()
+    folder = os.path.dirname(os.path.abspath(target))
+    os.makedirs(folder, exist_ok=True)
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(mode="wb", dir=folder, delete=False) as f:
+            temporary = f.name
+            f.write(contents)
+        os.replace(temporary, target)
     finally:
         if temporary and os.path.exists(temporary):
             os.unlink(temporary)
@@ -1744,12 +1796,13 @@ def main():
 
     with open(args.facts, encoding="utf-8") as f:
         facts = json.load(f)
-    previous = load_previous(args.previous) if args.previous else None
+    previous_path = args.previous
+    previous = load_previous(previous_path) if previous_path else None
     current = (lambda st: written_by(st, config)) if config else (lambda st: True)
     selection_now = datetime.now(timezone.utc)
     def resumable(value):
         return bool(config and config["design"] == "full" and partial_generation(value)
-                    and value.get("date") == facts["date"] and current(value)
+                    and value.get("date") == facts["date"] and (current(value) or max_to_high(value, config))
                     and (not args.model or args.model == config["model"])
                     and (not args.effort or args.effort == config["effort"])
                     and still_fresh(value, selection_now))
@@ -1759,11 +1812,13 @@ def main():
     local = load_previous(args.out)
     local_age = story_age_hours(local, selection_now) if local else None
     previous_age = story_age_hours(previous, selection_now) if previous else None
-    if resumable(local) and (not previous or not current(previous) or previous_age is None or local_age < previous_age
+    if resumable(local) and (not previous or not (current(previous) or max_to_high(previous, config)) or previous_age is None or local_age < previous_age
                             or (local_age == previous_age and partial_generation(previous)
                                 and len(local.get("rankings") or {}) > len(previous.get("rankings") or {}))):
         previous = local
-    todays = (previous if previous and previous.get("date") == facts["date"] and previous.get("generated_at") and current(previous)
+        previous_path = args.out
+    todays = (previous if previous and previous.get("date") == facts["date"] and previous.get("generated_at")
+              and (current(previous) or resumable(previous))
               else None)
     if partial_generation(todays) and not resumable(todays):
         todays = None
@@ -1771,11 +1826,15 @@ def main():
 
     if args.fallback_only:
         if todays and still_fresh(todays, datetime.now(timezone.utc)):
-            save(args.out, todays)
+            if max_to_high(todays, config):
+                copy_fallback(previous_path, args.out)
+            else:
+                save(args.out, todays)
         return 0
 
     mode, why = choose_mode(args.mode, todays, datetime.now(timezone.utc), config["design"] if config else "full", switched)
     resuming = bool(args.mode != "full" and resumable(todays))
+    transitioning = bool(resuming and max_to_high(todays, config))
     if resuming:
         mode, why = todays["kind"], "finishing the saved partial generation; keeping accepted research and ratings"
     top_up = bool(todays and config and config["design"] == "ratings" and args.mode in ("daily", "auto"))
@@ -1848,6 +1907,12 @@ def main():
     def metadata(value, by):
         value.update(version=1, date=facts["date"], model=by, requested_model=model, effort=effort, kind=mode,
                      services=facts.get("owner_service_ids") or [], focus_until=focus_until, generated_at=generated_at)
+        if transitioning or (resuming and todays.get("requested_effort")):
+            value["requested_effort"] = effort
+            origins = [value.get("research_provenance")]
+            origins += [rating.get("provenance") for rating in value.get("rankings", {}).values()]
+            efforts = {origin["effort"] for origin in origins if isinstance(origin, dict) and isinstance(origin.get("effort"), str)}
+            value["effort"] = next(iter(efforts)) if len(efforts) == 1 else "mixed" if efforts else effort
 
     def checkpoint(value, by):
         nonlocal checkpointed
@@ -1874,6 +1939,8 @@ def main():
             story, served = copy.deepcopy(todays), todays.get("model") or model
         else:
             reusable = todays if mode != "ratings" or top_up else None
+            if transitioning:
+                reusable = transition_effort(todays, effort)
             if args.mode == "full" and partial_generation(reusable):
                 reusable = None  # an explicit full run remains a request to start afresh
             story, served = write_story(facts, model, effort, mode, reusable, totals, checkpoint)

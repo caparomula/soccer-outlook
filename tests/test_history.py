@@ -69,6 +69,72 @@ class History(unittest.TestCase):
         self.assertIsNone(value["ai_sources"]["automatic"]["rating_generated_at"])
         self.assertNotIn("viewership", supplied["matches"][0]["observed"], "Do not mutate the caller's source")
 
+    def test_mixed_effort_archive_preserves_each_rating_and_research_generation(self):
+        supplied, ai = metrics(), story()
+        second = deepcopy(supplied["matches"][0])
+        second["id"] = "123457"
+        supplied["matches"].append(second)
+        original_time = history.iso(NOW - timedelta(hours=2))
+        new_time = history.iso(NOW - timedelta(minutes=5))
+        ai.update(effort="mixed", requested_effort="high", generated_at=new_time,
+                  research_provenance={"model": "same-model", "effort": "max", "generated_at": original_time,
+                                       "timestamp_scope": "story_bundle"})
+        ai["rankings"]["123456"]["provenance"] = {
+            "model": "same-model", "effort": "max", "generated_at": original_time, "timestamp_scope": "story_bundle"}
+        ai["rankings"]["123457"] = dict(ai["rankings"]["123456"], provenance={
+            "model": "same-model", "effort": "high", "generated_at": new_time, "timestamp_scope": "rating_response"})
+        value = history.snapshot(supplied, ai, captured_at=NOW)
+        automatic = value["ai_sources"]["automatic"]
+        self.assertEqual(automatic["effort"], "mixed")
+        self.assertEqual(automatic["requested_effort"], "high")
+        self.assertEqual(automatic["research_provenance"], ai["research_provenance"])
+        old, new = [match["ai"]["automatic"] for match in value["matches"]]
+        self.assertEqual(old["provenance"], ai["rankings"]["123456"]["provenance"])
+        self.assertEqual(new["provenance"], ai["rankings"]["123457"]["provenance"])
+        self.assertTrue(old["eligible_at_capture"])
+        self.assertTrue(new["eligible_at_capture"])
+        self.assertEqual(value["observed_at"], supplied["observed_at"])
+        self.assertEqual(value["matches"][0]["observed"]["home_score"], 0)
+        # Even an old generation timestamp cannot turn a rating first archived
+        # after kickoff into an independently observed pre-match prediction.
+        late = history.snapshot(supplied, ai, captured_at=NOW + timedelta(hours=2))
+        self.assertFalse(late["matches"][0]["ai"]["automatic"]["eligible_at_capture"])
+        self.assertFalse(late["matches"][1]["ai"]["automatic"]["eligible_at_capture"])
+
+    def test_generation_provenance_strips_private_fields_and_ignores_malformed_metadata(self):
+        ai = story()
+        provenance = {"model": "same-model", "effort": "max", "generated_at": ai["generated_at"],
+                      "prompt": "PRIVATE PROMPT", "research": "RESEARCH PROSE"}
+        ai["research_provenance"] = deepcopy(provenance)
+        ai["rankings"]["123456"]["provenance"] = deepcopy(provenance)
+        value = history.snapshot(metrics(), ai, captured_at=NOW)
+        self.assertEqual(set(value["ai_sources"]["automatic"]["research_provenance"]),
+                         {"model", "effort", "generated_at"})
+        self.assertEqual(set(value["matches"][0]["ai"]["automatic"]["provenance"]),
+                         {"model", "effort", "generated_at"})
+        self.assertNotIn("PRIVATE PROMPT", json.dumps(value))
+        self.assertNotIn("RESEARCH PROSE", json.dumps(value))
+        for scope in ("story_bundle", "rating_response", "research_response", "unrecognized", ["rating_response"]):
+            ai["research_provenance"]["timestamp_scope"] = scope
+            ai["rankings"]["123456"]["provenance"]["timestamp_scope"] = scope
+            archived = history.snapshot(metrics(), ai, captured_at=NOW)
+            for item in (archived["ai_sources"]["automatic"]["research_provenance"],
+                         archived["matches"][0]["ai"]["automatic"]["provenance"]):
+                if scope in ("story_bundle", "rating_response", "research_response"):
+                    self.assertEqual(item["timestamp_scope"], scope)
+                else:
+                    self.assertNotIn("timestamp_scope", item)
+        for invalid in ({"model": "same-model", "effort": "max", "generated_at": "yesterday"},
+                        {"model": "same-model", "effort": ["max"], "generated_at": ai["generated_at"]},
+                        {"model": "", "effort": "max", "generated_at": ai["generated_at"]}):
+            with self.subTest(invalid=invalid):
+                ai["research_provenance"] = ai["rankings"]["123456"]["provenance"] = invalid
+                value = history.snapshot(metrics(), ai, captured_at=NOW)
+                self.assertNotIn("research_provenance", value["ai_sources"]["automatic"])
+                self.assertNotIn("provenance", value["matches"][0]["ai"]["automatic"])
+                self.assertEqual(value["matches"][0]["ai"]["automatic"]["score"], 61)
+                self.assertEqual(value["ai_sources"]["automatic"]["timestamp_scope"], "story_bundle")
+
     def test_default_derived_scores_use_full_order_and_leave_shared_separate(self):
         supplied = metrics()
         shared = envelope(NOW)

@@ -135,6 +135,26 @@ def validate_metrics(value):
     canonical(value)  # Also rejects non-finite values anywhere in the raw inputs.
 
 
+def generation_provenance(value):
+    """Copy generation metadata without treating its time as an observed forecast cutoff."""
+    if not isinstance(value, dict):
+        return None
+    for key, maximum in (("model", 200), ("effort", 30)):
+        item = value.get(key)
+        if not isinstance(item, str) or not item.strip() or len(item) > maximum:
+            return None
+    try:
+        timestamp(value.get("generated_at"))
+    except ValueError:
+        return None
+    # Additional model output is not archive metadata: in particular, never copy
+    # prompts or research prose that might accompany the public numeric ratings.
+    result = {key: value[key] for key in ("model", "effort", "generated_at")}
+    if value.get("timestamp_scope") in ("story_bundle", "rating_response", "research_response"):
+        result["timestamp_scope"] = value["timestamp_scope"]
+    return result
+
+
 def automatic_source(story, captured):
     """Keep only scalar provenance and scores, never the source's text or prompts."""
     meta = {"status": "missing", "timestamp_scope": "story_bundle", "rating_generated_at": None}
@@ -142,9 +162,12 @@ def automatic_source(story, captured):
         return meta, {}
     if not isinstance(story, dict) or type(story.get("version")) is not int or story["version"] != 1 or not isinstance(story.get("rankings"), dict):
         return dict(meta, status="invalid"), {}
-    for key in ("generated_at", "date", "focus_until", "model", "requested_model", "effort", "kind"):
+    for key in ("generated_at", "date", "focus_until", "model", "requested_model", "effort", "requested_effort", "kind"):
         if isinstance(story.get(key), str):
             meta[key] = story[key]
+    research = generation_provenance(story.get("research_provenance"))
+    if research is not None:
+        meta["research_provenance"] = research
     try:
         written = timestamp(story.get("generated_at"))
         focus = timestamp(story["focus_until"]) if story.get("focus_until") else None
@@ -160,6 +183,9 @@ def automatic_source(story, captured):
         if not isinstance(mid, str) or not valid_rating(rating) or not score(rating.get("score")):
             continue
         ratings[mid] = {key: rating[key] for key in ("popularity", "gameplay", "impact", "score")}
+        provenance = generation_provenance(rating.get("provenance"))
+        if provenance is not None:
+            ratings[mid]["provenance"] = provenance
         # Store rather than silently repair a published score; the raw dimensions remain usable.
         expected = round(sum(rating[key] * weight for key, weight in WEIGHTS), 1)
         ratings[mid]["score_matches_components"] = math.isclose(rating["score"], expected, abs_tol=0.000001)
