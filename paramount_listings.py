@@ -12,7 +12,7 @@ import re
 import unicodedata
 from zoneinfo import ZoneInfo
 
-from provider_utils import (confirm, fetch_document, observe, reject,
+from provider_utils import (WrongCountryError, confirm, fetch_document, observe, reject,
                             report as source_report, unavailable)
 
 
@@ -98,6 +98,12 @@ def is_us_page(page):
     """Do not treat a redirected international catalogue as US viewing evidence."""
     page = _page_text(page)
     regions = re.findall(r"CBS\.Registry\.region\s*=\s*\{([^{}]*)\}", page)
+    if len(regions) == 1:
+        country = re.search(r"\bproperty\s*:\s*(['\"])([A-Za-z]{2})\1", regions[0])
+        locale = re.search(r"\blocale\s*:\s*(['\"])[A-Za-z]{2}-([A-Za-z]{2})\1", regions[0])
+        if ((country and country[2].upper() != "US") or (locale and locale[2].lower() != "us") or
+                re.search(r"\binternational\s*:\s*true\b", regions[0])):
+            raise WrongCountryError("Paramount+ catalogue names a non-US region")
     return len(regions) == 1 and all(re.search(pattern, regions[0]) for pattern in (
         r"\bprefix\s*:\s*(['\"])\1\s*,",
         r"\blocale\s*:\s*(['\"])en-us\1\s*,",
@@ -222,6 +228,9 @@ def enrich(builder, matches, fetch):
                 break
             if not count or offset > total:
                 raise ValueError("Paramount+ schedule pagination is incomplete")
+    except WrongCountryError:
+        unavailable(report, candidates, reason="wrong_country")
+        return report
     except Exception:
         unavailable(report, candidates)
         return report

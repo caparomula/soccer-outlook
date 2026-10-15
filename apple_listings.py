@@ -6,7 +6,7 @@ state. Editorial stories and replay cards are deliberately excluded; no Apple ac
 import re
 from urllib.parse import urlsplit, urlunsplit
 
-from provider_utils import (JsonScript, candidates, confirm, fetch_document, kickoff, name,
+from provider_utils import (JsonScript, WrongCountryError, candidates, confirm, fetch_document, kickoff, name,
                             observe, reject, report, unavailable)
 
 SCHEDULE_URL = "https://tv.apple.com/us/channel/mls/tvs.sbd.7000"
@@ -26,14 +26,24 @@ def parse_schedule(page):
     payload = JsonScript("serialized-server-data").read(page)
     if not isinstance(payload, dict) or not isinstance(payload.get("data"), list):
         raise ValueError("Apple server data missing")
-    pages = [row.get("data") for row in payload["data"] if isinstance(row, dict) and
-             isinstance(row.get("intent"), dict) and
-             row["intent"].get("$kind") == "ChannelPageIntent" and
-             row["intent"].get("storefront") == "us" and
-             row["intent"].get("id") == "tvs.sbd.7000"]
+    channel_pages = [row for row in payload["data"] if isinstance(row, dict) and
+                     isinstance(row.get("intent"), dict) and
+                     row["intent"].get("$kind") == "ChannelPageIntent" and
+                     row["intent"].get("id") == "tvs.sbd.7000"]
+    pages = [row.get("data") for row in channel_pages if row["intent"].get("storefront") == "us"]
+    if not pages and any(isinstance(row["intent"].get("storefront"), str) and
+                         re.fullmatch(r"[A-Za-z]{2}", row["intent"]["storefront"]) and
+                         row["intent"]["storefront"].lower() != "us" for row in channel_pages):
+        raise WrongCountryError("Apple MLS catalogue names a non-US storefront")
     if len(pages) != 1 or not isinstance(pages[0], dict):
         raise ValueError("Apple US MLS page missing or ambiguous")
     data = pages[0]
+    canonical = data.get("canonicalURL")
+    if isinstance(canonical, str):
+        parsed = urlsplit(canonical)
+        country = parsed.path.split("/")[1] if parsed.path.startswith("/") else ""
+        if parsed.netloc == "tv.apple.com" and re.fullmatch(r"[A-Za-z]{2}", country) and country.lower() != "us":
+            raise WrongCountryError("Apple MLS canonical URL names a non-US storefront")
     if data.get("canonicalURL") != SCHEDULE_URL or not isinstance(data.get("shelves"), list):
         raise ValueError("Unexpected Apple storefront")
     listings = {}
@@ -80,6 +90,9 @@ def enrich(builder, matches, fetch):
         return result
     try:
         listings = parse_schedule(fetch_document(fetch, SCHEDULE_URL, result))
+    except WrongCountryError:
+        unavailable(result, games, reason="wrong_country")
+        return result
     except (ValueError, UnicodeError, RecursionError, TypeError):
         unavailable(result, games)
         return result

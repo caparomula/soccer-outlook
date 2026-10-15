@@ -9,6 +9,10 @@ import xml.etree.ElementTree as ET
 MAX_BYTES = 2_000_000
 
 
+class WrongCountryError(ValueError):
+    """An explicit foreign catalogue cannot justify reusing US broadcast evidence."""
+
+
 def name(value):
     value = unicodedata.normalize("NFKD", value).casefold()
     return " ".join("".join(c for c in value if not unicodedata.combining(c)).split())

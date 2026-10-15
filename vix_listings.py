@@ -11,7 +11,7 @@ import json
 import re
 import unicodedata
 
-from provider_utils import (candidates, confirm, fetch_document, observe, reject,
+from provider_utils import (WrongCountryError, candidates, confirm, fetch_document, observe, reject,
                             report, unavailable)
 
 
@@ -82,6 +82,9 @@ def parse_schedule(page):
     if not isinstance(props, dict):
         raise ValueError("ViX page properties changed")
     state, table = props.get("initialState"), props.get("apolloState")
+    country = state.get("requestCountryCode") if isinstance(state, dict) else None
+    if isinstance(country, str) and re.fullmatch(r"[A-Za-z]{2}", country) and country.upper() != "US":
+        raise WrongCountryError("ViX catalogue names a non-US country")
     if (not isinstance(state, dict) or state.get("requestCountryCode") != "US" or
             not isinstance(table, dict) or len(table) > 20_000):
         raise ValueError("ViX schedule is not a bounded US listing")
@@ -135,6 +138,9 @@ def enrich(builder, matches, fetch):
         return result
     try:
         listings = parse_schedule(fetch_document(fetch, SCHEDULE_URL, result))
+    except WrongCountryError:
+        unavailable(result, games, reason="wrong_country")
+        return result
     except (ValueError, UnicodeError, RecursionError):
         unavailable(result, games)
         return result

@@ -1,6 +1,6 @@
 """Match-specific Watch listings supplement ESPN scoreboards without asserting league-wide rights."""
 from copy import deepcopy
-from dataclasses import replace
+from dataclasses import asdict, replace
 from datetime import datetime, timedelta, timezone
 import json
 from pathlib import Path
@@ -8,6 +8,7 @@ import unittest
 from unittest.mock import Mock
 
 import build
+import broadcast_listings
 import espn_listings as source
 from tests.test_discovery import fixture
 
@@ -37,6 +38,17 @@ def match(**changes):
 
 
 class WatchESPNListings(unittest.TestCase):
+    def check_with_prior_us_listing(self, game, current_fetch, prior_page=SAMPLE):
+        now = game.utc - timedelta(hours=1)
+        prior_game = deepcopy(game)
+        broadcast_listings.enrich(build, [prior_game], lambda _: prior_page, now - timedelta(hours=1))
+        self.assertTrue(prior_game.outlets)
+        record = asdict(prior_game)
+        record["utc"] = prior_game.utc.isoformat()
+        reports = broadcast_listings.enrich(build, [game], current_fetch, now)
+        retained = broadcast_listings.retain_recent_evidence(build, [game], [record], now)
+        return reports["ESPN+"], retained
+
     def test_recorded_us_airing_confirms_explicit_network(self):
         game = match()
         fetch = Mock(return_value=SAMPLE)
@@ -127,6 +139,59 @@ class WatchESPNListings(unittest.TestCase):
             self.assertEqual(game.rule.label, "ESPN+")
         fetch = Mock(side_effect=TimeoutError)
         self.assertEqual(source.enrich(build, [match()], fetch)["failed"], 1)
+
+    def test_explicit_wrong_country_blocks_cached_us_evidence_but_outages_do_not(self):
+        foreign = payload()
+        foreign["page"]["content"]["watch"]["p13n"]["countryCode"] = "gb"
+        with self.assertRaises(source.WrongCountryError):
+            source.parse_schedule(page(foreign))
+        missing_country = payload()
+        missing_country["page"]["content"]["watch"]["p13n"] = {}
+        for body, expected in ((page(foreign), 0), (None, 1), (b"unavailable", 1), (page(missing_country), 1)):
+            with self.subTest(body=body[:30] if body else body):
+                game = match()
+                report, retained = self.check_with_prior_us_listing(game, lambda _: body)
+                self.assertEqual(retained["retained_channels"], expected)
+                self.assertEqual(bool(game.outlets), bool(expected))
+                self.assertEqual(report["per_match"][game.id]["reason"],
+                                 "unrecognized_or_unavailable_schedule" if expected else "wrong_country")
+
+    def test_overlap_country_rejection_survives_other_failed_or_unlisted_pages(self):
+        valid = payload()
+        event(valid)["stme"] = "2026-10-11T03:55:00Z"
+        foreign = deepcopy(valid)
+        foreign["page"]["content"]["watch"]["p13n"]["countryCode"] = "mx"
+        empty = deepcopy(valid)
+        empty["page"]["content"]["watch"]["arngs"] = []
+        invalid = deepcopy(valid)
+        event(invalid)["hrf"] = "/watch/player/_/id/wrong-event"
+        for other in (None, page(empty), page(invalid)):
+            for country_index in (0, 1):
+                with self.subTest(other=bool(other), country_index=country_index):
+                    game = match(utc=datetime(2026, 10, 11, 4, 5, tzinfo=timezone.utc))
+                    urls = source.candidate_urls(game)
+                    fetch = lambda url: page(foreign) if url == urls[country_index] else other
+                    report, retained = self.check_with_prior_us_listing(game, fetch, page(valid))
+                    self.assertEqual(retained["retained_channels"], 0)
+                    self.assertFalse(game.outlets)
+                    self.assertEqual(report["per_match"][game.id],
+                                     {"status": "unavailable", "reason": "wrong_country", "url": urls[country_index]})
+
+    def test_overlap_can_still_confirm_a_separate_valid_us_listing(self):
+        valid = payload()
+        event(valid)["stme"] = "2026-10-11T03:55:00Z"
+        foreign = deepcopy(valid)
+        foreign["page"]["content"]["watch"]["p13n"]["countryCode"] = "gb"
+        for country_index in (0, 1):
+            game = match(utc=datetime(2026, 10, 11, 4, 5, tzinfo=timezone.utc))
+            urls = source.candidate_urls(game)
+            fetch = lambda url: page(foreign) if url == urls[country_index] else page(valid)
+            report, retained = self.check_with_prior_us_listing(game, fetch, page(valid))
+            self.assertEqual(report["per_match"][game.id]["status"], "confirmed")
+            self.assertEqual(report["diagnostics"]["reasons"]["wrong_country"], 1)
+            self.assertEqual(retained["retained_channels"], 0)
+            self.assertEqual([outlet.label for outlet in game.outlets], ["ESPN+"])
+            self.assertFalse(any(e.get("retained") for e in game.broadcast_evidence))
 
     def test_absence_is_unlisted_not_an_unavailable_source(self):
         data = payload()

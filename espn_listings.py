@@ -11,7 +11,7 @@ import re
 import unicodedata
 from zoneinfo import ZoneInfo
 
-from provider_utils import confirm, fetch_document, observe, reject, report, unavailable
+from provider_utils import WrongCountryError, confirm, fetch_document, observe, reject, report, unavailable
 
 
 SOCCER_ID = "119cfa41-71d4-39bf-a790-6273a52b0259"
@@ -129,8 +129,12 @@ def parse_schedule(page, expected_day=None):
     source = data.get("page", {}) if isinstance(data, dict) else {}
     content = source.get("content", {}) if isinstance(source, dict) else {}
     watch = content.get("watch", {}) if isinstance(content, dict) else {}
+    personal = watch.get("p13n") if isinstance(watch, dict) else None
+    country = personal.get("countryCode") if isinstance(personal, dict) else None
+    if isinstance(country, str) and country.strip() and country.strip().casefold() != "us":
+        raise WrongCountryError("Watch ESPN explicitly returned a non-US schedule")
     if (not isinstance(source, dict) or source.get("subType") != "schedule" or not isinstance(watch, dict) or
-            not isinstance(watch.get("p13n"), dict) or watch["p13n"].get("countryCode") != "us" or
+            not isinstance(personal, dict) or country != "us" or
             not isinstance(watch.get("arngs"), list)):
         raise ValueError("Watch ESPN response is not a US airing schedule")
     if expected_day is not None:
@@ -208,11 +212,16 @@ def enrich(builder, matches, fetch):
     result = report(games, SCHEDULE_URL.format(kind="upcoming"))
     result["timezone"] = "America/New_York"
     urls_by_id = {game.id: candidate_urls(game) for game in games}
-    schedules = {}
+    schedules, wrong_country = {}, set()
     for url in sorted({url for urls in urls_by_id.values() for url in urls}):
         page = fetch_document(fetch, url, result)
         try:
             listings = parse_schedule(page, url.rsplit("/startDate/", 1)[1] if "/startDate/" in url else None)
+        except WrongCountryError:
+            unavailable(result, [], reason="wrong_country", url=url)
+            schedules[url] = None
+            wrong_country.add(url)
+            continue
         except (ValueError, UnicodeError, RecursionError):
             unavailable(result, [], reason="unrecognized_or_unavailable_schedule", url=url)
             schedules[url] = None
@@ -223,10 +232,16 @@ def enrich(builder, matches, fetch):
             reject(result, "no_supported_airings")
     for game in games:
         urls = urls_by_id[game.id]
+        country_url = next((url for url in urls if url in wrong_country), None)
+        if country_url:
+            # A missing or malformed secondary page cannot turn an explicit country rejection
+            # into an outage eligible for cached US evidence. A new US confirmation may still win.
+            result["per_match"][game.id] = {"status": "unavailable", "url": country_url, "reason": "wrong_country"}
         available = [schedules[url] for url in urls if schedules[url] is not None]
         if not available:
-            result["per_match"][game.id] = {"status": "unavailable", "url": urls[0],
-                                             "reason": "unrecognized_or_unavailable_schedule"}
+            if not country_url:
+                result["per_match"][game.id] = {"status": "unavailable", "url": urls[0],
+                                                 "reason": "unrecognized_or_unavailable_schedule"}
             continue
         teams = frozenset(_team_key(game.league, team.name, team.id) for team in (game.home, game.away))
         entries = {item for page_entries in available for item in page_entries}
@@ -241,12 +256,14 @@ def enrich(builder, matches, fetch):
         unique = set(found)
         if (not unique or not all(item.channels and item.url and item.identity for item in unique) or
                 any(item.identity in conflicting_ids for item in unique)):
-            result["per_match"][game.id]["url"] = urls[0]
-            reject(result, "invalid_or_conflicting_airings" if unique else "not_seen_in_partial_catalogue", match=game)
+            if not country_url:
+                result["per_match"][game.id]["url"] = urls[0]
+            reject(result, "invalid_or_conflicting_airings" if unique else "not_seen_in_partial_catalogue",
+                   match=None if country_url else game)
             continue
         channels = sorted({channel for item in unique for channel in item.channels})
         if not all(builder.map_outlet(channel, game.league).known for channel in channels):
-            reject(result, "unmapped_channel", match=game)
+            reject(result, "unmapped_channel", match=None if country_url else game)
             continue
         # Each channel keeps its own observed programme time and player link. Calling
         # confirm repeatedly merges routes and counts a match only once.
