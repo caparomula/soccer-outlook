@@ -392,20 +392,20 @@ class Requests(unittest.TestCase):
 
     def test_full_rating_retry_splits_truncated_chunks_and_keeps_successful_ones(self):
         asked = []
-        facts = dict(RUN_FACTS, ranking_candidates=[fixture(str(n), n) for n in range(25)])
+        facts = dict(RUN_FACTS, ranking_candidates=[fixture(str(n), n) for n in range(15)])
 
         def rate(fixtures, *_):
             asked.append([f["id"] for f in fixtures])
-            truncated = len(fixtures) > 10
+            truncated = len(fixtures) > 5
             return ([] if truncated else every_rating(fixtures)), {"in": 1, "out": 7}, "max_tokens" if truncated else "end_turn", "test"
 
         spent = totals()
         with patch.object(story, "log", lambda *_: None):
             ratings, _ = story.write_ratings(rate, facts, [m["id"] for m in facts["ranking_candidates"]], [], {},
                                              story.fixture_links(facts), spent)
-        self.assertEqual(sorted(map(len, asked)), [5, 10, 10, 20])
-        self.assertEqual(sum("24" in chunk for chunk in asked), 1)
-        self.assertEqual(len(ratings), 25)
+        self.assertEqual(sorted(map(len, asked)), [5, 5, 5, 10])
+        self.assertEqual(sum("14" in chunk for chunk in asked), 1)
+        self.assertEqual(len(ratings), 15)
         self.assertEqual((spent["in"], spent["out"]), (4, 28))
 
     def test_authored_league_headlines_survive_full_generation_and_refresh_input(self):

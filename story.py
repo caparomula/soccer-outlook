@@ -70,7 +70,7 @@ BUDGETS = {"full": (12, 6), "refresh": (5, 2), "ratings": (0, 0)}   # (web searc
 MAX_TOKENS = 64000                    # research request: a backstop only, streamed and billed only when used
 MAX_REQUESTS = 6                      # pause_turn continuations, one nudge to publish and one repair
 # Keep full-design chunks small: max-effort reasoning shares the output budget with card text.
-RATING_CHUNK = 20
+RATING_CHUNK = 10
 RATING_WORKERS = 3
 RATING_MAX_TOKENS = 32000
 RATING_MAX_EFFORT_TOKENS = 64000
