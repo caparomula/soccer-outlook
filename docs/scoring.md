@@ -152,8 +152,8 @@ Golden dots show the pick score on a proportional six-dot scale: **round(score �
 | 91.6 | 5 |
 | 91.7 or more | 6 |
 
-Changing league priority can change a match's dots. Hover over them for the exact score and its components; screen readers receive the score and dot count. They are separate from the colored squares showing each team's recent results.
+Changing league priority can change a match's dots. Hover over them for the rating breakdown, or click or tap to open it in a dialog. Keyboard users can focus the dots and press Enter or Space; screen readers receive the score and dot count. They are separate from the colored squares showing each team's recent results.
 
-The **Rating breakdown** appears immediately in the Details popup or dialog, without a second disclosure to expand. It shows the numeric pick score, the three automatic AI dimensions when available, and the five Outlook inputs. Components use a 0–100 display scale and the same proportional rounding, with distinct colors and text labels. Missing Outlook inputs show **Not available** rather than the midpoint assumption used in the total. Personal and shared imports have no component dimensions in their response format; the breakdown says they are unavailable and does not borrow automatic AI components.
+The **Rating breakdown**, also available inside Details, shows the numeric pick score, blend weights, the three automatic AI dimensions when available, and the five Outlook inputs. Components use a 0–100 display scale and the same proportional rounding, with distinct colors and text labels. Missing Outlook inputs show **Not available** rather than the midpoint assumption used in the total. Personal and shared imports have no component dimensions in their response format; the breakdown says they are unavailable and does not borrow automatic AI components.
 
 See the [development guide](development.md) for changing settings and running the checks, or return to the [project overview](../README.md).

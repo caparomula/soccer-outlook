@@ -498,6 +498,134 @@ class BrowserChecks(unittest.TestCase):
                 expect(page.locator('.tables__item[data-lg="eng.1"]')).to_have_attribute('open', '')
                 self.assertFalse(page.locator('html').evaluate("el => el.classList.contains('has-match-dialog')"))
 
+    def test_rating_dots_open_focused_breakdown_by_hover_touch_and_keyboard(self):
+        for width, theme in ((1280, 'light'), (390, 'dark'), (320, 'dark')):
+            with self.subTest(width=width), self.page('after', width=width, theme=theme, touch=width < 600) as (page, _):
+                for selector in ('#nextup', '#picks .pick', 'li.row[data-id="upcoming"]'):
+                    card = page.locator(selector).first
+                    button = card.locator('button.rating-trigger')
+                    button.scroll_into_view_if_needed()
+                    before = card.bounding_box()
+                    expect(button).to_have_attribute('aria-haspopup', 'dialog')
+                    expect(button).to_have_attribute('aria-description', 'Show rating breakdown for Arsenal v Chelsea')
+                    self.assertIsNone(button.get_attribute('title'))  # no second native tooltip over the popup
+                    self.assertGreaterEqual(button.bounding_box()['height'], 24)
+                    if width > 600:
+                        button.hover()
+                        page.clock.run_for(200)
+                        preview = page.locator('#match-preview')
+                        expect(preview).to_be_visible()
+                        expect(preview).to_have_attribute('data-kind', 'rating')
+                        expect(preview.locator('.rating-breakdown [data-metric="overall"]')).to_be_visible()
+                        expect(preview.locator('.detail__grid')).to_have_count(0)
+                        box = preview.bounding_box()
+                        self.assertGreaterEqual(box['x'], 0)
+                        self.assertGreaterEqual(box['y'], 0)
+                        page.mouse.move(box['x'] + 20, box['y'] + 20)
+                        page.clock.run_for(300)
+                        expect(preview).to_be_visible()
+                        page.keyboard.press('Escape')
+                        expect(preview).to_be_hidden()
+                        button.focus()
+                        page.keyboard.press('Enter')
+                    else:
+                        button.tap()
+                    dialog = page.locator('#match-dialog')
+                    expect(dialog).to_be_visible()
+                    expect(dialog).to_have_attribute('data-kind', 'rating')
+                    expect(dialog.locator('summary, .detail__grid')).to_have_count(0)
+                    expect(dialog.locator('[data-metric="overall"]')).to_be_visible()
+                    expect(dialog.get_by_role('button', name='Close rating breakdown')).to_be_focused()
+                    self.assertEqual(before, card.bounding_box())
+                    self.assertLessEqual(dialog.evaluate('el => el.scrollWidth'), dialog.evaluate('el => el.clientWidth'))
+                    page.screenshot(path=str(self.artifacts / f'rating-dots-{width}-{card.get_attribute("data-match-role")}.png'))
+                    page.keyboard.press('Escape')
+                    page.clock.run_for(50)
+                    expect(button).to_be_focused()
+                    # Native buttons also support Space; dismissing outside restores the same dots.
+                    page.keyboard.press('Space')
+                    expect(dialog).to_be_visible()
+                    page.mouse.click(2, 2)
+                    page.clock.run_for(50)
+                    expect(dialog).to_be_hidden()
+                    expect(button).to_be_focused()
+                # Details still opens the full match information, not the last-used rating view.
+                page.locator('li.row[data-id="upcoming"] button.more').click()
+                expect(page.locator('#match-dialog')).to_have_attribute('data-kind', 'details')
+                expect(page.locator('#match-dialog .detail__grid')).to_be_visible()
+
+    def test_league_emblems_show_vitals_in_each_role_without_changing_filters(self):
+        fixtures = [('live', '2026-10-07T16:30:00+00:00', 'in', 'ESPN+', 'eng.1'),
+                    ('upcoming', '2026-10-07T17:05:00+00:00', 'pre', 'ESPN+', 'eng.1'),
+                    ('later', '2026-10-07T19:00:00+00:00', 'pre', 'ESPN+', 'eng.1'),
+                    ('off', '2026-10-07T20:00:00+00:00', 'pre', 'Peacock', 'eng.1'),
+                    ('finished', '2026-10-07T14:00:00+00:00', 'post', 'ESPN+', 'eng.1')]
+        names = {'off': ('Off Home', 'Off Away'), 'finished': ('Finished Home', 'Finished Away')}
+        for width in (1280, 320):
+            with self.subTest(width=width), self.page('after', width=width, touch=width < 600,
+                    html=render_page(build, fixtures=fixtures, league_logos=True, team_names=names)) as (page, feed):
+                saved = page.evaluate('JSON.stringify(localStorage)')
+                for selector in ('#nextup', '#picks .pick', 'li.row[data-id="upcoming"]'):
+                    card = page.locator(selector).first
+                    button = card.get_by_role('button', name='League vitals: Premier League')
+                    button.scroll_into_view_if_needed()
+                    before = card.bounding_box()
+                    button.tap() if width < 600 else button.click()
+                    dialog = page.locator('#match-dialog')
+                    expect(dialog).to_have_attribute('data-kind', 'league')
+                    expect(page.locator('#match-dialog-title')).to_have_text('Premier League')
+                    expect(dialog).to_contain_text("top division of men's club football in England")
+                    expect(dialog).to_contain_text('4 matches in the loaded schedule · 3 on your services with current filters')
+                    expect(dialog.locator('.league-vitals__fixtures li')).to_have_count(3)
+                    expect(dialog.locator('.league-vitals__fixtures')).not_to_contain_text('Off Home')
+                    expect(dialog.locator('.league-vitals__fixtures')).not_to_contain_text('Finished Home')
+                    expect(dialog.locator('.tbl tbody tr')).to_have_count(2)
+                    expect(dialog.locator('.tbl thead th')).to_have_text(['', 'Team', 'P', 'Pts'])
+                    expect(dialog.get_by_role('button', name='Close league vitals')).to_be_focused()
+                    self.assertEqual(before, card.bounding_box())
+                    self.assertLessEqual(dialog.evaluate('el => el.scrollWidth'), dialog.evaluate('el => el.clientWidth'))
+                    for _ in range(6):
+                        page.keyboard.press('Tab')
+                        self.assertTrue(dialog.evaluate('el => el.contains(document.activeElement)'))
+                    page.screenshot(path=str(self.artifacts / f'league-vitals-{width}-{card.get_attribute("data-match-role")}.png'))
+                    page.keyboard.press('Escape')
+                    page.clock.run_for(50)
+                    expect(button).to_be_focused()
+                self.assertEqual(page.evaluate('JSON.stringify(localStorage)'), saved)
+                # The dialog tracks live results, and returns focus to a rebuilt card's league button.
+                page.locator('#picks .pick').first.locator('.league-trigger').focus()
+                page.keyboard.press('Enter')
+                feed['data'] = scoreboard('in')
+                page.clock.run_for(60001)
+                expect(page.locator('#match-dialog .league-vitals__fixtures')).to_contain_text('Live · 2–1')
+                page.locator('#match-dialog-close').click()
+                page.clock.run_for(50)
+                expect(page.locator('button.league-trigger:focus')).to_have_count(1)
+                page.locator('li.row[data-id="upcoming"] .league-trigger').click()
+                page.get_by_role('link', name='Full league table', exact=True).click()
+                page.clock.run_for(50)
+                expect(page.locator('#match-dialog')).to_be_hidden()
+                expect(page.locator('.tables__item[data-lg="eng.1"] > summary')).to_be_focused()
+                # The filter strip retains its independent on/off behavior.
+                strip = page.locator('#league-strip-list [data-league="eng.1"]')
+                strip.click()
+                expect(page.locator('#match-dialog')).to_be_hidden()
+                expect(page.locator('li.row[data-id="upcoming"]')).to_be_hidden()
+
+    def test_league_vitals_handle_cups_without_standings_or_badges(self):
+        fixtures = [('cup', '2026-10-07T18:00:00+00:00', 'pre', 'ESPN+', 'eng.fa')]
+        with self.page('after', html=render_page(build, fixtures=fixtures, league_logos=True, tbd={'cup'})) as (page, _):
+            page.locator('li.row .league-trigger').click()
+            dialog = page.locator('#match-dialog')
+            expect(dialog).to_contain_text('domestic knockout cup')
+            expect(dialog).to_contain_text('No standings table is available')
+            expect(dialog.locator('.league-vitals__fixtures')).to_contain_text('TBD')
+            expect(dialog.get_by_role('link', name='Full league table')).to_have_count(0)
+            expect(dialog.get_by_role('link', name='Competition on ESPN')).to_have_attribute('href', 'https://www.espn.com/soccer/league/_/name/eng.fa')
+        with self.page('after', html=render_page(build, fixtures=fixtures)) as (page, _):
+            expect(page.locator('button.league-trigger')).to_have_count(0)
+            expect(page.locator('li.row')).to_be_visible()
+
     def test_rating_breakdown_uses_effective_components_without_fabricating_missing_values(self):
         fixtures = [("upcoming", "2026-10-07T17:10:00+00:00", "pre", "ESPN+", "eng.1"),
                     ("later", "2026-10-07T18:00:00+00:00", "pre", "ESPN+", "eng.1")]
@@ -536,8 +664,8 @@ class BrowserChecks(unittest.TestCase):
                         expect(panel.locator('[data-metric="gameplay"]').last).to_have_text('Not available')
                     self.assertLessEqual(dialog.evaluate('el => el.scrollWidth'), dialog.evaluate('el => el.clientWidth'))
                     page.locator('#match-dialog-close').click()
-                # A new rating delivered while Details is open updates visible components and preserves focus.
-                page.locator('#nextup button.more').click()
+                # A new rating delivered while its dialog is open updates components and preserves focus.
+                page.locator('#nextup button.rating-trigger').click()
                 panel = page.locator('#match-dialog .rating-breakdown')
                 page.locator('#match-dialog-close').focus()
                 story['rankings']['upcoming']['popularity'] = 81
@@ -1383,7 +1511,9 @@ class BrowserChecks(unittest.TestCase):
             with self.subTest(design=design), self.page(
                     "after", html=render_page(build, fixtures=fixtures, design=design), story=story) as (page, _):
                 enabled = lambda: page.locator('#comp-enabled .fpill').evaluate_all("els => els.map(e => e.dataset.key)")
-                expect(page.locator('li.row[data-id="eng.1"] .row__pick')).to_have_attribute("title", re.compile("AI rating"))
+                page.locator('li.row[data-id="eng.1"] .row__pick').click()
+                expect(page.locator('#match-dialog .rating-breakdown__blend')).to_contain_text('AI rating')
+                page.locator('#match-dialog-close').click()
                 self.assertEqual(enabled(), ["eng.1", "esp.1"])
                 self.assertEqual(self.strip_ids(page), ["eng.1", "esp.1"])
                 # Existing explicit choices and their custom priority survive a new default lineup.
@@ -2320,6 +2450,8 @@ class BrowserChecks(unittest.TestCase):
                 viewing = page.locator("#outlook li.row:visible").nth(12).locator(".network summary").first
                 expect(viewing).to_have_count(1)
                 page.keyboard.press("Tab")
+                expect(page.locator("#outlook li.row:visible").nth(12).locator('.rating-trigger')).to_be_focused()
+                page.keyboard.press("Tab")
                 # Each team's badge/name is now a single link opening its vitals sheet.
                 page.keyboard.press("Tab")
                 page.keyboard.press("Tab")
@@ -2331,7 +2463,7 @@ class BrowserChecks(unittest.TestCase):
                 expect(details.nth(12)).to_be_focused()
                 self.assertGreaterEqual(details.nth(12).bounding_box()["y"], bar.bounding_box()["y"] + bar.bounding_box()["height"])
                 # ... and keyboard focus on the bar's own controls doesn't move the page.
-                page.locator("#nextup .team-link").first.focus()    # the first thing after the bar, far above
+                page.locator("#nextup .rating-trigger").focus()    # the first thing after the bar, far above
                 page.evaluate("window.scrollTo(0, 2200)")
                 page.keyboard.press("Shift+Tab")
                 page.clock.run_for(50)
@@ -2503,7 +2635,7 @@ class BrowserChecks(unittest.TestCase):
                 expect(row('eng').locator('i')).to_have_count(5)
                 # The same dots, label and breakdown on the match's card, which shows no words for the score either.
                 for mid in ('eng', 'esp'):
-                    for attribute in ('aria-label', 'title', 'role'):
+                    for attribute in ('aria-label', 'aria-description', 'aria-haspopup', 'aria-controls'):
                         self.assertEqual(row(mid).get_attribute(attribute), card_label(mid).get_attribute(attribute))
                     expect(card_label(mid).locator('i')).to_have_count(dots_for(float(card_number(mid))))
                     expect(card_label(mid)).to_have_text('')
@@ -3373,9 +3505,11 @@ class BrowserChecks(unittest.TestCase):
         with self.page("after", story=story) as (page, _):
             expect(page.locator("#picks-h")).to_have_text("Top three")
             expect(page.locator("#picks-sub")).to_have_text("The best of the next three days on your services by AI rating + Outlook score + league priority · in kickoff order")
-            # A story that records no model leaves the tooltip's rating unattributed rather than guessed.
-            title = page.locator('#picks .pick[data-match-id="upcoming"] .pick__rating').get_attribute("title")
-            self.assertIn("AI rating: Popularity 50", title)
+            # A story that records no model leaves the rating unattributed rather than guessed.
+            page.locator('#picks .pick[data-match-id="upcoming"] .pick__rating').click()
+            panel = page.locator('#match-dialog .rating-breakdown')
+            expect(panel.locator('[data-metric="popularity"]').first).to_have_text('50/100')
+            expect(panel).to_contain_text('AI estimates; not measured attendance or viewership.')
         # A page built without scores (an older build) still lists the next matches, without calling them picks.
         with self.page("after", html=re.sub(r' data-outlook="[^"]*"', "", render_page(build))) as (page, _):
             expect(page.locator("#picks-h")).to_have_text("Upcoming")
@@ -3402,10 +3536,10 @@ class BrowserChecks(unittest.TestCase):
             pick = round(0.8 * 57.5 + 0.2 * self.default_priority("eng.1"), 1)      # 80% of 57.5, 20% of league priority
             expect(label).to_have_attribute("aria-label", f"Pick score {pick:g} out of 100, 4 dots of 6")
             expect(label).to_have_text("")
-            self.assertEqual(label.get_attribute("title"),
-                             f"Pick score {pick:g}/100, 4 of 6 dots. 80% Outlook score (57.5) + 20% league priority "
-                             f"({round(self.default_priority('eng.1')):g}). Outlook score 57.5: occasion 100 · "
-                             "evenly matched no data · stakes 0 · TV 0 · goals expected no data.")
+            label.click()
+            expect(page.locator('#match-dialog .rating-breakdown__blend')).to_have_text(
+                f"80% Outlook score (57.5) + 20% league priority ({round(self.default_priority('eng.1')):g}).")
+            expect(page.locator('#match-dialog [data-metric="gameplay"]')).to_have_text('Not available')
             expect(page.locator("footer")).to_contain_text("Site-generated AI is turned off")
             expect(page.locator("#priority-hint")).to_contain_text("80% the Outlook score and 20% this order")
 
@@ -3424,11 +3558,11 @@ class BrowserChecks(unittest.TestCase):
             pick = round(0.8 * 58.75 + 0.2 * self.default_priority("eng.1"), 1)
             expect(label).to_have_attribute("aria-label", f"Pick score {pick:g} out of 100, 4 dots of 6")
             # The model settings.toml asked for, not the dated snapshot that answered.
-            self.assertEqual(label.get_attribute("title"),
-                             f"Pick score {pick:g}/100, 4 of 6 dots. 80% interest (58.8) + 20% league priority "
-                             f"({round(self.default_priority('eng.1')):g}). Interest: 50% AI rating (60) + 50% Outlook score "
-                             "(57.5). AI rating by gpt-6.1-sol: Popularity 60 · Expected gameplay 60 · Competitive impact 60. "
-                             "Outlook score 57.5: occasion 100 · evenly matched no data · stakes 0 · TV 0 · goals expected no data.")
+            label.click()
+            expect(page.locator('#match-dialog .rating-breakdown__blend')).to_have_text(
+                f"80% interest (58.8) + 20% league priority ({round(self.default_priority('eng.1')):g}). "
+                "Interest: 50% AI rating (60) + 50% Outlook score (57.5).")
+            expect(page.locator('#match-dialog .rating-breakdown')).to_contain_text('AI estimates by gpt-6.1-sol')
             expect(page.locator("footer")).to_contain_text("50% the AI rating and 50% the Outlook score")
             expect(page.locator("footer")).to_contain_text("gpt-6.1-sol, an OpenAI AI model, is asked to rate the matches")
             expect(page.locator("footer")).to_contain_text("Later rebuilds fill missing or newly listed ratings")
@@ -4517,6 +4651,9 @@ NOT_RUN = 77
 # A compact cross-engine pass through the interactions most sensitive to browser behavior.
 # Chromium still runs every check by default; WebKit smoke is an additional compatibility check.
 SMOKE_TESTS = (
+    "test_rating_dots_open_focused_breakdown_by_hover_touch_and_keyboard",
+    "test_league_emblems_show_vitals_in_each_role_without_changing_filters",
+    "test_league_vitals_handle_cups_without_standings_or_badges",
     "test_six_dot_scale_rounds_nearest_including_halves_and_zero",
     "test_team_vitals_work_in_each_card_and_cache_across_reload",
     "test_team_vitals_keep_domestic_and_cup_records_separate",

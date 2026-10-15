@@ -73,7 +73,7 @@ LIVE_MINUTES = 125
 # hidden until the viewer turns the competition pill on. short: at most four letters, standing in
 # for the league's emblem in the bar's league strip when ESPN has no emblem for it (or the page is
 # built without images). Where each one is shown in the US (its usual home, or a hint) is in
-# rights.toml.
+# rights.toml. The about text briefly explains each competition in its league vitals sheet.
 #
 # Insertion order sets the default league priority used by the strip, filter panel and pick score.
 # It is an editorial preference for a US audience, informed by audience reporting reviewed on
@@ -81,40 +81,74 @@ LIVE_MINUTES = 125
 # preserves the sources, limitations and full order. Visitors can save their own order.
 # ----------------------------------------------------------------------------------------------
 LEAGUES = {
-    "mex.1": dict(name="Liga MX", short="LMX", tier=2),
-    "uefa.champions": dict(name="Champions League", short="UCL", tier=1),
-    "eng.1": dict(name="Premier League", short="EPL", tier=1),
-    "usa.1": dict(name="MLS", short="MLS", tier=2),
-    "esp.1": dict(name="La Liga", short="LIGA", tier=1),
-    "usa.nwsl": dict(name="NWSL", short="NWSL", tier=2),
-    "ita.1": dict(name="Serie A", short="SERA", tier=1),
-    "ger.1": dict(name="Bundesliga", short="BUND", tier=1),   # Versant from 2026-27: 30+ on USA Network, the rest free on Fandango
-    "uefa.europa": dict(name="Europa League", short="UEL", tier=2),
-    "concacaf.champions": dict(name="Concacaf Champions Cup", short="CCC", tier=2),
-    "eng.fa": dict(name="FA Cup", short="FAC", tier=2),
-    "fra.1": dict(name="Ligue 1", short="L1", tier=2),
-    "esp.copa_del_rey": dict(name="Copa del Rey", short="CDR", tier=2),
-    "eng.2": dict(name="Championship", short="EFL", tier=3, default_off=True),
-    "usa.usl.1": dict(name="USL Championship", short="USLC", tier=3, default_off=True),
-    "fifa.friendly": dict(name="Men's friendly", short="FRI", tier=2, default_off=True),
-    "concacaf.nations.league": dict(name="Concacaf Nations League", short="CNL", tier=3, default_off=True),
-    "fifa.friendly.w": dict(name="Women's friendly", short="WFRI", tier=2, default_off=True),
-    "uefa.nations": dict(name="Nations League", short="UNL", tier=2, default_off=True),
-    "eng.league_cup": dict(name="Carabao Cup", short="EFLC", tier=2, default_off=True),
-    "uefa.europa.conf": dict(name="Conference League", short="UECL", tier=3, default_off=True),
-    "usa.open": dict(name="U.S. Open Cup", short="USOC", tier=3, default_off=True),
-    "uefa.wchampions": dict(name="Women's Champions League", short="UWCL", tier=2, default_off=True),
-    "eng.w.1": dict(name="Women's Super League", short="WSL", tier=2, default_off=True),
-    "ita.coppa_italia": dict(name="Coppa Italia", short="COPI", tier=2, default_off=True),
-    "ger.dfb_pokal": dict(name="DFB-Pokal", short="DFB", tier=2, default_off=True),
-    "sco.1": dict(name="Scottish Premiership", short="SPFL", tier=3, default_off=True),
-    "ned.1": dict(name="Eredivisie", short="ERE", tier=2, default_off=True),
-    "ksa.1": dict(name="Saudi Pro League", short="SPL", tier=3, default_off=True),
-    "caf.nations": dict(name="Africa Cup of Nations", short="AFCN", tier=2, default_off=True),
-    "por.1": dict(name="Primeira Liga", short="POR", tier=3, default_off=True),
-    "arg.1": dict(name="Liga Profesional (Argentina)", short="ARG", tier=3, default_off=True),
-    "bra.1": dict(name="Brasileirão", short="BRA", tier=3, default_off=True),
-    "usa.usl.l1": dict(name="USL League One", short="USL1", tier=3, default_off=True),
+    "mex.1": dict(name="Liga MX", short="LMX", tier=2,
+        about="Mexico's top-flight men's club competition, with Apertura and Clausura tournaments and playoffs."),
+    "uefa.champions": dict(name="Champions League", short="UCL", tier=1,
+        about="UEFA's leading men's club competition, bringing together clubs from across Europe in a league phase and knockout rounds."),
+    "eng.1": dict(name="Premier League", short="EPL", tier=1,
+        about="The top division of men's club football in England. The Championship is the division below it."),
+    "usa.1": dict(name="MLS", short="MLS", tier=2,
+        about="Major League Soccer: the top men's club league in the United States and Canada, with a regular season and MLS Cup playoffs."),
+    "esp.1": dict(name="La Liga", short="LIGA", tier=1,
+        about="Spain's top division of men's club football."),
+    "usa.nwsl": dict(name="NWSL", short="NWSL", tier=2,
+        about="The National Women's Soccer League: a top-flight women's club league in the United States, with a regular season and playoffs."),
+    "ita.1": dict(name="Serie A", short="SERA", tier=1,
+        about="Italy's top division of men's club football."),
+    "ger.1": dict(name="Bundesliga", short="BUND", tier=1,
+        about="Germany's top division of men's club football."),   # Versant from 2026-27: 30+ on USA Network, the rest free on Fandango
+    "uefa.europa": dict(name="Europa League", short="UEL", tier=2,
+        about="UEFA's second men's club competition, below the Champions League and above the Conference League. Clubs from across Europe play a league phase and knockout rounds."),
+    "concacaf.champions": dict(name="Concacaf Champions Cup", short="CCC", tier=2,
+        about="The regional men's club championship for North America, Central America and the Caribbean, played as a knockout tournament."),
+    "eng.fa": dict(name="FA Cup", short="FAC", tier=2,
+        about="England's men's domestic knockout cup, open to clubs at many levels of the league system."),
+    "fra.1": dict(name="Ligue 1", short="L1", tier=2,
+        about="France's top division of men's club football."),
+    "esp.copa_del_rey": dict(name="Copa del Rey", short="CDR", tier=2,
+        about="Spain's men's domestic knockout cup, contested by clubs from across the league system."),
+    "eng.2": dict(name="Championship", short="EFL", tier=3, default_off=True,
+        about="The EFL Championship: the second division of men's club football in England, directly below the Premier League."),
+    "usa.usl.1": dict(name="USL Championship", short="USLC", tier=3, default_off=True,
+        about="The USL Championship: a second-division men's professional league in the United States, with a regular season and playoffs."),
+    "fifa.friendly": dict(name="Men's friendly", short="FRI", tier=2, default_off=True,
+        about="Men's international friendlies between national teams. These are standalone fixtures rather than a league with a shared standings table."),
+    "concacaf.nations.league": dict(name="Concacaf Nations League", short="CNL", tier=3, default_off=True,
+        about="A national-team competition for North America, Central America and the Caribbean, with teams grouped into leagues and a championship stage."),
+    "fifa.friendly.w": dict(name="Women's friendly", short="WFRI", tier=2, default_off=True,
+        about="Women's international friendlies between national teams. These are standalone fixtures rather than a league with a shared standings table."),
+    "uefa.nations": dict(name="Nations League", short="UNL", tier=2, default_off=True,
+        about="UEFA's men's national-team competition, organized into leagues with promotion, relegation and a championship stage."),
+    "eng.league_cup": dict(name="Carabao Cup", short="EFLC", tier=2, default_off=True,
+        about="The English Football League Cup, also called the Carabao Cup: a men's knockout cup for Premier League and EFL clubs."),
+    "uefa.europa.conf": dict(name="Conference League", short="UECL", tier=3, default_off=True,
+        about="UEFA's third men's club competition, below the Champions League and Europa League, with a league phase and knockout rounds."),
+    "usa.open": dict(name="U.S. Open Cup", short="USOC", tier=3, default_off=True,
+        about="The U.S. Open Cup: a men's domestic knockout competition bringing together eligible professional and amateur clubs."),
+    "uefa.wchampions": dict(name="Women's Champions League", short="UWCL", tier=2, default_off=True,
+        about="UEFA's leading women's club competition, bringing together clubs from across Europe."),
+    "eng.w.1": dict(name="Women's Super League", short="WSL", tier=2, default_off=True,
+        about="The Women's Super League: the top division of women's club football in England."),
+    "ita.coppa_italia": dict(name="Coppa Italia", short="COPI", tier=2, default_off=True,
+        about="Italy's men's domestic knockout cup."),
+    "ger.dfb_pokal": dict(name="DFB-Pokal", short="DFB", tier=2, default_off=True,
+        about="Germany's men's domestic knockout cup, bringing together clubs from multiple divisions."),
+    "sco.1": dict(name="Scottish Premiership", short="SPFL", tier=3, default_off=True,
+        about="Scotland's top division of men's club football."),
+    "ned.1": dict(name="Eredivisie", short="ERE", tier=2, default_off=True,
+        about="The Netherlands' top division of men's club football."),
+    "ksa.1": dict(name="Saudi Pro League", short="SPL", tier=3, default_off=True,
+        about="Saudi Arabia's top division of men's club football."),
+    "caf.nations": dict(name="Africa Cup of Nations", short="AFCN", tier=2, default_off=True,
+        about="The Africa Cup of Nations: Africa's men's national-team championship, with a group stage and knockout rounds."),
+    "por.1": dict(name="Primeira Liga", short="POR", tier=3, default_off=True,
+        about="Portugal's top division of men's club football."),
+    "arg.1": dict(name="Liga Profesional (Argentina)", short="ARG", tier=3, default_off=True,
+        about="Argentina's top-flight men's club competition."),
+    "bra.1": dict(name="Brasileirão", short="BRA", tier=3, default_off=True,
+        about="Campeonato Brasileiro Série A, or Brasileirão: Brazil's top division of men's club football."),
+    "usa.usl.l1": dict(name="USL League One", short="USL1", tier=3, default_off=True,
+        about="USL League One: a third-division men's professional league in the United States, with a regular season and playoffs."),
 }
 
 # ----------------------------------------------------------------------------------------------
@@ -1394,7 +1428,8 @@ def about_scores():
             f"{listed}. Betting-market inputs come from the odds in ESPN's feed; the page shows no prices. ")
     dots = (" Each match shows its pick score on a six-dot scale: multiply the score out of 100 by six and round "
             "to the nearest whole number (halves round up). For example, 80.5 out of 100 gives five dots. "
-            "A score that rounds to zero dots is labelled 0/6. The rating breakdown appears directly in Details.")
+            "A score that rounds to zero dots is labelled 0/6. Hover over the dots for the rating breakdown, "
+            "or click or tap them to open it. It is also available in Details.")
     if SETTINGS.ai:
         mix = shares({"ai": b["ai"], "outlook": b["outlook"]})
         return text + (f"A match's interest is {mix['ai']}% the AI rating and {mix['outlook']}% the Outlook score (the "
@@ -1848,6 +1883,7 @@ def build_page(matches, cache, built_at, failed, today, skipped=(), site_url=Non
 
     svc_meta = {"order": SERVICE_RANK, "name": SERVICES, "owner": OWNER,
                 "leagues": {league: info["name"] for league, info in LEAGUES.items()},
+                "league_about": {league: info.get("about", "") for league, info in LEAGUES.items()},
                 "league_default_off": [league for league, info in LEAGUES.items() if info.get("default_off")],
                 "league_icons": {league: logo_key(url) for league, url in LEAGUE_LOGOS.items()
                                  if league in LEAGUES and url and logo_key(url) in cache}}

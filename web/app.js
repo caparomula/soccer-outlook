@@ -1012,37 +1012,29 @@
     if (el.childElementCount === n) return;
     el.replaceChildren(); for (var i = 0; i < n; i++) el.appendChild(document.createElement('i'));
   }
-  // The dots are the whole display of a pick score, on rows and cards alike: the exact score and its
-  // parts are in the tooltip, and a screen reader hears the score in words.
+  // The dots open the same rating breakdown on rows and cards; the label also reads out the score.
   function showDots(el, r, score) {
     var n = dotCount(score);
     fillDots(el, n);
     el.classList.toggle('dots--zero', n === 0);
-    el.setAttribute('role', 'img');
+    el.type = 'button'; el.classList.add('rating-trigger');
+    el.setAttribute('aria-haspopup', 'dialog');
+    el.setAttribute('aria-controls', 'match-dialog');
+    el.setAttribute('aria-description', 'Show rating breakdown for ' + matchName(r));
     el.setAttribute('aria-label', 'Pick score ' + score + ' out of 100, ' + n + (n === 1 ? ' dot' : ' dots') + ' of 6');
-    el.title = 'Pick score ' + score + '/100, ' + n + ' of 6 dots. ' + scoreDetails(r);
   }
   function share(a, b) { return Math.round(100 * a / (a + b)); }
   function oneDecimal(x) { return Math.round(x * 10) / 10; }
-  var OUTLOOK_NAMES = [['stature', 'occasion'], ['close', 'evenly matched'], ['stakes', 'stakes'], ['tv', 'TV'], ['goals', 'goals expected']];
-  // The tooltip on a pick score: every part with its weight and value, so a surprising pick explains itself.
+  // Explain the blend alongside the component values in the rating breakdown.
   function scoreDetails(r) {
     var rating = ratingOf(r), own = r._outlook, b = SCORING.blend, both = rating && own !== null;
     var lines = [share(b.interest, b.league_priority) + '% ' + (both ? 'interest' : own !== null ? 'Outlook score' : 'AI rating') +
       ' (' + oneDecimal(interestOf(r)) + ') + ' + share(b.league_priority, b.interest) + '% league priority (' + Math.round(leaguePriority(r)) + ').'];
     var aiShare = rating && rating._personal ? PERSONAL.weight() : rating && rating._shared ? SHARED.weight() : share(b.ai, b.outlook);
     if (both) lines.push('Interest: ' + aiShare + '% AI rating (' + rating.score + ') + ' + (100 - aiShare) + '% Outlook score (' + own + ').');
-    if (rating) lines.push('AI rating' + (raterName(rating) ? ' by ' + raterName(rating) : '') + ': ' + ratingDetails(rating) + '.');
-    if (own !== null) {
-      var parts = {};
-      try { parts = JSON.parse(r.getAttribute('data-outlook-parts') || '{}') || {}; } catch (e) {}
-      lines.push('Outlook score ' + own + ': ' + OUTLOOK_NAMES.map(function (p) {
-        return p[1] + ' ' + (typeof parts[p[0]] === 'number' ? parts[p[0]] : 'no data');
-      }).join(' · ') + '.');
-    }
     return lines.join(' ');
   }
-  // Component scores are estimates, not measured attendance or audience. Keep them in Details,
+  // Component scores are estimates, not measured attendance or audience. Share one breakdown,
   // using only the rating actually selected for this visitor; imported totals have no components.
   function ratingBreakdown(r) {
     var panel = document.createElement('section'); panel.className = 'rating-breakdown';
@@ -1066,6 +1058,7 @@
       panel.appendChild(list);
     }
     scores([['Pick score', blendedScore(r), 'overall']]);
+    if (blendedScore(r) !== null) text('p', scoreDetails(r)).className = 'rating-breakdown__blend';
     var rating = ratingOf(r);
     text('h4', 'AI components');
     if (!rating) text('p', 'No AI component ratings available.');
@@ -1081,6 +1074,74 @@
     scores([['Match stature', parts.stature, 'stature'], ['Evenness', parts.close, 'gameplay'], ['Competitive stakes', parts.stakes, 'impact'],
       ['TV reach', parts.tv, 'popularity'], ['Expected goals', parts.goals, 'goals']]);
     text('p', 'Inputs are scaled to 100; missing inputs are shown without dots. The pick score also includes your league priority.');
+    return panel;
+  }
+  function leagueButton(r, emblem) {
+    var button = document.createElement('button'); button.type = 'button'; button.className = 'league-trigger';
+    button.setAttribute('aria-label', 'League vitals: ' + (SERVICES.leagues[r._lg] || r.getAttribute('data-comp')));
+    button.setAttribute('aria-haspopup', 'dialog'); button.setAttribute('aria-controls', 'match-dialog');
+    if (emblem) button.appendChild(emblem);
+    return button;
+  }
+  function leagueRows(r) { return rows.filter(function (match) { return match._lg === r._lg; }); }
+  // Use the schedule and standings already loaded by this page. Counts describe this window,
+  // not a season total, and the fixture list respects the visitor's services and league filters.
+  function leagueVitals(r) {
+    var panel = document.createElement('div'); panel.className = 'league-vitals';
+    function text(tag, words, cls) {
+      var el = document.createElement(tag); el.textContent = words; if (cls) el.className = cls; panel.appendChild(el); return el;
+    }
+    var emblem = r.querySelector('.row__league .lg');
+    if (emblem) { var logo = emblem.cloneNode(true); logo.classList.add('league-vitals__emblem'); panel.appendChild(logo); }
+    var about = (SERVICES.league_about || {})[r._lg];
+    if (about) text('p', about);
+    var now = nowMs(), upcoming = leagueRows(r).filter(function (match) {
+      return match._b && match._state !== 'post' && (match._k > now || match._b === 'live');
+    }).sort(byTime);
+    var available = upcoming.filter(editorialPasses);
+    var stages = Array.from(new Set(upcoming.map(function (match) { return match._facts.stage; }).filter(Boolean)));
+    if (stages.length) text('p', 'In this schedule: ' + stages.join(' · '), 'league-vitals__note');
+    text('h3', 'Live & upcoming');
+    text('p', upcoming.length + (upcoming.length === 1 ? ' match' : ' matches') + ' in the loaded schedule · ' +
+      available.length + ' on your services with current filters', 'league-vitals__note');
+    if (!available.length) text('p', 'No live or upcoming matches pass your current filters.');
+    else {
+      var fixtures = document.createElement('ol'); fixtures.className = 'league-vitals__fixtures';
+      available.slice(0, 3).forEach(function (match) {
+        var item = document.createElement('li'), name = document.createElement('a'), when = document.createElement('span');
+        name.textContent = matchName(match); name.href = 'https://www.espn.com/soccer/match/_/gameId/' + encodeURIComponent(match.dataset.id);
+        name.target = '_blank'; name.rel = 'noopener';
+        when.textContent = (match._state === 'in' ? ['Live', scoreOf(match), clockOf(match)].filter(Boolean).join(' · ') :
+          fmtShortDay.format(new Date(match._k)) + ', ' + fmtMonthDay.format(new Date(match._k)) + ' · ' + timeLabel(match)) +
+          (match._outlet ? ' · ' + (match._basis === 'rule' ? 'Usually ' : '') + match._outlet : '');
+        item.append(name, when); fixtures.appendChild(item);
+      });
+      panel.appendChild(fixtures);
+    }
+    var table = document.querySelector('.tables__item[data-lg="' + r._lg + '"]');
+    if (table) {
+      text('h3', 'Table leaders');
+      var teams = new Set(Array.from(table.querySelectorAll('.tbl__team')).map(function (el) { return el.textContent; }));
+      text('p', teams.size + ' teams in the published standings · top five in each group', 'league-vitals__note');
+      table.querySelectorAll('.tbl__wrap').forEach(function (original) {
+        var wrap = original.cloneNode(true);
+        Array.from(wrap.querySelectorAll('tbody tr')).slice(5).forEach(function (row) { row.remove(); });
+        wrap.querySelectorAll('tr').forEach(function (row) {
+          // Keep rank, team, played and points; the full table also has record and goal difference.
+          [4, 3].forEach(function (index) { if (row.children[index]) row.children[index].remove(); });
+        });
+        panel.appendChild(wrap);
+      });
+    } else text('p', 'No standings table is available in this schedule.', 'league-vitals__note');
+    var links = text('p', '', 'detail__links');
+    if (table) {
+      var full = document.createElement('a'); full.href = '#tables'; full.className = 'detail__table';
+      full.dataset.lg = r._lg; full.textContent = 'Full league table'; links.appendChild(full);
+    }
+    var source = document.createElement('a'); source.textContent = 'Competition on ESPN';
+    source.href = 'https://www.espn.com/soccer/league/_/name/' + encodeURIComponent(r._lg);
+    source.target = '_blank'; source.rel = 'noopener'; links.appendChild(source);
+    text('p', 'Standings and fixtures are from the page’s latest ESPN schedule snapshot; live scores update while this page is open.', 'league-vitals__note');
     return panel;
   }
   function upcomingIn(now, keep) {
@@ -1146,20 +1207,31 @@
   }
   setInterval(tickNextup, 1000);
 
-  // ---- match details: hover preview and native modal, both outside the card layout -------------
+  // ---- match details and ratings: shared hover preview and native modal, outside the layout ---
   var detailPreview = document.getElementById('match-preview'), detailDialog = document.getElementById('match-dialog');
+  var detailTriggers = 'button.more, button.rating-trigger, button.league-trigger';
   var previewState = null, dialogState = null, previewTimer = null, previewCloseTimer = null, backdropDown = false;
   function detailsFor(button) {
     var host = button.closest('[data-match-role], .miss');
     var card = host && (host._matchCard || host._row && host._row._card);
-    return card ? { card: card, trigger: button, role: host.dataset.matchRole || 'miss' } : null;
+    return card ? { card: card, trigger: button, role: host.dataset.matchRole || 'miss',
+                    kind: button.classList.contains('rating-trigger') ? 'rating' : button.classList.contains('league-trigger') ? 'league' : 'details' } : null;
+  }
+  function overlaySignature(state) {
+    return state.kind === 'league' ? JSON.stringify(leagueRows(state.card.row).map(function (r) {
+      return [r.getAttribute('data-id'), r._state, r._b, r._k, r._svc, r._basis, r._outlet, scoreOf(r), clockOf(r), editorialPasses(r)];
+    })) : state.card.detailsSignature();
   }
   function fillDetails(surface, state) {
     var prefix = surface === detailDialog ? 'match-dialog' : 'match-preview';
-    surface._signature = state.card.detailsSignature();
+    surface._signature = overlaySignature(state);
     surface.dataset.matchId = state.card.row.getAttribute('data-id');
-    document.getElementById(prefix + '-title').textContent = matchName(state.card.row);
-    document.getElementById(prefix + '-content').replaceChildren(state.card.detailsContent());
+    surface.dataset.kind = state.kind;
+    document.getElementById(prefix + '-title').textContent = state.kind === 'league' ? SERVICES.leagues[state.card.row._lg] : matchName(state.card.row);
+    document.getElementById(prefix + '-content').replaceChildren(state.kind === 'league' ? leagueVitals(state.card.row) :
+      state.kind === 'rating' ? ratingBreakdown(state.card.row) : state.card.detailsContent());
+    if (surface === detailDialog) document.getElementById('match-dialog-close').setAttribute('aria-label',
+      state.kind === 'league' ? 'Close league vitals' : state.kind === 'rating' ? 'Close rating breakdown' : 'Close match details');
   }
   function hideDetailPreview() {
     clearTimeout(previewTimer); clearTimeout(previewCloseTimer);
@@ -1181,25 +1253,26 @@
     clearTimeout(previewTimer); clearTimeout(previewCloseTimer);
     previewCloseTimer = setTimeout(function () { if (!detailPreview.contains(document.activeElement)) hideDetailPreview(); }, 220);
   }
-  function visibleEl(el) { return el && el.isConnected && el.getClientRects().length > 0; }
-  // The Details button for the same match in the same role, which a re-render may have rebuilt.
+  function visibleEl(el) { return el && el.isConnected && el.getClientRects().length > 0 && !el.closest('details:not([open])'); }
+  function triggerSelector(state) { return state.kind === 'league' ? 'button.league-trigger' : state.kind === 'rating' ? 'button.rating-trigger' : 'button.more'; }
+  // The same kind of button for this match and role, which a re-render may have rebuilt.
   function liveTrigger(state) {
     if (visibleEl(state.trigger)) return state.trigger;
     var host = Array.from(document.querySelectorAll('[data-match-role], .miss')).find(function (el) {
       return (el._matchCard || el._row && el._row._card) === state.card && (el.dataset.matchRole || 'miss') === state.role;
     });
-    var button = host && host.querySelector('button.more');
+    var button = host && host.querySelector(triggerSelector(state));
     return visibleEl(button) ? button : null;
   }
   function restoreDetailFocus(state) {
     if (!state) return;
-    var button = liveTrigger(state) || state.card.row.querySelector('button.more');
+    var button = liveTrigger(state) || state.card.row.querySelector(triggerSelector(state));
     (visibleEl(button) ? button : btnMenu).focus({ preventScroll: true });
   }
   // A live update rebuilds cards; the preview stays open while it or its button is hovered or holds
   // focus, and shows the match's current details. Otherwise it closes, as before.
   function refreshDetailPreview() {
-    if (dialogState && detailDialog.open && detailDialog._signature !== dialogState.card.detailsSignature()) {
+    if (dialogState && detailDialog.open && detailDialog._signature !== overlaySignature(dialogState)) {
       keepFocus(function () { fillDetails(detailDialog, dialogState); });
     }
     if (!previewState) return;
@@ -1207,7 +1280,7 @@
     var held = detailPreview.matches(':hover') || detailPreview.contains(document.activeElement) || (trigger && trigger.matches(':hover'));
     if (!held) { hideDetailPreview(); return; }
     if (trigger) previewState.trigger = trigger;
-    if (detailPreview._signature !== previewState.card.detailsSignature()) keepFocus(function () { fillDetails(detailPreview, previewState); });
+    if (detailPreview._signature !== overlaySignature(previewState)) keepFocus(function () { fillDetails(detailPreview, previewState); });
     if (trigger) positionDetailPreview();
   }
   function openDetailDialog(button) {
@@ -1215,6 +1288,7 @@
     closeNetwork(); hideDetailPreview(); dialogState = state; fillDetails(detailDialog, state);
     document.documentElement.classList.add('has-match-dialog');
     detailDialog.showModal();
+    detailDialog.scrollTop = 0;
   }
   SoccerTeams.init({
     leagues: SERVICES.leagues,
@@ -1223,7 +1297,7 @@
   });
   document.addEventListener('pointerover', function (ev) {
     if (ev.pointerType !== 'mouse' || detailDialog.open) return;
-    var button = ev.target.closest('button.more');
+    var button = ev.target.closest('button.more, button.rating-trigger');
     if (!button || button.contains(ev.relatedTarget)) return;
     clearTimeout(previewTimer); clearTimeout(previewCloseTimer);
     previewTimer = setTimeout(function () {
@@ -1233,7 +1307,7 @@
     }, 180);
   });
   document.addEventListener('pointerout', function (ev) {
-    var button = ev.target.closest('button.more');
+    var button = ev.target.closest(detailTriggers);
     if (button && !button.contains(ev.relatedTarget) && !detailPreview.contains(ev.relatedTarget)) schedulePreviewClose();
   });
   detailPreview.addEventListener('pointerenter', function () { clearTimeout(previewCloseTimer); });
@@ -1245,7 +1319,7 @@
   detailPreview.addEventListener('toggle', positionDetailPreview, true);
   document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape') hideDetailPreview(); });
   document.addEventListener('pointerdown', function (ev) {
-    if (!detailPreview.contains(ev.target) && !ev.target.closest('button.more')) hideDetailPreview();
+    if (!detailPreview.contains(ev.target) && !ev.target.closest(detailTriggers)) hideDetailPreview();
   });
   // A preview being read follows its button when the page scrolls, including the scroll the browser
   // makes itself when a goal moves a row above it; any other preview closes. One still waiting to
@@ -1276,7 +1350,7 @@
     if (state && state.focusTarget) state.focusTarget.focus(); else restoreDetailFocus(state);
   });
   document.addEventListener('click', function (ev) {
-    var button = ev.target.closest('button.more');
+    var button = ev.target.closest(detailTriggers);
     if (button) { openDetailDialog(button); return; }
     var link = ev.target.closest('a.detail__table');
     if (link) {
@@ -1305,11 +1379,6 @@
   function missTime(r, now) {
     var sc = r._b === 'live' ? scoreOf(r) : '', clk = clockOf(r);
     return sc ? 'live ' + sc + (clk ? ', ' + clk : '') : timeLabel(r) + dayTag(r, now);
-  }
-  function ratingDetails(rating) {
-    if (rating._personal) return rating.score + '/100, based on your prompt preferences';
-    if (rating._shared) return rating.score + '/100, from the site’s shared recommendations';
-    return 'Popularity ' + rating.popularity + ' · Expected gameplay ' + rating.gameplay + ' · Competitive impact ' + rating.impact;
   }
   // The top three are the best matches the viewer can watch: from the same matches as the top card and
   // the schedule (their services, their enabled leagues, none hidden from the strip), the top card's own
@@ -1382,7 +1451,7 @@
   MatchCard.prototype.renderPickScore = function () {
     var r = this.row, score = blendedScore(r), el = r.querySelector('.row__pick');
     if (!el) {
-      el = document.createElement('span'); el.className = 'row__pick dots';
+      el = document.createElement('button'); el.className = 'row__pick dots';
       r.querySelector('.row__kickoff').appendChild(el);
     }
     el.hidden = score === null;
@@ -1393,6 +1462,8 @@
     this.renderNews(now);
     if (role === 'schedule') {
       r.dataset.matchRole = role; r._matchCard = this; this.tick(r, now);
+      var league = r.querySelector('.row__league');
+      if (league && !league.querySelector('.league-trigger')) league.appendChild(leagueButton(r, league.querySelector('.lg')));
       this.renderPickScore();
       return r;
     }
@@ -1405,13 +1476,12 @@
     host._row = r; host._matchCard = this; host.replaceChildren();
     var emblem = r.querySelector('.row__league .lg'), badge = null;
     if (emblem) {
-      badge = emblem.cloneNode(true); badge.classList.add('match__league', top ? 'nextup__league' : 'pick__league');
-      badge.title = r.getAttribute('data-comp');
+      badge = leagueButton(r, emblem.cloneNode(true)); badge.classList.add('match__league', top ? 'nextup__league' : 'pick__league');
       if (!top) host.appendChild(badge);
     }
     var head = document.createElement('div'); head.className = top ? 'nextup__left' : 'pick__head';
     // The pick score as its dots alone; a page built without scores labels its cards Upcoming instead.
-    var score = blendedScore(r), label = document.createElement('div');
+    var score = blendedScore(r), label = document.createElement(score !== null ? 'button' : 'div');
     label.className = (top ? 'nextup__rating' : 'pick__rating') + (score !== null ? ' dots' : '');
     if (score !== null) showDots(label, r, score);
     else label.textContent = 'Upcoming';

@@ -41,7 +41,7 @@ For a browser preview at a chosen local time, append a fragment such as `#at-202
 
 | File or directory | Responsibility |
 | --- | --- |
-| [`build.py`](../build.py) | Fetch and interpret ESPN data, validate configuration, calculate the Outlook score and generate HTML. Also defines tracked leagues, their default selection and order, default services, and teams receiving an occasion-score bonus. |
+| [`build.py`](../build.py) | Fetch and interpret ESPN data, validate configuration, calculate the Outlook score and generate HTML. Also defines tracked leagues, their short descriptions, default selection and order, default services, and teams receiving an occasion-score bonus. |
 | [`discovery.py`](../discovery.py) | Generate public league and service schedule pages, their links, and search-discovery metadata. |
 | [`broadcast_listings.py`](../broadcast_listings.py) and the provider `*_listings.py` modules | Check public broadcaster schedules for usual coverage and Liga MX simulcasts, apply confirmed listings, and retain source/check results. |
 | [`watch_links.py`](../watch_links.py) | Validate broadcaster and manually supplied viewing URLs, then map them to eligible providers. |
@@ -50,7 +50,7 @@ For a browser preview at a chosen local time, append a fragment such as `#at-202
 | [`settings.toml`](../settings.toml) | AI configuration and score weights. |
 | [`web/page.html`](../web/page.html) | Page structure. |
 | [`web/styles.css`](../web/styles.css) | Layout, themes and responsive styles. |
-| [`web/app.js`](../web/app.js) | Settings tabs, filters, saved preferences, match cards, scoring in the browser, details overlays and applying live updates. |
+| [`web/app.js`](../web/app.js) | Settings tabs, filters, saved preferences, match cards, scoring in the browser, match/rating/league overlays and applying live updates. League sheets reuse the loaded schedule and standings rather than making separate requests. |
 | [`web/live.js`](../web/live.js) | Live-score requests, catch-up checks, timeouts and retry scheduling. |
 | [`web/teams.js`](../web/teams.js) | On-demand team profiles, competition-specific records, leading contributors, local caching and the team vitals dialog. |
 | [`web/personal-ai.js`](../web/personal-ai.js) | Personal AI prompt and response format, validation and import freshness. |
