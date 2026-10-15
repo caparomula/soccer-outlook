@@ -40,13 +40,6 @@ outlook = 30
 interest = 95
 league_priority = 5
 
-# Five strictly increasing score thresholds, above 0 and at most 100.
-# Below the first threshold shows one golden dot; reaching each threshold adds another dot.
-# These are fixed scores, not percentiles of the day's matches.
-
-[dots]
-thresholds = [35, 45, 55, 68, 80]
-
 # The Outlook score uses ESPN data and no AI. Each component ranges from 0 to 1:
 # stature: competition tier and prominent teams, divided by stature_full and capped at 1.
 # close: implied draw probability, scaled from draw_from (0) to draw_to (1).

@@ -371,7 +371,6 @@ class Settings:
     blurbs_effort: str | None
     blend: dict          # ai, outlook, interest, league_priority: weights, at least one of each pair above 0
     outlook: dict        # the [outlook] table as checked; knockout words in lower case, channel lists as sets
-    dots: tuple          # the five pick scores where a match's second to sixth golden dots begin
 
     @property
     def provider(self):
@@ -425,7 +424,7 @@ def load_settings(path, channels):
             problems.append(f"{where}: {', '.join(unknown)} not a channel in rights.toml")
         return frozenset(value)
 
-    top = table(os.path.basename(path), data, ("ai", "blend", "outlook", "dots"))
+    top = table(os.path.basename(path), data, ("ai", "blend", "outlook"))
     ai, ai_problems = providers.check_ai(top.get("ai", {}))
     problems += ai_problems
 
@@ -467,19 +466,11 @@ def load_settings(path, channels):
     both = sorted(outlook["network"] & outlook["cable"])
     if both:
         problems.append(f"[outlook] network and cable both list {', '.join(both)}")
-    d = table("[dots]", top.get("dots", {}), ("thresholds",))
-    dots = d.get("thresholds")
-    if not (isinstance(dots, list) and len(dots) == 5
-            and all(isinstance(t, (int, float)) and not isinstance(t, bool) and 0 < t <= 100 for t in dots)
-            and all(a < b for a, b in zip(dots, dots[1:]))):
-        problems.append("[dots] thresholds: must be five rising scores from above 0 to 100, where a match's second to sixth dots begin")
-        dots = None
     if problems:
         raise SettingsError(f"{os.path.basename(path)}:\n  " + "\n  ".join(problems))
     return Settings(ai=ai["enabled"], design=ai["design"], model=ai["model"], effort=ai["effort"],
                     overview_model=ai["overview_model"], overview_effort=ai["overview_effort"],
-                    blurbs_model=ai["blurbs_model"], blurbs_effort=ai["blurbs_effort"], blend=blend, outlook=outlook,
-                    dots=tuple(float(t) for t in dots))
+                    blurbs_model=ai["blurbs_model"], blurbs_effort=ai["blurbs_effort"], blend=blend, outlook=outlook)
 
 
 SETTINGS = load_settings(SETTINGS_PATH, {o["label"] for o in OUTLETS.values()})
@@ -1401,9 +1392,9 @@ def about_scores():
     pick = shares({"interest": b["interest"], "league_priority": b["league_priority"]})
     text = ("The page's own Outlook score rates every match from fixture and broadcast data, by the same arithmetic for each: "
             f"{listed}. Betting-market inputs come from the odds in ESPN's feed; the page shows no prices. ")
-    d = [f"{t:g}" for t in SETTINGS.dots]
-    dots = (f" Each match shows its pick score as one to six golden dots: two from {d[0]}, three from {d[1]}, four from "
-            f"{d[2]}, five from {d[3]} and six from {d[4]} out of 100.")
+    dots = (" Each match shows its pick score on a six-dot scale: multiply the score out of 100 by six and round "
+            "to the nearest whole number (halves round up). For example, 80.5 out of 100 gives five dots. "
+            "A score that rounds to zero dots is labelled 0/6. The rating breakdown appears directly in Details.")
     if SETTINGS.ai:
         mix = shares({"ai": b["ai"], "outlook": b["outlook"]})
         return text + (f"A match's interest is {mix['ai']}% the AI rating and {mix['outlook']}% the Outlook score (the "
@@ -1887,7 +1878,7 @@ def build_page(matches, cache, built_at, failed, today, skipped=(), site_url=Non
     page = (TEMPLATE
             .replace("@@LOGO_CSS@@", logo_css)
             .replace("@@SERVICE_META@@", json.dumps(svc_meta).replace("</", "<\\/"))
-            .replace("@@SCORING@@", json.dumps({"blend": SETTINGS.blend, "dots": list(SETTINGS.dots)}).replace("</", "<\\/"))
+            .replace("@@SCORING@@", json.dumps({"blend": SETTINGS.blend}).replace("</", "<\\/"))
             .replace("@@AI@@", "on" if SETTINGS.ai else "off")
             .replace("@@PRIORITY_HINT@@", esc(priority_hint()))
             .replace("@@ABOUT_AI@@", esc(about_ai()))

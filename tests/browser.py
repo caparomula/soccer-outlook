@@ -412,6 +412,8 @@ class BrowserChecks(unittest.TestCase):
                 page.clock.run_for(200)
                 preview = page.locator('#match-preview')
                 expect(preview).to_be_visible()
+                expect(preview.locator('.rating-breakdown [data-metric="overall"]')).to_be_visible()
+                expect(preview.locator('.rating-breakdown summary')).to_have_count(0)
                 expect(page.locator('#match-dialog')).to_be_hidden()
                 expect(row.locator('.row__detail')).to_be_hidden()
                 self.assertEqual(preview.locator('.row__detail').evaluate("el => { const facts = el.cloneNode(true); facts.querySelector('.rating-breakdown').remove(); return facts.textContent; }"), row.locator('.row__detail').text_content())
@@ -513,14 +515,14 @@ class BrowserChecks(unittest.TestCase):
                     card.locator('button.more').click()
                     dialog = page.locator('#match-dialog')
                     panel = dialog.locator('.rating-breakdown')
-                    expect(panel.locator('[data-metric="popularity"]').first).to_be_hidden()
-                    panel.locator('summary').click()
+                    expect(panel.locator('summary')).to_have_count(0)
+                    expect(panel.locator('[data-metric="popularity"]').first).to_be_visible()
                     # First popularity/gameplay/impact entries are the AI dimensions, followed by Outlook inputs.
                     expect(panel.locator('[data-metric="popularity"]').first).to_have_text('95/100')
                     expect(panel.locator('[data-metric="popularity"]').first.locator('i')).to_have_count(6)
-                    expect(panel.locator('[data-metric="gameplay"]').first.locator('i')).to_have_count(4)
+                    expect(panel.locator('[data-metric="gameplay"]').first.locator('i')).to_have_count(3)
                     expect(panel.locator('[data-metric="impact"]').first).to_have_text('0/100')
-                    expect(panel.locator('[data-metric="impact"]').first.locator('i')).to_have_count(1)
+                    expect(panel.locator('[data-metric="impact"]').first.locator('i')).to_have_count(0)
                     expect(panel.locator('[data-metric="stature"]')).to_have_text('100/100')
                     expect(panel.locator('[data-metric="stature"] i')).to_have_count(6)
                     if dialog.get_attribute('data-match-id') == 'later':
@@ -534,17 +536,17 @@ class BrowserChecks(unittest.TestCase):
                         expect(panel.locator('[data-metric="gameplay"]').last).to_have_text('Not available')
                     self.assertLessEqual(dialog.evaluate('el => el.scrollWidth'), dialog.evaluate('el => el.clientWidth'))
                     page.locator('#match-dialog-close').click()
-                # A new rating delivered while Details is open updates its components and preserves disclosure/focus.
+                # A new rating delivered while Details is open updates visible components and preserves focus.
                 page.locator('#nextup button.more').click()
                 panel = page.locator('#match-dialog .rating-breakdown')
-                if not panel.evaluate('el => el.open'):
-                    panel.locator('summary').click()
-                panel.locator('summary').focus()
+                page.locator('#match-dialog-close').focus()
                 story['rankings']['upcoming']['popularity'] = 81
                 story['generated_at'] = '2026-10-07T17:00:00Z'
                 page.clock.run_for(10 * 60 * 1000)
                 expect(panel.locator('[data-metric="popularity"]').first).to_have_text('81/100')
-                expect(panel.locator('summary')).to_be_focused()
+                expect(panel.locator('[data-metric="popularity"]').first).to_be_visible()
+                expect(panel.locator('[data-metric="popularity"]').first.locator('i')).to_have_count(5)
+                expect(page.locator('#match-dialog-close')).to_be_focused()
                 page.locator('#match-dialog').screenshot(path=str(self.artifacts / f'rating-breakdown-{width}-{theme}.png'))
                 page.locator('#match-dialog-close').click()
                 # A personal imported overall score must not reuse those automatic component estimates.
@@ -557,8 +559,6 @@ class BrowserChecks(unittest.TestCase):
                 self.close_personal_ai(page)
                 page.locator('#nextup button.more').click()
                 panel = page.locator('#match-dialog .rating-breakdown')
-                if not panel.evaluate('el => el.open'):
-                    panel.locator('summary').click()
                 expect(panel).to_contain_text('Component ratings are not available for this imported score.')
                 self.assertNotIn('81/100', panel.inner_text())
                 # Only the Outlook input with the corresponding color remains; no invented AI dimensions.
@@ -2029,8 +2029,8 @@ class BrowserChecks(unittest.TestCase):
                 expect(page.locator('#nextup-status')).to_have_text("30'")
                 # Interest (80 + Outlook 57.5) / 2 = 68.75; 80% of that and 20% of the league priority.
                 pick = round(0.8 * 68.75 + 0.2 * self.default_priority("eng.1"), 1)
-                expect(page.locator('#nextup-rating')).to_have_attribute('aria-label', f'Pick score {pick:g} out of 100, 5 dots of 6')
-                expect(page.locator('#nextup-rating i')).to_have_count(5)
+                expect(page.locator('#nextup-rating')).to_have_attribute('aria-label', f'Pick score {pick:g} out of 100, 4 dots of 6')
+                expect(page.locator('#nextup-rating i')).to_have_count(4)
                 expect(page.locator('#nextup-rating')).to_have_text('')
                 self.assertEqual(page.locator('#picks .pick').evaluate_all('els => els.map(e => e.dataset.matchId)'), ['live-second', 'mls', 'future'])
                 expect(page.locator('#picks .row__story')).to_have_count(3)
@@ -2458,17 +2458,17 @@ class BrowserChecks(unittest.TestCase):
                     ("esp", "2026-10-07T18:00:00+00:00", "pre", "ESPN+", "esp.1"),
                     ("off", "2026-10-07T19:00:00+00:00", "pre", "Peacock", "usa.1"),
                     ("done", "2026-10-07T15:00:00+00:00", "post", "ESPN+", "eng.1"),
-                    # Rated 1, moved to the last priority below: the score stays below 35.
+                    # Rated 1, moved to the last priority below: the score stays low.
                     ("low", "2026-10-07T20:00:00+00:00", "pre", "ESPN+",
                      next(lg for lg in reversed(list(build.LEAGUES)) if not build.LEAGUES[lg].get("default_off"))),
-                    # Rated 30 in the first league: 80% of (30 + Outlook 57.5) / 2 plus 20% of 100 is 55.0, the fourth dot's threshold.
+                    # Rated 30 in the first league: the blended pick score is 55.0, which rounds to three dots.
                     ("edge", "2026-10-07T21:00:00+00:00", "pre", "ESPN+", "eng.1")]
         story = self.tagged_story()
         low_league = fixtures[4][4]
         priority = ['eng.1', 'esp.1', *(lg for lg in build.LEAGUES if lg not in {'eng.1', 'esp.1', low_league}), low_league]
         story['rankings'] = {mid: dict(score=score, popularity=score, gameplay=score, impact=score)
                              for mid, score in (('eng', 92.5), ('esp', 80.5), ('off', 30), ('done', 60), ('low', 1), ('edge', 30))}
-        dots_for = lambda score: 1 + sum(score >= t for t in (35, 45, 55, 68, 80))       # the fixture settings' thresholds
+        dots_for = lambda score: int(score * 6 / 100 + 0.5)   # nearest integer, with halves rounded up
 
         def row(mid):
             return page.locator(f'li.row[data-id="{mid}"] .row__pick')
@@ -2496,11 +2496,11 @@ class BrowserChecks(unittest.TestCase):
                     self.assertEqual(row(mid).text_content(), '')                # dots, not words
                     dot = row(mid).locator('i').first.bounding_box()
                     self.assertTrue(4 <= dot['width'] <= 6 and 4 <= dot['height'] <= 6)
-                expect(row('low').locator('i')).to_have_count(1)                   # even the dullest match has one
-                self.assertEqual(row('edge').get_attribute('aria-label'), 'Pick score 55 out of 100, 4 dots of 6')   # a threshold counts
-                # 80% of (AI 92.5 + Outlook 57.5) / 2 plus 20% of priority 100 reaches the sixth dot exactly.
-                self.assertEqual(row('eng').get_attribute('aria-label'), 'Pick score 80 out of 100, 6 dots of 6')
-                expect(row('eng').locator('i')).to_have_count(6)
+                expect(row('low').locator('i')).to_have_count(1)                   # this low blended score rounds to one
+                self.assertEqual(row('edge').get_attribute('aria-label'), 'Pick score 55 out of 100, 3 dots of 6')
+                # 80% of (AI 92.5 + Outlook 57.5) / 2 plus 20% of priority 100 gives 80: five dots.
+                self.assertEqual(row('eng').get_attribute('aria-label'), 'Pick score 80 out of 100, 5 dots of 6')
+                expect(row('eng').locator('i')).to_have_count(5)
                 # The same dots, label and breakdown on the match's card, which shows no words for the score either.
                 for mid in ('eng', 'esp'):
                     for attribute in ('aria-label', 'title', 'role'):
@@ -2525,6 +2525,39 @@ class BrowserChecks(unittest.TestCase):
         # A page built without scores shows none.
         with self.page('after', html=re.sub(r' data-outlook="[^"]*"', '', render_page(build))) as (page, _):
             expect(page.locator('li.row .row__pick:visible')).to_have_count(0)
+
+    def test_six_dot_scale_rounds_nearest_including_halves_and_zero(self):
+        cases = [('zero', 0, 0), ('below_one', 8.3, 0), ('one', 8.4, 1), ('below_two', 24.9, 1),
+                 ('two', 25, 2), ('below_three', 41.6, 2), ('three', 41.7, 3), ('half', 50, 3),
+                 ('below_four', 58.3, 3), ('four', 58.4, 4), ('below_five', 74.9, 4), ('five', 75, 5),
+                 ('reported', 80.5, 5), ('below_six', 91.6, 5), ('six', 91.7, 6), ('highest', 100, 6)]
+        fixtures = [(mid, '2026-10-07T18:00:00+00:00', 'pre', 'ESPN+', 'eng.1') for mid, _, _ in cases]
+        html = render_page(build, fixtures=fixtures, ai=False)
+        # Isolate the display scale from league-priority weighting, while using the real renderer.
+        scoring = json.dumps({'blend': {'ai': 0, 'outlook': 100, 'interest': 100, 'league_priority': 0}})
+        html = re.sub(r'(<script type="application/json" id="scoring">)[^<]*(</script>)',
+                      lambda m: m[1] + scoring + m[2], html)
+        for mid, score, _ in cases:
+            html = re.sub(rf'(<li class="row [^>]*data-id="{mid}"[^>]*data-outlook=")[^"]*',
+                          lambda m: m[1] + str(score), html)
+        with self.page('after', html=html) as (page, _):
+            for mid, score, count in cases:
+                dots = page.locator(f'li.row[data-id="{mid}"] .row__pick')
+                expect(dots).to_have_attribute('aria-label', f'Pick score {score:g} out of 100, {count} {"dot" if count == 1 else "dots"} of 6')
+                expect(dots.locator('i')).to_have_count(count)
+                if count == 0:
+                    expect(dots).to_have_class(re.compile(r'dots--zero'))
+                    self.assertEqual(dots.evaluate("el => getComputedStyle(el, '::before').content"), '"0/6"')
+            card = page.locator('#picks .pick[data-match-id="reported"]')
+            expect(card.locator('.pick__rating i')).to_have_count(5)
+            expect(page.locator('#nextup-rating i')).to_have_count(6)
+            for mid, score, count in (cases[0], cases[12]):
+                page.locator(f'li.row[data-id="{mid}"] button.more').click()
+                overall = page.locator('#match-dialog [data-metric="overall"]')
+                expect(overall).to_be_visible()
+                expect(overall).to_have_text(f'{score:g}/100')
+                expect(overall.locator('i')).to_have_count(count)
+                page.locator('#match-dialog-close').click()
 
     def test_rolling_window_and_unrated_recommendation_fallback(self):
         # 1 pm on Wednesday the 7th: the page shows Wednesday to Saturday, each day from 4 am, so it ends at
@@ -4484,6 +4517,7 @@ NOT_RUN = 77
 # A compact cross-engine pass through the interactions most sensitive to browser behavior.
 # Chromium still runs every check by default; WebKit smoke is an additional compatibility check.
 SMOKE_TESTS = (
+    "test_six_dot_scale_rounds_nearest_including_halves_and_zero",
     "test_team_vitals_work_in_each_card_and_cache_across_reload",
     "test_team_vitals_keep_domestic_and_cup_records_separate",
     "test_ai_text_is_off_for_fresh_browsers_and_late_responses_until_explicitly_enabled",

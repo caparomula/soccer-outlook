@@ -125,7 +125,7 @@ def snapshot(api, matches, raw_events, observed_at, *, build_started_at=None, so
         "source_report": source_report,
         "settings": {
             "blend": config["blend"], "outlook": config["outlook"],
-            "dots": config["dots"],
+            "dots": {"scale": 6, "score_max": 100, "rounding": "nearest_half_up"},
             "ai": {"enabled": config["ai"], **{name: config[name] for name in ("design", "model", "effort", "overview_model",
                                                     "overview_effort", "blurbs_model", "blurbs_effort")}},
         },

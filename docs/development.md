@@ -47,7 +47,7 @@ For a browser preview at a chosen local time, append a fragment such as `#at-202
 | [`watch_links.py`](../watch_links.py) | Validate broadcaster and manually supplied viewing URLs, then map them to eligible providers. |
 | [`watch-links.toml`](../watch-links.toml) | Manually supplied YouTube TV watch URLs, keyed by ESPN fixture ID and matched to a confirmed channel. |
 | [`rights.toml`](../rights.toml) | Broadcaster aliases, services, simulcasts and each competition's usual coverage, with sources and check dates. |
-| [`settings.toml`](../settings.toml) | AI configuration, score weights and golden-dot thresholds. |
+| [`settings.toml`](../settings.toml) | AI configuration and score weights. |
 | [`web/page.html`](../web/page.html) | Page structure. |
 | [`web/styles.css`](../web/styles.css) | Layout, themes and responsive styles. |
 | [`web/app.js`](../web/app.js) | Settings tabs, filters, saved preferences, match cards, scoring in the browser, details overlays and applying live updates. |
@@ -70,6 +70,8 @@ For a browser preview at a chosen local time, append a fragment such as `#at-202
 | [`.github/scripts/`](../.github/scripts/) | Durable history archiving, mapping-issue maintenance and AI comparison reports. |
 
 The generator inlines the HTML, CSS and JavaScript assets into the page. Rebuild after editing them. Full builds copy `web/favicon.png` beside the HTML; the PNG works in browsers that do not support SVG favicons. If the SVG artwork changes, re-export the PNG at 64 × 64 with a transparent background. Fragment builds leave the icon to the host page.
+
+Rating dots use `Math.round(score * 6 / 100)` for both overall and component scores. The former `[dots]` threshold table is no longer used; remove it from older copies of `settings.toml`. Scores and ranking weights are unchanged by this display rule.
 
 Team links embed the schedule's existing team facts and open an accessible modal without changing the card layout. On first opening, `teams.js` requests `https://sports.core.api.espn.com/v2/sports/soccer/teams/{id}` for the club's default league and home venue. It then requests the site API's `/soccer/{league}/teams/{id}/roster` for season records and player statistics. National teams use the clicked match's competition. The venue's city is used; ESPN's team `location` field is often just the team name, and the current match's venue may be an away or neutral ground. A club roster with a different season year from its core profile is rejected. The coach field is ignored because it can be outdated.
 

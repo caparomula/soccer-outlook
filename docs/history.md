@@ -19,6 +19,8 @@ Each snapshot includes every match processed for the schedule, including disable
 | Provenance | Observation time, build start time, source URLs, source-health report and broadcaster verification details. |
 | Sourced measurements | Optional attendance, capacity, audience, video-view, search-interest or news-count observations supplied separately with their definitions and sources. |
 
+New snapshots describe the proportional dot display in `settings.dots` as a six-point scale with nearest-integer rounding and halves rounded up. Older snapshots retain their threshold arrays. This display change does not alter the numeric ratings or rewrite past observations.
+
 The AI popularity rating is an assessment of audience appeal, not a numerical attendance or viewership forecast. Likewise, the Outlook TV component measures the type of listed outlet, not how many people watched. Those distinctions matter when evaluating the score.
 
 An absent or zero-placeholder attendance value becomes `null`, with `attendance_status: "not_reported"`; it does not mean an empty stadium. The regular television and streaming audience fields remain `null` because the current feeds do not provide those figures. Separately sourced observations can be attached as described below; this archive does not infer an audience count from a popularity rating.

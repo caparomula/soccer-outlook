@@ -39,6 +39,7 @@ class MetricCapture(unittest.TestCase):
         self.assertEqual(row["outlook"]["score"], build.outlook_score(build.outlook_parts(self.match)))
         self.assertEqual(row["coverage"]["espn_listings"], comp["geoBroadcasts"])
         self.assertEqual(snapshot["settings"]["outlook"]["weights"], build.SETTINGS.outlook["weights"])
+        self.assertEqual(snapshot["settings"]["dots"], {"scale": 6, "score_max": 100, "rounding": "nearest_half_up"})
         self.assertEqual(snapshot["league_order"], list(build.LEAGUES))
         self.assertEqual(self.event, before)
 

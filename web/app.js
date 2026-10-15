@@ -25,9 +25,8 @@
   var SERVICE_NAMES = SERVICES.name;
   // How a pick score is made (settings.toml, embedded by build.py), and whether an AI model takes part
   // at all: with AI off the page never asks for story.json. A visitor can still import personal AI data.
-  var SCORING = { blend: { ai: 70, outlook: 30, interest: 95, league_priority: 5 }, dots: [35, 45, 55, 68, 80] };
+  var SCORING = { blend: { ai: 70, outlook: 30, interest: 95, league_priority: 5 } };
   try { SCORING = JSON.parse(document.getElementById('scoring').textContent) || SCORING; } catch (e) {}
-  if (!Array.isArray(SCORING.dots) || SCORING.dots.length !== 5) SCORING.dots = [35, 45, 55, 68, 80];   // a page from before six dots
   var AI_ON = app.getAttribute('data-ai') !== 'off';
   var PERSONAL = null;              // optional, private ratings/text imported by this visitor
   var SHARED = null, PUBLISHER = null; // repository-published manual response and optional owner connection
@@ -1007,9 +1006,8 @@
     return position < 0 ? 0 : order.length < 2 ? 100 : 100 * (order.length - 1 - position) / (order.length - 1);
   }
   function blendedScore(r) { var v = pickValue(r); return v === null ? null : Math.round(v * 10) / 10; }
-  // A pick score as one to six golden dots: one, and one more from each of settings.toml's [dots]
-  // thresholds, which are fixed scores, so a dot means the same every day.
-  function dotCount(score) { return 1 + SCORING.dots.filter(function (t) { return score >= t; }).length; }
+  // The same proportional six-dot scale for the pick score and all component ratings.
+  function dotCount(score) { return Math.round(Math.max(0, Math.min(100, score)) * 6 / 100); }
   function fillDots(el, n) {
     if (el.childElementCount === n) return;
     el.replaceChildren(); for (var i = 0; i < n; i++) el.appendChild(document.createElement('i'));
@@ -1019,6 +1017,7 @@
   function showDots(el, r, score) {
     var n = dotCount(score);
     fillDots(el, n);
+    el.classList.toggle('dots--zero', n === 0);
     el.setAttribute('role', 'img');
     el.setAttribute('aria-label', 'Pick score ' + score + ' out of 100, ' + n + (n === 1 ? ' dot' : ' dots') + ' of 6');
     el.title = 'Pick score ' + score + '/100, ' + n + ' of 6 dots. ' + scoreDetails(r);
@@ -1046,9 +1045,10 @@
   // Component scores are estimates, not measured attendance or audience. Keep them in Details,
   // using only the rating actually selected for this visitor; imported totals have no components.
   function ratingBreakdown(r) {
-    var panel = document.createElement('details'); panel.className = 'rating-breakdown';
-    var summary = document.createElement('summary'); summary.textContent = 'Rating breakdown'; panel.appendChild(summary);
+    var panel = document.createElement('section'); panel.className = 'rating-breakdown';
+    panel.setAttribute('aria-label', 'Rating breakdown');
     function text(tag, words) { var el = document.createElement(tag); el.textContent = words; panel.appendChild(el); return el; }
+    text('h3', 'Rating breakdown');
     function scores(items) {
       var list = document.createElement('dl'); list.className = 'rating-breakdown__scores';
       items.forEach(function (item) {
@@ -1067,14 +1067,14 @@
     }
     scores([['Pick score', blendedScore(r), 'overall']]);
     var rating = ratingOf(r);
-    text('h3', 'AI components');
+    text('h4', 'AI components');
     if (!rating) text('p', 'No AI component ratings available.');
     else if (rating._personal || rating._shared) text('p', 'Component ratings are not available for this imported score.');
     else {
       scores([['Popularity', rating.popularity, 'popularity'], ['Expected gameplay', rating.gameplay, 'gameplay'], ['Competitive impact', rating.impact, 'impact']]);
       text('p', 'AI estimates' + (raterName(rating) ? ' by ' + raterName(rating) : '') + '; not measured attendance or viewership.');
     }
-    text('h3', 'Outlook inputs');
+    text('h4', 'Outlook inputs');
     // build.py serializes these row attributes as percentages already, preserving missing values.
     var parts = {};
     try { parts = JSON.parse(r.getAttribute('data-outlook-parts') || '{}') || {}; } catch (e) {}
@@ -1156,12 +1156,10 @@
   }
   function fillDetails(surface, state) {
     var prefix = surface === detailDialog ? 'match-dialog' : 'match-preview';
-    var old = surface.querySelector('.rating-breakdown'), expanded = surface.dataset.matchId === state.card.row.getAttribute('data-id') && old && old.open;
     surface._signature = state.card.detailsSignature();
     surface.dataset.matchId = state.card.row.getAttribute('data-id');
     document.getElementById(prefix + '-title').textContent = matchName(state.card.row);
     document.getElementById(prefix + '-content').replaceChildren(state.card.detailsContent());
-    if (expanded) surface.querySelector('.rating-breakdown').open = true;
   }
   function hideDetailPreview() {
     clearTimeout(previewTimer); clearTimeout(previewCloseTimer);

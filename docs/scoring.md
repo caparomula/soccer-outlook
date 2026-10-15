@@ -140,19 +140,20 @@ This gives future analysis separate quantities to test: for example, whether pop
 
 ## What the golden dots mean
 
-One to six golden dots summarize the pick score using fixed thresholds in `[dots]`, not percentiles of that day's matches:
+Golden dots show the pick score on a proportional six-dot scale: **round(score × 6 / 100)** to the nearest whole number, with exact halves rounded up. The displayed score is already rounded to one decimal. The same rule applies to component ratings.
 
 | Pick score, rounded to one decimal | Dots |
 | --- | ---: |
-| Below 35 | 1 |
-| 35 to below 45 | 2 |
-| 45 to below 55 | 3 |
-| 55 to below 68 | 4 |
-| 68 to below 80 | 5 |
-| 80 or more | 6 |
+| 0 | 0, shown as `0/6` |
+| 25 | 2 |
+| 50 | 3 |
+| 75 | 5 |
+| 80.5 | 5 |
+| 91.6 | 5 |
+| 91.7 or more | 6 |
 
 Changing league priority can change a match's dots. Hover over them for the exact score and its components; screen readers receive the score and dot count. They are separate from the colored squares showing each team's recent results.
 
-**Details → Rating breakdown** shows the numeric pick score, the three automatic AI dimensions when available, and the five Outlook inputs. Components use a 0–100 display scale and the same six-dot thresholds, with distinct colors and text labels. Missing Outlook inputs show **Not available** rather than the midpoint assumption used in the total. Personal and shared imports have no component dimensions in their response format; the breakdown says they are unavailable and does not borrow automatic AI components. These additional rows appear only in the Details popup or dialog.
+The **Rating breakdown** appears immediately in the Details popup or dialog, without a second disclosure to expand. It shows the numeric pick score, the three automatic AI dimensions when available, and the five Outlook inputs. Components use a 0–100 display scale and the same proportional rounding, with distinct colors and text labels. Missing Outlook inputs show **Not available** rather than the midpoint assumption used in the total. Personal and shared imports have no component dimensions in their response format; the breakdown says they are unavailable and does not borrow automatic AI components.
 
 See the [development guide](development.md) for changing settings and running the checks, or return to the [project overview](../README.md).

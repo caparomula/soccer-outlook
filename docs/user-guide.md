@@ -163,7 +163,7 @@ Links open on the device you are using. Whether they launch an installed app dep
 
 | On the page | Meaning |
 | --- | --- |
-| One to six golden dots | The match's pick score: more dots mean greater recommended interest, not a predicted result. Hover for the exact score and its components. |
+| Up to six golden dots | The pick score ÷ 100 × 6, rounded to the nearest whole number; 80.5/100 gives five dots. A score rounding to zero dots shows `0/6`. Hover for the exact score and its components. These rate recommended interest, not a predicted result. |
 | Up to five small squares beside a team | Recent form: green is a win, grey a draw, red a loss. The tooltip shows the W/D/L sequence. |
 | A record such as `6–2–1` | Season wins, draws and losses, in that order. |
 | Colored broadcaster pill | That channel is available through one of your selected services. |
@@ -189,7 +189,7 @@ Hover over **Details** for a floating preview. Click, tap or press Enter to open
 
 Details can include season records, leading scorers, venue information and links, depending on what ESPN supplies. Featured cards without a blurb show these facts and links directly. **Add to calendar** opens a Google Calendar event draft for a confirmed kickoff; it is unavailable while the time is TBD. The event names the broadcast outlet rather than assuming which subscription you use. **League table** opens the page's standings. The schedule remains usable when an optional fact or image is missing.
 
-Open **Rating breakdown** inside Details to see the pick score and its ingredients. Automatic AI ratings show **Popularity**, **Expected gameplay** and **Competitive impact**. Outlook inputs show **Match stature**, **Evenness**, **Competitive stakes**, **TV reach** and **Expected goals**. Each available component has a number from 0 to 100 and up to six colored dots. Missing inputs say **Not available**, without dots. Personal or shared AI imports provide only a total rating, so the breakdown does not invent their missing components or substitute those from another AI response.
+The **Rating breakdown** is shown directly inside Details, with no extra disclosure to expand. Automatic AI ratings show **Popularity**, **Expected gameplay** and **Competitive impact**. Outlook inputs show **Match stature**, **Evenness**, **Competitive stakes**, **TV reach** and **Expected goals**. Each available component has a number from 0 to 100 and up to six colored dots, using the same proportional rounding as the pick score. Missing inputs say **Not available**, without dots. Personal or shared AI imports provide only a total rating, so the breakdown does not invent their missing components or substitute those from another AI response.
 
 These component rows stay inside Details; the match card keeps its overall golden dots. Popularity and TV reach are assessments of appeal and distribution, not measured attendance or viewership. See [How matches are ranked](scoring.md) for the formulas.
 
