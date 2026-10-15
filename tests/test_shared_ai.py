@@ -111,6 +111,34 @@ class SharedAI(unittest.TestCase):
             self.assertFalse(build.write_shared_ai(self.output, self.now, source))
         self.assertEqual(source.read_bytes(), raw)
 
+    def test_calendar_event_period_survives_publication_without_becoming_response_expiry(self):
+        value = envelope(self.now)
+        item = value["response"]["headlines"][0]
+        item.update(match_ids=[], sources=[{"title": "League calendar", "url": "https://example.com/calendar"}],
+                    event_start=(self.now + timedelta(days=2)).isoformat(), event_end=(self.now + timedelta(days=3)).isoformat())
+        raw = self.write_source(value)
+        self.assertTrue(build.write_shared_ai(self.output, self.now, self.source))
+        self.assertEqual(self.destination.read_bytes(), raw)
+        # The event can be later than this response's expiry; it does not extend the response lifetime.
+        self.assertFalse(build.write_shared_ai(self.output, self.now + timedelta(hours=24), self.source))
+
+    def test_invalid_calendar_event_periods_are_not_published(self):
+        for label, timing in (
+            ("missing end", {"event_start": "2026-10-14T12:00:00Z"}),
+            ("missing start", {"event_end": "2026-10-15T12:00:00Z"}),
+            ("naive", {"event_start": "2026-10-14T12:00:00", "event_end": "2026-10-15T12:00:00Z"}),
+            ("impossible date", {"event_start": "2026-02-30T12:00:00Z", "event_end": "2026-10-15T12:00:00Z"}),
+            ("reversed", {"event_start": "2026-10-15T12:00:00Z", "event_end": "2026-10-14T12:00:00Z"}),
+            ("completed", {"event_start": "2026-10-12T12:00:00Z", "event_end": "2026-10-13T12:00:00Z"}),
+            ("private value", {"event_start": {"preferences": "private"}, "event_end": "2026-10-15T12:00:00Z"}),
+        ):
+            with self.subTest(label=label), redirect_stderr(io.StringIO()):
+                value = envelope(self.now)
+                value["response"]["headlines"][0].update(match_ids=[], sources=[{"title": "Calendar", "url": "https://example.com/calendar"}], **timing)
+                self.write_source(value)
+                self.assertFalse(build.write_shared_ai(self.output, self.now, self.source))
+                self.assertFalse(self.destination.exists())
+
     def test_full_build_publishes_defaults_but_fragment_does_not(self):
         raw = self.write_source(envelope(datetime.now(timezone.utc)))
         with patch.object(build, "SHARED_AI_SOURCE", self.source):

@@ -3677,7 +3677,8 @@ class BrowserChecks(unittest.TestCase):
         deadline = snapshot.get("response_expires_at") or (datetime.fromisoformat(snapshot["now"]) + timedelta(hours=24)).isoformat()
         return {"league_id": league, "headline": title, "lede": lede, "interest": interest, "match_ids": ids,
                 "sources": sources if sources is not None else [{"url": "https://news.example/preview", "title": "Match preview"}],
-                "expires_at": expires_at or deadline}
+                "expires_at": expires_at or deadline,
+                **({"event_start": snapshot["now"], "event_end": deadline} if not ids else {})}
 
     @staticmethod
     def personal_ai_headline_reply(snapshot, headlines):
@@ -3802,6 +3803,94 @@ class BrowserChecks(unittest.TestCase):
                 expect(page.locator('li.row[data-id="a"] .row__story')).to_contain_text("Your preview for a.")
                 self.open_settings(page, "ai")
 
+    def test_calendar_headlines_use_event_dates_and_never_extend_finished_match_coverage(self):
+        fixtures = [("upcoming", "2026-10-07T17:05:00+00:00", "pre", "ESPN+", "eng.1"),
+                    ("europe", "2026-10-08T23:00:00+00:00", "pre", "Paramount+", "uefa.champions")]
+        with self.page("after", html=render_page(build, fixtures=fixtures, ai=False)) as (page, feed):
+            self.enable_ai_text(page)
+            self.open_settings(page, "ai")
+            page.locator("#ai-generate").click()
+            snapshot = self.personal_ai_snapshot(page)
+            calendar = self.personal_ai_headline(snapshot, "eng.fa", [], "Saturday's qualifying round approaches", 99)
+            calendar.update(event_start="2026-10-10T00:00:00-04:00", event_end="2026-10-11T00:00:00-04:00")
+            reply = self.personal_ai_headline_reply(snapshot, [
+                self.personal_ai_headline(snapshot, "eng.1", ["upcoming"], "A returning midfielder changes the contest", 70),
+                self.personal_ai_headline(snapshot, "uefa.champions", ["europe"], "The European contenders meet", 90), calendar])
+            page.locator("#ai-response").fill(json.dumps(reply))
+            page.locator("#ai-apply").click()
+            expect(page.locator("#ai-error")).to_be_empty()
+            self.close_personal_ai(page)
+            lead = page.locator("#story-headlines > article.story-headline")
+            expect(lead).to_have_attribute("data-league", "eng.1")
+            # The calendar notice is rated 99 but belongs to Saturday, not the current interval.
+            self.assertEqual(page.locator(".story-headlines__list article").evaluate_all("els => els.map(el => el.dataset.league)"),
+                             ["uefa.champions", "eng.fa"])
+            feed["data"] = scoreboard("post")
+            page.clock.run_for(60000)
+            expect(lead).to_have_attribute("data-league", "uefa.champions")
+            expect(page.locator('#story-headlines article[data-league="eng.1"]')).to_have_count(0)
+            page.reload()
+            expect(lead).to_have_attribute("data-league", "uefa.champions")
+
+    def test_headline_league_preference_can_outweigh_a_small_interest_difference(self):
+        fixtures = [("europe", "2026-10-07T19:00:00+00:00", "pre", "Paramount+", "uefa.champions"),
+                    ("cup", "2026-10-07T20:00:00+00:00", "pre", "ESPN+", "eng.fa")]
+        shared = self.shared_ai_payload(fixtures)
+        snapshot = {"now": BUILT_AT.isoformat(), "request_id": shared["response"]["request_id"], "matches": shared["fixtures"]}
+        shared["response"]["headlines"] = [
+            self.personal_ai_headline(snapshot, "uefa.champions", ["europe"], "The European contenders meet", 80),
+            self.personal_ai_headline(snapshot, "eng.fa", ["cup"], "The cup contenders meet", 85)]
+        with self.page("after", html=render_page(build, fixtures=fixtures, ai=False), shared=shared) as (page, feed):
+            self.enable_ai_text(page)
+            lead = page.locator("#story-headlines > article.story-headline")
+            expect(lead).to_have_attribute("data-league", "uefa.champions")
+            # Saved preferences change the winner without rewriting the imported AI interest scores.
+            priority = [key for key in build.LEAGUES if key not in ("eng.fa", "uefa.champions")]
+            page.evaluate("order => localStorage.setItem('ssg4-league-order', JSON.stringify(order))", ["eng.fa", *priority, "uefa.champions"])
+            page.reload()
+            expect(lead).to_have_attribute("data-league", "eng.fa")
+            # League preference cannot rescue a headline below the absolute editorial threshold.
+            feed["shared_data"]["response"]["headlines"][1]["interest"] = 59
+            page.reload()
+            expect(lead).to_have_attribute("data-league", "uefa.champions")
+            expect(page.locator('#story-headlines article[data-league="eng.fa"]')).to_have_count(0)
+
+    def test_undated_calendar_imports_keep_ratings_and_dated_notices_expire_at_event_end(self):
+        with self.page("after", html=render_page(build, ai=False)) as (page, _):
+            self.enable_ai_text(page)
+            self.open_settings(page, "ai")
+            page.locator("#ai-generate").click()
+            prompt = page.locator("#ai-prompt").input_value()
+            self.assertIn("event_start and event_end", prompt)
+            self.assertIn("Do not write round recaps", prompt)
+            self.assertIn("Weave the competition's familiar name naturally into the headline itself", prompt)
+            self.assertIn("strongest specific angle in the research used for its match blurbs", prompt)
+            snapshot = self.personal_ai_snapshot(page)
+            calendar = self.personal_ai_headline(snapshot, "uefa.champions", [], "The ongoing break changes the schedule", 85)
+            del calendar["event_start"], calendar["event_end"]
+            reply = self.personal_ai_headline_reply(snapshot, [calendar])
+            page.locator("#ai-response").fill(json.dumps(reply))
+            page.locator("#ai-apply").click()
+            expect(page.locator("#ai-error")).to_be_empty()
+            expect(page.locator("#ai-status")).to_contain_text("Calendar headlines without event dates are hidden")
+            self.close_personal_ai(page)
+            expect(page.locator("#story")).to_be_hidden()
+            expect(page.locator('li.row[data-id="upcoming"] .row__story')).to_contain_text("Your preview for upcoming.")
+            page.reload()
+            expect(page.locator("#story")).to_be_hidden()
+            saved = page.evaluate("JSON.parse(localStorage.getItem('sso-personal-ai-v1'))")
+            self.assertEqual(saved["applied"]["response"]["matches"], reply["matches"])
+            self.open_settings(page, "ai")
+            calendar.update(event_start="2026-10-07T12:00:00-04:00", event_end="2026-10-07T13:10:00-04:00")
+            page.locator("#ai-response").fill(json.dumps(reply))
+            page.locator("#ai-apply").click()
+            expect(page.locator("#ai-error")).to_be_empty()
+            self.close_personal_ai(page)
+            expect(page.locator("#story-headlines > article.story-headline")).to_have_attribute("data-league", "uefa.champions")
+            page.evaluate("location.hash = '#at-20261007-1311'")
+            expect(page.locator("#story")).to_be_hidden()
+            expect(page.locator('li.row[data-id="upcoming"] .row__story')).to_contain_text("Your preview for upcoming.")
+
     def test_bad_personal_ai_headlines_leave_the_accepted_response_in_place(self):
         fixtures = [("eng", "2026-10-07T18:00:00+00:00", "pre", "ESPN+", "eng.1"),
                     ("esp", "2026-10-07T19:00:00+00:00", "pre", "ESPN+", "esp.1")]
@@ -3815,7 +3904,8 @@ class BrowserChecks(unittest.TestCase):
             page.locator("#ai-response").fill(json.dumps(valid))
             page.locator("#ai-apply").click()
             expect(page.locator("#ai-error")).to_be_empty()
-            for name in ("unknown league", "duplicate league", "cross-league match", "unsourced calendar", "unsafe source", "excessive expiry", "bad interest"):
+            for name in ("unknown league", "duplicate league", "cross-league match", "unsourced calendar", "unsafe source", "excessive expiry", "bad interest",
+                         "incomplete period", "naive period", "reversed period", "finished period", "impossible date"):
                 with self.subTest(response=name):
                     reply = deepcopy(valid)
                     item = reply["headlines"][0]
@@ -3831,8 +3921,15 @@ class BrowserChecks(unittest.TestCase):
                         item["sources"][0]["url"] = "javascript:window.__unsafeExecuted=true"
                     elif name == "excessive expiry":
                         item["expires_at"] = "2026-10-09T17:00:00Z"
-                    else:
+                    elif name == "bad interest":
                         item["interest"] = 101
+                    else:
+                        item.update(match_ids=[], event_start="2026-10-08T17:00:00Z", event_end="2026-10-09T17:00:00Z")
+                        if name == "incomplete period": del item["event_end"]
+                        elif name == "naive period": item["event_start"] = "2026-10-08T17:00:00"
+                        elif name == "reversed period": item["event_end"] = item["event_start"]
+                        elif name == "finished period": item.update(event_start="2026-10-06T17:00:00Z", event_end="2026-10-07T17:00:00Z")
+                        elif name == "impossible date": item["event_start"] = "2026-02-30T17:00:00Z"
                     page.locator("#ai-response").fill(json.dumps(reply))
                     page.locator("#ai-apply").click()
                     expect(page.locator("#ai-error")).to_be_visible()
@@ -4178,6 +4275,9 @@ SMOKE_TESTS = (
     "test_shared_ai_defaults_reach_new_visitors_and_local_imports_take_precedence",
     "test_github_publication_checks_access_keeps_tokens_private_and_preserves_local_results",
     "test_personal_ai_headlines_prioritize_near_matches_and_expand_on_request",
+    "test_calendar_headlines_use_event_dates_and_never_extend_finished_match_coverage",
+    "test_headline_league_preference_can_outweigh_a_small_interest_difference",
+    "test_undated_calendar_imports_keep_ratings_and_dated_notices_expire_at_event_end",
     "test_personal_ai_prompt_import_weight_persistence_and_reset",
     "test_lineup_persists_and_resets",
     "test_watch_links_follow_service_access_in_schedule_and_featured_cards",

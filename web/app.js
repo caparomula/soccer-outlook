@@ -4,6 +4,7 @@
   var WINDOW_DAYS = 3;               // the page shows today and the three days after it (story.py's WINDOW_DAYS)
   var FOCUS_MS = 24 * 60 * 60000;
   var HEADLINE_MIN = 60;            // absolute editorial interest: routine fixture notices stay out
+  var HEADLINE_LEAGUE_WEIGHT = 0.2; // headline selection: 80% editorial interest, 20% saved league priority
   var LIVE_MS = 125 * 60000;
   var LS = { mode: 'ssg2-mode', have: 'ssg3-have', leagues: 'ssg5-leagues', compOff: 'ssg2-comp-off', paused: 'ssg1-league-paused', priority: 'ssg4-league-order', services: 'ssg4-service-order', aiBlurbs: 'ssg3-ai-blurbs' };
   var app = document.getElementById('app');
@@ -1667,16 +1668,25 @@
   }
   // Headline interest measures editorial usefulness, separately from a game's pick score. Stories
   // within the next 24 hours come before later ones; low-rated filler never wins an empty slot.
+  // Calendar notices use their verified event period, never an assumed "now".
   function rankedHeadlines(items, now) {
     var order = leagueOrder();
     function kickoff(item) {
-      if (!item.match_ids.length) return now; // verified calendar context is about the current slate
+      if (!item.match_ids.length) return Math.max(now, Date.parse(item.event_start));
       return Math.min.apply(Math, item.match_ids.map(function (id) { return Math.max(now, ROW_BY_ID[id]._k); }));
     }
     function band(item) { return Math.floor((kickoff(item) - now) / FOCUS_MS); }
+    function score(item) {
+      var position = order.indexOf(item.league_id);
+      var priority = position < 0 ? 0 : order.length < 2 ? 100 : 100 * (order.length - 1 - position) / (order.length - 1);
+      return item.interest * (1 - HEADLINE_LEAGUE_WEIGHT) + priority * HEADLINE_LEAGUE_WEIGHT;
+    }
     var seen = Object.create(null);
-    return items.filter(function (item) { return item.interest >= HEADLINE_MIN; }).sort(function (a, b) {
-      return band(a) - band(b) || b.interest - a.interest || order.indexOf(a.league_id) - order.indexOf(b.league_id) || kickoff(a) - kickoff(b);
+    return items.filter(function (item) {
+      return item.interest >= HEADLINE_MIN && (item.match_ids.length ||
+        (Number.isFinite(Date.parse(item.event_start)) && now < Date.parse(item.event_end)));
+    }).sort(function (a, b) {
+      return band(a) - band(b) || score(b) - score(a) || b.interest - a.interest || kickoff(a) - kickoff(b) || order.indexOf(a.league_id) - order.indexOf(b.league_id);
     }).filter(function (item) {
       var key = item.headline.toLocaleLowerCase().replace(/\s+/g, ' ').trim();
       if (seen[key]) return false;

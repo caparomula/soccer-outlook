@@ -37,6 +37,14 @@
       if (typeof value !== 'string' || !/^[a-zA-Z0-9_.-]{1,100}$/.test(value)) fail('Each headline must use a supplied league ID.');
       return value;
     }
+    function isoTime(value) {
+      if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/.test(value)) return NaN;
+      var date = new Date(0), year = +value.slice(0, 4), month = +value.slice(5, 7), day = +value.slice(8, 10);
+      date.setUTCFullYear(year, month - 1, day);
+      if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day ||
+          +value.slice(11, 13) > 23 || +value.slice(14, 16) > 59 || +value.slice(17, 19) > 59) return NaN;
+      return Date.parse(value);
+    }
     function sources(value) {
       if (!Array.isArray(value) || value.length > 5) fail('Sources must be an array with at most five links.');
       return value.map(function (source) {
@@ -103,12 +111,20 @@
         });
         var links = sources(item.sources);
         if (!references.length && !links.length) fail('A league calendar notice without match IDs needs a verified source.');
-        var expires = typeof item.expires_at === 'string' ? Date.parse(item.expires_at) : NaN;
-        if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/.test(item.expires_at) ||
-            !Number.isFinite(expires) || expires <= req.created_at || expires > req.created_at + DAY) fail('Each headline needs an ISO expiry after prompt creation and no later than response_expires_at.');
-        return { league_id: key, headline: text(item.headline, 80, 'Each headline'),
+        var expires = isoTime(item.expires_at);
+        if (!Number.isFinite(expires) || expires <= req.created_at || expires > req.created_at + DAY) fail('Each headline needs an ISO expiry after prompt creation and no later than response_expires_at.');
+        var result = { league_id: key, headline: text(item.headline, 80, 'Each headline'),
           lede: text(item.lede === undefined ? '' : item.lede, 240, 'Each headline summary', true),
           interest: item.interest, match_ids: references, sources: links, expires_at: new Date(expires).toISOString() };
+        if (item.event_start !== undefined || item.event_end !== undefined) {
+          var start = isoTime(item.event_start), end = isoTime(item.event_end);
+          if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start || end <= req.created_at) {
+            fail('Calendar event_start and event_end must be ISO timestamps with timezones, in order, for an upcoming or ongoing event.');
+          }
+          result.event_start = new Date(start).toISOString(); result.event_end = new Date(end).toISOString();
+        }
+        // Older undated notices remain in the import so its ratings are preserved, but cannot be shown.
+        return result;
       });
     }
     function validate(value, req) {
@@ -164,7 +180,10 @@
       return applied.response.headlines.filter(function (item) {
         var eligible = options.leagueEligible ? options.leagueEligible(item.league_id) :
           options.snapshot && options.snapshot().services.length && options.snapshot().league_order.some(function (league) { return league.id === item.league_id; });
-        return eligible && now() < Date.parse(item.expires_at) && item.match_ids.every(function (key) { return !!rating(key); });
+        var current = now();
+        return eligible && current < Date.parse(item.expires_at) && (item.match_ids.length ?
+          item.match_ids.every(function (key) { return !!rating(key); }) :
+          Number.isFinite(Date.parse(item.event_start)) && current < Date.parse(item.event_end));
       });
     }
     function active() { return !!applied && applied.response.matches.some(function (match) { return !!rating(match.id); }); }
@@ -253,6 +272,9 @@
       } else if (obsoletePrompt) {
         messages.push('Your saved prompt used the older overview format and can no longer be copied. Select “Create prompt” to request league headlines.');
       }
+      if (applied && alive(applied.request) && applied.response.version === 2 && applied.response.headlines.some(function (item) {
+        return !item.match_ids.length && !item.event_start;
+      })) messages.push('Calendar headlines without event dates are hidden. Your match ratings and blurbs are kept. Select “Create prompt” to update the calendar coverage.');
       if (pending && pending.preferences !== preferences) messages.push('Preferences changed; create a new prompt to include them.');
       if (pending && pending.weight !== weight) messages.push('The rating blend is updated, but the saved prompt still has the previous blend. Create a new prompt to update it.');
       if (notSaved) messages.push('Changes work in this tab, but could not be saved in this browser.');
@@ -290,9 +312,11 @@
         'The app blends match scores with its existing Outlook scores, then applies league priority separately. Do not multiply scores by the league ordering. My selected blend is ' + req.weight + '% your rating and ' + (100 - req.weight) + '% Outlook rating.',
         'The cards already show teams, competition, kickoff date and time, venue, broadcasters, standings and recent form. Do not repeat kickoff dates, times, channels or venue in match blurbs, and do not recite table or form figures. Add a concrete reason to care about this particular match and explain what a fact means for the contest.',
         'Research before writing when web search is available. Seek one or two specific angles per match: a named player returning or missing, an individual matchup, a coach\'s reported selection or tactical decision, a documented rivalry or relevant recent meeting, or concrete title, qualification or relegation stakes. Explain how the angle affects this fixture. Check that reporting concerns the correct teams, season and fixture date; do not confuse a previous meeting with the supplied match. Prefer club or federation previews and recent reporting from established newspapers, broadcasters and wire services. Read beyond snippets when needed; cite pages actually consulted. Do not rely on memory for current squads, managers, injuries or lineups. Prioritize research for sooner and higher-interest matches, but rate every supplied match.',
-        'For headlines, consider EVERY enabled league in league_order, including leagues with no supplied fixtures, and return at most one item per league. Omit leagues with nothing useful to say; headlines: [] is valid. These are compact editorial headlines, not another overview paragraph or match schedule. The headline must be at most 80 characters, ideally 3–8 words; its optional lede can be empty or one short sentence of at most 240 characters. Style examples only, not claims to repeat: "The title race reaches its final round" or "League play resumes after international break". Write the actual verified story, not a generic template.',
-        'Rate each headline\'s interest independently of individual match scores and league priority: below 60 means routine schedule information; 60 means a useful verified calendar development; 80 means a major competition phase, rivalry, or concrete stakes; 95 means exceptional news directly affecting upcoming play. The app displays only headlines at 60 or above and chooses among eligible leagues. Do not inflate scores simply to get a headline displayed. Favor developments pertinent to the current day and next 24 hours, then look farther ahead when little is happening sooner.',
+        'For headlines, consider EVERY enabled league in league_order, including leagues with no supplied fixtures, and return at most one item per league. Omit leagues with nothing useful to say; headlines: [] is valid. These are compact editorial headlines, not another overview paragraph or match schedule. The headline must be at most 80 characters, ideally 3–8 words; its optional lede can be empty or one short sentence of at most 240 characters. Weave the competition\'s familiar name naturally into the headline itself, using the supplied league name or a widely recognized short name such as Champions League, Premier League, MLS or FA Cup. The title must identify its competition without relying on the emblem, byline or lede. Style examples only, not claims to repeat: "Premier League title race reaches its final round" or "MLS returns after the international break". Write the actual verified story, not a generic template.',
+        'Build each league headline from the strongest specific angle in the research used for its match blurbs: a consequential player absence or return, a tactical contest, a documented rivalry, or a concrete change at stake. Say what makes the upcoming play matter; do not merely announce that fixtures or a qualifying round are scheduled. Let the optional lede explain the evidence or consequence instead of repeating the title. A broad calendar headline belongs only when the change itself meaningfully shapes the viewing outlook, such as a substantial international break or a major competition phase beginning. Prefer a supported, informative headline to hype; omit a league when its only angle is a routine fixture announcement.',
+        'Rate each headline\'s interest independently of individual match scores and league priority: below 60 means routine schedule information, even if verified; 60 means a specific useful development affecting upcoming play; 80 means a major competition phase, rivalry, or concrete stakes; 95 means exceptional news directly affecting upcoming play. Consider public significance, likely audience and the level of competition: a preliminary qualifying round is not a major final simply because its name contains "final". The app first prefers the nearest 24-hour window, then blends 80% headline interest with 20% of my saved league priority. Do not apply league priority yourself. Only headlines with raw interest at least 60 can appear; do not inflate scores to fill a slot. Favor developments pertinent to the current day and next 24 hours, then look farther ahead when little is happening sooner.',
         'A match-related headline must list all the supplied match IDs needed to support its text, from that same league only. Those matches must be upcoming or live. The sole exception for match_ids: [] is a verified, sourced league-calendar notice such as an upcoming international break or confirmed resumption. That exception may concern an enabled league with no viewable fixture; it still requires at least one source page actually checked. Never infer a break, season start, resumption, or cancellation from a sparse or empty fixture list. If browsing cannot verify a calendar notice, omit it. Exclude general club news, financial investigations, ownership stories and unrelated controversy.',
+        'For every calendar notice with match_ids: [], add event_start and event_end as ISO timestamps with timezones describing the actual upcoming or ongoing event period, not when you wrote the response. A Saturday round belongs on Saturday, not the current day. If a source specifies only calendar dates, use the start of the first day and the start of the day after the last day in the supplied timezone; do not invent precise kickoff times. An ongoing break can have event_start in the past, but event_end must still be in the future. These dates are required for display; omit the notice if you cannot verify them. Match-linked headlines use the supplied kickoffs instead. Do not write round recaps, result summaries, or headlines about completed events.',
         'Each headline must have expires_at as an ISO timestamp after prompt creation and no later than response_expires_at, ' + deadline + '. Choose an earlier expiry if the headline will stop being useful sooner. Use specific weekdays or dates in the supplied timezone when needed, never today, tomorrow, tonight, or this morning: cached text may cross midnight. Do not repeat fixture dates or times unless they are essential to the calendar development.',
         'Write plainly and specifically. Avoid filler such as "both sides will be looking for a win", "an intriguing clash", "one to watch" or "three points are at stake". If browsing is unavailable or finds no relevant reporting, use only a useful comparison or implication established by the supplied facts. Do not invent news, rivalries, injuries, stakes, results, lineups or quotes, and do not predict exact scores. If no useful supported angle exists for a match, keep its score but return blurb: "" and sources: [] instead of schedule details or hype. Do not fill empty headline slots.',
         'Put citations only in sources, not in the prose: at most five links per match or headline, each with a title and an HTTPS URL from a page you actually consulted. Use [] for text based only on supplied facts; a calendar notice without match IDs always requires sources. Never invent URLs. All JSON string values must be plain text with no HTML, Markdown, citation markers or embedded links; the outer JSON code fence is the only Markdown. Keep match blurbs to one or two short sentences; 400 characters is a ceiling, not a target.',

@@ -2122,7 +2122,8 @@ def write_shared_ai(output_dir, built_at, source=None):
         if response["version"] == 2:
             seen = set()
             for item in array(response["headlines"], len(leagues)):
-                fields(item, "league_id headline lede interest match_ids sources expires_at")
+                timed = isinstance(item, dict) and ("event_start" in item or "event_end" in item)
+                fields(item, "league_id headline lede interest match_ids sources expires_at" + (" event_start event_end" if timed else ""))
                 if not isinstance(item["league_id"], str) or item["league_id"] not in leagues or item["league_id"] in seen:
                     raise ValueError("invalid headline league")
                 seen.add(item["league_id"])
@@ -2138,6 +2139,10 @@ def write_shared_ai(output_dir, built_at, source=None):
                 source_fields(item["sources"])
                 if not item["match_ids"] and not item["sources"]:
                     raise ValueError("calendar headlines must include a source")
+                if timed:
+                    start, end = timestamp(item["event_start"]), timestamp(item["event_end"])
+                    if end <= start or end <= value["created_at"]:
+                        raise ValueError("calendar event period must be upcoming or ongoing at prompt creation")
         else:
             fields(response["overview"], "text match_ids sources")
             text(response["overview"]["text"], 600)

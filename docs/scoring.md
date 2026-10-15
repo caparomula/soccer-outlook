@@ -37,6 +37,18 @@ Turning off **Settings → AI → Show AI headlines and match blurbs** hides tex
 
 The browser ranks by the unrounded blend. Tooltips and dots use the score rounded to one decimal. A tooltip identifies the rating model and lists the score's parts.
 
+## Choosing the lead headline
+
+Headlines have their own editorial interest ratings, separate from match scores. The AI is asked to use the strongest researched angle from the match blurbs, include the competition's name naturally, and omit routine schedule announcements. A raw interest rating below 60 is never displayed.
+
+Among eligible headlines, the nearest rolling 24-hour window comes first. Within that window:
+
+```text
+headline selection score = 80% editorial interest + 20% league priority
+```
+
+League priority uses the same saved order and 0–100 scale described below. These headline weights are independent of the match weights in `settings.toml`. Match-linked headlines use their earliest referenced kickoff and disappear when any referenced match finishes or fails the filters. Sourced calendar notices use their verified event period; an ongoing event is current, while a Saturday event stays in Saturday's window. Undated notices are hidden until a fresh AI response supplies dates. Completed rounds do not remain eligible as recap headlines.
+
 ## AI rating
 
 The automatic configuration uses `gpt-6.1-sol` at `low` effort in the `ratings` design. It rates supplied fixture facts without web research. Automatic overview and match-blurb generation are optional and currently off; personal or shared chat responses can still supply text. The `full` design instead uses Claude's researched context alongside those facts.
