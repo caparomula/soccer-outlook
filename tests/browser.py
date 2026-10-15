@@ -803,6 +803,9 @@ class BrowserChecks(unittest.TestCase):
                         else:
                             self.assertGreaterEqual(pills['y'], info['y'] + info['height'])
                             self.assertAlmostEqual(pills['x'], info['x'], delta=1)
+                        body, details = host.locator('.row__body').bounding_box(), host.locator('button.more').bounding_box()
+                        self.assertAlmostEqual(details['x'] + details['width'], body['x'] + body['width'], delta=1)
+                        self.assertAlmostEqual(details['y'] + details['height'], body['y'] + body['height'], delta=1)
                         if len(channels) == 2:
                             first, second = (pill.bounding_box() for pill in host.locator('.network summary').all())
                             if wide:
