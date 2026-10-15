@@ -1899,6 +1899,7 @@
     storyEl._signature = signature;
     keepFocus(function () {
       headlineMode(true);
+      document.getElementById('story-carousel').classList.toggle('story-carousel--multiple', chosen.length > 1);
       storyEl.hidden = !chosen.length;
       setText(document.getElementById('story-h'), 'League headlines');
       if (chosen.length) storyEl.setAttribute('data-league', chosen[0].league_id);

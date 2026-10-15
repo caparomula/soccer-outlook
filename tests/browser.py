@@ -2098,6 +2098,7 @@ class BrowserChecks(unittest.TestCase):
                 expect(lead.locator('.story-headline__title .lg')).to_have_count(1)
                 expect(lead.locator('.story-headline__lede')).to_be_visible()
                 expect(page.locator('#headline-position')).to_have_text('1 of 3')
+                expect(page.locator('#headline-position')).to_be_visible()
                 expect(lead.locator('.story-headline__lede')).to_have_text(story['league_blurbs'][0]['text'])
                 expect(page.locator('li.row[data-id="upcoming"] .row__story')).to_contain_text(story['notes']['upcoming']['note'])
                 expect(self.card_story(page, '#nextup')).to_contain_text(story['notes']['upcoming']['note'])
@@ -4290,7 +4291,7 @@ class BrowserChecks(unittest.TestCase):
                     ("low", "2026-10-07T19:00:00+00:00", "pre", "ESPN+", "fra.1")]
         html = render_page(build, fixtures=fixtures, ai=False)
         for width in (1280, 390):
-            with self.subTest(width=width), self.page("after", html=html, width=width) as (page, _):
+            with self.subTest(width=width), self.page("after", html=html, width=width, touch=width < 600) as (page, _):
                 self.enable_ai_text(page)
                 self.open_settings(page, "ai")
                 page.locator("#ai-generate").click()
@@ -4316,6 +4317,32 @@ class BrowserChecks(unittest.TestCase):
                 expect(lead.locator(".story-headline__lede")).to_have_text(reply["headlines"][0]["lede"])
                 expect(lead.locator(".story-headline__lede")).to_be_visible()
                 track = page.locator('#story-headlines')
+
+                def scroll_to_headline(index):
+                    # Native scrolling drives the same snap/selection path as touch swipes.
+                    # Its event is not controlled by Playwright's frozen clock.
+                    track.evaluate('''(el, index) => {
+                        window.__headlineScrollSeen = false;
+                        el.addEventListener('scroll', () => { window.__headlineScrollSeen = true; }, {once: true});
+                        el.scrollLeft = el.children[index].offsetLeft - el.children[0].offsetLeft;
+                    }''', index)
+                    page.wait_for_function('window.__headlineScrollSeen', timeout=5000)
+                    page.clock.run_for(50)
+
+                if width > 600:
+                    expect(page.locator('#headline-prev')).to_be_visible()
+                    expect(page.locator('#headline-next')).to_be_visible()
+                    previous = page.locator('#headline-prev').bounding_box()
+                    following = page.locator('#headline-next').bounding_box()
+                    track_box = track.bounding_box()
+                    self.assertLessEqual(previous['x'] + previous['width'], track_box['x'])
+                    self.assertGreaterEqual(following['x'], track_box['x'] + track_box['width'])
+                    self.assertAlmostEqual(previous['y'] + previous['height'] / 2,
+                                           following['y'] + following['height'] / 2, delta=1)
+                else:
+                    expect(page.locator('#headline-prev')).to_be_hidden()
+                    expect(page.locator('#headline-next')).to_be_hidden()
+                    self.assertEqual(track.evaluate("el => getComputedStyle(el).overflowX"), 'auto')
                 sizes = track.evaluate("el => ({track:el.clientWidth, cards:Array.from(el.children, card=>({width:card.getBoundingClientRect().width, height:card.getBoundingClientRect().height}))})")
                 self.assertLessEqual(sizes['cards'][0]['width'], sizes['track'])
                 if width > 600:
@@ -4326,21 +4353,34 @@ class BrowserChecks(unittest.TestCase):
                 self.assertAlmostEqual(track.bounding_box()['height'], visible_height, delta=1)
                 if width > 600:
                     neighbor = page.locator('#story-headlines article[data-league="esp.1"]')
-                    expect(neighbor).to_have_attribute('aria-hidden', 'false')
-                    neighbor.locator('.story-headline__sources a').first.focus()
-                    expect(neighbor.locator('.story-headline__sources a').first).to_be_focused()
+                    # Side controls reduce the reading width, so this longer neighbor
+                    # is clipped until selected and must not offer offscreen links.
+                    expect(neighbor).to_have_attribute('aria-hidden', 'true')
+                    self.assertTrue(neighbor.evaluate('el => el.inert'))
                 self.assertEqual(page.locator('#story-headlines > article').evaluate_all("els => els.map(el => el.dataset.league)"), ['eng.1', 'esp.1', 'usa.1'])
                 self.full_page_shot(page, f'headline-carousel-first-{width}.png')
-                page.get_by_role('button', name='Next headline', exact=True).click()
+                if width > 600:
+                    page.get_by_role('button', name='Next headline', exact=True).click()
+                else:
+                    scroll_to_headline(1)
                 expect(lead).to_have_attribute('data-league', 'esp.1')
                 expect(page.locator('#headline-position')).to_have_text('2 of 3')
+                expect(lead).to_have_attribute('aria-hidden', 'false')
+                lead.locator('.story-headline__sources a').first.focus()
+                expect(lead.locator('.story-headline__sources a').first).to_be_focused()
                 self.assertAlmostEqual(track.bounding_box()['height'], lead.bounding_box()['height'], delta=1)
                 self.full_page_shot(page, f'headline-carousel-next-{width}.png')
-                page.locator('#headline-next').focus()
-                page.keyboard.press('Enter')
-                expect(page.locator('#headline-next')).to_be_focused()
-                expect(page.locator('#headline-next')).to_be_disabled()
-                page.keyboard.press('Enter')
+                if width > 600:
+                    page.get_by_role('button', name='Previous headline', exact=True).click()
+                    expect(lead).to_have_attribute('data-league', 'eng.1')
+                    page.get_by_role('button', name='Next headline', exact=True).click()
+                    page.locator('#headline-next').focus()
+                    page.keyboard.press('Enter')
+                    expect(page.locator('#headline-next')).to_be_focused()
+                    expect(page.locator('#headline-next')).to_be_disabled()
+                    page.keyboard.press('Enter')
+                else:
+                    scroll_to_headline(2)
                 expect(page.locator('#headline-position')).to_have_text('3 of 3')
                 track.focus()
                 page.keyboard.press('End')
@@ -4374,13 +4414,7 @@ class BrowserChecks(unittest.TestCase):
                 page.keyboard.press('Home')
                 expect(lead).to_have_attribute('data-league', 'eng.1')
                 # Native horizontal scrolling (touch/trackpad) selects the nearest card too.
-                track.evaluate("""el => {
-                    window.__headlineScrollSeen = false;
-                    el.addEventListener('scroll', () => { window.__headlineScrollSeen = true; }, {once: true});
-                    el.scrollLeft = el.children[1].offsetLeft - el.children[0].offsetLeft;
-                }""")
-                page.wait_for_function('window.__headlineScrollSeen', timeout=5000)
-                page.clock.run_for(50)
+                scroll_to_headline(1)
                 expect(lead).to_have_attribute('data-league', 'esp.1')
                 page.clock.run_for(61000)
                 expect(lead).to_have_attribute('data-league', 'esp.1')
@@ -4393,6 +4427,9 @@ class BrowserChecks(unittest.TestCase):
                 self.open_settings(page, "leagues")
                 page.locator('#comp-pills [data-key="usa.1"]').click()
                 expect(page.locator('#headline-nav')).to_be_hidden()
+                expect(page.locator('#headline-position')).to_be_hidden()
+                expect(page.locator('#headline-prev')).to_be_hidden()
+                expect(page.locator('#headline-next')).to_be_hidden()
                 page.locator("#btn-filters-close").click()
                 expect(lead.locator(".story-headline__title")).to_have_text("The Spanish title contenders meet")
                 self.assertLessEqual(lead.bounding_box()['width'], min(640, track.bounding_box()['width']))
