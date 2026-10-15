@@ -224,8 +224,8 @@ class FailingSafe(unittest.TestCase):
         self.assertTrue(any("'Mystery Sports+'" in line for line in report), report)
 
     def test_unrecognized_channel_is_not_called_unavailable(self):
-        m = SimpleNamespace(service="", basis="none", outlet="", outlets=[build.map_outlet("Mystery Sports+", "eng.1")])
-        self.assertIn("Channel not recognized", build.chip_html(m))
+        m = SimpleNamespace(service="", basis="none", outlet="", outlets=[build.map_outlet("Mystery Sports+", "eng.1")], rule=None, hint="")
+        self.assertIn(build.esc(build.UNRECOGNIZED_TITLE), build.pills_html(m, {}))
 
     def test_usual_home_lapses_after_its_season(self):
         until = build.RIGHTS.leagues["esp.1"].usual.until

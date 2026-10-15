@@ -149,11 +149,13 @@ The public file contains the accepted recommendations and the fixture informatio
 
 ### Opening a match on a streaming service
 
-Click or tap an underlined service provider chip to open its viewing destination in a new tab. The chip uses a link compatible with the provider it names. Some verified broadcaster listings supply an exact match page for Apple TV, ESPN, ViX, Peacock or beIN Sports; you may still need to sign in and select playback. A chip without a supported destination remains a plain label.
+Hover over a network pill, or click or tap it, to see which of your selected services carry that network. With a keyboard, focus the pill and press Enter or Space. The list follows your service preference order. Underlined provider names open a verified viewing destination in a new tab; names without a supported link remain plain text. Press Escape or click outside to dismiss the list.
+
+Some verified broadcaster listings supply an exact match page for Apple TV, ESPN, ViX, Peacock or beIN Sports; you may still need to sign in and select playback. Each link must match both the network and the provider it names.
 
 For **YouTube TV**, direct links are available only for matches whose watch URL has been supplied and matched to the fixture and channel. These links appear only while ESPN reports the match as live: a YouTube TV watch URL can identify a live channel, which may show another program before or after the match. Soccer Outlook cannot automatically discover YouTube TV's program identifiers from public schedules, so most matches have no direct YouTube TV link.
 
-A compatible verified ESPN player link may be offered instead; watching there may require [linking your YouTube TV and ESPN accounts](https://support.google.com/youtubetv/answer/18116615?hl=en). Hover over the chip to see its destination. Without a supported link, [search YouTube TV](https://support.google.com/youtubetv/answer/7067974?hl=en) for either team or the listed channel.
+A compatible verified ESPN player link may be offered instead; watching there may require [linking your YouTube TV and ESPN accounts](https://support.google.com/youtubetv/answer/18116615?hl=en). Hover over a provider link to see its destination. Without a supported link, [search YouTube TV](https://support.google.com/youtubetv/answer/7067974?hl=en) for either team or the listed channel.
 
 Links open on the device you are using. Whether they launch an installed app depends on your browser and device; they do not control a separate television. A link does not guarantee playback or replay availability: your service account, package and location still determine access. Matches without a supported viewing link retain their broadcaster information and source links in **Details**.
 
@@ -171,7 +173,7 @@ Links open on the device you are using. Whether they launch an installed app dep
 
 League emblems identify competitions; badges beside team names identify the teams. Dark emblems and badges receive a contrast adjustment for the dark theme, while already bright images retain their colors.
 
-The outlined chip names your selected service provider; smaller chips underneath the match list its broadcast networks. For example, a match can show **YouTube TV (main plan)** on the right and **USA Network** underneath. When the network and provider have the same name, such as **Paramount+**, the lower chip is omitted. Changing your service preferences updates both.
+Match cards show only network pills beneath the match information. For example, **USA Network** can reveal **YouTube TV (main plan)** in its provider list. A service that is also the broadcaster, such as **Paramount+**, has just one pill. Changing your service preferences updates the pill colors, provider lists and viewing links.
 
 ### Match details
 

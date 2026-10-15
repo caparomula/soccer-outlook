@@ -49,16 +49,22 @@ def match_links(match):
     return links + _youtube_tv_links(match)
 
 
-def service_links(match):
+def service_links(match, channel=None):
     """Choose one destination for each eligible provider, independent of saved filters.
 
     A supplied YouTube TV watch URL takes precedence over a compatible broadcaster
-    player. Without one, an eligible exact match destination can still be used.
+    player. Without one, an eligible exact match destination can still be used. When
+    a channel is supplied, both the destination and provider must support that channel.
     """
     links = {}
+    eligible = {sid for outlet in match.outlets if outlet.known and outlet.label == channel for sid in outlet.via}
     for link in match_links(match):
+        if channel is not None and channel not in link["channels"]:
+            continue
         for service in link["via"]:
-            links[service] = {key: value for key, value in link.items() if key != "via"}
+            if channel is not None and service not in eligible:
+                continue
+            links[service] = {key: value for key, value in link.items() if key not in ("via", "channels")}
     return links
 
 
@@ -84,7 +90,8 @@ def _youtube_tv_links(match):
         return []
     via = sorted({sid for outlet in match.outlets if outlet.known and outlet.label == entry.get("channel")
                   for sid in outlet.via if sid in YOUTUBE_TV_SERVICES})
-    return [dict(url=url, label="Open on YouTube TV", via=via, kind="match", live_only=True)] if via else []
+    return [dict(url=url, label="Open on YouTube TV", via=via, channels=[entry["channel"]],
+                 kind="match", live_only=True)] if via else []
 
 
 def _verified_match_links(match):
@@ -103,4 +110,5 @@ def _verified_match_links(match):
         return []
     via = sorted({sid for outlet in match.outlets if outlet.known and outlet.label in channels
                   for sid in outlet.via if sid in services})
-    return [dict(url=url, label=label, via=via, kind="match")] if via else []
+    listed = sorted({outlet.label for outlet in match.outlets if outlet.known and outlet.label in channels})
+    return [dict(url=url, label=label, via=via, channels=listed, kind="match")] if via else []

@@ -1420,23 +1420,46 @@ def owner_pill_service(via):
     return ""
 
 
-def pills_html(m):
+def network_providers_html(m, outlet, destinations, usual=False):
+    """Selected routes for this network, with only compatible, verified viewing links."""
+    if not outlet.known:
+        return f'<p>{esc(UNRECOGNIZED_TITLE)}</p>'
+    services = sorted((sid for sid in outlet.via if sid in OWNER), key=SERVICE_RANK.index)
+    if not services:
+        return '<p>Not in your selected services.</p>'
+    items = []
+    for sid in services:
+        name = esc(SERVICES[sid])
+        link = destinations.get(outlet.label, {}).get(sid) if not usual else None
+        if link and (not link.get("live_only") or m.state == "in"):
+            name = (f'<a class="network__link" href="{esc(link["url"])}" data-kind="{esc(link["kind"])}" '
+                    f'target="_blank" rel="noopener noreferrer" title="{esc(link["title"])}">{name}</a>')
+        items.append(f'<li>{name}</li>')
+    note = '<p>Usual coverage; this match is not confirmed yet.</p>' if usual else ''
+    heading = 'Usually available with' if usual else 'Available with'
+    return f'<p>{heading}</p><ul>' + ''.join(items) + '</ul>' + note
+
+
+def pills_html(m, destinations=None):
+    if destinations is None:
+        destinations = provider_links(m)
     parts = []
     for i, o in enumerate(m.outlets):
-        if not o.known:
-            parts.append(f'<span class="pill pill--unk" data-i="{i}" title="{esc(UNRECOGNIZED_TITLE)}"><i class="dot"></i>'
-                         f'{esc(o.label)}<span class="pill__free">not recognized</span></span>')
-            continue
         sid = owner_pill_service(o.via)
-        cls = "pill" + (f" pill--mine svc-{sid}" if sid else (" pill--free" if o.free else ""))
-        free = '<span class="pill__free">free</span>' if o.free else ""
-        hidden = ' hidden' if m.service and m.basis == "listed" and o.label == SERVICES[m.service] else ''
-        parts.append(f'<span class="{cls}" data-i="{i}"{hidden}><i class="dot"></i>{esc(o.label)}{free}</span>')
+        if not o.known:
+            cls, extra = 'pill pill--unk', '<span class="pill__free">not recognized</span>'
+        else:
+            cls = "pill" + (f" pill--mine svc-{sid}" if sid else (" pill--free" if o.free else ""))
+            extra = '<span class="pill__free">free</span>' if o.free else ''
+        parts.append(f'<details class="network" data-i="{i}"><summary class="{cls}" '
+                     f'aria-label="{esc(o.label)}: viewing providers"><i class="dot"></i>{esc(o.label)}{extra}</summary>'
+                     f'<div class="network__providers">{network_providers_html(m, o, destinations)}</div></details>')
     if m.rule:
         sid = owner_pill_service(m.rule.via)
         cls = f"pill pill--rule svc-{sid}" if sid else "pill pill--rule pill--rule-off"
-        hidden = ' hidden' if m.service and m.basis == "rule" and m.rule.label == SERVICES[m.service] else ''
-        parts.append(f'<span class="{cls}" data-rule="1"{hidden}><i class="dot"></i>usually {esc(m.rule.label)}</span>')
+        parts.append(f'<details class="network" data-rule="1"><summary class="{cls}" '
+                     f'aria-label="Usually {esc(m.rule.label)}: viewing providers"><i class="dot"></i>usually {esc(m.rule.label)}</summary>'
+                     f'<div class="network__providers">{network_providers_html(m, m.rule, destinations, usual=True)}</div></details>')
     if m.hint:
         parts.append(f'<span class="pill pill--hint">{esc(m.hint)}</span>')
     if not parts:
@@ -1444,35 +1467,7 @@ def pills_html(m):
     return "".join(parts)
 
 
-SHORT = {"cable": "Cable / live TV", "ota": "Antenna", "free": "Free app"}
 UNRECOGNIZED_TITLE = "ESPN lists this channel, but the page doesn't know yet which services carry it"
-
-
-def chip_html(m, destinations=None):
-    if m.service:
-        label = SHORT.get(m.service, SERVICES[m.service])
-        details = []
-        if m.basis == "rule":
-            details.append("usually")
-        elif any(o.label == label and o.free for o in m.outlets):
-            details.append("free")
-        via = "".join(f'<span class="chip__via">{esc(detail)}</span>' for detail in details)
-        rule = " chip--rule" if m.basis == "rule" else ""
-        content = f'<i class="dot"></i>{esc(label)}{via}'
-        if destinations is None:
-            destinations = provider_links(m)
-        link = destinations.get(m.service) if m.basis == "listed" else None
-        if link and (not link.get("live_only") or m.state == "in"):
-            return (f'<a class="chip{rule} svc-{m.service} chip--link" href="{esc(link["url"])}" '
-                    f'data-kind="{esc(link["kind"])}" target="_blank" rel="noopener noreferrer" '
-                    f'title="{esc(link["title"])}">{content}</a>')
-        return f'<span class="chip{rule} svc-{m.service}">{content}</span>'
-    if any(not o.known for o in m.outlets):
-        # Possibly on the viewer's services: say what is known rather than "not in your lineup".
-        return '<span class="chip chip--no chip--unk">Channel not recognized</span>'
-    if m.outlets:
-        return '<span class="chip chip--no">Not in your lineup</span>'
-    return '<span class="chip chip--no chip--unk">Not listed yet</span>'
 
 
 def ordinal(n):
@@ -1652,21 +1647,25 @@ def row_html(m, cache):
         f'<div class="row__body">'
         f'<div class="row__teams">{team_html(m.home, cache, score_h)}<span class="vs">v</span>{team_html(m.away, cache, score_a)}</div>'
         f'<div class="row__meta">{"".join(meta)}</div>{goals_html(m)}{note}'
-        f'<div class="pills">{pills_html(m)}<button type="button" class="more" aria-haspopup="dialog" aria-controls="match-dialog" '
+        f'<div class="pills">{pills_html(m, destinations)}<button type="button" class="more" aria-haspopup="dialog" aria-controls="match-dialog" '
         f'aria-label="Details: {esc(m.home.name)} v {esc(m.away.name)}">Details</button></div>'
         f'{detail_html(m, cache)}'
         f'</div>'
-        f'<div class="row__watch">{chip_html(m, destinations)}</div>'
         f'</li>'
     )
 
 
 def provider_links(m):
-    """Destinations for each eligible provider, shared by static and interactive chips."""
-    links = watch_links.service_links(m)
-    for link in links.values():
-        link["title"] = (f'{link["label"]}: {m.home.name} v {m.away.name}. '
-                         'Opens in a new tab; sign-in may be required.')
+    """Destinations by network and provider, shared by static and interactive pills."""
+    links = {}
+    for outlet in m.outlets:
+        routes = watch_links.service_links(m, outlet.label)
+        if not routes:
+            continue
+        for link in routes.values():
+            link["title"] = (f'{link["label"]}: {m.home.name} v {m.away.name}. '
+                             'Opens in a new tab; sign-in may be required.')
+        links[outlet.label] = routes
     return links
 
 

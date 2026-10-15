@@ -635,7 +635,7 @@ class BrowserChecks(unittest.TestCase):
             # Filtered schedule rows are detached; featured cards must disappear with them.
             expect(page.locator(f'li.row[data-id="{match_id}"]')).to_have_count(0)
             expect(page.locator(f'[data-match-id="{match_id}"]:visible')).to_have_count(0)
-            expect(page.locator('a.chip--link[href="https://tv.youtube.com/"]:visible')).to_have_count(0)
+            expect(page.locator('a.network__link[href="https://tv.youtube.com/"]:visible')).to_have_count(0)
             expect(page.locator("#tally-n")).to_have_text("0")
 
         for width in (1280, 390):
@@ -650,13 +650,12 @@ class BrowserChecks(unittest.TestCase):
                 choose(page, "yttv", "yttvspanishplus")
                 expect(row).to_be_visible()
                 expect(row).to_have_attribute("data-svc", "yttvspanishplus")
-                expect(row.locator(".row__watch .chip")).to_have_text("YouTube TV Spanish Plus")
-                expect(row.locator(".pills > .pill:visible")).to_have_text(["Universo"])
-                expect(row.locator(".row__watch span.chip")).to_have_text("YouTube TV Spanish Plus")
-                expect(row.locator("a.chip--link")).to_have_count(0)
+                expect(row.locator(".pills summary.pill:visible")).to_have_text(["Universo"])
+                expect(row.locator(".network__providers li")).to_have_text("YouTube TV Spanish Plus")
+                expect(row.locator("a.network__link")).to_have_count(0)
                 expect(page.locator("#nextup")).to_have_attribute("data-match-id", match_id)
-                expect(page.locator("#nextup .chip")).to_contain_text("YouTube TV Spanish Plus")
-                expect(page.locator("#nextup a.chip--link")).to_have_count(0)
+                expect(page.locator("#nextup .network__providers li")).to_contain_text("YouTube TV Spanish Plus")
+                expect(page.locator("#nextup a.network__link")).to_have_count(0)
                 expect(page.locator("#tally-n")).to_have_text("1")
                 self.open_settings(page)
                 page.locator('[data-kind="have"][data-key="yttvspanishplus"]').click()
@@ -666,9 +665,9 @@ class BrowserChecks(unittest.TestCase):
                 choose(page, "yttvspanish")
                 expect(row).to_be_visible()
                 expect(row).to_have_attribute("data-svc", "yttvspanish")
-                expect(row.locator(".row__watch")).to_contain_text("YouTube TV Spanish Plan")
-                expect(row.locator(".row__watch span.chip")).to_have_text("YouTube TV Spanish Plan")
-                expect(row.locator("a.chip--link")).to_have_count(0)
+                expect(row.locator(".network__providers")).to_contain_text("YouTube TV Spanish Plan")
+                expect(row.locator(".network__providers li")).to_have_text("YouTube TV Spanish Plan")
+                expect(row.locator("a.network__link")).to_have_count(0)
                 self.assertLessEqual(page.evaluate("document.documentElement.scrollWidth"), width)
 
             with self.subTest(width=width, listing="Paramount+"), self.page(
@@ -680,8 +679,8 @@ class BrowserChecks(unittest.TestCase):
                 unavailable(page)
                 choose(page, "para")
                 expect(row).to_be_visible()
-                expect(row.locator(".row__watch")).to_contain_text("Paramount+")
-                expect(row.locator('a.chip--link[href="https://tv.youtube.com/"]')).to_have_count(0)
+                expect(row.locator(".network__providers")).to_contain_text("Paramount+")
+                expect(row.locator('a.network__link[href="https://tv.youtube.com/"]')).to_have_count(0)
                 expect(page.locator("#tally-n")).to_have_text("1")
 
     def test_tudn_listing_makes_america_monterrey_visible_on_youtube_tv(self):
@@ -758,7 +757,7 @@ class BrowserChecks(unittest.TestCase):
                     self.assertEqual(page.evaluate("JSON.parse(localStorage.getItem('ssg3-have'))"), ["yttv"])
                     self.assertLessEqual(page.evaluate("document.documentElement.scrollWidth"), width)
 
-    def test_broadcaster_chips_separate_networks_from_providers_without_duplicates(self):
+    def test_network_pills_reveal_selected_providers_in_every_card_shape(self):
         fixtures = [
             ("chips-live", "2026-10-07T16:30:00+00:00", "in", "Paramount+", "ita.1"),
             ("chips-paramount", "2026-10-07T18:00:00+00:00", "pre", "Paramount+", "ita.1"),
@@ -771,76 +770,73 @@ class BrowserChecks(unittest.TestCase):
             for match in matches:
                 if match.id == "chips-alternatives":
                     match.outlets.append(build.map_outlet("Peacock", match.league))
-                    match.service, match.basis, match.outlet = build.evaluate(match.outlets, match.rule, set(build.OWNER))
             return original_build_page(matches, cache, built_at, failed, today)
 
         with patch.object(build, "build_page", side_effect=with_alternative_outlet):
             html = render_page(build, fixtures=fixtures)
-
-        def assert_channels(host, service, networks):
-            chip = host.locator(".chip:visible")
-            expect(chip).to_have_count(1)
-            expect(chip).to_have_text(service)
-            expect(host.locator(".pills > .pill:visible")).to_have_text(networks)
-
-        def assert_all_shapes(page, service="YouTube TV (main plan)", networks=None):
-            expect(page.locator("#nextup")).to_have_attribute("data-match-id", "chips-live")
-            expect(page.locator("#nextup-h")).to_have_text("Live now")
-            expect(page.locator("#picks .pick")).to_have_count(3)
-            for match_id in ("chips-live", "chips-paramount", "chips-alternatives", "chips-apple"):
-                row = page.locator(f'li.row[data-id="{match_id}"]')
-                featured = page.locator(f'[data-match-id="{match_id}"]')
-                for host in (row, featured):
-                    if match_id == "chips-alternatives":
-                        assert_channels(host, service, ["USA Network", "Peacock"] if networks is None else networks)
-                    else:
-                        assert_channels(host, "Apple TV" if match_id == "chips-apple" else "Paramount+", [])
-
         for width in (1280, 390):
-            # The generated schedule should already be clean before JavaScript runs.
-            with self.subTest(width=width, javascript=False):
-                context = self.browser.new_context(viewport={"width": width, "height": 900}, java_script_enabled=False)
-                try:
-                    context.route("**/*", lambda route: route.fulfill(content_type="text/css", body=""))
-                    page = context.new_page()
-                    page.set_content(html)
-                    for match_id in ("chips-live", "chips-paramount"):
-                        assert_channels(page.locator(f'li.row[data-id="{match_id}"]'), "Paramount+", [])
-                    assert_channels(page.locator('li.row[data-id="chips-alternatives"]'),
-                                    "YouTube TV (main plan)", ["USA Network", "Peacock"])
-                finally:
-                    context.close()
-
-            with self.subTest(width=width, javascript=True), self.page(
-                    "after", html=html, width=width, touch=width < 600) as (page, _):
-                assert_all_shapes(page)
-                # Distinct networks stay underneath the selected provider. A direct subscription
-                # removes only its identical network chip, and switching back restores it.
-                self.open_settings(page)
-                page.locator('[data-kind="have"][data-key="peacock"]').click()
-                self.open_settings(page)
-                page.locator('[data-kind="have"][data-key="yttv"]').click()
-                page.locator("#btn-filters-close").click()
-                assert_all_shapes(page, service="Peacock", networks=["USA Network"])
-                self.open_settings(page)
-                page.locator('[data-kind="have"][data-key="yttv"]').click()
-                page.locator("#btn-filters-close").click()
-                assert_all_shapes(page)
-                self.open_settings(page)
-                page.locator('[data-kind="have"][data-key="peacock"]').click()
-                self.open_settings(page)
-                page.locator('[data-kind="have"][data-key="yttv"]').click()
+            # No-script readers can still reveal providers using native disclosures.
+            context = self.browser.new_context(viewport={"width": width, "height": 900}, java_script_enabled=False)
+            try:
+                context.route("**/*", lambda route: route.fulfill(content_type="text/css", body=""))
+                page = context.new_page()
+                page.set_content(html)
+                row = page.locator('li.row[data-id="chips-paramount"]')
+                expect(row.locator('.network summary')).to_have_text('Paramount+')
+                expect(row.locator('.network__providers')).to_be_hidden()
+                row.locator('.network summary').click()
+                expect(row.locator('.network__providers li')).to_have_text(['Paramount+'])
+                expect(row.locator('.network__providers')).to_be_visible()
+            finally:
+                context.close()
+            with self.subTest(width=width), self.page("after", html=html, width=width, theme="dark", touch=width < 600) as (page, _):
+                expect(page.locator('.row__watch, .match__watch, .chip')).to_have_count(0)
+                for mid, channels in [('live', ['Paramount+']), ('paramount', ['Paramount+']),
+                                      ('alternatives', ['USA Network', 'Peacock']), ('apple', ['Apple TV'])]:
+                    for host in (page.locator(f'li.row[data-id="chips-{mid}"]'), page.locator(f'[data-match-id="chips-{mid}"]')):
+                        expect(host.locator('.network summary')).to_have_text(channels)
+                        for network in host.locator('.network').all():
+                            summary, panel = network.locator('summary'), network.locator('.network__providers')
+                            summary.scroll_into_view_if_needed()
+                            before = host.bounding_box()
+                            if width >= 600:
+                                summary.hover()
+                            else:
+                                summary.tap()
+                            expect(panel).to_be_visible()
+                            self.assertAlmostEqual(host.bounding_box()['height'], before['height'], delta=1)
+                            box = panel.bounding_box()
+                            self.assertGreaterEqual(box['x'], 0)
+                            self.assertLessEqual(box['x'] + box['width'], width)
+                            self.assertGreaterEqual(box['y'], 0)
+                            self.assertLessEqual(box['y'] + box['height'], 900)
+                            page.keyboard.press('Escape')
+                            expect(panel).to_be_hidden()
+                # All selected providers, in priority order, belong to this exact network.
                 self.open_settings(page)
                 page.locator('[data-kind="have"][data-key="usa"]').click()
-                page.locator("#btn-filters-close").click()
-                assert_all_shapes(page, service="USA Network", networks=["Peacock"])
                 self.open_settings(page)
-                page.locator('[data-kind="have"][data-key="usa"]').click()
-                self.open_settings(page)
-                page.locator('[data-kind="have"][data-key="yttv"]').click()
-                page.locator("#btn-filters-close").click()
-                assert_all_shapes(page)
-                self.assertLessEqual(page.evaluate("document.documentElement.scrollWidth"), width)
+                page.locator('[data-kind="have"][data-key="fubo"]').click()
+                page.locator('#btn-filters-close').click()
+                row = page.locator('li.row[data-id="chips-alternatives"]')
+                network = row.locator('.network').first
+                expect(network.locator('li')).to_have_text(['YouTube TV (main plan)', 'USA Network', 'Fubo'])
+                expect(row.locator('.network').nth(1).locator('.network__providers')).to_have_text('Not in your selected services.')
+                # Keyboard activation and dismissal, then outside tap, use the same panel.
+                summary, panel = network.locator('summary'), network.locator('.network__providers')
+                summary.focus()
+                page.keyboard.press('Enter')
+                expect(panel).to_be_visible()
+                page.keyboard.press('Escape')
+                expect(panel).to_be_hidden()
+                expect(summary).to_be_focused()
+                summary.click()
+                expect(panel).to_be_visible()
+                page.screenshot(path=str(self.artifacts / f'network-provider-panel-{width}.png'))
+                page.locator('#nextup-h').click()
+                expect(panel).to_be_hidden()
+                self.full_page_shot(page, f'network-pills-{width}.png')
+                self.assertLessEqual(page.evaluate('document.documentElement.scrollWidth'), width)
 
     def test_watch_links_follow_service_access_in_schedule_and_featured_cards(self):
         fixtures = [
@@ -881,7 +877,7 @@ class BrowserChecks(unittest.TestCase):
                          {"watch-live": {"url": youtube_url, "channel": "USA Network"}}, clear=True)):
             html = render_page(build, fixtures=fixtures)
         for width in (1280, 390):
-            # The owner-default provider chips are genuine links before JavaScript runs.
+            # The owner-default network disclosures contain native links before JavaScript runs.
             with self.subTest(width=width, javascript=False):
                 context = self.browser.new_context(viewport={"width": width, "height": 900}, java_script_enabled=False)
                 try:
@@ -891,11 +887,11 @@ class BrowserChecks(unittest.TestCase):
                     for mid, label, destination in (("live", "YouTube TV (main plan)", youtube_url),
                                                     ("apple", "Apple TV", apple_url),
                                                     ("espn", "YouTube TV (main plan)", espn_url)):
-                        chip = page.locator(f'li.row[data-id="watch-{mid}"] .row__watch a.chip--link')
+                        chip = page.locator(f'li.row[data-id="watch-{mid}"] .network__providers a.network__link')
                         expect(chip).to_have_text(label)
                         expect(chip).to_have_attribute("href", destination)
-                    expect(page.locator('li.row[data-id="watch-no-player"] .row__watch span.chip')).to_have_text("Apple TV")
-                    expect(page.locator('li.row[data-id="watch-no-youtube-link"] .row__watch span.chip')).to_have_text("YouTube TV (main plan)")
+                    expect(page.locator('li.row[data-id="watch-no-player"] .network').first.locator("li")).to_have_text("Apple TV")
+                    expect(page.locator('li.row[data-id="watch-no-youtube-link"] .network__providers li')).to_have_text("YouTube TV (main plan)")
                     expect(page.locator('a[href="https://tv.youtube.com/"]')).to_have_count(0)
                     expect(page.locator(".match-watch")).to_have_count(0)
                 finally:
@@ -909,25 +905,26 @@ class BrowserChecks(unittest.TestCase):
                 expect(page.locator("#nextup-h")).to_have_text("Live now")
                 expect(page.locator('#picks .pick[data-match-id="watch-apple"]')).to_be_visible()
 
-                # All card shapes clone the selected provider chip; no separate Open links
+                # All card shapes clone the network disclosures; no separate Open links
                 # remain underneath. TUDN's source article is not a direct streaming player.
                 for card in page.locator("#nextup, #picks .pick").all():
                     mid = card.get_attribute("data-match-id").removeprefix("watch-")
-                    self.assertEqual(card.locator(".match__watch").inner_html(), row(mid).locator(".row__watch").inner_html())
+                    self.assertEqual(card.locator(".network").all_text_contents(), row(mid).locator(".network").all_text_contents())
                 expect(page.locator(".match-watch")).to_have_count(0)
-                expect(page.get_by_role("link", name=re.compile("^Open(?: on)? "))).to_have_count(0)
-                expect(row("live").locator("a.chip--link")).to_have_count(1)
-                expect(row("live").locator("a.chip--link")).to_have_text("YouTube TV (main plan)")
-                expect(row("live").locator("a.chip--link")).to_have_attribute("data-kind", "match")
-                expect(row("unlisted").locator("a.chip--link")).to_have_count(0)
-                expect(row("no-player").locator(".row__watch span.chip")).to_have_text("Apple TV")
-                expect(row("no-player").locator("a.chip--link")).to_have_count(0)
-                expect(row("no-youtube-link").locator(".row__watch span.chip")).to_have_text("YouTube TV (main plan)")
-                expect(row("no-youtube-link").locator("a.chip--link")).to_have_count(0)
+                expect(page.locator(".row__watch, .match__watch")).to_have_count(0)
+                expect(row("live").locator("a.network__link")).to_have_count(1)
+                expect(row("live").locator("a.network__link")).to_have_text("YouTube TV (main plan)")
+                expect(row("live").locator("a.network__link")).to_have_attribute("data-kind", "match")
+                expect(row("unlisted").locator("a.network__link")).to_have_count(0)
+                expect(row("no-player").locator(".network").first.locator("li")).to_have_text("Apple TV")
+                expect(row("no-player").locator(".network").first.locator("a")).to_have_count(0)
+                expect(row("no-player").locator(".network").nth(1).locator("a")).to_have_attribute("href", espn_url)
+                expect(row("no-youtube-link").locator(".network__providers li")).to_have_text("YouTube TV (main plan)")
+                expect(row("no-youtube-link").locator("a.network__link")).to_have_count(0)
                 expect(page.locator('a[href="https://tv.youtube.com/"]')).to_have_count(0)
-                expect(row("espn").locator("a.chip--link")).to_have_attribute("title", re.compile("Open on ESPN"))
+                expect(row("espn").locator("a.network__link")).to_have_attribute("title", re.compile("Open on ESPN"))
                 expect(row("vix")).to_have_count(0)  # rows outside the lineup are detached
-                expect(page.locator(f'a.chip--link[href="{vix_url}"]:visible')).to_have_count(0)
+                expect(page.locator(f'a.network__link[href="{vix_url}"]:visible')).to_have_count(0)
 
                 # Exact YouTube TV links keep their query parameters; an eligible ESPN
                 # player remains useful without one. Mouse/touch opens native anchors in a new tab.
@@ -938,6 +935,8 @@ class BrowserChecks(unittest.TestCase):
                     (page.locator('#picks .pick[data-match-id="watch-apple"]'), "Apple TV", apple_url, "match"),
                     (row("espn"), "YouTube TV (main plan)", espn_url, "match"),
                 ):
+                    summary = scope.locator(".network summary").first
+                    summary.tap() if width < 600 else summary.click()
                     link = scope.get_by_role("link", name=label, exact=True)
                     expect(link).to_have_attribute("target", "_blank")
                     expect(link).to_have_attribute("data-kind", kind)
@@ -950,9 +949,10 @@ class BrowserChecks(unittest.TestCase):
                     self.assertEqual(popup.url, destination)
                     popup.close()
                     self.assertEqual(page.url, source_url)
+                    page.keyboard.press("Escape")
                 self.full_page_shot(page, f"watch-links-{width}.png")
 
-                # Changing provider updates the chip and destination together. Direct ESPN
+                # Changing provider updates the network list and destination together. Direct ESPN
                 # access uses its player; removing YouTube TV removes its launchers.
                 page.locator("#btn-menu").click()
                 service("yttv").click()
@@ -960,17 +960,19 @@ class BrowserChecks(unittest.TestCase):
                 page.locator("#btn-filters-close").click()
                 expect(page.locator("#nextup")).to_have_attribute("data-match-id", "watch-apple")
                 expect(page.locator("#nextup-h")).to_have_text("Next up")
-                expect(page.locator("#nextup a.chip--link")).to_have_attribute("href", apple_url)
-                expect(row("espn").locator("a.chip--link")).to_have_text("ESPN Unlimited")
-                expect(row("espn").locator("a.chip--link")).to_have_attribute("href", espn_url)
-                expect(row("espn").locator("a.chip--link")).to_have_attribute("data-kind", "match")
+                expect(page.locator("#nextup a.network__link")).to_have_attribute("href", apple_url)
+                expect(row("espn").locator("a.network__link")).to_have_text("ESPN Unlimited")
+                expect(row("espn").locator("a.network__link")).to_have_attribute("href", espn_url)
+                expect(row("espn").locator("a.network__link")).to_have_attribute("data-kind", "match")
                 expect(row("live")).to_have_count(0)
-                expect(page.locator('a.chip--link[href^="https://tv.youtube.com/"]:visible')).to_have_count(0)
+                expect(page.locator('a.network__link[href^="https://tv.youtube.com/"]:visible')).to_have_count(0)
                 # ViX also carries TUDN, so add it only after checking the Apple next-up state.
                 page.locator("#btn-menu").click()
                 service("vix").click()
                 page.locator("#btn-filters-close").click()
-                expect(row("vix").locator(f'a.chip--link[href="{vix_url}"]')).to_be_visible()
+                row("vix").locator(".network summary").click()
+                expect(row("vix").locator(f'a.network__link[href="{vix_url}"]')).to_be_visible()
+                page.keyboard.press("Escape")
                 self.assertLessEqual(page.evaluate("document.documentElement.scrollWidth"), width)
 
                 # Saved preferences also govern links after reload; a retired Everything
@@ -980,9 +982,9 @@ class BrowserChecks(unittest.TestCase):
                 page.locator("#btn-filters-close").click()
                 page.evaluate("localStorage.setItem('ssg2-mode', JSON.stringify('all'))")
                 page.reload()
-                expect(page.locator("a.chip--link:visible")).to_have_count(0)
+                expect(page.locator("a.network__link:visible")).to_have_count(0)
                 expect(page.locator("li.row")).to_have_count(0)
-                expect(page.locator("#nextup-section, #picks-section").locator("a.chip--link:visible")).to_have_count(0)
+                expect(page.locator("#nextup-section, #picks-section").locator("a.network__link:visible")).to_have_count(0)
 
     def test_youtube_tv_match_link_is_only_available_while_its_fixture_is_live(self):
         youtube_url = "https://tv.youtube.com/watch/Qi_C4zyXBIg?vp=0gEEEgIwAQ%3D%3D"
@@ -1002,33 +1004,41 @@ class BrowserChecks(unittest.TestCase):
                 with self.subTest(javascript=False, state=state):
                     page.set_content(html)
                     row = page.locator('li.row[data-id="upcoming"]')
-                    destination = json.loads(row.get_attribute("data-watch"))["yttv"]
+                    destination = json.loads(row.get_attribute("data-watch"))["USA Network"]["yttv"]
                     self.assertEqual(destination["url"], youtube_url)
                     self.assertTrue(destination["live_only"])
-                    expect(row.locator("a.chip--link")).to_have_count(1 if state == "in" else 0)
+                    expect(row.locator("a.network__link")).to_have_count(1 if state == "in" else 0)
                     if state == "in":
-                        expect(row.locator("a.chip--link")).to_have_attribute("href", youtube_url)
+                        expect(row.locator("a.network__link")).to_have_attribute("href", youtube_url)
         finally:
             context.close()
 
         for width in (1280, 390):
             with self.subTest(width=width), self.page("after", html=pages["pre"], width=width) as (page, feed):
                 row = page.locator('li.row[data-id="upcoming"]')
-                expect(row.locator(".row__watch span.chip")).to_have_text("YouTube TV (main plan)")
-                expect(page.locator("a.chip--link")).to_have_count(0)
+                expect(row.locator(".network__providers li")).to_have_text("YouTube TV (main plan)")
+                expect(page.locator("a.network__link")).to_have_count(0)
                 feed["data"] = scoreboard("in")
                 page.clock.run_for(60000)
                 expect(row).to_have_attribute("data-state", "in")
-                expect(row.locator("a.chip--link")).to_have_attribute("href", youtube_url)
+                expect(row.locator("a.network__link")).to_have_attribute("href", youtube_url)
                 expect(page.locator("#nextup")).to_have_attribute("data-match-id", "upcoming")
-                expect(page.locator("#nextup a.chip--link")).to_have_attribute("href", youtube_url)
-                row.locator("a.chip--link").focus()
+                expect(page.locator("#nextup a.network__link")).to_have_attribute("href", youtube_url)
+                page.locator('#nextup .network summary').click()
+                page.locator('#nextup .network__link').focus()
+                feed['data']['events'][0]['competitions'][0]['status']['displayClock'] = "64'"
+                page.clock.run_for(60000)
+                expect(page.locator('#nextup .network__link')).to_be_visible()
+                expect(page.locator('#nextup .network__link')).to_be_focused()
+                page.keyboard.press('Escape')
+                row.locator(".network summary").click()
+                row.locator("a.network__link").focus()
                 feed["data"] = scoreboard("post")
                 page.clock.run_for(60000)
                 expect(row).to_have_attribute("data-state", "post")
-                expect(row.locator(".row__watch span.chip")).to_have_text("YouTube TV (main plan)")
-                expect(row.locator("a.chip--link")).to_have_count(0)
-                expect(page.locator("a.chip--link:visible")).to_have_count(0)
+                expect(row.locator(".network__providers li")).to_have_text("YouTube TV (main plan)")
+                expect(row.locator("a.network__link")).to_have_count(0)
+                expect(page.locator("a.network__link:visible")).to_have_count(0)
                 # The result moves into collapsed Earlier today; focus stays on its
                 # section's summary instead of falling back to the page body.
                 expect(row.locator("xpath=ancestor::details[1]").locator(":scope > summary")).to_be_focused()
@@ -1721,8 +1731,8 @@ class BrowserChecks(unittest.TestCase):
                 expect(hero).to_have_attribute("data-match-id", "routine")
                 self.assertEqual(picks(), ["near"])
                 expect(page.locator('#picks .svc-off, #picks .chip--no')).to_have_count(0)
-                expect(page.locator('#picks .pick[data-match-id="near"] .match__watch .chip')).to_have_text("YouTube TV (main plan)")
-                expect(page.locator('#picks .pick[data-match-id="near"] .pills > .pill:visible')).to_have_text(["ESPN+"])
+                expect(page.locator('#picks .pick[data-match-id="near"] .network__providers li')).to_have_text("YouTube TV (main plan)")
+                expect(page.locator('#picks .pick[data-match-id="near"] .pills summary.pill:visible')).to_have_text(["ESPN+"])
                 # A hidden competition hides its matches from the picks as from the schedule.
                 self.open_settings(page, "leagues")
                 page.locator('#comp-pills [data-key="esp.1"]').click()
@@ -1828,7 +1838,7 @@ class BrowserChecks(unittest.TestCase):
                     if row.get_attribute('data-state') == 'pre':
                         expect(card.locator('.row__until')).to_be_visible()
                         expect(card.locator('.row__until')).to_have_text(row.locator('.row__until').text_content())
-                    self.assertEqual(card.locator('.match__watch').text_content(), row.locator('.row__watch').text_content())
+                    self.assertEqual(card.locator('.network').all_text_contents(), row.locator('.network').all_text_contents())
                     card.locator('button.more').click()
                     expect(page.locator('#match-dialog')).to_be_visible()
                     self.assertEqual(page.locator('#match-dialog .row__detail').evaluate("el => { const facts = el.cloneNode(true); facts.querySelector('.rating-breakdown').remove(); return facts.textContent; }"), row.locator('.row__detail').text_content())
@@ -2090,12 +2100,12 @@ class BrowserChecks(unittest.TestCase):
                 self.assertLess(panel["y"], menu["y"] + menu["height"] + 16)
                 page.keyboard.press("Escape")
                 expect(page.locator("#drawer")).to_be_hidden()
-                # Keyboard focus never hides under the bar: Tab through a viewing link and
-                # then the next row's Details button, both initially beneath the sticky bar.
+                # Keyboard focus never hides under the bar: Tab through the next row's network
+                # disclosure and Details button, both initially beneath the sticky bar.
                 details = page.locator("#outlook li.row:visible button.more")
                 page.evaluate("""() => { const all = [...document.querySelectorAll('#outlook li.row button.more')].filter(el => el.getClientRects().length);
                     window.scrollBy(0, all[12].getBoundingClientRect().top - 20); all[11].focus({ preventScroll: true }); }""")
-                viewing = page.locator("#outlook li.row:visible").nth(11).locator("a.chip--link:visible")
+                viewing = page.locator("#outlook li.row:visible").nth(12).locator(".network summary").first
                 expect(viewing).to_have_count(1)
                 page.keyboard.press("Tab")
                 page.clock.run_for(50)
@@ -2139,20 +2149,10 @@ class BrowserChecks(unittest.TestCase):
                     lines = card.locator(".row__teams > .team, .row__teams > .vs").evaluate_all(
                         "els => els.map(e => { const r = e.getBoundingClientRect(); return [r.top, r.bottom]; })")
                     self.assertLess(max(top for top, _ in lines), min(bottom for _, bottom in lines))
-                # The broadcaster: its own 212-pixel column on the right, as in the row; under the match where the
-                # row puts it there, including on phones so the selected service stays explicit.
-                watch = card.locator(".nextup__watch")
-                if width > 820:
-                    chip = watch.bounding_box()
-                    self.assertGreaterEqual(chip["x"], body["x"] + body["width"])
-                    self.assertAlmostEqual(chip["x"], box["x"] + box["width"] - 1 - 16 - 212, delta=1)
-                    self.assertLess(chip["y"], body["y"] + 20)
-                else:
-                    chip = watch.bounding_box()
-                    self.assertGreaterEqual(chip["y"], body["y"] + body["height"] - 1)
-                    self.assertAlmostEqual(chip["x"], body["x"], delta=1)
+                # Networks share the match body, with no reserved provider column.
+                expect(card.locator('.network summary')).to_have_text(['ESPN+'])
+                self.assertAlmostEqual(body['x'] + body['width'], box['x'] + box['width'] - (11 if width <= 600 else 17), delta=1)
                 if width <= 600:
-                    expect(watch).to_be_visible()
                     # The score's dots at the head of the narrow column, from its edge, all on one line.
                     dots = page.locator("#nextup-rating i").evaluate_all(
                         "els => els.map(e => { const r = e.getBoundingClientRect(); return [r.left, r.top, r.width]; })")
@@ -2365,8 +2365,8 @@ class BrowserChecks(unittest.TestCase):
                 self.assertEqual([self.bucket(page, mid) for mid in ("soon", "late", "thu-late", "fri", "sat")],
                                  ["Today", "Today", "Tomorrow", "Friday", "Saturday"])
                 expect(page.locator('li.row[data-id="sun"]')).to_be_hidden()
-                # Every day is open: nothing folds but today's and yesterday's results.
-                expect(page.locator("#outlook-body details")).to_have_count(0)
+                # Every day is open: only results buckets fold (network pills have their own disclosures).
+                expect(page.locator("#outlook-body > details")).to_have_count(0)
                 for mid in ("soon", "late", "thu-late", "fri", "sat"):
                     expect(page.locator(f'li.row[data-id="{mid}"]')).to_be_visible()
                 expect(page.locator('#outlook-body > .bucket[data-b="today"]')).to_have_class(re.compile(r"\bbucket--now\b"))
@@ -4280,6 +4280,7 @@ SMOKE_TESTS = (
     "test_undated_calendar_imports_keep_ratings_and_dated_notices_expire_at_event_end",
     "test_personal_ai_prompt_import_weight_persistence_and_reset",
     "test_lineup_persists_and_resets",
+    "test_network_pills_reveal_selected_providers_in_every_card_shape",
     "test_watch_links_follow_service_access_in_schedule_and_featured_cards",
     "test_youtube_tv_match_link_is_only_available_while_its_fixture_is_live",
     "test_filter_groups_drag_between_areas_sort_persist_and_accept_empty_drops",

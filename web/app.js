@@ -32,7 +32,6 @@
   var PERSONAL = null;              // optional, private ratings/text imported by this visitor
   var SHARED = null, PUBLISHER = null; // repository-published manual response and optional owner connection
   function rankOf(id) { var i = serviceOrder().indexOf(id); return i < 0 ? 99 : i; }
-  var SHORT = { cable: 'Cable / live TV', ota: 'Antenna', free: 'Free app' };   // compact names for generic access options
   function escHtml(t) { return String(t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
   // The schedule's sections: matches in progress, one per sports day of the window (WINDOW_DAYS + 1
   // of them: Today and Tomorrow, then the later days by their dates), and today's and yesterday's
@@ -339,22 +338,84 @@
   });
 
   function firstHave(via) { var hits = via.filter(function (x) { return HAVE[x]; }); hits.sort(function (a, b) { return rankOf(a) - rankOf(b); }); return hits[0] || ''; }
-  function chipFor(r) {
-    if (r._svc !== 'none') {
-      var name = SHORT[r._svc] || SERVICE_NAMES[r._svc] || r._svc, details = [];
-      if (r._basis === 'rule') details.push('usually');
-      else if (r._o.some(function (o) { return o.l === name && o.f; })) details.push('free');
-      var content = '<i class="dot"></i>' + escHtml(name) +
-        details.map(function (label) { return '<span class="chip__via">' + escHtml(label) + '</span>'; }).join('');
-      var cls = 'chip' + (r._basis === 'rule' ? ' chip--rule' : '') + ' svc-' + r._svc;
-      var link = r._basis === 'listed' && r._watch[r._svc];
-      if (link && (!link.live_only || r._state === 'in')) return '<a class="' + cls + ' chip--link" href="' + escHtml(link.url) + '" data-kind="' + escHtml(link.kind) +
-        '" target="_blank" rel="noopener noreferrer" title="' + escHtml(link.title) + '">' + content + '</a>';
-      return '<span class="' + cls + '">' + content + '</span>';
-    }
-    if (r._unk) return '<span class="chip chip--no chip--unk">Channel not recognized</span>';
-    return r._o.length ? '<span class="chip chip--no">Not in your lineup</span>' : '<span class="chip chip--no chip--unk">Not listed yet</span>';
+  function networkProviders(r, o, usual) {
+    if (o.u) return "<p>ESPN lists this channel, but the page doesn't know yet which services carry it</p>";
+    var services = o.v.filter(function (sid) { return HAVE[sid]; }).sort(function (a, b) { return rankOf(a) - rankOf(b); });
+    if (!services.length) return '<p>Not in your selected services.</p>';
+    var links = !usual && r._watch[o.l] || {};
+    return '<p>' + (usual ? 'Usually available with' : 'Available with') + '</p><ul>' + services.map(function (sid) {
+      var name = escHtml(SERVICE_NAMES[sid]), link = links[sid];
+      if (link && (!link.live_only || r._state === 'in')) name = '<a class="network__link" href="' + escHtml(link.url) +
+        '" data-kind="' + escHtml(link.kind) + '" target="_blank" rel="noopener noreferrer" title="' + escHtml(link.title) + '">' + name + '</a>';
+      return '<li>' + name + '</li>';
+    }).join('') + '</ul>' + (usual ? '<p>Usual coverage; this match is not confirmed yet.</p>' : '');
   }
+  function updateNetworks(r) {
+    r.querySelectorAll('.network').forEach(function (network) {
+      var usual = network.hasAttribute('data-rule'), o = usual ? r._r : r._o[+network.dataset.i];
+      if (!o) return;
+      var sid = firstHave(o.v), pill = network.querySelector('summary');
+      pill.className = usual ? 'pill pill--rule' + (sid ? ' svc-' + sid : ' pill--rule-off') :
+        'pill' + (o.u ? ' pill--unk' : sid ? ' pill--mine svc-' + sid : (o.f ? ' pill--free' : ''));
+      network.querySelector('.network__providers').innerHTML = networkProviders(r, o, usual);
+    });
+  }
+
+  // Network disclosures stay out of the card flow. Native details also work without JavaScript;
+  // here mouse hover previews them, while tap/Enter pins them until dismissed.
+  var openNetwork = null, networkPinned = false, networkCloseTimer = null;
+  function closeNetwork() {
+    clearTimeout(networkCloseTimer);
+    if (!openNetwork) return;
+    var network = openNetwork; openNetwork = null; networkPinned = false;
+    if (network.querySelector('.network__providers').contains(document.activeElement)) network.querySelector('summary').focus({ preventScroll: true });
+    network.open = false;
+  }
+  function positionNetwork() {
+    if (!openNetwork) return;
+    var rect = openNetwork.querySelector('summary').getBoundingClientRect(), panel = openNetwork.querySelector('.network__providers');
+    if (!openNetwork.isConnected || !rect.width) { closeNetwork(); return; }
+    var margin = 12, gap = 6, below = window.innerHeight - rect.bottom - margin - gap, above = rect.top - margin - gap;
+    panel.style.position = 'fixed'; panel.style.maxHeight = Math.max(80, below, above) + 'px';
+    var box = panel.getBoundingClientRect(), top = below >= box.height || below >= above ? rect.bottom + gap : rect.top - gap - box.height;
+    panel.style.left = Math.max(margin, Math.min(rect.left, document.documentElement.clientWidth - box.width - margin)) + 'px';
+    panel.style.top = Math.max(margin, Math.min(top, window.innerHeight - box.height - margin)) + 'px';
+  }
+  function showNetwork(network, pinned) {
+    clearTimeout(networkCloseTimer);
+    if (openNetwork !== network) { closeNetwork(); openNetwork = network; }
+    networkPinned = networkPinned || pinned;
+    hideDetailPreview(); network.open = true; positionNetwork();
+  }
+  document.addEventListener('pointerover', function (ev) {
+    if (ev.pointerType !== 'mouse') return;
+    var network = ev.target.closest('.network');
+    if (network && !network.contains(ev.relatedTarget)) showNetwork(network, false);
+  });
+  document.addEventListener('pointerout', function (ev) {
+    var network = ev.target.closest('.network');
+    if (!network || network.contains(ev.relatedTarget)) return;
+    networkCloseTimer = setTimeout(function () {
+      if (openNetwork === network && !networkPinned && !network.contains(document.activeElement)) closeNetwork();
+    }, 220);
+  });
+  document.addEventListener('click', function (ev) {
+    var summary = ev.target.closest('.network > summary');
+    if (!summary) return;
+    ev.preventDefault();
+    var network = summary.parentNode;
+    if (openNetwork === network && networkPinned) closeNetwork();
+    else showNetwork(network, true);
+  });
+  document.addEventListener('pointerdown', function (ev) { if (openNetwork && !openNetwork.contains(ev.target)) closeNetwork(); });
+  document.addEventListener('focusin', function (ev) { if (openNetwork && !openNetwork.contains(ev.target)) closeNetwork(); });
+  document.addEventListener('keydown', function (ev) {
+    if (ev.key === 'Escape' && openNetwork) { ev.preventDefault(); closeNetwork(); }
+  });
+  document.addEventListener('scroll', function (ev) {
+    if (openNetwork && !openNetwork.querySelector('.network__providers').contains(ev.target)) positionNetwork();
+  }, true);
+  window.addEventListener('resize', positionNetwork);
   // Decide, for this viewer's lineup, which service carries each match, and restyle the row to match.
   function evaluateRow(r) {
     var best = null;
@@ -370,22 +431,9 @@
     else { r._svc = 'none'; r._basis = 'none'; r._outlet = ''; }
     r.classList.toggle('row--on', r._svc !== 'none'); r.classList.toggle('row--off', r._svc === 'none'); r.classList.toggle('row--rule', r._basis === 'rule');
     r.setAttribute('data-svc', r._svc); r.setAttribute('data-basis', r._basis); r.setAttribute('data-outlet', r._outlet);
-    r.querySelectorAll('.pill[data-i]').forEach(function (p) {
-      var o = r._o[+p.getAttribute('data-i')]; if (!o) return;
-      var sid = firstHave(o.v);
-      p.className = 'pill' + (o.u ? ' pill--unk' : sid ? ' pill--mine svc-' + sid : (o.f ? ' pill--free' : ''));
-      // Networks stay under the match; the separate chip names the selected provider. Omit a
-      // network only when that provider has the same name, and restore it when preferences change.
-      p.hidden = r._basis === 'listed' && o.l === SERVICE_NAMES[r._svc];
-    });
-    var rp = r.querySelector('.pill[data-rule]');
-    if (rp && r._r) {
-      var rs = firstHave(r._r.v); rp.className = 'pill pill--rule' + (rs ? ' svc-' + rs : ' pill--rule-off');
-      rp.hidden = r._basis === 'rule' && r._r.l === SERVICE_NAMES[r._svc];
-    }
-    var w = r.querySelector('.row__watch'); if (w) w.innerHTML = chipFor(r);
+    updateNetworks(r);
   }
-  function evaluateAll() { rows.forEach(evaluateRow); }
+  function evaluateAll() { closeNetwork(); rows.forEach(evaluateRow); }
 
   function applyFilterUI() {
     renderFilterGroups();
@@ -832,6 +880,7 @@
       l.hidden = r._b !== 'live'; l.textContent = pending ? 'Awaiting score' : 'Live'; l.classList.toggle('row__live--pending', pending);
     });
     if (!force && sig === lastSig) { renderSummary(groups, all, now); return false; }
+    closeNetwork();
     lastSig = sig;
     keepFocus(function () { rebuild(groups, all, now); });
     return true;
@@ -1165,7 +1214,7 @@
   }
   function openDetailDialog(button) {
     var state = detailsFor(button); if (!state) return;
-    hideDetailPreview(); dialogState = state; fillDetails(detailDialog, state);
+    closeNetwork(); hideDetailPreview(); dialogState = state; fillDetails(detailDialog, state);
     document.documentElement.classList.add('has-match-dialog');
     detailDialog.showModal();
   }
@@ -1177,7 +1226,7 @@
     previewTimer = setTimeout(function () {
       if (!button.isConnected || !button.matches(':hover')) return;
       var state = detailsFor(button); if (!state) return;
-      previewState = state; fillDetails(detailPreview, state); detailPreview.hidden = false; positionDetailPreview();
+      closeNetwork(); previewState = state; fillDetails(detailPreview, state); detailPreview.hidden = false; positionDetailPreview();
     }, 180);
   });
   document.addEventListener('pointerout', function (ev) {
@@ -1346,6 +1395,8 @@
     }
     var top = role === 'nextup';
     host = host || document.createElement('article');
+    var heldNetwork = openNetwork && host.contains(openNetwork) ?
+      (openNetwork.hasAttribute('data-rule') ? '.network[data-rule]' : '.network[data-i="' + openNetwork.dataset.i + '"]') : '';
     host.className = (top ? 'nextup' + (r._state === 'in' ? ' nextup--live' : '') : 'pick') + ' svc-' + r._svc;
     host.dataset.matchRole = role; host.dataset.matchId = r.getAttribute('data-id');
     host._row = r; host._matchCard = this; host.replaceChildren();
@@ -1407,15 +1458,14 @@
       if (links) { links.className = 'match__links'; content.appendChild(links); }
     }
     detail.remove();
-    var watch = r.querySelector('.row__watch'), service = watch && watch.cloneNode(true);
-    if (service) service.className = 'match__watch' + (top ? ' nextup__watch' : '');
-    // A pick is tall and narrow, so its broadcaster goes in the body; the top card has the row's
-    // short, wide shape, and its own column for it.
-    if (service && !top) content.insertBefore(service, content.querySelector('.pills'));
-    var extras = content.querySelector('.pills');
-    extras.hidden = !Array.from(extras.children).some(function (child) { return !child.hidden; });
+    content.querySelectorAll('.network').forEach(function (network) { network.open = false; });
     host.appendChild(content);
-    if (service && top) host.appendChild(service);
+    // A clock-only live update replaces the card body; keep its provider panel and keyboard
+    // destination available. State/score changes close panels before rebuilding the schedule.
+    if (heldNetwork) {
+      openNetwork = content.querySelector(heldNetwork);
+      if (openNetwork) { openNetwork.open = true; positionNetwork(); }
+    }
     if (role === 'pick') {
       var colors = document.createElement('div'); colors.className = 'pick__colors'; colors.setAttribute('aria-hidden', 'true');
       [r.getAttribute('data-hc'), r.getAttribute('data-ac')].forEach(function (c) {
@@ -1951,12 +2001,8 @@
     r._seen = Date.now();
     if (state !== r._state) {
       r._state = state; r.setAttribute('data-state', state); changed.state = true;
-      var link = r._watch[r._svc], watch = r.querySelector('.row__watch');
-      if (link && link.live_only && watch) {
-        var focused = watch.contains(document.activeElement);
-        watch.innerHTML = chipFor(r);
-        if (focused) r.querySelector('.more').focus({ preventScroll: true });
-      }
+      closeNetwork();
+      updateNetworks(r);
       if (off) { r._score = 0; r.setAttribute('data-score', '0'); }
     }
     var els = r.querySelectorAll('.team .score');

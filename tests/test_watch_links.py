@@ -173,9 +173,9 @@ class MatchLinks(unittest.TestCase):
             with self.subTest(state=state):
                 match.state = state
                 # Retain the map so a browser score update can activate/deactivate the link.
-                self.assertTrue(build.provider_links(match)["yttv"]["live_only"])
-                markup = build.chip_html(match)
-                self.assertEqual('<a class="chip' in markup, state == "in")
+                self.assertTrue(build.provider_links(match)["USA Network"]["yttv"]["live_only"])
+                markup = build.pills_html(match)
+                self.assertEqual('<a class="network__link' in markup, state == "in")
                 self.assertIn("YouTube TV (main plan)", markup)
 
     def test_youtube_rejects_non_watch_urls_and_unexpected_query_parameters(self):
@@ -216,6 +216,16 @@ class MatchLinks(unittest.TestCase):
         links = watch_links.service_links(match)
         self.assertEqual(links["yttv"]["url"], watch_links.YOUTUBE_TV_LINKS["401879267"]["url"])
         self.assertEqual(links["espn"]["url"], EXAMPLES[1][3])
+
+    def test_destinations_stay_with_their_network_even_when_providers_overlap(self):
+        match = fixture("401879267", channel="USA Network", broadcast_source="Watch ESPN",
+                        broadcast_url=EXAMPLES[1][3])
+        match.outlets.extend(build.map_outlet(channel, match.league) for channel in ("ESPN+", "TUDN", "Apple TV"))
+        links = build.provider_links(match)
+        self.assertEqual(links["USA Network"]["yttv"]["url"], watch_links.YOUTUBE_TV_LINKS[match.id]["url"])
+        self.assertEqual(links["ESPN+"]["yttv"]["url"], EXAMPLES[1][3])
+        self.assertNotIn("TUDN", links)
+        self.assertNotIn("Apple TV", links)
 
     def test_provider_destinations_use_only_supported_match_routes(self):
         for source, channel, service, url in EXAMPLES:

@@ -1,5 +1,5 @@
-/* Layout: a broadcast rundown re-bucketed by the viewer's clock. Time rail left, match in the middle,
-   the selected service provider right, and broadcast networks under the match. */
+/* Layout: a broadcast rundown re-bucketed by the viewer's clock. Time rail left, match alongside,
+   and broadcast networks under the match. Providers live in each network disclosure. */
 :root {
   --bg: #f2f4ef; --card: #ffffff; --fg: #15201a; --muted: #5b6a61; --line: #d6dcd4; --line-strong: #b9c3ba;
   --accent: #15744a; --gold: #a87a00; --amber: #b86b12; --amber-soft: #fbead3; --warn-bg: #fff3e0; --win: #2e9e5b; --loss: #c84b3c; --draw: #a8b1a9;
@@ -134,10 +134,8 @@ a { color: inherit; }
 .miss__story { margin-top: 6px; font-size: 13.5px; color: var(--fg); }
 
 /* Next up */
-/* The top card has a schedule row's short, wide shape, so it takes the row's layout rather than the
-   tall pick card's: the countdown column, with the league's emblem at its foot; the match; and the
-   broadcaster in a column of its own. Narrower screens fold it as they fold the row. */
-.nextup { display: grid; grid-template-columns: 148px minmax(0, 1fr) 212px; gap: 8px 18px; align-items: start; background: var(--card); border: 1px solid var(--line); border-left: 5px solid var(--accent); border-radius: var(--radius); padding: 12px 16px; }
+/* The top card shares the row's two columns: countdown/emblem and match information. */
+.nextup { display: grid; grid-template-columns: 148px minmax(0, 1fr); gap: 8px 18px; align-items: start; background: var(--card); border: 1px solid var(--line); border-left: 5px solid var(--accent); border-radius: var(--radius); padding: 12px 16px; }
 .nextup--live { border-left-color: var(--amber); }
 .nextup__status { font-family: var(--display); font-weight: 700; font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); }
 .nextup--live .nextup__status { color: var(--amber); }
@@ -146,7 +144,6 @@ a { color: inherit; }
 .nextup__count { white-space: nowrap; }   /* figures stay on one line; words may wrap */
 .nextup__count--words { font-size: 22px; line-height: 1.1; white-space: normal; }
 .nextup__league { margin: auto 0 0; width: 30px; height: 32px; }
-.nextup__watch { justify-self: start; min-width: 0; max-width: 100%; padding-top: 4px; }
 
 /* Picks */
 .sec { margin-top: 32px; }
@@ -172,8 +169,7 @@ a { color: inherit; }
 .match__body .team__name a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .match__body .story-src { white-space: normal; }
 .match__body .row__story { font-size: 14px; line-height: 1.4; }
-.match__body .pill, .pick .match__watch .chip { white-space: normal; overflow-wrap: anywhere; }
-.pick .match__watch { margin-top: 8px; }
+.match__body .pill { white-space: normal; overflow-wrap: anywhere; }
 .match__kickoff { margin-top: 5px; font-size: 12px; color: var(--muted); }
 .pick .match__body { margin-top: 12px; }
 .pick .row__teams { flex-direction: column; align-items: stretch; gap: 9px; }
@@ -313,7 +309,7 @@ a { color: inherit; }
 .bucket--live .bucket__h { color: var(--amber); border-color: var(--amber); }
 .bucket--now .bucket__h { color: var(--accent); border-color: var(--accent); }
 .rows { list-style: none; margin: 0; padding: 0; }
-.row { display: grid; grid-template-columns: 76px minmax(0, 1fr) 212px; gap: 8px 14px; align-items: start; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.row { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 8px 14px; align-items: start; padding: 12px 0; border-bottom: 1px solid var(--line); }
 .row__league { display: flex; margin-bottom: 6px; }
 .row__league .lg { width: 30px; height: 32px; margin: 0; }
 .row--off { color: var(--muted); }
@@ -420,6 +416,20 @@ html.has-match-dialog, .has-match-dialog body { overflow: hidden; }
 .pill { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; letter-spacing: 0.01em; padding: 2px 9px; border-radius: 999px; background: var(--pill-bg); color: var(--pill-fg); white-space: nowrap; line-height: 1.5; }
 .pill[hidden], .pills[hidden] { display: none; }
 .pill .dot { width: 7px; height: 7px; }
+.network { position: relative; max-width: 100%; }
+.network > summary { cursor: pointer; list-style: none; }
+.network > summary::-webkit-details-marker { display: none; }
+.network > summary:hover, .network[open] > summary { box-shadow: inset 0 0 0 1px currentColor; }
+.network > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.network__providers { position: absolute; top: 100%; left: 0; z-index: 35; width: max-content; max-width: min(300px, calc(100vw - 24px)); box-sizing: border-box; overflow: auto; padding: 12px 14px; background: var(--card); color: var(--fg); border: 1px solid var(--line-strong); border-radius: 8px; box-shadow: 0 6px 24px rgba(0,0,0,0.25); font: 14px/1.5 var(--body); white-space: normal; overflow-wrap: anywhere; }
+.network__providers p { margin: 0; color: var(--muted); font-size: 12px; }
+.network__providers ul { list-style: none; padding: 0; margin: 4px 0 0; }
+.network__providers li + li { margin-top: 6px; }
+.network__providers ul + p { margin-top: 8px; }
+.network__link { display: inline-block; color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+.network__link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (pointer: coarse) { .network > summary, .network__link { padding-top: 7px; padding-bottom: 7px; } }
+
 .pill--mine { background: color-mix(in srgb, var(--svc) 14%, transparent); color: var(--svc); }
 .pill--rule { background: transparent; border: 1px dashed var(--svc); color: var(--svc); }
 .pill--rule-off { border-color: var(--line-strong); color: var(--pill-fg); }
@@ -428,17 +438,6 @@ html.has-match-dialog, .has-match-dialog body { overflow: hidden; }
 .pill--unk { background: transparent; border: 1px dashed var(--line-strong); }
 .pill__free { font-weight: 400; opacity: 0.8; }
 .pill__free::before { content: "\00b7"; margin-right: 5px; }
-.row__watch { justify-self: start; min-width: 0; max-width: 100%; padding-top: 4px; }
-.row__watch .chip, .nextup__watch .chip { max-width: 100%; white-space: normal; flex-wrap: wrap; gap: 3px 7px; }
-.chip { display: inline-flex; align-items: center; gap: 7px; font-family: var(--display); font-weight: 600; font-size: 15px; letter-spacing: 0.03em; padding: 5px 11px 5px 9px; border-radius: 999px; border: 1px solid var(--svc); color: var(--svc); white-space: nowrap; }
-.chip--link { text-decoration: underline; text-underline-offset: 3px; }
-.chip--link:hover { background: color-mix(in srgb, var(--svc) 12%, transparent); }
-.chip--link:focus-visible { outline: 2px solid var(--svc); outline-offset: 2px; }
-.chip__via { color: var(--muted); font-weight: 600; }
-.chip__via::before { content: "\00b7"; margin-right: 6px; }
-.chip--rule { border-style: dashed; }
-.chip--no { --svc: var(--off-fg); background: var(--off-bg); border-color: transparent; }
-.chip--unk { background: transparent; border: 1px dashed var(--line-strong); }
 details.fold { margin-top: 22px; }
 details.fold summary { cursor: pointer; list-style: none; }
 details.fold summary::-webkit-details-marker { display: none; }
@@ -489,20 +488,15 @@ details.fold[open] summary .caret .c, details.fold:not([open]) summary .caret .o
 
 @media (max-width: 820px) {
   .nextup { grid-template-columns: 132px minmax(0, 1fr); }
-  .nextup__left { grid-row: 1 / span 2; }
-  .nextup__watch { grid-column: 2; padding-top: 0; }
   .nextup__league { width: 28px; }
   .row { grid-template-columns: 64px minmax(0, 1fr); }
   .row__league .lg { width: 28px; }
-  .row__time { grid-row: 1 / span 2; }
-  .row__watch { grid-column: 2; padding-top: 0; }
 }
 @media (max-width: 600px) {
   .picks { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; gap: 10px; padding-bottom: 6px; scrollbar-width: thin; }
   .pick { flex: 0 0 76%; scroll-snap-align: start; }
   .row { grid-template-columns: 52px minmax(0, 1fr); column-gap: 8px; }
   .row__league .lg { width: 24px; height: 28px; }
-  .row__watch { grid-column: 2; justify-self: start; padding-top: 0; }
   .nextup { grid-template-columns: 76px minmax(0, 1fr); column-gap: 10px; padding: 12px 10px 12px 9px; }
   .nextup__count { font-size: 26px; min-width: 0; }
   .nextup__count--words { font-size: 17px; }
