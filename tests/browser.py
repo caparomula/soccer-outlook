@@ -4318,6 +4318,16 @@ class BrowserChecks(unittest.TestCase):
                 expect(lead.locator(".story-headline__lede")).to_be_visible()
                 track = page.locator('#story-headlines')
 
+                def carousel_shot(name):
+                    if width > 600:
+                        self.full_page_shot(page, name)
+                    else:
+                        # Chromium's full-page screenshot resets touch emulation; a viewport
+                        # capture preserves the real touch media queries for the rotation check.
+                        page.evaluate('window.scrollTo(0, 0)')
+                        page.clock.run_for(50)
+                        page.screenshot(path=str(self.artifacts / name))
+
                 def scroll_to_headline(index):
                     # Native scrolling drives the same snap/selection path as touch swipes.
                     # Its event is not controlled by Playwright's frozen clock.
@@ -4328,6 +4338,33 @@ class BrowserChecks(unittest.TestCase):
                     }''', index)
                     page.wait_for_function('window.__headlineScrollSeen', timeout=5000)
                     page.clock.run_for(50)
+
+                def resize_carousel(viewport_width, viewport_height=900):
+                    # Native resize events run outside Playwright's frozen clock. Wait for
+                    # the real event before advancing the carousel's queued animation frame.
+                    page.evaluate('''() => {
+                        window.__headlineResizeSeen = false;
+                        window.addEventListener('resize', () => { window.__headlineResizeSeen = true; }, {once: true});
+                    }''')
+                    page.set_viewport_size({'width': viewport_width, 'height': viewport_height})
+                    page.wait_for_function('window.__headlineResizeSeen', timeout=5000)
+                    page.clock.run_for(50)
+
+                def assert_equal_cards_and_stable_layout(reference=None):
+                    layout = track.evaluate('''el => ({
+                        height: el.getBoundingClientRect().height,
+                        cards: Array.from(el.children, card => ({height: card.getBoundingClientRect().height,
+                            fits: card.scrollHeight <= card.clientHeight})),
+                        next: document.getElementById('nextup').getBoundingClientRect().top + window.scrollY
+                    })''')
+                    for card in layout['cards']:
+                        self.assertAlmostEqual(card['height'], layout['height'], delta=1)
+                        self.assertTrue(card['fits'], 'The longest headline must fit without vertical clipping')
+                    if reference:
+                        self.assertAlmostEqual(layout['height'], reference['height'], delta=1)
+                        self.assertAlmostEqual(layout['next'], reference['next'], delta=1,
+                                               msg='Changing the selected headline must not move the matches below')
+                    return layout
 
                 if width > 600:
                     expect(page.locator('#headline-prev')).to_be_visible()
@@ -4349,8 +4386,7 @@ class BrowserChecks(unittest.TestCase):
                     self.assertLess(sizes['cards'][0]['width'], sizes['track'] * .65)
                     self.assertGreater(sizes['cards'][1]['width'], sizes['cards'][0]['width'] + 100)
                     self.assertLessEqual(sizes['cards'][1]['width'], 640)
-                visible_height = track.evaluate("el => Math.max(...Array.from(el.children).filter(card => !card.inert).map(card => card.getBoundingClientRect().height))")
-                self.assertAlmostEqual(track.bounding_box()['height'], visible_height, delta=1)
+                initial_layout = assert_equal_cards_and_stable_layout()
                 if width > 600:
                     neighbor = page.locator('#story-headlines article[data-league="esp.1"]')
                     # Side controls reduce the reading width, so this longer neighbor
@@ -4358,7 +4394,7 @@ class BrowserChecks(unittest.TestCase):
                     expect(neighbor).to_have_attribute('aria-hidden', 'true')
                     self.assertTrue(neighbor.evaluate('el => el.inert'))
                 self.assertEqual(page.locator('#story-headlines > article').evaluate_all("els => els.map(el => el.dataset.league)"), ['eng.1', 'esp.1', 'usa.1'])
-                self.full_page_shot(page, f'headline-carousel-first-{width}.png')
+                carousel_shot(f'headline-carousel-first-{width}.png')
                 if width > 600:
                     page.get_by_role('button', name='Next headline', exact=True).click()
                 else:
@@ -4368,11 +4404,12 @@ class BrowserChecks(unittest.TestCase):
                 expect(lead).to_have_attribute('aria-hidden', 'false')
                 lead.locator('.story-headline__sources a').first.focus()
                 expect(lead.locator('.story-headline__sources a').first).to_be_focused()
-                self.assertAlmostEqual(track.bounding_box()['height'], lead.bounding_box()['height'], delta=1)
-                self.full_page_shot(page, f'headline-carousel-next-{width}.png')
+                assert_equal_cards_and_stable_layout(initial_layout)
+                carousel_shot(f'headline-carousel-next-{width}.png')
                 if width > 600:
                     page.get_by_role('button', name='Previous headline', exact=True).click()
                     expect(lead).to_have_attribute('data-league', 'eng.1')
+                    assert_equal_cards_and_stable_layout(initial_layout)
                     page.get_by_role('button', name='Next headline', exact=True).click()
                     page.locator('#headline-next').focus()
                     page.keyboard.press('Enter')
@@ -4389,37 +4426,50 @@ class BrowserChecks(unittest.TestCase):
                 page.clock.run_for(50)
                 expect(lead).to_have_attribute('data-league', 'usa.1')
                 self.assertAlmostEqual(lead.bounding_box()['x'], track.bounding_box()['x'], delta=1)
-                self.assertAlmostEqual(track.bounding_box()['height'], lead.bounding_box()['height'], delta=1)
+                assert_equal_cards_and_stable_layout(initial_layout)
                 if width > 600:
                     # The last short card stays aligned as the track shrinks and grows.
-                    def resize_carousel(viewport_width):
-                        # Native resize events run outside Playwright's frozen clock. Wait for
-                        # the real event before advancing the carousel's queued animation frame.
-                        page.evaluate("""() => {
-                            window.__headlineResizeSeen = false;
-                            window.addEventListener('resize', () => { window.__headlineResizeSeen = true; }, {once: true});
-                        }""")
-                        page.set_viewport_size({'width': viewport_width, 'height': 900})
-                        page.wait_for_function('window.__headlineResizeSeen', timeout=5000)
-                        page.clock.run_for(50)
                     initial_track_width = track.bounding_box()['width']
                     resize_carousel(900)
                     self.assertLess(track.bounding_box()['width'], initial_track_width)
                     expect(lead).to_have_attribute('data-league', 'usa.1')
                     self.assertAlmostEqual(lead.bounding_box()['x'], track.bounding_box()['x'], delta=1)
+                    assert_equal_cards_and_stable_layout()
                     resize_carousel(width)
                     self.assertAlmostEqual(lead.bounding_box()['x'], track.bounding_box()['x'], delta=1)
+                    assert_equal_cards_and_stable_layout(initial_layout)
                 page.keyboard.press('ArrowLeft')
                 expect(lead).to_have_attribute('data-league', 'esp.1')
+                assert_equal_cards_and_stable_layout(initial_layout)
                 page.keyboard.press('Home')
                 expect(lead).to_have_attribute('data-league', 'eng.1')
+                assert_equal_cards_and_stable_layout(initial_layout)
                 # Native horizontal scrolling (touch/trackpad) selects the nearest card too.
                 scroll_to_headline(1)
                 expect(lead).to_have_attribute('data-league', 'esp.1')
                 page.clock.run_for(61000)
                 expect(lead).to_have_attribute('data-league', 'esp.1')
+                assert_equal_cards_and_stable_layout(initial_layout)
+                if width < 600:
+                    # A rotated touch screen still browses by swiping, without desktop arrows.
+                    resize_carousel(844, 390)
+                    expect(page.locator('#headline-prev')).to_be_hidden()
+                    expect(page.locator('#headline-next')).to_be_hidden()
+                    landscape_layout = assert_equal_cards_and_stable_layout()
+                    scroll_to_headline(2)
+                    expect(lead).to_have_attribute('data-league', 'usa.1')
+                    assert_equal_cards_and_stable_layout(landscape_layout)
+                    scroll_to_headline(0)
+                    expect(lead).to_have_attribute('data-league', 'eng.1')
+                    assert_equal_cards_and_stable_layout(landscape_layout)
+                    self.assertLessEqual(page.evaluate("document.documentElement.scrollWidth"), 844)
+                    carousel_shot('headline-carousel-landscape-844.png')
+                    resize_carousel(width, 844)
+                    scroll_to_headline(1)
+                    expect(lead).to_have_attribute('data-league', 'esp.1')
+                    assert_equal_cards_and_stable_layout(initial_layout)
                 self.assertLessEqual(page.evaluate("document.documentElement.scrollWidth"), width)
-                self.full_page_shot(page, f"personal-headlines-{width}.png")
+                carousel_shot(f"personal-headlines-{width}.png")
                 self.open_settings(page)
                 self.open_settings(page, "leagues")
                 page.locator('#comp-pills [data-key="eng.1"]').click()

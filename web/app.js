@@ -1800,20 +1800,16 @@
   function syncHeadlineCarousel() {
     var cards = Array.from(headlineTrack.children), count = cards.length;
     headlineIndex = Math.max(0, Math.min(headlineIndex, count - 1));
-    var bounds = headlineTrack.getBoundingClientRect(), height = 0;
+    var bounds = headlineTrack.getBoundingClientRect();
     cards.forEach(function (card, index) {
       var current = index === headlineIndex, box = card.getBoundingClientRect();
       // Short neighboring cards can fit completely; their copy and source links stay usable.
       var readable = current || (box.left >= bounds.left - 1 && box.right <= bounds.right + 1);
       if (current) card.setAttribute('aria-current', 'true'); else card.removeAttribute('aria-current');
       card.setAttribute('aria-hidden', String(!readable)); card.inert = !readable;
-      if (readable) height = Math.max(height, box.height);
     });
     var card = cards[headlineIndex];
-    if (card) {
-      headlineTrack.style.height = Math.ceil(height) + 'px';
-      document.getElementById('story').setAttribute('data-league', card.dataset.league);
-    } else headlineTrack.style.height = '';
+    if (card) document.getElementById('story').setAttribute('data-league', card.dataset.league);
     document.getElementById('headline-nav').hidden = count < 2;
     document.getElementById('headline-position').textContent = count ? (headlineIndex + 1) + ' of ' + count : '';
     setText(document.getElementById('headline-announcement'), count > 1 ? (headlineIndex + 1) + ' of ' + count + ': ' + card.querySelector('.story-headline__title').textContent : '');
