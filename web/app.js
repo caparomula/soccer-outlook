@@ -716,7 +716,7 @@
   document.addEventListener('focusin', function (ev) {
     var el = ev.target;
     if (drawerOpen && !drawer.contains(el) && el !== btnMenu) setDrawer(false, false);
-    if (!tabbing || !bar || !el.closest || el.closest('.bar, #drawer, #match-preview, #match-dialog')) return;
+    if (!tabbing || !bar || !el.closest || el.closest('.bar, #drawer, #match-preview, #match-dialog, #team-dialog')) return;
     requestAnimationFrame(function () {
       if (document.activeElement !== el) return;
       var below = bar.getBoundingClientRect().bottom, rect = el.getBoundingClientRect();
@@ -1218,6 +1218,11 @@
     document.documentElement.classList.add('has-match-dialog');
     detailDialog.showModal();
   }
+  SoccerTeams.init({
+    leagues: SERVICES.leagues,
+    beforeOpen: function () { closeNetwork(); hideDetailPreview(); },
+    fallbackFocus: btnMenu
+  });
   document.addEventListener('pointerover', function (ev) {
     if (ev.pointerType !== 'mouse' || detailDialog.open) return;
     var button = ev.target.closest('button.more');
@@ -1438,14 +1443,6 @@
     // A row outside the lineup hides its blurb; a pick shows it, since the pick is there to be read.
     var blurb = content.querySelector('.row__story');
     if (blurb && role === 'pick') blurb.hidden = staleNews(r, now);
-    content.querySelectorAll('.team__name').forEach(function (name) {
-      var link = document.createElement('a'); link.href = '#outlook'; link.textContent = name.textContent;
-      link.addEventListener('click', function (ev) {
-        ev.preventDefault(); var fold = r.closest('details.fold'); if (fold) fold.open = true;
-        r.scrollIntoView({ block: 'center' });
-      });
-      name.replaceChildren(link);
-    });
     // Without a blurb a card has room for what the Details panel holds: each team's season record and
     // top scorer join its lines (CSS shows them under .match--facts), along with the panel's links.
     // Its Details button still opens the rating breakdown. With a blurb, or in

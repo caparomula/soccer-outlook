@@ -202,6 +202,16 @@
   <div id="match-dialog-content"></div>
 </dialog>
 
+<dialog class="match-details match-details--dialog team-sheet" id="team-dialog" aria-labelledby="team-dialog-title">
+  <div class="match-details__head">
+    <div class="team-sheet__identity"><span id="team-dialog-badge"></span><h2 class="match-details__title" id="team-dialog-title"></h2></div>
+    <button type="button" class="fbtn" id="team-dialog-close" aria-label="Close team vitals" autofocus>Close</button>
+  </div>
+  <div id="team-dialog-content"></div>
+  <p class="team-sheet__status" id="team-dialog-status" role="status"></p>
+  <button type="button" class="fbtn" id="team-dialog-retry" hidden>Try again</button>
+  <div class="detail__links" id="team-dialog-links"></div>
+</dialog>
 
 <script>
 @@SCRIPT@@</script>

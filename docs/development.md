@@ -52,6 +52,7 @@ For a browser preview at a chosen local time, append a fragment such as `#at-202
 | [`web/styles.css`](../web/styles.css) | Layout, themes and responsive styles. |
 | [`web/app.js`](../web/app.js) | Settings tabs, filters, saved preferences, match cards, scoring in the browser, details overlays and applying live updates. |
 | [`web/live.js`](../web/live.js) | Live-score requests, catch-up checks, timeouts and retry scheduling. |
+| [`web/teams.js`](../web/teams.js) | On-demand team profiles, competition-specific records, leading contributors, local caching and the team vitals dialog. |
 | [`web/personal-ai.js`](../web/personal-ai.js) | Personal AI prompt and response format, validation and import freshness. |
 | [`web/github-publish.js`](../web/github-publish.js) | Optional browser connection to GitHub and publication of accepted recommendations. |
 | `content/shared-ai.json` | Optional public recommendation defaults, created by an authorized maintainer's first publication and copied into the generated site. |
@@ -69,6 +70,10 @@ For a browser preview at a chosen local time, append a fragment such as `#at-202
 | [`.github/scripts/`](../.github/scripts/) | Durable history archiving, mapping-issue maintenance and AI comparison reports. |
 
 The generator inlines the HTML, CSS and JavaScript assets into the page. Rebuild after editing them. Full builds copy `web/favicon.png` beside the HTML; the PNG works in browsers that do not support SVG favicons. If the SVG artwork changes, re-export the PNG at 64 × 64 with a transparent background. Fragment builds leave the icon to the host page.
+
+Team links embed the schedule's existing team facts and open an accessible modal without changing the card layout. On first opening, `teams.js` requests `https://sports.core.api.espn.com/v2/sports/soccer/teams/{id}` for the club's default league and home venue. It then requests the site API's `/soccer/{league}/teams/{id}/roster` for season records and player statistics. National teams use the clicked match's competition. The venue's city is used; ESPN's team `location` field is often just the team name, and the current match's venue may be an away or neutral ground. A club roster with a different season year from its core profile is rejected. The coach field is ignored because it can be outdated.
+
+Each request has an eight-second timeout. Failures leave the schedule snapshot available, with a retry button. Successful profiles are stored under `soccer-team-vitals-v1` for six hours, limited to 30 entries; storage failures fall back to memory. Partial results are not persisted. Requests omit credentials and referrers, and only happen on opening a sheet; there is no build-time profile crawl or AI dependency. Browser tests cover card roles, touch/keyboard dismissal, record separation, failures, stale responses, cache expiry and blocked storage.
 
 Deployment consists of `index.html`, `favicon.png`, `sitemap.xml`, the `premier-league/`, `mls/` and `paramount-plus/` schedule pages, optional `shared-ai.json` and `story.json`, an optional IndexNow key file and a `.nojekyll` file; there is no application server or JavaScript bundler. Generated files in `site/` and test artifacts in `work/` are ignored by Git.
 

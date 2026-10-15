@@ -32,6 +32,7 @@ class Rendering(unittest.TestCase):
                 page = render_page(build, fragment=fragment)
                 self.assertIn((root / "web/styles.css").read_text(encoding="utf-8"), page)
                 self.assertIn((root / "web/live.js").read_text(encoding="utf-8"), page)
+                self.assertIn((root / "web/teams.js").read_text(encoding="utf-8"), page)
                 self.assertIn((root / "web/app.js").read_text(encoding="utf-8"), page)
                 self.assertNotRegex(page, r"@@[A-Z_]+@@")
                 eyebrow = re.search(r'id="eyebrow">([^<]*)<', page)
@@ -41,6 +42,18 @@ class Rendering(unittest.TestCase):
                 self.assertEqual(len(rows), 9)
                 self.assertFalse(any(tag == "script" and "src" in attrs for tag, attrs in tags))
                 self.assertEqual(page.startswith("<!doctype html>"), not fragment)
+
+    def test_team_links_escape_facts_and_work_without_javascript(self):
+        team = build.Team('Club "A" & <B>', "CAB", "", "", id="359", record="5-0-1", form="WWDLW")
+        markup = build.team_html(team, {}, "", "uefa.champions")
+        attrs = next(attrs for tag, attrs in Tags(markup).tags if tag == "a")
+        self.assertEqual(attrs['href'], 'https://www.espn.com/soccer/club/_/id/359')
+        self.assertEqual(attrs['aria-controls'], 'team-dialog')
+        self.assertEqual(json.loads(attrs['data-team'])['name'], team.name)
+        self.assertEqual(json.loads(attrs['data-team'])['league'], 'uefa.champions')
+        self.assertNotIn('<B>', markup)
+        team.id = ''
+        self.assertNotIn('team-link', build.team_html(team, {}, ""))
 
     def test_loading_assets_from_another_working_directory(self):
         script = str(Path(build.__file__).resolve())

@@ -175,6 +175,14 @@ League emblems identify competitions; badges beside team names identify the team
 
 Network pills stack on the right when a match card has enough width. In narrower cards, they run along the bottom and wrap as needed. For example, **USA Network** can reveal **YouTube TV (main plan)** in its provider list. A service that is also the broadcaster, such as **Paramount+**, has just one pill. Changing your service preferences updates the pill colors, provider lists and viewing links.
 
+### Team vitals
+
+Tap or click a team's name or badge in a schedule row, **Live now / Next up**, or **Top three** to open its team sheet. With a keyboard, focus the team and press Enter. Close the sheet with **Close**, Escape, or a tap outside it.
+
+The sheet shows available records and recent form immediately, then loads the team's home league, nickname, home ground and its city from ESPN. National teams are not assigned a permanent home ground. Domestic and cup records are labelled separately. **Leading contributors** lists up to three players with the most combined goals and assists in the displayed season and competition; it is a statistical selection, not an AI assessment of star quality. Links open the full squad, team statistics and ESPN team page.
+
+Only available facts are shown. Coach names are omitted because ESPN's roster feed can retain former coaches. If a lookup fails, the schedule's existing team facts remain available and **Try again** retries the lookup. Team profiles load only when opened and are cached in this browser for six hours, including across page reloads. Without JavaScript, team links open ESPN directly.
+
 ### Match details
 
 Hover over **Details** for a floating preview. Click, tap or press Enter to open a dialog. Close it with **Close**, Escape, or a click outside it. Neither view expands the schedule row.

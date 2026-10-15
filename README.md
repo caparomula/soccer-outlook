@@ -11,6 +11,7 @@ Choose subscriptions and channels you can actually watch. FOX One's paid subscri
 - **Live now / Next up:** the highest-scoring available live match, or the next scheduled kickoff.
 - **Top three:** up to three other recommended matches, selected by interest and shown in kickoff order.
 - **Daily schedule:** kickoff times, broadcasters, team form, standings and match details. A day changes at 4 am in your time zone so late games stay with their evening.
+- **Team vitals:** tap a team name or badge for its record, recent form, home ground, home city and leading contributors, where ESPN provides them.
 - **Viewing links:** hover over or tap a network pill to see your providers and any supported match links. Links follow your selected services; manually supplied YouTube TV links are available only while the match is live.
 - **Your own AI:** open **Settings → AI** to copy a prompt into your preferred chat, then paste its response back for personal headlines, match blurbs and ratings. Headlines and blurbs start hidden; one switch enables both. Add your interests to the prompt and choose how much its ratings influence recommendations. No AI account connection is required. Repository maintainers can also [publish a response as the site's shared defaults](docs/user-guide.md#publish-recommendations-for-everyone).
 

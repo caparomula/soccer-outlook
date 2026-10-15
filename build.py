@@ -1519,9 +1519,18 @@ def scorer_html(t):
     return f'<span class="team__scorer">Top scorer {esc(t.leader)}, {esc(goals)}</span>'
 
 
-def team_html(t, cache, score_html):
-    return (f'<span class="team">{logo_html(t, cache)}<span class="team__txt"><span class="team__name">{esc(t.name)}</span>'
-            f'{team_sub(t)}{scorer_html(t)}</span>{score_html}</span>')
+def team_html(t, cache, score_html, league=""):
+    content = (f'{logo_html(t, cache)}<span class="team__txt"><span class="team__name">{esc(t.name)}</span>'
+               f'{team_sub(t)}{scorer_html(t)}</span>{score_html}')
+    if not re.fullmatch(r"\d+", t.id or ""):
+        return f'<span class="team">{content}</span>'
+    # The same link is cloned into featured cards. Without JavaScript it opens ESPN;
+    # with JavaScript the whole name/badge area opens a sheet with these facts immediately.
+    facts = dict(id=t.id, name=t.name, league=league, record=t.record, form=t.form,
+                 rank=t.rank, points=t.pts, group=t.group, leader=t.leader, goals=t.leader_goals)
+    return (f'<a class="team team-link" href="https://www.espn.com/soccer/club/_/id/{t.id}" '
+            f'data-team="{esc(json.dumps(facts, ensure_ascii=False))}" aria-haspopup="dialog" '
+            f'aria-controls="team-dialog" title="Open team vitals" target="_blank" rel="noopener">{content}</a>')
 
 
 def gcal_link(m):
@@ -1645,7 +1654,7 @@ def row_html(m, cache):
         (f' data-r="{esc(rule_json)}"' if rule_json else "") + '>'
         f'<div class="row__time">{league_badge}<div class="row__kickoff">{time_html}<span class="row__et" hidden></span><span class="row__until" hidden></span><span class="row__live" hidden>Live</span>{status}</div></div>'
         f'<div class="row__body"><div class="row__info">'
-        f'<div class="row__teams">{team_html(m.home, cache, score_h)}<span class="vs">v</span>{team_html(m.away, cache, score_a)}</div>'
+        f'<div class="row__teams">{team_html(m.home, cache, score_h, m.league)}<span class="vs">v</span>{team_html(m.away, cache, score_a, m.league)}</div>'
         f'<div class="row__meta">{"".join(meta)}</div>{goals_html(m)}{note}'
         f'{detail_html(m, cache)}</div>'
         f'<div class="pills">{pills_html(m, destinations)}<button type="button" class="more" aria-haspopup="dialog" aria-controls="match-dialog" '
@@ -1994,7 +2003,7 @@ WEB_DIR = Path(__file__).resolve().parent / "web"
 TEMPLATE = (WEB_DIR.joinpath("page.html").read_text(encoding="utf-8")
             .replace("@@STYLES@@", WEB_DIR.joinpath("styles.css").read_text(encoding="utf-8"))
             .replace("@@SCRIPT@@", "\n".join(WEB_DIR.joinpath(name).read_text(encoding="utf-8")
-                                            for name in ("live.js", "personal-ai.js", "github-publish.js", "app.js"))))
+                                            for name in ("live.js", "teams.js", "personal-ai.js", "github-publish.js", "app.js"))))
 
 
 SHARED_AI_SOURCE = Path(__file__).resolve().parent / "content" / "shared-ai.json"

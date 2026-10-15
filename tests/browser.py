@@ -111,6 +111,194 @@ class BrowserChecks(unittest.TestCase):
         page.screenshot(path=str(self.artifacts / name), full_page=True)
 
     @staticmethod
+    def team_feed(page):
+        """The shapes of ESPN's core team and site roster endpoints, with synthetic players."""
+        def athlete(name, goals, assists):
+            return {"displayName": name, "position": {"displayName": "Forward"},
+                    "statistics": {"splits": {"categories": [{"stats": [
+                        {"name": "totalGoals", "value": goals}, {"name": "goalAssists", "value": assists}]}]}}}
+        feed = {"requests": [], "fail": False, "hold": False, "held": [],
+                "core": {"id": "1", "$ref": "http://sports.core.api.espn.com/v2/sports/soccer/leagues/eng.1/seasons/2026/teams/1",
+                         "defaultLeague": {"$ref": "http://sports.core.api.espn.com/v2/sports/soccer/leagues/eng.1?lang=en"},
+                         "nickname": "Gunners", "form": "WWDLW", "isNational": False,
+                         "venue": {"fullName": "Emirates Stadium", "address": {"city": "London", "country": "England"}}},
+                "roster": {"team": {"id": "1", "recordSummary": "5-0-1", "standingSummary": "2nd in English Premier League"},
+                           "season": {"year": 2026, "displayName": "2026-27 English Premier League"},
+                           "coach": [{"firstName": "Outdated", "lastName": "Coach"}],
+                           "athletes": [athlete("Goals Leader", 5, 1), athlete("Assist Leader", 1, 6),
+                                        athlete("Third Player", 2, 0), athlete("Unused Player", 0, 0), None]}}
+
+        def route_request(route):
+            feed["requests"].append(route.request.url)
+            if feed["hold"]:
+                feed["held"].append(route)
+            elif feed["fail"]:
+                route.fulfill(status=503, body="Unavailable")
+            else:
+                key = "roster" if "/roster" in route.request.url else "core"
+                data = deepcopy(feed[key])
+                team_id = re.search(r"/teams/(\d+)", route.request.url)[1]
+                (data["team"] if key == "roster" else data)["id"] = team_id
+                route.fulfill(content_type="application/json", body=json.dumps(data))
+        page.route(re.compile(r"https://(?:sports\.core|site)\.api\.espn\.com/.*/teams/\d+"), route_request)
+        return feed
+
+    def test_team_vitals_work_in_each_card_and_cache_across_reload(self):
+        for width in (1280, 390, 320):
+            with self.subTest(width=width), self.page('after', width=width, theme='dark', touch=width < 600) as (page, _):
+                feed = self.team_feed(page)
+                self.assertEqual(feed['requests'], [])
+                dialog = page.locator('#team-dialog')
+                for selector in ('li.row[data-id="upcoming"]', '#nextup', '#picks .pick'):
+                    link = page.locator(selector).first.locator('.team-link').first
+                    link.scroll_into_view_if_needed()
+                    before = page.locator(selector).first.bounding_box()
+                    if width < 600:
+                        link.locator('.logo').tap()
+                    else:
+                        link.focus()
+                        page.keyboard.press('Enter')
+                    expect(dialog).to_be_visible()
+                    expect(dialog).to_contain_text('Emirates Stadium')
+                    expect(dialog).to_contain_text('London, England')
+                    expect(dialog).to_contain_text('5 won · 0 drawn · 1 lost')
+                    expect(dialog).not_to_contain_text('Outdated Coach')
+                    expect(dialog.locator('.team-sheet__players strong')).to_have_text(['Assist Leader', 'Goals Leader', 'Third Player'])
+                    expect(dialog.locator('.team-sheet__players')).to_contain_text('1 goal · 6 assists')
+                    expect(page.locator('#team-dialog-close')).to_be_focused()
+                    expect(page.locator('#team-dialog-status')).to_contain_text('ESPN · checked')
+                    self.assertEqual(before, page.locator(selector).first.bounding_box())
+                    self.assertEqual(len(feed['requests']), 2)  # all three card roles share one cached lookup
+                    box = dialog.bounding_box()
+                    self.assertGreaterEqual(box['x'], 0)
+                    self.assertLessEqual(box['x'] + box['width'], width)
+                    self.assertLessEqual(box['y'] + box['height'], page.viewport_size['height'])
+                    self.assertFalse(dialog.evaluate('el => el.scrollWidth > el.clientWidth'))
+                    page.keyboard.press('Shift+Tab')
+                    expect(dialog.get_by_role('link', name='Team statistics')).to_be_focused()
+                    page.keyboard.press('Tab')
+                    expect(page.locator('#team-dialog-close')).to_be_focused()
+                    page.screenshot(path=str(self.artifacts / f'team-vitals-{width}.png'))
+                    page.keyboard.press('Escape')
+                    page.clock.run_for(50)
+                    expect(dialog).to_be_hidden()
+                    expect(link).to_be_focused()
+                page.reload()
+                page.locator('#nextup .team-link').first.click()
+                expect(dialog).to_contain_text('Assist Leader')
+                self.assertEqual(len(feed['requests']), 2)
+                page.locator('#team-dialog-close').click()
+                page.clock.run_for(50)
+                page.locator('#nextup .team-link').first.click()
+                page.mouse.click(2, 2)
+                page.clock.run_for(50)
+                expect(dialog).to_be_hidden()
+                self.assertFalse(page.locator('html').evaluate("el => el.classList.contains('has-team-dialog')"))
+
+    def test_team_vitals_keep_domestic_and_cup_records_separate(self):
+        fixtures = [('cup', '2026-10-07T18:00:00+00:00', 'pre', 'Paramount+', 'uefa.champions')]
+        with self.page('after', html=render_page(build, fixtures=fixtures)) as (page, _):
+            feed = self.team_feed(page)
+            page.locator('#nextup .team-link').first.click()
+            dialog = page.locator('#team-dialog')
+            expect(dialog).to_contain_text('2026-27 English Premier League')
+            sections = dialog.locator('section')
+            expect(sections.nth(0)).to_contain_text('5 won · 0 drawn · 1 lost')
+            expect(sections.nth(1).locator('h3')).to_have_text('Champions League')
+            expect(sections.nth(1)).to_contain_text('Top scorer: A. Player')
+            self.assertIn('/eng.1/teams/1/roster', feed['requests'][1])
+            page.locator('#team-dialog-close').click()
+            page.clock.run_for(50)
+            # National teams don't inherit a permanent home ground or the default competition's form.
+            feed['core']['isNational'] = True
+            feed['roster']['season']['displayName'] = '2026 International Friendlies'
+            feed['roster']['team']['recordSummary'] = None
+            feed['roster']['team']['standingSummary'] = None
+            page.locator('#nextup .team-link').nth(1).click()
+            expect(dialog).to_contain_text('National team')
+            expect(dialog).to_contain_text('Position 2 · 15 points')
+            expect(dialog).not_to_contain_text('Home ground')
+            expect(dialog).not_to_contain_text('London')
+            self.assertIn('/uefa.champions/teams/2/roster', feed['requests'][-1])
+
+    def test_team_vitals_failures_retry_and_late_answers_do_not_replace_another_team(self):
+        with self.page('after') as (page, live):
+            feed = self.team_feed(page)
+            feed['hold'] = True
+            link = page.locator('li.row[data-id="upcoming"] .team-link').first
+            link.click()
+            dialog = page.locator('#team-dialog')
+            expect(dialog).to_contain_text('Top scorer: A. Player')  # useful before any network response
+            page.wait_for_timeout(50)
+            page.clock.run_for(8100)
+            page.wait_for_timeout(50)
+            page.clock.run_for(8100)
+            expect(page.locator('#team-dialog-retry')).to_be_visible()
+            expect(dialog).to_contain_text('Some team information is unavailable')
+            for held in feed['held']:
+                held.abort()
+            feed['held'].clear()
+            feed['hold'] = False
+            feed['fail'] = True
+            page.locator('#team-dialog-retry').click()
+            expect(page.locator('#team-dialog-retry')).to_be_visible()
+            feed['fail'] = False
+            page.locator('#team-dialog-retry').click()
+            expect(dialog).to_contain_text('Emirates Stadium')
+            expect(page.locator('#team-dialog-retry')).to_be_hidden()
+            page.keyboard.press('Escape')
+            page.clock.run_for(50)
+            # In-flight answers from a closed sheet must not overwrite a different team's sheet.
+            feed['hold'] = True
+            page.locator('#nextup .team-link').nth(1).click()
+            page.wait_for_timeout(50)
+            held = feed['held'][-1]
+            page.keyboard.press('Escape')
+            page.clock.run_for(50)
+            page.locator('#nextup .team-link').first.click()
+            expect(page.locator('#team-dialog-title')).to_have_text('Arsenal')
+            feed['hold'] = False
+            data = deepcopy(feed['core']); data['id'] = '2'
+            held.fulfill(content_type='application/json', body=json.dumps(data))
+            page.wait_for_timeout(100)
+            expect(page.locator('#team-dialog-title')).to_have_text('Arsenal')
+            # A minute tick rebuilding the featured card must not close the sheet or lose return focus.
+            page.clock.run_for(60000)
+            expect(dialog).to_be_visible()
+            page.keyboard.press('Escape')
+            page.clock.run_for(50)
+            expect(page.locator('#nextup .team-link').first).to_be_focused()
+
+    def test_team_vitals_reject_old_squads_expire_cache_and_tolerate_blocked_storage(self):
+        with self.page('after') as (page, _):
+            feed = self.team_feed(page)
+            feed['roster']['season']['year'] = 2018
+            page.locator('#nextup .team-link').first.click()
+            dialog = page.locator('#team-dialog')
+            expect(dialog).to_contain_text('Some team information is unavailable')
+            expect(dialog).not_to_contain_text('Assist Leader')
+            expect(dialog).to_contain_text('Top scorer: A. Player')
+            feed['roster']['season']['year'] = 2026
+            page.locator('#team-dialog-retry').click()
+            expect(dialog).to_contain_text('Assist Leader')
+            page.keyboard.press('Escape')
+            page.clock.run_for(50)
+            page.evaluate("""() => { let c = JSON.parse(localStorage.getItem('soccer-team-vitals-v1'));
+                Object.values(c).forEach(e => e.checked -= 6 * 3600000);
+                c.broken = null; localStorage.setItem('soccer-team-vitals-v1', JSON.stringify(c)); }""")
+            before = len(feed['requests'])
+            page.reload()
+            page.locator('#nextup .team-link').first.click()
+            expect(dialog).to_contain_text('Assist Leader')
+            self.assertEqual(len(feed['requests']), before + 2)
+            page.keyboard.press('Escape')
+            page.clock.run_for(50)
+            page.evaluate("""() => { Storage.prototype.getItem = Storage.prototype.setItem = () => { throw new Error('Storage blocked'); }; }""")
+            page.locator('#nextup .team-link').nth(1).click()
+            expect(dialog).to_contain_text('Assist Leader')
+            expect(page.locator('#team-dialog-title')).to_have_text('Chelsea')
+
+    @staticmethod
     def bucket(page, match_id):
         return page.locator(f'li.row[data-id="{match_id}"]').evaluate(
             "row => row.closest('.bucket').querySelector('.bucket__h > span').textContent")
@@ -2126,6 +2314,9 @@ class BrowserChecks(unittest.TestCase):
                 viewing = page.locator("#outlook li.row:visible").nth(12).locator(".network summary").first
                 expect(viewing).to_have_count(1)
                 page.keyboard.press("Tab")
+                # Each team's badge/name is now a single link opening its vitals sheet.
+                page.keyboard.press("Tab")
+                page.keyboard.press("Tab")
                 page.clock.run_for(50)
                 expect(viewing).to_be_focused()
                 self.assertGreaterEqual(viewing.bounding_box()["y"], bar.bounding_box()["y"] + bar.bounding_box()["height"])
@@ -2134,7 +2325,7 @@ class BrowserChecks(unittest.TestCase):
                 expect(details.nth(12)).to_be_focused()
                 self.assertGreaterEqual(details.nth(12).bounding_box()["y"], bar.bounding_box()["y"] + bar.bounding_box()["height"])
                 # ... and keyboard focus on the bar's own controls doesn't move the page.
-                page.locator("#nextup .team__name a").first.focus()    # the first thing after the bar, far above
+                page.locator("#nextup .team-link").first.focus()    # the first thing after the bar, far above
                 page.evaluate("window.scrollTo(0, 2200)")
                 page.keyboard.press("Shift+Tab")
                 page.clock.run_for(50)
@@ -4287,6 +4478,8 @@ NOT_RUN = 77
 # A compact cross-engine pass through the interactions most sensitive to browser behavior.
 # Chromium still runs every check by default; WebKit smoke is an additional compatibility check.
 SMOKE_TESTS = (
+    "test_team_vitals_work_in_each_card_and_cache_across_reload",
+    "test_team_vitals_keep_domestic_and_cup_records_separate",
     "test_ai_text_is_off_for_fresh_browsers_and_late_responses_until_explicitly_enabled",
     "test_settings_tabs_preserve_drafts_and_ai_visibility_without_changing_ratings",
     "test_cached_legacy_ratings_do_not_create_headlines_or_hide_shared_headlines",
