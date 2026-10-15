@@ -1,6 +1,8 @@
 """Offline schedule refresh checks: python -m tests.browser_schedule [--browser webkit]."""
 import argparse
+from contextlib import contextmanager
 from copy import deepcopy
+from datetime import datetime, timedelta, timezone
 from functools import partial
 from html.parser import HTMLParser
 from http.server import ThreadingHTTPServer
@@ -64,6 +66,24 @@ def snapshot(fixtures=FIXTURES, generated="2026-10-07T17:01:00Z"):
 
 class ScheduleChecks(unittest.TestCase):
     page = BrowserChecks.page
+
+    @contextmanager
+    def transport_page(self, module):
+        """Exercise one transport without the app's unrelated lifecycle listeners."""
+        context = self.browser.new_context()
+        page = context.new_page()
+        errors = []
+        page.on('pageerror', lambda error: errors.append(str(error)))
+        now = datetime(2026, 10, 7, 17, tzinfo=timezone.utc)
+        page.clock.install(time=now - timedelta(seconds=1))
+        page.clock.pause_at(now)
+        try:
+            page.set_content('<!doctype html><html><body></body></html>')
+            page.add_script_tag(path=str(Path(__file__).resolve().parents[1] / 'web' / f'{module}.js'))
+            yield page
+            self.assertEqual(errors, [], f'JavaScript errors in {module} transport')
+        finally:
+            context.close()
 
     def serve(self, page, payload):
         state = {"payload": payload, "requests": 0, "fail": False}
@@ -188,15 +208,17 @@ class ScheduleChecks(unittest.TestCase):
             self.assertEqual(page.evaluate('localStorage.getItem("ssg5-leagues")'), before)
 
     def test_navigation_cancels_requests_and_ignores_late_callbacks_until_restored(self):
-        with self.page("after", html=render_page(build, fixtures=FIXTURES)) as (page, _):
-            result = page.evaluate("""async () => {
+        with self.transport_page('schedule') as page:
+            page.evaluate("""async () => {
                 const requests = [], applied = [], completed = [];
-                const original = window.fetch;
                 window.fetch = (url, options) => new Promise(resolve => requests.push({ options, resolve }));
                 const reader = window.SoccerOutlookSchedule.create({
                     revision: 'lifecycle-test', builtAt: '2026-10-07T17:00:00Z', leagues: {}, services: [],
                     apply: snapshot => applied.push(snapshot.generated),
-                    completed: state => completed.push({ fails: state.fails, reason: state.reason })
+                    completed: state => {
+                        completed.push({ fails: state.fails, reason: state.reason });
+                        document.body.dataset.transportComplete = 'true';
+                    }
                 });
                 const first = reader.poll();
                 window.dispatchEvent(new Event('beforeunload'));
@@ -217,12 +239,11 @@ class ScheduleChecks(unittest.TestCase):
                     version: 1, complete: true, runtime_revision: 'lifecycle-test',
                     generated_at: '2026-10-07T17:02:00Z', rows: [], logos: {}
                 })) });
-                // Drain the response, parse, and completion promise chain without advancing timers.
-                for (let i = 0; i < 10; i++) await Promise.resolve();
-                window.fetch = original;
-                return { aborted, blockedBeforePagehide, blockedWhileHidden, quietWhileHidden, resumed, applied, completed,
+                window.lifecycleResult = { aborted, blockedBeforePagehide, blockedWhileHidden, quietWhileHidden, resumed, applied, completed,
                     mode: requests[1].options.mode };
             }""")
+            expect(page.locator('body')).to_have_attribute('data-transport-complete', 'true')
+            result = page.evaluate('window.lifecycleResult')
             self.assertEqual(result, {
                 "aborted": True, "blockedBeforePagehide": True, "blockedWhileHidden": True,
                 "quietWhileHidden": True, "resumed": True,
@@ -249,17 +270,19 @@ class ScheduleChecks(unittest.TestCase):
                 expect(page.locator('#schedule-note')).not_to_contain_text('did not get through')
 
     def test_live_score_transport_cancels_and_resumes_without_consuming_catchup(self):
-        fixtures = [("future", "2026-10-07T19:00:00Z", "pre", "Paramount+", "uefa.champions")]
-        with self.page("after", html=render_page(build, fixtures=fixtures)) as (page, _):
-            result = page.evaluate("""async () => {
-                const requests = [], applied = [], completed = [], original = window.fetch;
+        with self.transport_page('live') as page:
+            page.evaluate("""async () => {
+                const requests = [], applied = [], completed = [];
                 window.fetch = (url, options) => new Promise(resolve => requests.push({ options, resolve }));
                 const reader = window.SoccerOutlookLive.create({
                     now: () => Date.now(), dateKey: () => '20261007',
                     matches: () => [{ id: 'catchup', league: 'eng.1', eligible: true,
                         kickoff: Date.parse('2026-10-07T12:00:00Z') }],
                     applyEvent: (id, event, first) => applied.push({ id, first }),
-                    completed: state => completed.push(state.fails)
+                    completed: state => {
+                        completed.push(state.fails);
+                        document.body.dataset.transportComplete = 'true';
+                    }
                 });
                 const first = reader.poll();
                 window.dispatchEvent(new Event('beforeunload'));
@@ -272,10 +295,10 @@ class ScheduleChecks(unittest.TestCase):
                 window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
                 const resumed = requests.length === 2;
                 requests[1].resolve({ ok: true, json: () => Promise.resolve({ events: [{ id: 'catchup' }] }) });
-                for (let i = 0; i < 15; i++) await Promise.resolve();
-                window.fetch = original;
-                return { blocked, aborted, quiet, resumed, applied, completed };
+                window.lifecycleResult = { blocked, aborted, quiet, resumed, applied, completed };
             }""")
+            expect(page.locator('body')).to_have_attribute('data-transport-complete', 'true')
+            result = page.evaluate('window.lifecycleResult')
             self.assertEqual(result, {"blocked": True, "aborted": True, "quiet": True, "resumed": True,
                                       "applied": [{"id": "catchup", "first": True}], "completed": [0]})
 
