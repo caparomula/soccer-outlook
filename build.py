@@ -1498,7 +1498,7 @@ def record_html(record):
 
 
 def team_sub(t):
-    """Under a team's name: its table place and points, then its form. The season record rides along
+    """Under a team's name: its form, then table place and points. The season record rides along
     hidden, for a card with no blurb to show (a row keeps it in its Details panel)."""
     bits = []
     if t.rank:
@@ -1513,7 +1513,7 @@ def team_sub(t):
     f = form_html(t.form)
     if not txt and not f:
         return ""
-    return f'<span class="team__sub"><span class="team__table">{txt}</span>{f}</span>'
+    return f'<span class="team__sub">{f}<span class="team__table">{txt}</span></span>'
 
 
 def scorer_html(t):
