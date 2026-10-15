@@ -107,17 +107,17 @@ a { color: inherit; }
 .story__lede { font-size: 18px; margin: 8px 0 0; }
 .story__by { font-size: 13px; color: var(--muted); margin: 8px 0 0; }
 .story__by a, .row__story a, .miss__story a { color: var(--muted); }
-/* One readable headline card, with a glimpse of the next. The track follows the selected
-   card's height, so a long story elsewhere never reserves blank space above the matches. */
+/* Cards fit their copy up to a readable line length. The track fits readable cards,
+   so a long story offscreen never reserves blank space above the matches. */
 .story-carousel { min-width: 0; }
 .story-carousel__track { display: flex; gap: 12px; align-items: flex-start; overflow-x: auto; overflow-y: hidden;
   scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; border-radius: var(--radius); }
 .story-carousel__track::-webkit-scrollbar { display: none; }
 .story-carousel__track:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
-.story-carousel__track > .story-headline { flex: 0 0 calc(100% - 32px); min-width: 0; box-sizing: border-box;
+.story-carousel__track > .story-headline { flex: 0 0 auto; width: max-content; max-width: min(40rem, calc(100% - 32px)); min-width: 0; box-sizing: border-box;
   scroll-snap-align: start; padding: 15px 17px; border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--card); }
-.story-carousel__track > .story-headline:last-child { margin-right: 32px; }
-.story-carousel__track > .story-headline:only-child { flex-basis: 100%; margin-right: 0; }
+.story-carousel__track > .story-headline:last-child { margin-right: var(--headline-tail, 0px); }
+.story-carousel__track > .story-headline:only-child { max-width: min(40rem, 100%); margin-right: 0; }
 .story-carousel__nav { display: flex; justify-content: flex-end; align-items: center; gap: 10px; margin-top: 5px; }
 .story-carousel__nav[hidden] { display: none; }
 .story-carousel__nav button { min-width: 36px; min-height: 36px; border: 1px solid var(--line-strong); border-radius: 50%;

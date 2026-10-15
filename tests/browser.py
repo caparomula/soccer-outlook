@@ -4147,10 +4147,11 @@ class BrowserChecks(unittest.TestCase):
                 page.locator("#ai-generate").click()
                 snapshot = self.personal_ai_snapshot(page)
                 reply = self.personal_ai_headline_reply(snapshot, [
-                    self.personal_ai_headline(snapshot, "eng.1", ["near"], "A returning midfielder changes the contest", 80,
-                                              lede="The returning midfielder gives the home side another passing option."),
-                    self.personal_ai_headline(snapshot, "esp.1", ["tomorrow"], "The Spanish title contenders meet", 99),
-                    self.personal_ai_headline(snapshot, "usa.1", ["later"], "A playoff place is on the line", 98),
+                    self.personal_ai_headline(snapshot, "eng.1", ["near"], "Premier League", 80,
+                                              lede="A playmaker returns."),
+                    self.personal_ai_headline(snapshot, "esp.1", ["tomorrow"], "The Spanish title contenders meet", 99,
+                                              lede="The returning midfielder gives the home side another passing option. Both coaches face selection decisions after a demanding midweek match, with a place at the top of the table at stake."),
+                    self.personal_ai_headline(snapshot, "usa.1", ["later"], "MLS playoffs", 98),
                     self.personal_ai_headline(snapshot, "fra.1", ["low"], "An ordinary fixture needs no headline", 59)])
                 page.locator("#ai-response").fill("```json\n" + json.dumps(reply) + "\n```")
                 page.locator("#ai-apply").click()
@@ -4165,11 +4166,26 @@ class BrowserChecks(unittest.TestCase):
                 expect(page.locator('#story-headlines details')).to_have_count(0)
                 expect(lead.locator(".story-headline__lede")).to_have_text(reply["headlines"][0]["lede"])
                 expect(lead.locator(".story-headline__lede")).to_be_visible()
+                track = page.locator('#story-headlines')
+                sizes = track.evaluate("el => ({track:el.clientWidth, cards:Array.from(el.children, card=>({width:card.getBoundingClientRect().width, height:card.getBoundingClientRect().height}))})")
+                self.assertLessEqual(sizes['cards'][0]['width'], sizes['track'])
+                if width > 600:
+                    self.assertLess(sizes['cards'][0]['width'], sizes['track'] * .65)
+                    self.assertGreater(sizes['cards'][1]['width'], sizes['cards'][0]['width'] + 100)
+                    self.assertLessEqual(sizes['cards'][1]['width'], 640)
+                visible_height = track.evaluate("el => Math.max(...Array.from(el.children).filter(card => !card.inert).map(card => card.getBoundingClientRect().height))")
+                self.assertAlmostEqual(track.bounding_box()['height'], visible_height, delta=1)
+                if width > 600:
+                    neighbor = page.locator('#story-headlines article[data-league="esp.1"]')
+                    expect(neighbor).to_have_attribute('aria-hidden', 'false')
+                    neighbor.locator('.story-headline__sources a').first.focus()
+                    expect(neighbor.locator('.story-headline__sources a').first).to_be_focused()
                 self.assertEqual(page.locator('#story-headlines > article').evaluate_all("els => els.map(el => el.dataset.league)"), ['eng.1', 'esp.1', 'usa.1'])
                 self.full_page_shot(page, f'headline-carousel-first-{width}.png')
                 page.get_by_role('button', name='Next headline', exact=True).click()
                 expect(lead).to_have_attribute('data-league', 'esp.1')
                 expect(page.locator('#headline-position')).to_have_text('2 of 3')
+                self.assertAlmostEqual(track.bounding_box()['height'], lead.bounding_box()['height'], delta=1)
                 self.full_page_shot(page, f'headline-carousel-next-{width}.png')
                 page.locator('#headline-next').focus()
                 page.keyboard.press('Enter')
@@ -4177,11 +4193,25 @@ class BrowserChecks(unittest.TestCase):
                 expect(page.locator('#headline-next')).to_be_disabled()
                 page.keyboard.press('Enter')
                 expect(page.locator('#headline-position')).to_have_text('3 of 3')
-                track = page.locator('#story-headlines')
                 track.focus()
                 page.keyboard.press('End')
                 expect(lead).to_have_attribute('data-league', 'usa.1')
                 expect(page.locator('#headline-next')).to_be_disabled()
+                page.clock.run_for(50)
+                expect(lead).to_have_attribute('data-league', 'usa.1')
+                self.assertAlmostEqual(lead.bounding_box()['x'], track.bounding_box()['x'], delta=1)
+                self.assertAlmostEqual(track.bounding_box()['height'], lead.bounding_box()['height'], delta=1)
+                if width > 600:
+                    # The last short card stays aligned as the track shrinks and grows.
+                    initial_track_width = track.bounding_box()['width']
+                    page.set_viewport_size({'width': 900, 'height': 900})
+                    page.clock.run_for(50)
+                    self.assertLess(track.bounding_box()['width'], initial_track_width)
+                    expect(lead).to_have_attribute('data-league', 'usa.1')
+                    self.assertAlmostEqual(lead.bounding_box()['x'], track.bounding_box()['x'], delta=1)
+                    page.set_viewport_size({'width': width, 'height': 900})
+                    page.clock.run_for(50)
+                    self.assertAlmostEqual(lead.bounding_box()['x'], track.bounding_box()['x'], delta=1)
                 page.keyboard.press('ArrowLeft')
                 expect(lead).to_have_attribute('data-league', 'esp.1')
                 page.keyboard.press('Home')
@@ -4203,6 +4233,7 @@ class BrowserChecks(unittest.TestCase):
                 expect(page.locator('#headline-nav')).to_be_hidden()
                 page.locator("#btn-filters-close").click()
                 expect(lead.locator(".story-headline__title")).to_have_text("The Spanish title contenders meet")
+                self.assertLessEqual(lead.bounding_box()['width'], min(640, track.bounding_box()['width']))
 
     def test_personal_ai_calendar_headlines_need_enabled_leagues_and_empty_replies_stay_empty(self):
         with self.page("after", html=render_page(build, fixtures=[], ai=False)) as (page, _):

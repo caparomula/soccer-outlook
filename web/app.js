@@ -1784,19 +1784,40 @@
     // preserving an opened disclosure and the reader's focus on its source links.
     detail.open = false;
   }
-  var headlineTrack = document.getElementById('story-headlines'), headlineIndex = 0, headlineScrollFrame = null;
-  var headlineResize = window.ResizeObserver ? new ResizeObserver(function () { syncHeadlineCarousel(); }) : null;
+  var headlineTrack = document.getElementById('story-headlines'), headlineIndex = 0, headlineScrollFrame = null, headlineTrackWidth = 0;
+  var headlineWidths = new WeakMap();
+  var headlineResize = window.ResizeObserver ? new ResizeObserver(function (entries) {
+    var resized = false;
+    entries.forEach(function (entry) {
+      var width = entry.target.getBoundingClientRect().width, before = headlineWidths.get(entry.target);
+      if (before !== undefined && Math.abs(width - before) > .5) resized = true;
+      headlineWidths.set(entry.target, width);
+    });
+    // A height change must not snap a swipe back before its scroll event is processed.
+    if (resized) showHeadline(headlineIndex); else syncHeadlineCarousel();
+  }) : null;
+  function headlineTail() {
+    var cards = headlineTrack.children;
+    headlineTrackWidth = headlineTrack.clientWidth;
+    // A narrow last card still needs enough trailing room to reach the track's left edge.
+    var space = cards.length > 1 ? Math.max(0, headlineTrackWidth - cards[cards.length - 1].getBoundingClientRect().width) : 0;
+    headlineTrack.style.setProperty('--headline-tail', Math.ceil(space) + 'px');
+  }
   function syncHeadlineCarousel() {
     var cards = Array.from(headlineTrack.children), count = cards.length;
     headlineIndex = Math.max(0, Math.min(headlineIndex, count - 1));
+    var bounds = headlineTrack.getBoundingClientRect(), height = 0;
     cards.forEach(function (card, index) {
-      var current = index === headlineIndex;
+      var current = index === headlineIndex, box = card.getBoundingClientRect();
+      // Short neighboring cards can fit completely; their copy and source links stay usable.
+      var readable = current || (box.left >= bounds.left - 1 && box.right <= bounds.right + 1);
       if (current) card.setAttribute('aria-current', 'true'); else card.removeAttribute('aria-current');
-      card.setAttribute('aria-hidden', String(!current)); card.inert = !current;
+      card.setAttribute('aria-hidden', String(!readable)); card.inert = !readable;
+      if (readable) height = Math.max(height, box.height);
     });
     var card = cards[headlineIndex];
     if (card) {
-      headlineTrack.style.height = Math.ceil(card.getBoundingClientRect().height) + 'px';
+      headlineTrack.style.height = Math.ceil(height) + 'px';
       document.getElementById('story').setAttribute('data-league', card.dataset.league);
     } else headlineTrack.style.height = '';
     document.getElementById('headline-nav').hidden = count < 2;
@@ -1810,6 +1831,7 @@
   function showHeadline(index) {
     var cards = headlineTrack.children;
     if (!cards.length) return;
+    headlineTail();
     headlineIndex = Math.max(0, Math.min(index, cards.length - 1));
     var left = headlineTrack.scrollLeft + cards[headlineIndex].getBoundingClientRect().left - headlineTrack.getBoundingClientRect().left;
     // Button/key navigation is immediate; touch and trackpad scrolling remain native. No autoplay.
@@ -1835,7 +1857,9 @@
       syncHeadlineCarousel();
     });
   }, { passive: true });
-  window.addEventListener('resize', function () { if (!document.getElementById('story-carousel').hidden) showHeadline(headlineIndex); });
+  window.addEventListener('resize', function () {
+    if (headlineTrack.clientWidth !== headlineTrackWidth && !document.getElementById('story-carousel').hidden) showHeadline(headlineIndex);
+  });
   // Headline interest measures editorial usefulness, separately from a game's pick score. Stories
   // within the next 24 hours come before later ones; low-rated filler never wins an empty slot.
   // Calendar notices use their verified event period, never an assumed "now".
@@ -1911,7 +1935,9 @@
         }
         return el;
       }
-      chosen.forEach(function (item, index) { var card = article(item, index); host.appendChild(card); if (headlineResize) headlineResize.observe(card); });
+      chosen.forEach(function (item, index) { var card = article(item, index); host.appendChild(card); if (headlineResize) {
+        headlineWidths.set(card, card.getBoundingClientRect().width); headlineResize.observe(card);
+      } });
       showHeadline(0); syncHeadlineCarousel();
     });
     watchIcons();
