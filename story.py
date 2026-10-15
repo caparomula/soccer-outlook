@@ -1538,7 +1538,8 @@ def write_story(facts, model, effort, mode, previous, totals, checkpoint=None):
                 rating.setdefault("provenance", dict(model=by or model, effort=effort,
                     generated_at=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), timestamp_scope="rating_response"))
         if checkpoint:
-            checkpoint(full_snapshot(story, fresh, earlier, candidates, partial=True, research_complete=news is not None), by or served)
+            checkpoint(full_snapshot(story, fresh, earlier, candidates, partial=True, research_complete=news is not None),
+                       by or served, accepted=bool(fresh))
 
     accepted_ratings({}, served)
     fresh = write_ratings(rate, facts, wanted, rating_context(story), seen, links, totals,
@@ -1749,6 +1750,24 @@ def save(path, story):
             os.unlink(temporary)
 
 
+def stamp_update(value, previous=None, advance=True):
+    """Order accepted revisions without renewing their generation time or freshness horizon."""
+    if not advance:
+        if previous and "updated_at" in previous:
+            value["updated_at"] = previous["updated_at"]
+        return
+    updated = datetime.now(timezone.utc)
+    for snapshot in (value, previous or {}):
+        try:
+            prior = datetime.fromisoformat(snapshot.get("updated_at") or snapshot.get("generated_at") or "")
+            if prior.tzinfo:
+                updated = max(updated, prior + timedelta(milliseconds=1))
+        except (TypeError, ValueError):
+            pass
+    # Browsers compare milliseconds; two chunks completed within one tick must still sort.
+    value["updated_at"] = updated.isoformat(timespec="milliseconds")
+
+
 def copy_fallback(source, target):
     """Preserve a validated transition fallback byte for byte, without changing its provenance."""
     if os.path.abspath(source) == os.path.abspath(target):
@@ -1900,6 +1919,7 @@ def main():
     started = time.monotonic()
     totals = {"in": 0, "cache_write": 0, "cache_read": 0, "out": 0, "searches": 0, "fetches": 0, "prompt_max": 0}
     checkpointed = None
+    accepted_progress = False
     finished = False
     generated_at = (todays["generated_at"] if resuming else datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
     focus_until = todays.get("focus_until") if resuming else facts.get("focus_until")
@@ -1914,16 +1934,18 @@ def main():
             efforts = {origin["effort"] for origin in origins if isinstance(origin, dict) and isinstance(origin.get("effort"), str)}
             value["effort"] = next(iter(efforts)) if len(efforts) == 1 else "mixed" if efforts else effort
 
-    def checkpoint(value, by):
-        nonlocal checkpointed
+    def checkpoint(value, by, accepted=True):
+        nonlocal checkpointed, accepted_progress
         if not any(value.get(key) for key in ("rankings", "notes", "lede_items", "forecast", "league_blurbs")):
             return
         saved = copy.deepcopy(value)
         saved.pop("_dropped", None)
         metadata(saved, by)
+        stamp_update(saved, checkpointed or todays, advance=accepted)
         try:
             save(args.out, saved)
             checkpointed = saved
+            accepted_progress = accepted_progress or accepted
             if args.usage_out:
                 cost = cost_of(totals, by if by in providers.MODELS else model)
                 save(args.usage_out, {"mode": mode, "model": model, "served": by, "provider": provider, "effort": effort,
@@ -1958,6 +1980,8 @@ def main():
     if published:
         if not text_only:
             metadata(story, served)
+            advance = finished and (not resuming or accepted_progress or not partial_generation(story))
+            stamp_update(story, checkpointed or todays, advance=advance)
         if mode == "ratings" and config:
             for job in ("overview", "blurbs"):
                 if config.get(f"{job}_model"):
@@ -1971,6 +1995,8 @@ def main():
                 try:
                     account = (add_overview if job == "overview" else add_blurbs)(
                         candidate, facts, config[f"{job}_model"], config[f"{job}_effort"])
+                    if account.get("published") or account.get("written", 0):
+                        stamp_update(candidate)
                     save(args.out, candidate)
                     story = candidate
                 except Exception as e:

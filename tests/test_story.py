@@ -666,7 +666,7 @@ class Modes(unittest.TestCase):
 
     def test_keep_and_fallbacks_never_lose_the_published_story(self):
         fresh = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        today = dict(BY_FULL, version=1, date="2026-10-07", generated_at=fresh, lede="Today's.")
+        today = dict(BY_FULL, version=1, date="2026-10-07", generated_at=fresh, updated_at=fresh, lede="Today's.")
         yesterday = dict(BY_FULL, version=1, date="2026-10-06", generated_at="2026-10-06T22:00:00Z", lede="Yesterday's.")
         self.assertEqual(self.main("keep", yesterday), yesterday)          # a code push republishes as is
         self.assertEqual(self.main("auto", today), today)                  # too fresh to pay for again
@@ -746,6 +746,7 @@ class Checkpoints(unittest.TestCase):
             self.assertEqual(result["league_blurbs"], saved["league_blurbs"])
             self.assertEqual(result["generated_at"], saved["generated_at"])
             self.assertEqual(result["focus_until"], saved["focus_until"])
+            self.assertGreater(result["updated_at"], saved["updated_at"])
             self.assertEqual(result["rankings"]["1"]["sources"], [{"url": READ, "title": "T"}])
             self.assertNotIn("generation", result)
 
@@ -886,6 +887,92 @@ class Checkpoints(unittest.TestCase):
             result = self.invoke(folder, sdk, "keep", previous=complete)
             self.assertEqual(result, complete)
             self.assertFalse(sdk.calls)
+
+
+class UpdateTimestamps(unittest.TestCase):
+    main = Modes.main
+    invoke = Checkpoints.invoke
+    Clock = Checkpoints.Clock
+
+    def test_accepted_checkpoints_advance_revision_even_within_one_clock_tick(self):
+        snapshots, original_save = [], story.save
+
+        def capture(path, value):
+            original_save(path, value)
+            if Path(path).name == "story.json":
+                snapshots.append(json.loads(Path(path).read_text()))
+
+        with tempfile.TemporaryDirectory() as folder, patch.object(story, "save", capture), patch.object(story, "RATING_CHUNK", 2):
+            result = self.invoke(folder, FakeSDK([news_reply(publication(), read=[READ])]))
+            self.assertGreaterEqual(len(snapshots), 5)  # research, three chunks, completed result
+            revisions = [datetime.fromisoformat(s["updated_at"]) for s in snapshots]
+            self.assertTrue(all(a <= b for a, b in zip(revisions, revisions[1:])))
+            self.assertGreaterEqual(len(set(revisions)), 5)  # carrying accepted research is not a new revision
+            self.assertEqual({s["generated_at"] for s in snapshots}, {result["generated_at"]})
+            self.assertEqual({s["focus_until"] for s in snapshots}, {result["focus_until"]})
+            for extra in ((), ("--fallback-only",)):
+                sdk = FakeSDK([])
+                self.assertEqual(self.invoke(folder, sdk, "keep", previous=result, extra=extra), result)
+                self.assertFalse(sdk.calls)
+
+    def test_a_failed_run_does_not_retimestamp_its_last_accepted_checkpoint(self):
+        snapshots, original_save = [], story.save
+
+        def capture(path, value):
+            original_save(path, value)
+            if Path(path).name == "story.json":
+                snapshots.append(json.loads(Path(path).read_text()))
+
+        with tempfile.TemporaryDirectory() as folder, patch.object(story, "save", capture), \
+                patch.object(story, "write_ratings", side_effect=RuntimeError("provider failed")):
+            result = self.invoke(folder, FakeSDK([news_reply(publication(), read=[READ])]))
+        self.assertGreaterEqual(len(snapshots), 2)
+        self.assertEqual(snapshots[-2]["updated_at"], result["updated_at"])
+        self.assertTrue(story.partial_generation(result))
+
+    def test_failed_or_empty_resume_preserves_the_revision_of_accepted_work(self):
+        with tempfile.TemporaryDirectory() as folder:
+            with patch.object(story, "write_ratings", side_effect=KeyboardInterrupt), self.assertRaises(KeyboardInterrupt):
+                self.invoke(folder, FakeSDK([news_reply(publication(), read=[READ])]))
+            saved = json.loads((Path(folder) / "story.json").read_text())
+            for failure in (RuntimeError("provider failed"), None):
+                with self.subTest(failure=failure):
+                    sdk = FakeSDK([], rate=lambda fixtures: {"ratings": []})
+                    with patch.object(story, "write_ratings", side_effect=failure, wraps=story.write_ratings):
+                        result = self.invoke(folder, sdk, "keep", previous=saved)
+                    self.assertEqual(result["updated_at"], saved["updated_at"])
+                    self.assertEqual(result["generated_at"], saved["generated_at"])
+                    self.assertEqual(result["focus_until"], saved["focus_until"])
+                    self.assertEqual(result["league_blurbs"], saved["league_blurbs"])
+                    self.assertTrue(story.partial_generation(result))
+
+    def test_only_accepted_optional_text_advances_revision_without_renewing_freshness(self):
+        for job, settings, model in (("overview", RATINGS_OVERVIEW, "gemini-3.1-pro-preview"),
+                                     ("blurbs", RATINGS_BLURBS, "gpt-6.1-sol")):
+            for accepted in (False, True):
+                with self.subTest(job=job, accepted=accepted):
+                    previous = dict(BY_RATINGS, version=1, date=RUN_FACTS["date"], generated_at="2026-10-07T16:00:00Z",
+                                    updated_at="2026-10-07T16:30:00Z", focus_until=RUN_FACTS["focus_until"],
+                                    rankings={str(i): {"score": 60} for i in range(1, 6)},
+                                    **{f"{job}_model": model, f"{job}_effort": "medium"})
+
+                    def add(candidate, *_):
+                        if accepted:
+                            if job == "overview":
+                                candidate["overview"] = {"text": "New researched overview.", "sources": [{"url": READ}]}
+                            else:
+                                candidate["rankings"]["1"].update(blurb="New researched match news.", sources=[{"url": READ}])
+                        return {"published": accepted} if job == "overview" else {"written": int(accepted)}
+
+                    with patch.object(story, "datetime", self.Clock), patch.object(story, f"add_{job}", side_effect=add) as enrich:
+                        result = self.main("daily", previous, settings=settings, key=None)
+                    enrich.assert_called_once()
+                    self.assertEqual(result["generated_at"], previous["generated_at"])
+                    self.assertEqual(result["focus_until"], previous["focus_until"])
+                    if accepted:
+                        self.assertGreater(datetime.fromisoformat(result["updated_at"]), datetime.fromisoformat(previous["updated_at"]))
+                    else:
+                        self.assertEqual(result, previous)
 
 
 class EffortTransition(unittest.TestCase):
