@@ -1,7 +1,7 @@
 # Builds the schedule from ESPN and publishes it to the gh-pages branch.
 # AI configuration lives in settings.toml. Full research is generated daily and reused later
 # that day. The ratings-only design can also fill missing ratings and optional text.
-# Ordinary code pushes keep the published result unless the configured AI setup changed.
+# Ordinary code pushes keep the published result unless the AI setup changed or a partial run needs finishing.
 # API keys are repository secrets; the schedule still publishes when AI is unavailable.
 #
 # Tests and the builder's source report gate publication. A healthy quiet or empty schedule is
@@ -44,7 +44,7 @@ concurrency:
 jobs:
   refresh:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v5
       - name: Skip superseded source revisions
@@ -114,7 +114,7 @@ jobs:
 
       - name: Write the AI ratings and storylines
         continue-on-error: true
-        timeout-minutes: 25
+        timeout-minutes: 60
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -131,10 +131,12 @@ jobs:
           case "$EVENT" in
             schedule) mode=daily ;;     # the day's story once, by its first scheduled build; later builds keep it
             workflow_dispatch) mode="${WANT:-refresh}" ;;
-            *) mode=keep         # a code push: the news hasn't changed (story.py writes anyway if the [ai] choice did)...
+            *) mode=keep         # a code push keeps accepted news, resumes a partial run, or recovers a missing result
                # ...unless the live page was built with AI off: then this push is the switch coming back
                # on (or another change while it is off, when story.py calls nothing anyway).
-               if curl -fsS --max-time 30 "${site_url}/" -o work/live.html && grep -q 'data-ai="off"' work/live.html; then
+               if [ "${#previous[@]}" -eq 0 ]; then
+                 mode=daily
+               elif curl -fsS --max-time 30 "${site_url}/" -o work/live.html && grep -q 'data-ai="off"' work/live.html; then
                  mode=daily
                fi ;;
           esac

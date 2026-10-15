@@ -9,6 +9,7 @@ import sys
 import tempfile
 import threading
 import unittest
+from concurrent.futures import Future
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
@@ -375,6 +376,37 @@ class Requests(unittest.TestCase):
             self.assertNotIn("tool_choice", call)
             self.assertNotIn("thinking", call)  # Fable's adaptive thinking is always on.
         self.assertEqual(sdk.rating_calls()[0]["output_config"]["format"]["schema"], story.RATING_SCHEMA)
+        self.assertEqual(sdk.rating_calls()[0]["max_tokens"], 64000)
+
+    def test_opus_max_keeps_the_selected_model_with_room_for_reasoning_and_text(self):
+        sdk = FakeSDK([news_reply(publication(), read=[READ])])
+        with patch.dict(sys.modules, {"anthropic": sdk.module}), patch.object(story, "log", lambda *_: None):
+            result, _ = story.write_story(RUN_FACTS, "claude-opus-5-5", "max", "full", None, totals())
+        self.assertTrue(result["league_blurbs"])
+        self.assertTrue(result["rankings"])
+        for call in sdk.calls:
+            self.assertEqual((call["model"], call["output_config"]["effort"], call["max_tokens"]),
+                             ("claude-opus-5-5", "max", 64000))
+            for absent in ("fallbacks", "betas", "tool_choice", "thinking"):
+                self.assertNotIn(absent, call)
+
+    def test_full_rating_retry_splits_truncated_chunks_and_keeps_successful_ones(self):
+        asked = []
+        facts = dict(RUN_FACTS, ranking_candidates=[fixture(str(n), n) for n in range(25)])
+
+        def rate(fixtures, *_):
+            asked.append([f["id"] for f in fixtures])
+            truncated = len(fixtures) > 10
+            return ([] if truncated else every_rating(fixtures)), {"in": 1, "out": 7}, "max_tokens" if truncated else "end_turn", "test"
+
+        spent = totals()
+        with patch.object(story, "log", lambda *_: None):
+            ratings, _ = story.write_ratings(rate, facts, [m["id"] for m in facts["ranking_candidates"]], [], {},
+                                             story.fixture_links(facts), spent)
+        self.assertEqual(sorted(map(len, asked)), [5, 10, 10, 20])
+        self.assertEqual(sum("24" in chunk for chunk in asked), 1)
+        self.assertEqual(len(ratings), 25)
+        self.assertEqual((spent["in"], spent["out"]), (4, 28))
 
     def test_authored_league_headlines_survive_full_generation_and_refresh_input(self):
         sdk = FakeSDK([news_reply(publication(), read=[READ])])
@@ -452,7 +484,7 @@ class Requests(unittest.TestCase):
         self.assertEqual(sorted(result["rankings"]), ["1", "2", "3", "4"])
         retry = [sorted(f["id"] for f in FakeSDK.fixtures(c)) for c in sdk.rating_calls()][3:]
         self.assertEqual(sorted(sum(retry, [])), ["3", "4", "5"])   # the failed chunk and the missing fixture
-        self.assertEqual(len(sdk.rating_calls()), 3 + 2)             # no third round
+        self.assertEqual(len(sdk.rating_calls()), 3 + 3)             # retry uses half-size chunks; no third round
 
     def test_repair_asks_only_for_what_is_missing_and_keeps_the_rest(self):
         first = publication(league_blurbs=[blurb("eng.1", "1")], league_order=["eng.1"])
@@ -669,6 +701,190 @@ def openai_ratings(calls, served="gpt-6.1-sol", drop=()):
                 "usage": {"input_tokens": 17000, "input_tokens_details": {"cached_tokens": 1000}, "output_tokens": 2800,
                           "output_tokens_details": {"reasoning_tokens": 20}}}
     return post
+
+
+class Checkpoints(unittest.TestCase):
+    """Completed paid work survives a process interruption and is not bought again on restart."""
+
+    class Clock(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            value = datetime(2026, 10, 7, 17, tzinfo=timezone.utc)
+            return value.astimezone(tz) if tz else value.replace(tzinfo=None)
+
+    def invoke(self, folder, sdk, mode="daily", previous=None):
+        folder = Path(folder)
+        (folder / "facts.json").write_text(json.dumps(RUN_FACTS))
+        (folder / "settings.toml").write_text(FULL)
+        args = ["story.py", "--facts", str(folder / "facts.json"), "--out", str(folder / "story.json"),
+                "--usage-out", str(folder / "usage.json"), "--settings", str(folder / "settings.toml"), "--mode", mode]
+        if previous is not None:
+            (folder / "previous.json").write_text(json.dumps(previous))
+            args += ["--previous", str(folder / "previous.json")]
+        with patch.object(sys, "argv", args), patch.dict(sys.modules, {"anthropic": sdk.module}), \
+                patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}), patch.object(story, "datetime", self.Clock), \
+                patch.object(story, "log", lambda *_: None), patch.object(story, "summary", lambda *_: None):
+            self.assertEqual(story.main(), 0)
+        return json.loads((folder / "story.json").read_text())
+
+    def test_research_survives_interruption_and_code_push_resumes_without_research(self):
+        with tempfile.TemporaryDirectory() as folder:
+            first = FakeSDK([news_reply(publication(), read=[READ])])
+            with patch.object(story, "write_ratings", side_effect=KeyboardInterrupt), self.assertRaises(KeyboardInterrupt):
+                self.invoke(folder, first)
+            saved = json.loads((Path(folder) / "story.json").read_text())
+            account = json.loads((Path(folder) / "usage.json").read_text())
+            self.assertEqual(saved["generation"], {"status": "partial", "research_complete": True})
+            self.assertEqual((saved["version"], saved["date"], saved["requested_model"], saved["effort"]),
+                             (1, RUN_FACTS["date"], "claude-opus-5-5", "medium"))
+            self.assertEqual((account["partial"], account["cost_complete"]), (True, False))
+            self.assertTrue(saved["league_blurbs"][0]["headline"])
+            resumed = FakeSDK([], rate=lambda fs: every_rating(fs, [READ]))
+            result = self.invoke(folder, resumed, "keep")
+            self.assertFalse(resumed.research_calls())
+            self.assertEqual(result["league_blurbs"], saved["league_blurbs"])
+            self.assertEqual(result["generated_at"], saved["generated_at"])
+            self.assertEqual(result["focus_until"], saved["focus_until"])
+            self.assertEqual(result["rankings"]["1"]["sources"], [{"url": READ, "title": "T"}])
+            self.assertNotIn("generation", result)
+
+    def test_completed_rating_chunk_survives_kill_and_is_never_rerated_on_resume(self):
+        def stop_after_one(futures):
+            yield next(iter(futures))
+            raise KeyboardInterrupt
+
+        with tempfile.TemporaryDirectory() as folder:
+            first = FakeSDK([news_reply(publication(), read=[READ])])
+            with patch.object(story, "RATING_CHUNK", 2), patch.object(story, "as_completed", stop_after_one), \
+                    self.assertRaises(KeyboardInterrupt):
+                self.invoke(folder, first)
+            saved = json.loads((Path(folder) / "story.json").read_text())
+            self.assertEqual(set(saved["rankings"]), {"1", "2"})
+            resumed = FakeSDK([])
+            result = self.invoke(folder, resumed)
+            asked = [f["id"] for call in resumed.rating_calls() for f in FakeSDK.fixtures(call)]
+            self.assertEqual(asked, ["3", "4", "5"])
+            self.assertFalse(resumed.research_calls())
+            self.assertEqual(result["rankings"]["1"], saved["rankings"]["1"])
+            self.assertEqual(result["ranking_coverage"], {"rated": 5, "total": 5, "carried": 2})
+            self.assertNotIn("generation", result)
+            self.assertFalse(json.loads((Path(folder) / "usage.json").read_text())["partial"])
+
+    def test_fast_later_chunk_is_saved_while_the_first_request_is_still_running(self):
+        saved_second = threading.Event()
+        facts = dict(RUN_FACTS, ranking_candidates=RUN_FACTS["ranking_candidates"][:2])
+
+        def rate(fixtures, *_):
+            if fixtures[0]["id"] == "1" and not saved_second.wait(2):
+                raise TimeoutError("first request waited for the second checkpoint")
+            return every_rating(fixtures), {"in": 1, "out": 1}, "end_turn", "test"
+
+        def checkpoint(ratings, _):
+            if "2" in ratings:
+                saved_second.set()
+
+        with patch.object(story, "RATING_CHUNK", 1), patch.object(story, "RATING_WORKERS", 2):
+            ratings, _ = story.write_ratings(rate, facts, ["1", "2"], [], {}, story.fixture_links(facts), totals(), checkpoint=checkpoint)
+        self.assertEqual(set(ratings), {"1", "2"})
+
+    def test_checkpoint_failure_cancels_queued_requests_before_executor_shutdown(self):
+        started = []
+
+        class Queue:
+            """One completed request, with later requests waiting until executor shutdown."""
+            def __init__(self, **_):
+                self.jobs = []
+
+            def __enter__(self):
+                return self
+
+            def submit(self, fn, *args):
+                future = Future()
+                self.jobs.append((future, fn, args))
+                if len(self.jobs) == 1:
+                    future.set_result(fn(*args))
+                return future
+
+            def __exit__(self, *_):
+                for future, fn, args in self.jobs:
+                    if not future.done():
+                        future.set_result(fn(*args))
+
+        def rate(fixtures, *_):
+            started.append(fixtures[0]["id"])
+            return every_rating(fixtures), {"in": 1, "out": 1}, "end_turn", "test"
+
+        def failed_save(*_):
+            raise story.CheckpointError("disk full")
+
+        with patch.object(story, "ThreadPoolExecutor", Queue), patch.object(story, "RATING_CHUNK", 1), \
+                self.assertRaises(story.CheckpointError):
+            story.write_ratings(rate, RUN_FACTS, ["1", "2", "3", "4", "5"], [], {},
+                                story.fixture_links(RUN_FACTS), totals(), checkpoint=failed_save)
+        self.assertEqual(started, ["1"])
+
+    def test_missing_ratings_keep_the_partial_marker_and_next_run_fills_only_those(self):
+        with tempfile.TemporaryDirectory() as folder:
+            first = FakeSDK([news_reply(publication(), read=[READ])], rate=lambda fs: every_rating([f for f in fs if f["id"] != "5"]))
+            incomplete = self.invoke(folder, first)
+            self.assertEqual(incomplete["generation"]["status"], "partial")
+            self.assertEqual(len(first.rating_calls()), 2)
+            resumed = FakeSDK([])
+            result = self.invoke(folder, resumed)
+            self.assertEqual([f["id"] for c in resumed.rating_calls() for f in FakeSDK.fixtures(c)], ["5"])
+            self.assertFalse(resumed.research_calls())
+            self.assertNotIn("generation", result)
+
+    def test_ambiguous_chunk_is_not_retried_in_the_same_run(self):
+        def rate(fixtures):
+            if any(f["id"] == "5" for f in fixtures):
+                raise TimeoutError("response interrupted")
+            return every_rating(fixtures)
+
+        with tempfile.TemporaryDirectory() as folder:
+            sdk = FakeSDK([news_reply(publication(), read=[READ])], rate)
+            with patch.object(story, "RATING_CHUNK", 2):
+                result = self.invoke(folder, sdk)
+            self.assertEqual(len(sdk.rating_calls()), 3)
+            self.assertEqual(set(result["rankings"]), {"1", "2", "3", "4"})
+            self.assertEqual(result["generation"]["status"], "partial")
+            account = json.loads((Path(folder) / "usage.json").read_text())
+            self.assertEqual(account["usage"]["unknown_requests"], 1)
+            self.assertFalse(account["cost_complete"])
+
+    def test_checkpoints_from_another_date_model_effort_or_expired_window_are_not_resumed(self):
+        for changed in ({"date": "2026-10-06"}, {"requested_model": "claude-fable-5-1"}, {"effort": "max"},
+                        {"focus_until": "2026-10-07T16:00:00Z"}):
+            with self.subTest(changed=changed), tempfile.TemporaryDirectory() as folder:
+                sdk = FakeSDK([news_reply(publication(), read=[READ])])
+                with patch.object(story, "write_ratings", side_effect=KeyboardInterrupt), self.assertRaises(KeyboardInterrupt):
+                    self.invoke(folder, sdk)
+                path = Path(folder) / "story.json"
+                saved = dict(json.loads(path.read_text()), **changed)
+                path.write_text(json.dumps(saved))
+                new = FakeSDK([news_reply(publication(), read=[READ])])
+                result = self.invoke(folder, new)
+                self.assertEqual(len(new.research_calls()), 1)
+                self.assertEqual(result["ranking_coverage"]["carried"], 0)
+
+    def test_older_local_checkpoint_cannot_replace_its_completed_published_generation(self):
+        class AdvancingClock(self.Clock):
+            ticks = 0
+
+            @classmethod
+            def now(cls, tz=None):
+                cls.ticks += 1
+                return super().now(tz) + timedelta(microseconds=cls.ticks)
+
+        # A frozen clock hides comparisons that sample "now" separately for the two files.
+        with patch.object(self, "Clock", AdvancingClock), tempfile.TemporaryDirectory() as folder:
+            complete = self.invoke(folder, FakeSDK([news_reply(publication(), read=[READ])]))
+            local = dict(complete, generation={"status": "partial", "research_complete": True}, rankings={})
+            (Path(folder) / "story.json").write_text(json.dumps(local))
+            sdk = FakeSDK([])
+            result = self.invoke(folder, sdk, "keep", previous=complete)
+            self.assertEqual(result, complete)
+            self.assertFalse(sdk.calls)
 
 
 class Switch(unittest.TestCase):
@@ -1302,8 +1518,8 @@ class RatingsMode(unittest.TestCase):
         self.assertEqual(asked, [["m0", "m1", "m2"], ["m0"]])
         self.assertEqual(sorted(result["rankings"]), ["m0", "m1", "m2"])
 
-    def test_haiku_requests_carry_no_fallback(self):
-        for model, fallback in (("claude-haiku-5-5", False), ("claude-opus-5-5", True)):
+    def test_selected_opus_and_haiku_requests_carry_no_fallback(self):
+        for model, fallback in (("claude-haiku-5-5", False), ("claude-opus-5-5", False), ("claude-sonnet-5-5", True)):
             sdk = FakeSDK([], rate=scores)
             with patch.dict(sys.modules, {"anthropic": sdk.module}), patch.object(story, "log", lambda *_: None):
                 story.write_story(self.facts([10]), model, "low", "ratings", None, totals())

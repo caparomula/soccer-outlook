@@ -179,7 +179,7 @@ That connection is **not implemented**. The current GitHub Pages deployment cann
 
 ## Configure published AI ratings and text
 
-The current [`settings.toml`](../settings.toml) configuration enables the **full** design with `claude-fable-5-1` at `max` effort. It researches daily headlines and match blurbs and generates ratings. Scheduled full builds reuse a compatible same-day result; lightweight schedule refreshes never invoke AI. Set the repository secret `ANTHROPIC_API_KEY` for generation. Manual personal or shared responses can still take precedence.
+The current [`settings.toml`](../settings.toml) configuration enables the **full** design with `claude-opus-5-5` at `max` effort. It researches daily headlines and match blurbs and generates ratings. Scheduled full builds reuse a compatible same-day result; lightweight schedule refreshes never invoke AI. Set the repository secret `ANTHROPIC_API_KEY` for generation. Manual personal or shared responses can still take precedence.
 
 The `[ai]` table controls this behavior:
 
@@ -220,8 +220,8 @@ Use `.venv/bin/python` instead of `python3` when the model needs the SDK install
 
 | Mode | Behavior |
 | --- | --- |
-| `daily` | Generate for the facts' date and current AI configuration. In the ratings design, retain accepted same-day ratings, add missing or newly in-window fixtures, and retry missing optional text. In the full design, reuse a matching result from that day. Used by scheduled builds. |
-| `keep` | Copy the previous result without an API request, even if it is from an earlier date. If the previous result uses a different AI design, model or effort, generate with the new configuration instead. Used for ordinary code pushes. This is also the script's default mode. |
+| `daily` | Generate for the facts' date and current AI configuration. In the ratings design, retain accepted same-day ratings, add missing or newly in-window fixtures, and retry missing optional text. In the full design, reuse a matching completed result or finish a fresh partial result from that day. Used by scheduled builds. |
+| `keep` | Copy the previous result without an API request, even if it is from an earlier date. A changed AI configuration starts new generation; a fresh, compatible same-day partial result resumes its unfinished work. Used for ordinary code pushes. This is also the script's default mode. |
 | `refresh` | In the full design, update today's research and re-rate fixtures within 24 hours or missing a rating/blurb. Without today's result, start a full run. In the ratings design, generate fresh ratings. |
 | `full` | In the full design, research and rate from scratch. In the ratings design, generate fresh ratings. |
 | `auto` | In the full design, reuse a result less than three hours old, otherwise refresh; generate from scratch if none exists for today. In the ratings design, behave like `daily`. |
@@ -235,6 +235,8 @@ Changing the configured model, effort, design or optional text models triggers n
 
 If a provider key is missing or generation fails, `story.py` reuses a matching result from the same day when available. Otherwise it writes no new result, and the schedule remains usable with the Outlook score. Deleting a key is therefore not a reliable way to turn existing AI content off; use `enabled = false`.
 
+Full-design generation saves validated research immediately and then saves each completed rating chunk to `story.json` with an explicit `generation.status: "partial"` marker. These atomic checkpoints survive a later request failure or process timeout. The next `daily`, `auto`, `refresh` or `keep` invocation resumes a fresh checkpoint from the same date, model and effort, using the published `--previous` file or a compatible local output. It keeps the original freshness deadline, rechecks fixture references and requests only missing ratings. An explicit `full` invocation starts afresh. Once research has produced an accepted publication and every current candidate has a valid rating, the marker is removed. Completion does not promise every optional paragraph or card blurb: accepted research and ratings are not purchased again solely to fill omitted text, including an optional repair interrupted by a timeout.
+
 AI-off runs write nothing, rather than deleting an existing output file. The deployment workflow builds in a fresh directory. For a clean local preview, remove an old `site/story.json` when you want to test its absence; an AI-off page ignores that file regardless.
 
 The browser fetches AI data every ten minutes while visible. It rejects results older than 30 hours or past their explicit `focus_until` horizon, currently 24 hours after the facts were built. Copying an old result with `keep` does not renew that horizon.
@@ -243,7 +245,7 @@ Validated ratings are saved atomically before optional text generation. Each tex
 
 ### What validation guarantees
 
-Ratings must contain valid scores for known fixture IDs. An incomplete response gets one further request for missing fixtures; the full design also retries missing card blurbs. An ambiguous timeout or connection failure is not automatically resubmitted in that run, because the provider may already have completed and billed the work. Full-design research can request a repair for missing overview or league text. These retries improve coverage but do not guarantee that every match or league receives text. Valid partial results can still be published.
+Ratings must contain valid scores for known fixture IDs. Full-design requests contain at most 20 fixtures; Claude at `max` effort has a 64,000-token output limit shared by reasoning and final text, while other rating requests retain the 32,000-token limit. An incomplete response gets one further request for missing fixtures or card blurbs, using half-size full-design chunks. An ambiguous timeout or connection failure is not automatically resubmitted in that run, because the provider may already have completed and billed the work. Full-design research can request one repair for missing overview or league text. These retries improve coverage but do not guarantee that every match or league receives text. Valid partial results can still be published, and a later invocation can request ratings whose earlier responses were lost.
 
 Researched text must cite sources returned by the model's tools. Full-design league and match context may instead use supplied ESPN facts, explicitly labelled as such. Ratings-design optional overview and blurbs require searched sources; known dead links are removed. A site's refusal to answer automated requests is treated differently from a confirmed dead link. Source checks establish provenance, not that every sentence correctly summarizes its source.
 
@@ -274,7 +276,7 @@ Each run:
 1. Runs unit and browser checks.
 2. Builds the HTML, AI facts, match metrics, mapping report and source-health report, and copies any fresh shared recommendations.
 3. Checks source health and verifies that the page's match count agrees with the report and that the document is complete. A genuinely small or empty schedule can pass.
-4. Generates or reuses optional AI data. Scheduled runs use `daily`; ordinary pushes use `keep`, with the configuration-change exceptions above.
+4. Generates or reuses optional AI data. Scheduled runs use `daily`; ordinary pushes use `keep`, with the configuration-change and partial-run exceptions above. A push with no published AI result uses `daily` to recover from a failed first generation.
 5. Appends an immutable metrics/ratings snapshot to `match-history` using a normal Git push. Failure stops publication so the page cannot silently outrun its history.
 6. Replaces the `gh-pages` branch with a single commit containing the generated site.
 7. Opens, updates or closes the broadcast-mapping issue as needed.
@@ -284,7 +286,7 @@ GitHub Pages serves the `gh-pages` branch. When configuring a fork, set Pages to
 
 A failing unit test, browser assertion, invalid configuration or unusable source data stops publication and leaves the existing site in place. The builder rejects runs with no successful scoreboard responses or failures from more than half the requested scoreboards. It also rejects an empty schedule when failed sources or unreadable events could explain the emptiness. Successful responses containing no events are valid. Smaller gaps can publish and are disclosed on the page and in the source-health report.
 
-There are two intentional exceptions: if Chromium cannot be installed or started, the refresh workflow publishes with a warning; and AI generation or mapping-issue failures do not block the schedule. Before AI setup, it saves a compatible, fresh result from the same day as a fallback. The Anthropic SDK is installed only if the planned work needs it. The separate [`Browser checks`](../.github/workflows/browser.yml) workflow runs unit tests, Chromium checks and WebKit smoke checks on relevant pushes and pull requests, including changes to AI and maintenance scripts. It saves screenshots even when checks fail and does not have the refresh workflow's browser-setup bypass.
+There are two intentional exceptions: if Chromium cannot be installed or started, the refresh workflow publishes with a warning; and AI generation or mapping-issue failures do not block the schedule. Before AI setup, it saves a compatible, fresh result from the same day as a fallback. Accepted full-design research and rating chunks replace that fallback as generation progresses. The AI step has a 60-minute limit within a 75-minute job; these limits provide time for maximum-effort reasoning but are not spending caps. The Anthropic SDK is installed only if the planned work needs it. The separate [`Browser checks`](../.github/workflows/browser.yml) workflow runs unit tests, Chromium checks and WebKit smoke checks on relevant pushes and pull requests, including changes to AI and maintenance scripts. It saves screenshots even when checks fail and does not have the refresh workflow's browser-setup bypass.
 
 The `generated-site` artifact includes the homepage and focused schedules, favicon, sitemap, any IndexNow key file, available AI output, source facts, match metrics, the history snapshot, warnings, health report and usage report. Download it from a workflow run to inspect the exact inputs and outputs behind a page. To restore an earlier page, use that artifact's `site/` contents in a new `gh-pages` commit, add `.nojekyll`, and push the branch; the next scheduled build will replace it. Check the source commit and build time before restoring, since old fixtures and ratings will still expire normally.
 
@@ -294,7 +296,7 @@ The [Notify search engines](../.github/workflows/discovery.yml) workflow notifie
 
 ### Costs and comparison workflows
 
-AI generation reports token use, elapsed time and estimated cost in the Actions summary. `--usage-out PATH` saves a machine-readable report. Prices come from `providers.py` and are estimates, not invoices; provider search charges may be incomplete when an API does not report them. Interrupted requests can have unknown usage: `unknown_requests` records those requests and `cost_complete: false` marks an incomplete cost estimate.
+AI generation reports token use, elapsed time and estimated cost in the Actions summary. `--usage-out PATH` saves a machine-readable report, updated with known usage at each full-design checkpoint. Prices come from `providers.py` and are estimates, not invoices; provider search charges may be incomplete when an API does not report them. Interrupted requests can have unknown usage: caught interruptions increment `unknown_requests`, while an unfinished checkpoint always has `cost_complete: false` because an in-flight request may not have returned its usage. A resumed run reports its own new requests, not earlier charges.
 
 Two manually invoked workflows compare models without publishing a page:
 

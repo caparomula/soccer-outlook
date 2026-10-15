@@ -45,7 +45,7 @@ import tempfile
 import tomllib
 import urllib.error
 import urllib.request
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 from functools import partial
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
@@ -69,10 +69,11 @@ ALL_EFFORTS = tuple(dict.fromkeys(e for efforts in providers.EFFORTS.values() fo
 BUDGETS = {"full": (12, 6), "refresh": (5, 2), "ratings": (0, 0)}   # (web searches, full-page reads) per run
 MAX_TOKENS = 64000                    # research request: a backstop only, streamed and billed only when used
 MAX_REQUESTS = 6                      # pause_turn continuations, one nudge to publish and one repair
-# Ratings: about 85 output tokens a fixture, so a chunk stays near 5,000 tokens however busy the week.
-RATING_CHUNK = 60
+# Keep full-design chunks small: max-effort reasoning shares the output budget with card text.
+RATING_CHUNK = 20
 RATING_WORKERS = 3
 RATING_MAX_TOKENS = 32000
+RATING_MAX_EFFORT_TOKENS = 64000
 RERATE_HOURS = 24                     # a refresh re-rates fixtures kicking off this soon
 # The page's window: today and the three days after it, a day changing at 4 am rather than midnight as on the page
 # (web/app.js's WINDOW_DAYS and DAY_START), so Thursday's page shows Thursday to Sunday. Ratings mode rates
@@ -85,7 +86,7 @@ FACTS_TITLE = "ESPN table and form"
 WEIGHTS = (("popularity", .25), ("gameplay", .35), ("impact", .40))
 # List prices and capabilities are in providers.py. Fable 5.1, Opus and Sonnet 5.5 support
 # dynamic-filtering web tools, effort and structured output. Keep the explicitly selected
-# Fable model throughout a run; its requests never opt into a different-model fallback.
+# Fable or Opus model throughout a run; their requests never opt into a different-model fallback.
 # Haiku 5.5 takes effort and structured outputs but not those web tools,
 # and has no server-side fallback (sending one is an error), so like every OpenAI and Google model it
 # runs the ratings design only.
@@ -95,8 +96,8 @@ REQUEST_OPTIONS = dict(betas=["server-side-fallback-2026-07-01"], fallbacks="def
 
 
 def request_options(model):
-    """Keep Fable explicit; retain the older models' supported fallback policy."""
-    return {} if model == "claude-fable-5-1" or model in RATINGS_ONLY_MODELS else REQUEST_OPTIONS
+    """Keep the selected Fable/Opus model; retain Sonnet's supported fallback policy."""
+    return {} if model in {"claude-fable-5-1", "claude-opus-5-5"} or model in RATINGS_ONLY_MODELS else REQUEST_OPTIONS
 
 SYSTEM = """You write the daily storylines for Soccer Outlook, a soccer schedule with visitor-controlled competition and service filters. News serves upcoming matches available through the visitor's selected services. The news candidate lists contain only fixtures with listed or usual service coverage. Prioritize the default lineup for the opening; visitors can select other services and the browser filters the text accordingly. The page already lists kickoff times, channels, table positions, recent form and top scorers. Cover only facts that directly affect a specific upcoming fixture: the stakes, player availability, likely selection supported by reporting, a relevant matchup, or a scheduling change. An upcoming international break belongs only when explaining its effect on a listed fixture. Exclude general club news, financial investigations, ownership stories, or unrelated managerial controversy. Mentioning a team that has a fixture is not enough: explain the concrete match connection.
 
@@ -1140,7 +1141,7 @@ def rate_chunk(client, model, effort, fixtures, context, header, scores_only=Fal
     touches nothing shared; the caller merges the results."""
     with client.beta.messages.stream(
         model=model,
-        max_tokens=RATING_MAX_TOKENS,
+        max_tokens=RATING_MAX_EFFORT_TOKENS if effort == "max" else RATING_MAX_TOKENS,
         system=SCORES_SYSTEM if scores_only else RATING_SYSTEM,
         messages=[{"role": "user", "content": rating_prompt(header, fixtures, context, scores_only)}],
         output_config={"effort": effort, "format": {"type": "json_schema", "schema": SCORES_SCHEMA if scores_only else RATING_SCHEMA}},
@@ -1166,7 +1167,7 @@ def api_rate_chunk(model, effort, key, fixtures, context, header, scores_only=Tr
     return parse_ratings(reply.text, reply.stop), usage, reply.stop, reply.served
 
 
-def write_ratings(rate, facts, wanted, context, seen, links, totals, scores_only=False):
+def write_ratings(rate, facts, wanted, context, seen, links, totals, scores_only=False, checkpoint=None):
     """Rates the fixtures in `wanted`, RATING_CHUNK at a time (SCORES_CHUNK with scores_only) on
     RATING_WORKERS threads, then asks once more for any that came back without a rating or, unless
     scores_only, without a blurb. `rate(fixtures, context, header, scores_only)` makes one request
@@ -1179,27 +1180,40 @@ def write_ratings(rate, facts, wanted, context, seen, links, totals, scores_only
     ratings, pending, served, uncertain = {}, order, None, set()
     for attempt in (1, 2):
         size = SCORES_CHUNK if scores_only else RATING_CHUNK
+        if attempt == 2 and not scores_only:
+            size = max(1, size // 2)
         chunks = [pending[i:i + size] for i in range(0, len(pending), size)]
         with ThreadPoolExecutor(max_workers=RATING_WORKERS) as pool:
-            futures = [pool.submit(rate, [rating_fixture(candidates[mid]) for mid in chunk], context, header, scores_only)
-                       for chunk in chunks]
-            for chunk, future in zip(chunks, futures):
-                try:
-                    raw, usage, stop, by = future.result()
-                except Exception as e:     # a failed chunk is asked again; its fixtures are not lost
-                    log(f"rating request failed: {type(e).__name__}: {e}")
-                    if providers.ambiguous_failure(e):
-                        uncertain.update(chunk)
-                        totals["unknown_requests"] = totals.get("unknown_requests", 0) + 1
-                        log("not retrying this request: it may already have been billed; its usage is unknown")
-                    continue
-                add_usage(totals, usage)
-                served = by or served
-                if stop in ("refusal", "max_tokens"):
-                    log(f"rating request stopped: {stop}")
-                for mid, rating in clean_rankings(raw, set(chunk), seen, links).items():
-                    if mid not in ratings or ("blurb" in rating and "blurb" not in ratings[mid]):
-                        ratings[mid] = rating
+            futures = {pool.submit(rate, [rating_fixture(candidates[mid]) for mid in chunk], context, header, scores_only): chunk
+                       for chunk in chunks}
+            try:
+                # Save each completed chunk immediately, even while an earlier request is still thinking.
+                for future in as_completed(futures):
+                    chunk = futures[future]
+                    try:
+                        raw, usage, stop, by = future.result()
+                    except Exception as e:     # a failed chunk is asked again; its fixtures are not lost
+                        log(f"rating request failed: {type(e).__name__}: {e}")
+                        if providers.ambiguous_failure(e):
+                            uncertain.update(chunk)
+                            totals["unknown_requests"] = totals.get("unknown_requests", 0) + 1
+                            log("not retrying this request: it may already have been billed; its usage is unknown")
+                        continue
+                    add_usage(totals, usage)
+                    served = by or served
+                    if stop in ("refusal", "max_tokens"):
+                        log(f"rating request stopped: {stop}")
+                    for mid, rating in clean_rankings(raw, set(chunk), seen, links).items():
+                        if mid not in ratings or ("blurb" in rating and "blurb" not in ratings[mid]):
+                            ratings[mid] = rating
+                    if checkpoint:
+                        checkpoint(ratings, served)
+            except BaseException:
+                # Executor shutdown waits for running calls; cancel queued requests before it can
+                # start buying more work after a failed save or process interruption.
+                for future in futures:
+                    future.cancel()
+                raise
         pending = [mid for mid in order if mid not in uncertain and (mid not in ratings or not (scores_only or "blurb" in ratings[mid]))]
         missing = "a rating" if scores_only else "a rating or a blurb"
         if not pending or attempt == 2:
@@ -1325,7 +1339,7 @@ def earlier_sources(previous):
     return seen
 
 
-def write_news(client, facts, model, effort, mode, previous, totals, links, seen):
+def write_news(client, facts, model, effort, mode, previous, totals, links, seen, checkpoint=None):
     """Runs the research request. Returns (news or None, served model). Every page the tools return
     is added to `seen` as it arrives, so the ratings can cite it even if the research fails later."""
     budget = BUDGETS[mode]
@@ -1366,6 +1380,8 @@ def write_news(client, facts, model, effort, mode, previous, totals, links, seen
                     raw = None
             found = clean_story(raw, facts, seen, links)
             story = merge_news(story, found) if story else found
+            if story and checkpoint:
+                checkpoint(story, served)
             missing = missing_news(story, facts)
             # A league left out of league_order alone is appended in build.py's order (complete_order)
             # rather than paid for with another request.
@@ -1400,7 +1416,35 @@ def claude_client():
     return anthropic.Anthropic(max_retries=0)
 
 
-def write_story(facts, model, effort, mode, previous, totals):
+class CheckpointError(RuntimeError):
+    """Stop spending if accepted output cannot be saved."""
+
+
+def full_snapshot(news, fresh, earlier, candidates, partial=False, research_complete=False):
+    """Assemble a publishable snapshot from validated output, without mutating earlier checkpoints."""
+    result = copy.deepcopy(news)
+    rankings, carried = {}, 0
+    for match in candidates:
+        new, old = fresh.get(match["id"]), earlier.get(match["id"])
+        chosen = new if new and ("blurb" in new or not old or "blurb" not in old) else (old or new)
+        if chosen:
+            rankings[match["id"]] = chosen
+            carried += chosen is old
+    result["rankings"] = rankings
+    result["ranking_coverage"] = {"rated": len(rankings), "total": len(candidates), "carried": carried}
+    result["match_blurb_coverage"] = {"written": sum("blurb" in r for r in rankings.values()), "total": len(candidates)}
+    if partial:
+        result["generation"] = {"status": "partial", "research_complete": research_complete}
+    else:
+        result.pop("generation", None)
+    return result
+
+
+def partial_generation(value):
+    return isinstance(value, dict) and isinstance(value.get("generation"), dict) and value["generation"].get("status") == "partial"
+
+
+def write_story(facts, model, effort, mode, previous, totals, checkpoint=None):
     """Runs the research, then the ratings, and returns (story dict or None, served model), adding the
     usage of every request to `totals` as it goes, so a run that fails partway still reports what it
     spent. In a refresh the ratings of fixtures more than RERATE_HOURS away are kept from earlier today.
@@ -1426,14 +1470,34 @@ def write_story(facts, model, effort, mode, previous, totals):
                      window_hours=hours, rating_window_until=window_end(datetime.fromisoformat(facts["built_at"].replace("Z", "+00:00"))).isoformat())
         return (story if rankings else None), served or model
     client = claude_client()
-    seen = earlier_sources(previous) if mode == "refresh" and previous else {}
-    try:
-        news, served = write_news(client, facts, model, effort, mode, previous, totals, links, seen)
-    except Exception as e:     # the ratings can still be written
-        log(f"research request failed: {type(e).__name__}: {e}")
-        if providers.ambiguous_failure(e):
-            totals["unknown_requests"] = totals.get("unknown_requests", 0) + 1
-        news, served = None, model
+    resuming = partial_generation(previous)
+    candidates = facts.get("ranking_candidates", [])
+    ids = {m["id"] for m in candidates}
+    earlier = earlier_ratings(previous, ids) if mode == "refresh" or resuming else {}
+    seen = earlier_sources(previous) if (mode == "refresh" or resuming) and previous else {}
+    news, served = None, model
+
+    def accepted_news(value, by):
+        nonlocal news, served
+        news, served = value, by
+        if checkpoint:
+            checkpoint(full_snapshot(news, {}, earlier, candidates, partial=True, research_complete=True), served)
+
+    if resuming and previous["generation"].get("research_complete") is True:
+        # Recheck fixture references against this build, using only sources the saved run accepted.
+        news = clean_story(earlier_news(previous), facts, seen, links)
+        served = previous.get("model") or model
+        log("resuming saved research; no new research request")
+    else:
+        try:
+            found, served = write_news(client, facts, model, effort, mode, previous, totals, links, seen, accepted_news)
+            news = found or news
+        except CheckpointError:
+            raise
+        except Exception as e:     # keep accepted research even if its optional repair failed
+            log(f"research request failed: {type(e).__name__}: {e}")
+            if providers.ambiguous_failure(e):
+                totals["unknown_requests"] = totals.get("unknown_requests", 0) + 1
     story = {"headline": "", "headline_segments": [], "lede": "", "lede_items": [], "sources": [], "notes": {},
              "later_reason": "", "league_blurbs": [], "league_order": [], "_dropped": 0,
              "blurb_coverage": {"written": 0, "total": len(facts.get("league_candidates", []))}}
@@ -1446,13 +1510,12 @@ def write_story(facts, model, effort, mode, previous, totals):
                       if k in previous})
     complete_order(story, facts)
 
-    candidates = facts.get("ranking_candidates", [])
-    ids = {m["id"] for m in candidates}
-    earlier = earlier_ratings(previous, ids) if mode == "refresh" else {}
     built = datetime.fromisoformat(facts["built_at"].replace("Z", "+00:00")) if facts.get("built_at") else None
     soon = built + timedelta(hours=RERATE_HOURS) if built else None
 
     def due(m):
+        if resuming:
+            return m["id"] not in earlier
         if m["id"] not in earlier or "blurb" not in earlier[m["id"]] or soon is None:
             return True
         try:
@@ -1462,19 +1525,17 @@ def write_story(facts, model, effort, mode, previous, totals):
     wanted = [m["id"] for m in candidates if due(m)]
     log(f"rating {len(wanted)} of {len(candidates)} fixtures" + (f"; keeping {len(candidates) - len(wanted)} rated earlier today" if earlier else ""))
     rate = partial(rate_chunk, client, model, effort)
-    fresh = write_ratings(rate, facts, wanted, rating_context(story), seen, links, totals)[0] if wanted else {}
-    rankings, carried = {}, 0
-    for m in candidates:
-        new, old = fresh.get(m["id"]), earlier.get(m["id"])
-        chosen = new if new and ("blurb" in new or not old or "blurb" not in old) else (old or new)
-        if chosen:
-            rankings[m["id"]] = chosen
-            carried += chosen is old
-    story["rankings"] = rankings
-    story["ranking_coverage"] = {"rated": len(rankings), "total": len(candidates), "carried": carried}
-    story["match_blurb_coverage"] = {"written": sum("blurb" in r for r in rankings.values()), "total": len(candidates)}
+    def accepted_ratings(fresh, by):
+        if checkpoint:
+            checkpoint(full_snapshot(story, fresh, earlier, candidates, partial=True, research_complete=news is not None), by or served)
+
+    accepted_ratings({}, served)
+    fresh = write_ratings(rate, facts, wanted, rating_context(story), seen, links, totals,
+                          checkpoint=accepted_ratings)[0] if wanted else {}
+    incomplete = news is None or bool(ids - (set(fresh) | set(earlier)))
+    story = full_snapshot(story, fresh, earlier, candidates, partial=incomplete, research_complete=news is not None)
     has_news = bool(story["notes"] or story["lede_items"] or story.get("forecast") or story["league_blurbs"])
-    return (story if has_news or rankings else None), served
+    return (story if has_news or story["rankings"] else None), served
 
 
 def cost_of(totals, model):
@@ -1685,8 +1746,27 @@ def main():
         facts = json.load(f)
     previous = load_previous(args.previous) if args.previous else None
     current = (lambda st: written_by(st, config)) if config else (lambda st: True)
+    selection_now = datetime.now(timezone.utc)
+    def resumable(value):
+        return bool(config and config["design"] == "full" and partial_generation(value)
+                    and value.get("date") == facts["date"] and current(value)
+                    and (not args.model or args.model == config["model"])
+                    and (not args.effort or args.effort == config["effort"])
+                    and still_fresh(value, selection_now))
+
+    # A local restart can recover its output directly; deployments pass the published checkpoint
+    # as --previous. Never let an older local file replace a newer published result.
+    local = load_previous(args.out)
+    local_age = story_age_hours(local, selection_now) if local else None
+    previous_age = story_age_hours(previous, selection_now) if previous else None
+    if resumable(local) and (not previous or not current(previous) or previous_age is None or local_age < previous_age
+                            or (local_age == previous_age and partial_generation(previous)
+                                and len(local.get("rankings") or {}) > len(previous.get("rankings") or {}))):
+        previous = local
     todays = (previous if previous and previous.get("date") == facts["date"] and previous.get("generated_at") and current(previous)
               else None)
+    if partial_generation(todays) and not resumable(todays):
+        todays = None
     switched = bool(config and previous and not current(previous))
 
     if args.fallback_only:
@@ -1695,6 +1775,9 @@ def main():
         return 0
 
     mode, why = choose_mode(args.mode, todays, datetime.now(timezone.utc), config["design"] if config else "full", switched)
+    resuming = bool(args.mode != "full" and resumable(todays))
+    if resuming:
+        mode, why = todays["kind"], "finishing the saved partial generation; keeping accepted research and ratings"
     top_up = bool(todays and config and config["design"] == "ratings" and args.mode in ("daily", "auto"))
     text_only = False
     if top_up:
@@ -1757,17 +1840,49 @@ def main():
 
     started = time.monotonic()
     totals = {"in": 0, "cache_write": 0, "cache_read": 0, "out": 0, "searches": 0, "fetches": 0, "prompt_max": 0}
+    checkpointed = None
+    finished = False
+    generated_at = (todays["generated_at"] if resuming else datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
+    focus_until = todays.get("focus_until") if resuming else facts.get("focus_until")
+
+    def metadata(value, by):
+        value.update(version=1, date=facts["date"], model=by, requested_model=model, effort=effort, kind=mode,
+                     services=facts.get("owner_service_ids") or [], focus_until=focus_until, generated_at=generated_at)
+
+    def checkpoint(value, by):
+        nonlocal checkpointed
+        if not any(value.get(key) for key in ("rankings", "notes", "lede_items", "forecast", "league_blurbs")):
+            return
+        saved = copy.deepcopy(value)
+        saved.pop("_dropped", None)
+        metadata(saved, by)
+        try:
+            save(args.out, saved)
+            checkpointed = saved
+            if args.usage_out:
+                cost = cost_of(totals, by if by in providers.MODELS else model)
+                save(args.usage_out, {"mode": mode, "model": model, "served": by, "provider": provider, "effort": effort,
+                                      "usage": dict(totals), "cost_usd": round(cost, 4) if cost is not None else None,
+                                      "seconds": round(time.monotonic() - started, 1), "published": True,
+                                      "partial": True, "cost_complete": False,
+                                      "rated": saved.get("ranking_coverage", {}).get("rated", 0)})
+        except OSError as e:
+            raise CheckpointError(f"could not save generation checkpoint: {e}") from e
+
     try:
         if text_only:
             story, served = copy.deepcopy(todays), todays.get("model") or model
         else:
             reusable = todays if mode != "ratings" or top_up else None
-            story, served = write_story(facts, model, effort, mode, reusable, totals)
+            if args.mode == "full" and partial_generation(reusable):
+                reusable = None  # an explicit full run remains a request to start afresh
+            story, served = write_story(facts, model, effort, mode, reusable, totals, checkpoint)
+        finished = True
     except Exception as e:     # any failure here must leave the page publishable
         log(f"storyline request failed: {type(e).__name__}: {e}")
         if providers.ambiguous_failure(e):
             totals["unknown_requests"] = totals.get("unknown_requests", 0) + 1
-        story, served = None, model
+        story, served = checkpointed, (checkpointed or {}).get("model") or model
     seconds = time.monotonic() - started
     cost = report_cost(totals, served, model, effort, mode, seconds) if any(totals.values()) else None
     published = bool(story)
@@ -1775,15 +1890,13 @@ def main():
     dropped = story.pop("_dropped", 0) if story else None
     if published:
         if not text_only:
-            story.update(version=1, date=facts["date"], model=served, requested_model=model, effort=effort, kind=mode,
-                         services=facts.get("owner_service_ids") or [], focus_until=facts.get("focus_until"),
-                         generated_at=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
+            metadata(story, served)
         if mode == "ratings" and config:
             for job in ("overview", "blurbs"):
                 if config.get(f"{job}_model"):
                     story.update({f"{job}_model": config[f"{job}_model"], f"{job}_effort": config[f"{job}_effort"]})
-        # Publish the usable ratings first. A research timeout, process kill, or malformed optional
-        # enrichment can never discard this work or a previous deployment fallback.
+        # Full runs checkpoint accepted research and rating chunks above; ratings-only runs save
+        # their ratings here before optional enrichment can fail or time out.
         save(args.out, story)
         if mode == "ratings" and config:
             for job in pending_text(story, facts, config):
@@ -1809,7 +1922,8 @@ def main():
         save(args.usage_out, {"mode": mode, "model": model, "served": served, "provider": provider, "effort": effort,
                               "budget": {"searches": BUDGETS[mode][0], "page_reads": BUDGETS[mode][1]}, "usage": totals,
                               "cost_usd": round(cost, 4) if cost is not None else None, "seconds": round(seconds, 1),
-                              "cost_complete": not totals.get("unknown_requests") and all(a is None or a.get("cost_complete", True) for a in (overview, blurbs)),
+                              "partial": partial_generation(story),
+                              "cost_complete": finished and not totals.get("unknown_requests") and all(a is None or a.get("cost_complete", True) for a in (overview, blurbs)),
                               "published": published, "notes": len(story.get("notes", {})) if story else 0,
                               "forecast": bool(story and story.get("forecast")),
                               "rated": coverage.get("rated", 0), "carried": coverage.get("carried", 0),

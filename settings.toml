@@ -22,7 +22,7 @@
 [ai]
 enabled = true
 design = "full"
-model = "claude-fable-5-1"
+model = "claude-opus-5-5"
 effort = "max"
 # overview_model = "gemini-3.1-pro-preview"
 # overview_effort = "medium"
