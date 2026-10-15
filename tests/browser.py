@@ -1914,17 +1914,17 @@ class BrowserChecks(unittest.TestCase):
         for width in (1280, 390):
             with self.subTest(width=width), self.page("after", html=render_page(build, fixtures=fixtures), story=story, width=width) as (page, _):
                 self.enable_ai_text(page)
-                expect(page.locator("#story-h")).to_have_text(story["headline"])
+                expect(page.locator("#story-headlines > article[aria-current=true] .story-headline__title")).to_have_text(story["headline"])
                 expect(page.locator("#story")).to_be_visible()
-                expect(page.locator("#story-lede")).to_be_hidden()
-                expect(page.locator("#story-details")).not_to_have_attribute("open", "")
+                expect(page.locator("#story-headlines > article[aria-current=true] .story-headline__lede")).to_be_visible()
+                expect(page.locator("#story-headlines details")).to_have_count(0)
                 expect(page.locator('.editorial-tags, .editorial-tag')).to_have_count(0)
                 self.open_settings(page, "leagues")
                 page.locator('#comp-pills [data-key="usa.1"]').click()
                 expect(page.locator("#story")).to_be_hidden()
                 self.open_settings(page, "leagues")
                 page.locator('#comp-pills [data-key="usa.1"]').click()
-                expect(page.locator("#story-h")).to_have_text(story["headline"])
+                expect(page.locator("#story-headlines > article[aria-current=true] .story-headline__title")).to_have_text(story["headline"])
                 self.open_settings(page)
                 page.locator('[data-kind="have"][data-key="apple"]').click()
                 expect(page.locator("#story")).to_be_hidden()
@@ -1970,9 +1970,9 @@ class BrowserChecks(unittest.TestCase):
         for width in (1280, 390):
             with self.subTest(width=width), self.page("after", width=width, html=render_page(build, fixtures=fixtures), story=story) as (page, _):
                 self.enable_ai_text(page)
-                expect(page.locator("#story-h")).to_have_text("Fixture headline")
-                expect(page.locator("#story-lede")).to_be_hidden()
-                expect(page.locator("#story-details")).not_to_have_attribute("open", "")
+                expect(page.locator("#story-headlines > article[aria-current=true] .story-headline__title")).to_have_text("Fixture headline")
+                expect(page.locator("#story-headlines > article[aria-current=true] .story-headline__lede")).to_be_visible()
+                expect(page.locator("#story-headlines details")).to_have_count(0)
                 expect(page.locator('#story-tags, .editorial-tags, .editorial-tag')).to_have_count(0)
                 expect(page.locator("#period-h")).to_have_count(0)
                 # The top card follows the authored headline and precedes the picks.
@@ -2083,12 +2083,11 @@ class BrowserChecks(unittest.TestCase):
                 expect(page.locator('#story')).to_be_hidden()
                 expect(page.locator('.row__story')).to_have_count(0)
                 self.enable_ai_text(page)
-                lead = page.locator('#story-headlines > article.story-headline')
+                lead = page.locator('#story-headlines > article[aria-current=true].story-headline')
                 expect(lead.locator('.story-headline__title')).to_have_text(story['league_blurbs'][0]['headline'])
                 expect(lead.locator('.story-headline__title .lg')).to_have_count(1)
-                expect(lead.locator('.story-headline__lede')).to_be_hidden()
-                expect(page.locator('.story-headlines__more > summary')).to_have_text('More headlines (2)')
-                lead.locator('summary').click()
+                expect(lead.locator('.story-headline__lede')).to_be_visible()
+                expect(page.locator('#headline-position')).to_have_text('1 of 3')
                 expect(lead.locator('.story-headline__lede')).to_have_text(story['league_blurbs'][0]['text'])
                 expect(page.locator('li.row[data-id="upcoming"] .row__story')).to_contain_text(story['notes']['upcoming']['note'])
                 expect(page.locator('#nextup .row__story')).to_contain_text(story['notes']['upcoming']['note'])
@@ -3290,9 +3289,9 @@ class BrowserChecks(unittest.TestCase):
             with self.subTest(width=width), self.page("after", width=width, html=render_page(build, fixtures=fixtures), story=story) as (page, _):
                 self.enable_ai_text(page)
                 expect(page.locator("#forecast, #forecast-later, #period-h")).to_have_count(0)
-                expect(page.locator("#story-lede")).to_have_text("Main Friday story.")
-                expect(page.locator("#story-h")).to_have_text(story["headline"])
-                expect(page.locator("#story-lede")).to_be_hidden()
+                expect(page.locator("#story-headlines > article[aria-current=true] .story-headline__lede")).to_have_text("Main Friday story.")
+                expect(page.locator("#story-headlines > article[aria-current=true] .story-headline__title")).to_have_text(story["headline"])
+                expect(page.locator("#story-headlines > article[aria-current=true] .story-headline__lede")).to_be_visible()
                 expect(page.locator("#app")).not_to_contain_text("Unwanted section blurb")
                 expect(page.locator("#nextup")).to_have_attribute("data-match-id", "main")
                 expect(page.locator("#picks .pick")).to_have_count(1)
@@ -3312,14 +3311,13 @@ class BrowserChecks(unittest.TestCase):
         story["lede_items"] = [{"segments": [{"text": "Later context.", "match_ids": ["usual"]}], "sources": []}]
         with self.page("after", html=html, story=story) as (page, _):
             self.enable_ai_text(page)
-            expect(page.locator("#story-h")).to_have_text(story["headline"])
-            expect(page.locator("#story-lede")).to_be_hidden()
-            page.locator("#story-details > summary").click()
-            expect(page.locator("#story-lede")).to_have_text("Later context.")
-            expect(page.locator("#story-lede")).to_be_visible()
+            expect(page.locator("#story-headlines > article[aria-current=true] .story-headline__title")).to_have_text(story["headline"])
+            expect(page.locator("#story-headlines > article[aria-current=true] .story-headline__lede")).to_be_visible()
+            expect(page.locator("#story-headlines > article[aria-current=true] .story-headline__lede")).to_have_text("Later context.")
+            expect(page.locator("#story-headlines > article[aria-current=true] .story-headline__lede")).to_be_visible()
             page.evaluate("location.hash = '#at-20261007-1401'")
-            expect(page.locator("#story-h")).to_have_text(story["headline"])
-            expect(page.locator("#story-lede")).to_be_visible()
+            expect(page.locator("#story-headlines > article[aria-current=true] .story-headline__title")).to_have_text(story["headline"])
+            expect(page.locator("#story-headlines > article[aria-current=true] .story-headline__lede")).to_be_visible()
             expect(page.locator("#forecast, #forecast-later")).to_have_count(0)
             self.open_settings(page, "leagues")
             page.locator('#comp-pills [data-key="eng.1"]').click()
@@ -3350,14 +3348,14 @@ class BrowserChecks(unittest.TestCase):
         story["notes"] = {"later": {"note": "Later match context.", "sources": []}}
         with self.page("after", html=render_page(build, fixtures=fixtures), story=story) as (page, _):
             self.enable_ai_text(page)
-            expect(page.locator("#story-h")).to_have_text(story["headline"])
+            expect(page.locator("#story-headlines > article[aria-current=true] .story-headline__title")).to_have_text(story["headline"])
             self.open_settings(page)
             page.locator('[data-kind="have"][data-key="apple"]').click()
             expect(page.locator("#story")).to_be_hidden()
             expect(page.locator("#nextup .row__story")).to_contain_text("Later match context.")
             self.open_settings(page)
             page.locator('[data-kind="have"][data-key="apple"]').click()
-            expect(page.locator("#story-h")).to_have_text(story["headline"])
+            expect(page.locator("#story-headlines > article[aria-current=true] .story-headline__title")).to_have_text(story["headline"])
             expect(page.locator("#story")).to_be_visible()
 
     def test_legacy_expired_unknown_and_completed_editorial_do_not_leak(self):
@@ -3394,8 +3392,7 @@ class BrowserChecks(unittest.TestCase):
         story["headline_segments"] = [{"text": story["headline"], "match_ids": ["upcoming"]}]
         with self.page("after", story=story) as (page, feed):
             self.enable_ai_text(page)
-            page.locator("#story-details > summary").click()
-            page.locator("#story-by a").first.focus()
+            page.locator("#story-headlines > article[aria-current=true] .story-headline__sources a").first.focus()
             page.evaluate("window.__link = document.activeElement")
             page.clock.run_for(61000)       # the minute tick refreshes schedule facts, not authored text
             # The same element, not a rebuilt copy: rebuilding unchanged text also loses a selection.
@@ -3664,14 +3661,13 @@ class BrowserChecks(unittest.TestCase):
             story["headline_segments"] = [{"text": story["headline"], "match_ids": ["upcoming"]}]
             with self.subTest(sources=bool(selected)), self.page("after", story=story) as (page, _):
                 self.enable_ai_text(page)
-                expect(page.locator("#story-h")).to_have_text(story["headline"])
-                expect(page.locator("#story-lede")).to_be_hidden()
-                page.locator("#story-details > summary").click()
+                expect(page.locator("#story-headlines > article[aria-current=true] .story-headline__title")).to_have_text(story["headline"])
+                expect(page.locator("#story-headlines > article[aria-current=true] .story-headline__lede")).to_be_visible()
                 if selected:
-                    expect(page.locator("#story-by a")).to_have_text(["ESPN table and form", "news.example", "news.example (2)"])
-                    self.assertIn("not from reporting", page.locator("#story-by a").first.get_attribute("title"))
+                    expect(page.locator("#story-headlines > article[aria-current=true] .story-headline__sources a")).to_have_text(["ESPN table and form", "news.example", "news.example (2)"])
+                    self.assertIn("not from reporting", page.locator("#story-headlines > article[aria-current=true] .story-headline__sources a").first.get_attribute("title"))
                 else:
-                    expect(page.locator("#story-by a")).to_have_count(0)
+                    expect(page.locator("#story-headlines > article[aria-current=true] .story-headline__sources a")).to_have_count(0)
 
     def test_published_legacy_overviews_stay_hidden_without_discarding_match_notes(self):
         text = "Arsenal meet Chelsea with the league lead at stake, and Spain's women visit the United States."
@@ -3778,14 +3774,14 @@ class BrowserChecks(unittest.TestCase):
                 expect(page.locator("#ai-blurbs")).not_to_be_checked()
                 page.locator("#ai-blurbs").check()
                 self.close_personal_ai(page)
-                expect(page.locator("#story-headlines > article .story-headline__title")).to_have_text("The shared league headline")
+                expect(page.locator("#story-headlines > article[aria-current=true] .story-headline__title")).to_have_text("The shared league headline")
                 expect(page.locator("#nextup .row__story")).to_contain_text("Shared preview for a.")
                 expect(page.locator('#picks [data-match-id="c"] .row__story')).to_contain_text("Shared preview for c.")
                 expect(page.locator('li.row[data-id="d"] .row__story')).to_contain_text("Shared preview for d.")
                 self.assertEqual(page.evaluate("localStorage.getItem('ssg3-ai-blurbs')"), "true")
                 self.assertEqual(picks(), ["b", "c", "e"])
                 page.reload()
-                expect(page.locator("#story-headlines > article .story-headline__title")).to_have_text("The shared league headline")
+                expect(page.locator("#story-headlines > article[aria-current=true] .story-headline__title")).to_have_text("The shared league headline")
                 expect(page.locator('li.row[data-id="d"] .row__story')).to_contain_text("Shared preview for d.")
                 self.open_settings(page, "ai")
                 expect(page.locator("#ai-blurbs")).to_be_checked()
@@ -3898,7 +3894,7 @@ class BrowserChecks(unittest.TestCase):
                 expect(page.locator("#ai-prompt")).to_have_value(prompt)
                 page.locator("#ai-blurbs").check()
                 self.close_personal_ai(page)
-                expect(page.locator("#story-headlines > article .story-headline__title")).to_have_text("Your match headline.")
+                expect(page.locator("#story-headlines > article[aria-current=true] .story-headline__title")).to_have_text("Your match headline.")
                 expect(page.locator("#nextup .row__story")).to_contain_text("Your preview for a.")
                 expect(page.locator('#picks [data-match-id="d"] .row__story')).to_contain_text("Your preview for d.")
                 expect(page.locator('li.row[data-id="c"] .row__story')).to_contain_text("Your preview for c.")
@@ -3956,7 +3952,7 @@ class BrowserChecks(unittest.TestCase):
                 page.locator("#ai-apply").click()
                 expect(page.locator("#ai-error")).to_be_empty()
                 self.close_personal_ai(page)
-                expect(page.locator("#story-headlines > article .story-headline__title")).to_have_text("Your match headline.")
+                expect(page.locator("#story-headlines > article[aria-current=true] .story-headline__title")).to_have_text("Your match headline.")
                 self.assertEqual(picks.evaluate_all("els => els.map(e => e.dataset.matchId)"), ["b", "c", "e"])
                 expect(page.locator("#nextup .row__story")).to_contain_text("Your preview for a.")
                 for mid in "bce":
@@ -3973,14 +3969,14 @@ class BrowserChecks(unittest.TestCase):
                 page.locator('[data-kind="have"][data-key="peacock"]').click()
                 page.locator("#btn-filters-close").click()
                 page.reload()
-                expect(page.locator("#story-headlines > article .story-headline__title")).to_have_text("Your match headline.")
+                expect(page.locator("#story-headlines > article[aria-current=true] .story-headline__title")).to_have_text("Your match headline.")
                 self.assertEqual(picks.evaluate_all("els => els.map(e => e.dataset.matchId)"), ["b", "c", "e"])
                 self.open_settings(page, "ai")
                 page.locator("#ai-weight").fill("0")
                 self.close_personal_ai(page)
                 self.assertEqual(picks.evaluate_all("els => els.map(e => e.dataset.matchId)"), ["b", "d", "e"])
                 expect(page.locator('#picks [data-match-id="d"] .row__story')).to_have_count(0)
-                expect(page.locator("#story-headlines > article .story-headline__title")).to_have_text("Your match headline.")
+                expect(page.locator("#story-headlines > article[aria-current=true] .story-headline__title")).to_have_text("Your match headline.")
                 self.open_settings(page, "ai")
                 page.locator("#ai-clear").click()
                 self.close_personal_ai(page)
@@ -4020,7 +4016,7 @@ class BrowserChecks(unittest.TestCase):
                     page.locator("#ai-apply").click()
                     expect(page.locator("#ai-error")).to_be_visible()
                     self.assertTrue(page.locator("#ai-error").inner_text().strip())
-                    expect(page.locator("#story-headlines > article .story-headline__title")).to_have_text("The shared league headline")
+                    expect(page.locator("#story-headlines > article[aria-current=true] .story-headline__title")).to_have_text("The shared league headline")
                     self.assertEqual(page.locator("#picks .pick").evaluate_all("els => els.map(e => e.dataset.matchId)"), before)
                     self.assertFalse(page.evaluate("Boolean(window.__unsafeExecuted)"))
             # AI prose is text, even if it contains markup; a corrected reply remains usable after errors.
@@ -4029,13 +4025,13 @@ class BrowserChecks(unittest.TestCase):
             page.locator("#ai-apply").click()
             expect(page.locator("#ai-error")).to_be_empty()
             self.close_personal_ai(page)
-            expect(page.locator("#story-headlines > article .story-headline__title")).to_have_text(valid["headlines"][0]["headline"])
+            expect(page.locator("#story-headlines > article[aria-current=true] .story-headline__title")).to_have_text(valid["headlines"][0]["headline"])
             expect(page.locator("#story-headlines img")).to_have_count(0)
             self.assertFalse(page.evaluate("Boolean(window.__unsafeExecuted)"))
             self.open_settings(page, "ai")
             page.locator("#ai-clear").click()
             self.close_personal_ai(page)
-            expect(page.locator("#story-headlines > article .story-headline__title")).to_have_text("The shared league headline")
+            expect(page.locator("#story-headlines > article[aria-current=true] .story-headline__title")).to_have_text("The shared league headline")
 
     def test_personal_ai_headlines_do_not_fall_back_to_match_blurbs(self):
         fixtures = [("upcoming", "2026-10-07T17:05:00+00:00", "pre", "ESPN+", "eng.1"),
@@ -4048,7 +4044,7 @@ class BrowserChecks(unittest.TestCase):
             page.locator("#ai-response").fill(json.dumps(reply))
             page.locator("#ai-apply").click()
             self.close_personal_ai(page)
-            expect(page.locator("#story-headlines > article .story-headline__title")).to_have_text("Your match headline.")
+            expect(page.locator("#story-headlines > article[aria-current=true] .story-headline__title")).to_have_text("Your match headline.")
             self.open_settings(page)
             self.open_settings(page, "leagues")
             page.locator('#comp-pills [data-key="eng.1"]').click()
@@ -4057,7 +4053,7 @@ class BrowserChecks(unittest.TestCase):
             self.open_settings(page, "leagues")
             page.locator('#comp-pills [data-key="eng.1"]').click()
             page.locator("#btn-filters-close").click()
-            expect(page.locator("#story-headlines > article .story-headline__title")).to_have_text("Your match headline.")
+            expect(page.locator("#story-headlines > article[aria-current=true] .story-headline__title")).to_have_text("Your match headline.")
             feed["data"] = scoreboard("post")
             page.clock.run_for(60000)
             expect(page.locator('li.row[data-id="upcoming"]')).to_have_attribute("data-state", "post")
@@ -4078,7 +4074,7 @@ class BrowserChecks(unittest.TestCase):
             page.locator("#ai-response").fill(json.dumps(reply))
             page.locator("#ai-apply").click()
             self.close_personal_ai(page)
-            expect(page.locator("#story-headlines > article .story-headline__title")).to_have_text("Your match headline.")
+            expect(page.locator("#story-headlines > article[aria-current=true] .story-headline__title")).to_have_text("Your match headline.")
 
             # An old saved response must not revive merely because its fixture is still upcoming.
             page.evaluate("""() => {
@@ -4116,7 +4112,7 @@ class BrowserChecks(unittest.TestCase):
             page.locator("#ai-apply").click()
             expect(page.locator("#ai-status")).to_contain_text("could not be saved")
             self.close_personal_ai(page)
-            expect(page.locator("#story-headlines > article .story-headline__title")).to_have_text("Your match headline.")
+            expect(page.locator("#story-headlines > article[aria-current=true] .story-headline__title")).to_have_text("Your match headline.")
             self.assertIsNone(page.evaluate("localStorage.getItem('ssg3-ai-blurbs')"))
             page.reload()
             expect(page.locator("#story")).to_be_hidden()
@@ -4138,7 +4134,7 @@ class BrowserChecks(unittest.TestCase):
                 "matches": [{"id": match["id"], "score": 50, "blurb": f'Your preview for {match["id"]}.', "sources": []}
                             for match in snapshot["matches"]]}
 
-    def test_personal_ai_headlines_prioritize_near_matches_and_expand_on_request(self):
+    def test_personal_ai_headlines_prioritize_near_matches_and_scroll_as_cards(self):
         fixtures = [("near", "2026-10-07T18:00:00+00:00", "pre", "ESPN+", "eng.1"),
                     ("tomorrow", "2026-10-08T20:00:00+00:00", "pre", "ESPN+", "esp.1"),
                     ("later", "2026-10-09T20:00:00+00:00", "pre", "Apple TV", "usa.1"),
@@ -4160,22 +4156,42 @@ class BrowserChecks(unittest.TestCase):
                 page.locator("#ai-apply").click()
                 expect(page.locator("#ai-error")).to_be_empty()
                 self.close_personal_ai(page)
-                lead = page.locator("#story-headlines > article.story-headline")
+                lead = page.locator("#story-headlines > article[aria-current=true].story-headline")
                 expect(lead).to_have_attribute("data-league", "eng.1")
                 expect(lead.locator(".story-headline__title")).to_have_text(reply["headlines"][0]["headline"])
                 expect(page.locator('#story-headlines article[data-league="fra.1"]')).to_have_count(0)
-                more = page.locator("details.story-headlines__more")
-                expect(more.locator("summary").first).to_have_text(re.compile(r"More headlines\s*\(2\)"))
-                self.assertFalse(more.evaluate("el => el.open"))
-                detail = lead.locator("details.story-headline__details")
-                self.assertFalse(detail.evaluate("el => el.open"))
-                expect(lead.locator(".story-headline__lede")).to_be_hidden()
-                detail.locator("summary").click()
+                expect(page.locator('#headline-position')).to_have_text('1 of 3')
+                expect(page.locator('#headline-prev')).to_be_disabled()
+                expect(page.locator('#story-headlines details')).to_have_count(0)
                 expect(lead.locator(".story-headline__lede")).to_have_text(reply["headlines"][0]["lede"])
                 expect(lead.locator(".story-headline__lede")).to_be_visible()
-                more.locator("summary").first.click()
-                self.assertEqual(more.locator("article.story-headline").evaluate_all("els => els.map(el => el.dataset.league)"), ["esp.1", "usa.1"])
-                expect(more.locator(".story-headline__title").first).to_be_visible()
+                self.assertEqual(page.locator('#story-headlines > article').evaluate_all("els => els.map(el => el.dataset.league)"), ['eng.1', 'esp.1', 'usa.1'])
+                self.full_page_shot(page, f'headline-carousel-first-{width}.png')
+                page.get_by_role('button', name='Next headline', exact=True).click()
+                expect(lead).to_have_attribute('data-league', 'esp.1')
+                expect(page.locator('#headline-position')).to_have_text('2 of 3')
+                self.full_page_shot(page, f'headline-carousel-next-{width}.png')
+                page.locator('#headline-next').focus()
+                page.keyboard.press('Enter')
+                expect(page.locator('#headline-next')).to_be_focused()
+                expect(page.locator('#headline-next')).to_be_disabled()
+                page.keyboard.press('Enter')
+                expect(page.locator('#headline-position')).to_have_text('3 of 3')
+                track = page.locator('#story-headlines')
+                track.focus()
+                page.keyboard.press('End')
+                expect(lead).to_have_attribute('data-league', 'usa.1')
+                expect(page.locator('#headline-next')).to_be_disabled()
+                page.keyboard.press('ArrowLeft')
+                expect(lead).to_have_attribute('data-league', 'esp.1')
+                page.keyboard.press('Home')
+                expect(lead).to_have_attribute('data-league', 'eng.1')
+                # Native horizontal scrolling (touch/trackpad) selects the nearest card too.
+                track.evaluate('el => { el.scrollLeft = el.children[1].offsetLeft - el.children[0].offsetLeft; }')
+                page.clock.run_for(50)
+                expect(lead).to_have_attribute('data-league', 'esp.1')
+                page.clock.run_for(61000)
+                expect(lead).to_have_attribute('data-league', 'esp.1')
                 self.assertLessEqual(page.evaluate("document.documentElement.scrollWidth"), width)
                 self.full_page_shot(page, f"personal-headlines-{width}.png")
                 self.open_settings(page)
@@ -4184,7 +4200,7 @@ class BrowserChecks(unittest.TestCase):
                 expect(lead).to_have_attribute("data-league", "esp.1")
                 self.open_settings(page, "leagues")
                 page.locator('#comp-pills [data-key="usa.1"]').click()
-                expect(page.locator("details.story-headlines__more")).to_have_count(0)
+                expect(page.locator('#headline-nav')).to_be_hidden()
                 page.locator("#btn-filters-close").click()
                 expect(lead.locator(".story-headline__title")).to_have_text("The Spanish title contenders meet")
 
@@ -4205,7 +4221,7 @@ class BrowserChecks(unittest.TestCase):
             page.locator("#ai-apply").click()
             expect(page.locator("#ai-error")).to_be_empty()
             self.close_personal_ai(page)
-            expect(page.locator("#story-headlines > article.story-headline")).to_have_attribute("data-league", "uefa.champions")
+            expect(page.locator("#story-headlines > article[aria-current=true].story-headline")).to_have_attribute("data-league", "uefa.champions")
             page.reload()
             expect(page.locator("#story-headlines .story-headline__title")).to_have_text(reply["headlines"][0]["headline"])
             # Bulk league controls also cover leagues with no fixture pills on this quiet day.
@@ -4272,10 +4288,10 @@ class BrowserChecks(unittest.TestCase):
             page.locator("#ai-apply").click()
             expect(page.locator("#ai-error")).to_be_empty()
             self.close_personal_ai(page)
-            lead = page.locator("#story-headlines > article.story-headline")
+            lead = page.locator("#story-headlines > article[aria-current=true].story-headline")
             expect(lead).to_have_attribute("data-league", "eng.1")
             # The calendar notice is rated 99 but belongs to Saturday, not the current interval.
-            self.assertEqual(page.locator(".story-headlines__list article").evaluate_all("els => els.map(el => el.dataset.league)"),
+            self.assertEqual(page.locator("#story-headlines > article:not([aria-current=true])").evaluate_all("els => els.map(el => el.dataset.league)"),
                              ["uefa.champions", "eng.fa"])
             feed["data"] = scoreboard("post")
             page.clock.run_for(60000)
@@ -4294,7 +4310,7 @@ class BrowserChecks(unittest.TestCase):
             self.personal_ai_headline(snapshot, "eng.fa", ["cup"], "The cup contenders meet", 85)]
         with self.page("after", html=render_page(build, fixtures=fixtures, ai=False), shared=shared) as (page, feed):
             self.enable_ai_text(page)
-            lead = page.locator("#story-headlines > article.story-headline")
+            lead = page.locator("#story-headlines > article[aria-current=true].story-headline")
             expect(lead).to_have_attribute("data-league", "uefa.champions")
             # Saved preferences change the winner without rewriting the imported AI interest scores.
             priority = [key for key in build.LEAGUES if key not in ("eng.fa", "uefa.champions")]
@@ -4338,7 +4354,7 @@ class BrowserChecks(unittest.TestCase):
             page.locator("#ai-apply").click()
             expect(page.locator("#ai-error")).to_be_empty()
             self.close_personal_ai(page)
-            expect(page.locator("#story-headlines > article.story-headline")).to_have_attribute("data-league", "uefa.champions")
+            expect(page.locator("#story-headlines > article[aria-current=true].story-headline")).to_have_attribute("data-league", "uefa.champions")
             page.evaluate("location.hash = '#at-20261007-1311'")
             expect(page.locator("#story")).to_be_hidden()
             expect(page.locator('li.row[data-id="upcoming"] .row__story')).to_contain_text("Your preview for upcoming.")
@@ -4385,7 +4401,7 @@ class BrowserChecks(unittest.TestCase):
                     page.locator("#ai-response").fill(json.dumps(reply))
                     page.locator("#ai-apply").click()
                     expect(page.locator("#ai-error")).to_be_visible()
-                    expect(page.locator("#story-headlines > article .story-headline__title")).to_have_text("The accepted match headline")
+                    expect(page.locator("#story-headlines > article[aria-current=true] .story-headline__title")).to_have_text("The accepted match headline")
                     self.assertFalse(page.evaluate("Boolean(window.__unsafeExecuted)"))
 
     def test_personal_ai_headlines_follow_final_scores_and_expire_without_padding(self):
@@ -4403,7 +4419,7 @@ class BrowserChecks(unittest.TestCase):
             page.locator("#ai-apply").click()
             expect(page.locator("#ai-error")).to_be_empty()
             self.close_personal_ai(page)
-            lead = page.locator("#story-headlines > article.story-headline")
+            lead = page.locator("#story-headlines > article[aria-current=true].story-headline")
             expect(lead).to_have_attribute("data-league", "eng.1")
             feed["data"] = scoreboard("post")
             page.clock.run_for(60000)
@@ -4443,9 +4459,9 @@ class BrowserChecks(unittest.TestCase):
             page.locator("#ai-apply").click()
             expect(page.locator("#ai-error")).to_be_empty()
             self.close_personal_ai(page)
-            expect(page.locator("#story-headlines > article .story-headline__title")).to_have_text("Your match headline.")
+            expect(page.locator("#story-headlines > article[aria-current=true] .story-headline__title")).to_have_text("Your match headline.")
             page.reload()
-            expect(page.locator("#story-headlines > article .story-headline__title")).to_have_text("Your match headline.")
+            expect(page.locator("#story-headlines > article[aria-current=true] .story-headline__title")).to_have_text("Your match headline.")
 
 
     def shared_ai_payload(self, fixtures, scores=None):
@@ -4465,7 +4481,7 @@ class BrowserChecks(unittest.TestCase):
         for width in (1280, 390):
             with self.subTest(width=width), self.page("after", html=html, shared=shared, width=width) as (page, feed):
                 self.enable_ai_text(page)
-                title = page.locator("#story-headlines > article .story-headline__title")
+                title = page.locator("#story-headlines > article[aria-current=true] .story-headline__title")
                 picks = page.locator("#picks .pick")
                 expect(title).to_have_text("The shared league headline")
                 self.assertGreater(feed["shared"], 0)
@@ -4475,7 +4491,7 @@ class BrowserChecks(unittest.TestCase):
                 expect(page.locator("#nextup .row__story")).to_contain_text("Shared preview for a.")
                 expect(page.locator('#picks [data-match-id="c"] .row__story')).to_contain_text("Shared preview for c.")
                 expect(page.locator('li.row[data-id="d"] .row__story')).to_contain_text("Shared preview for d.")
-                expect(page.locator("#story-headlines > article .story-headline__by")).not_to_contain_text("Your AI")
+                expect(page.locator("#story-headlines > article[aria-current=true] .story-headline__by")).not_to_contain_text("Your AI")
                 self.open_settings(page, "ai")
                 page.locator("#ai-weight").fill("100")
                 page.locator("#ai-generate").click()
@@ -4518,7 +4534,7 @@ class BrowserChecks(unittest.TestCase):
         html = render_page(build, fixtures=fixtures, ai=False)
         with self.page("after", html=html, shared=shared) as (page, feed):
             self.enable_ai_text(page)
-            lead = page.locator("#story-headlines > article.story-headline")
+            lead = page.locator("#story-headlines > article[aria-current=true].story-headline")
             expect(lead).to_have_attribute("data-league", "eng.1")
             self.open_settings(page)
             self.open_settings(page, "leagues")
@@ -4537,7 +4553,7 @@ class BrowserChecks(unittest.TestCase):
         moved = [(fixtures[0][0], "2026-10-07T19:00:00+00:00", *fixtures[0][2:]), fixtures[1]]
         with self.page("after", html=render_page(build, fixtures=moved, ai=False), shared=shared) as (page, _):
             self.enable_ai_text(page)
-            expect(page.locator("#story-headlines > article.story-headline")).to_have_attribute("data-league", "esp.1")
+            expect(page.locator("#story-headlines > article[aria-current=true].story-headline")).to_have_attribute("data-league", "esp.1")
             expect(page.locator('li.row[data-id="upcoming"] .row__story')).to_have_count(0)
 
     def test_missing_invalid_or_expired_shared_ai_keeps_the_schedule_working(self):
@@ -4592,7 +4608,7 @@ class BrowserChecks(unittest.TestCase):
                     self.fail(f"Unexpected mocked GitHub request: {req.method} {req.url}")
 
             page.route("https://api.github.com/**", github)
-            title = page.locator("#story-headlines > article .story-headline__title")
+            title = page.locator("#story-headlines > article[aria-current=true] .story-headline__title")
             expect(title).to_have_text("The shared league headline")
             self.open_settings(page, "ai")
             page.locator("#ai-publish-section > summary").click()
@@ -4694,7 +4710,7 @@ class BrowserChecks(unittest.TestCase):
                     self.assertEqual(page.locator("#picks .pick").evaluate_all("els => els.map(e => e.dataset.matchId)"), ["b", "c", "e"])
                     expect(page.locator('li.row[data-id="c"] .row__story')).to_contain_text("Your preview for c.")
                     if kind == "personal over shared":
-                        expect(page.locator("#story-headlines > article .story-headline__title")).to_have_text("The shared league headline")
+                        expect(page.locator("#story-headlines > article[aria-current=true] .story-headline__title")).to_have_text("The shared league headline")
                         expect(page.locator("#story")).to_be_visible()
                     else:
                         expect(page.locator("#story")).to_be_hidden()
@@ -4708,9 +4724,9 @@ class BrowserChecks(unittest.TestCase):
                     page.locator("#ai-apply").click()
                     expect(page.locator("#ai-error")).to_be_empty()
                     self.close_personal_ai(page)
-                    expect(page.locator("#story-headlines > article .story-headline__title")).to_have_text("Your match headline.")
-                    expect(page.locator("#story-headlines .story-headline__lede")).to_be_hidden()
-                    self.assertNotIn("Your match overview.", page.locator("body").inner_text())
+                    expect(page.locator("#story-headlines > article[aria-current=true] .story-headline__title")).to_have_text("Your match headline.")
+                    expect(page.locator("#story-headlines .story-headline__lede")).to_be_visible()
+                    self.assertIn("Your match overview.", page.locator("body").inner_text())
                     self.assertLessEqual(page.evaluate("document.documentElement.scrollWidth"), width)
 
 
@@ -4733,7 +4749,7 @@ SMOKE_TESTS = (
     "test_cached_legacy_ratings_do_not_create_headlines_or_hide_shared_headlines",
     "test_shared_ai_defaults_reach_new_visitors_and_local_imports_take_precedence",
     "test_github_publication_checks_access_keeps_tokens_private_and_preserves_local_results",
-    "test_personal_ai_headlines_prioritize_near_matches_and_expand_on_request",
+    "test_personal_ai_headlines_prioritize_near_matches_and_scroll_as_cards",
     "test_calendar_headlines_use_event_dates_and_never_extend_finished_match_coverage",
     "test_headline_league_preference_can_outweigh_a_small_interest_difference",
     "test_undated_calendar_imports_keep_ratings_and_dated_notices_expire_at_event_end",

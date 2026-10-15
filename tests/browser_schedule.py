@@ -187,6 +187,113 @@ class ScheduleChecks(unittest.TestCase):
             expect(page.locator('li.row[data-id="returning"]')).not_to_be_visible()
             self.assertEqual(page.evaluate('localStorage.getItem("ssg5-leagues")'), before)
 
+    def test_navigation_cancels_requests_and_ignores_late_callbacks_until_restored(self):
+        with self.page("after", html=render_page(build, fixtures=FIXTURES)) as (page, _):
+            result = page.evaluate("""async () => {
+                const requests = [], applied = [], completed = [];
+                const original = window.fetch;
+                window.fetch = (url, options) => new Promise(resolve => requests.push({ options, resolve }));
+                const reader = window.SoccerOutlookSchedule.create({
+                    revision: 'lifecycle-test', builtAt: '2026-10-07T17:00:00Z', leagues: {}, services: [],
+                    apply: snapshot => applied.push(snapshot.generated),
+                    completed: state => completed.push({ fails: state.fails, reason: state.reason })
+                });
+                const first = reader.poll();
+                window.dispatchEvent(new Event('beforeunload'));
+                const blockedBeforePagehide = reader.poll() === undefined && requests.length === 1;
+                window.dispatchEvent(new PageTransitionEvent('pagehide', { persisted: true }));
+                const aborted = requests[0].options.signal.aborted;
+                const blockedWhileHidden = reader.poll() === undefined && requests.length === 1;
+                // Even a transport that resolves after abort cannot redraw a departed document.
+                requests[0].resolve({ ok: true, text: () => Promise.resolve(JSON.stringify({
+                    version: 1, complete: true, runtime_revision: 'lifecycle-test',
+                    generated_at: '2026-10-07T17:01:00Z', rows: [], logos: {}
+                })) });
+                await first;
+                const quietWhileHidden = applied.length === 0 && completed.length === 0;
+                window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
+                const resumed = requests.length === 2;
+                requests[1].resolve({ ok: true, text: () => Promise.resolve(JSON.stringify({
+                    version: 1, complete: true, runtime_revision: 'lifecycle-test',
+                    generated_at: '2026-10-07T17:02:00Z', rows: [], logos: {}
+                })) });
+                // Drain the response, parse, and completion promise chain without advancing timers.
+                for (let i = 0; i < 10; i++) await Promise.resolve();
+                window.fetch = original;
+                return { aborted, blockedBeforePagehide, blockedWhileHidden, quietWhileHidden, resumed, applied, completed,
+                    mode: requests[1].options.mode };
+            }""")
+            self.assertEqual(result, {
+                "aborted": True, "blockedBeforePagehide": True, "blockedWhileHidden": True,
+                "quietWhileHidden": True, "resumed": True,
+                "applied": ["2026-10-07T17:02:00Z"], "completed": [{"fails": 0, "reason": ""}],
+                "mode": "same-origin",
+            })
+
+    def test_repeated_reload_with_pending_schedule_requests_keeps_the_page_usable(self):
+        for width in (1280, 390):
+            with self.subTest(width=width), self.page("after", width=width, html=render_page(build, fixtures=FIXTURES)) as (page, _):
+                held = []
+                page.route("**/schedule.json", lambda route: held.append(route))
+                for _ in range(8):
+                    with page.expect_request("**/schedule.json"):
+                        page.reload()
+                        page.clock.run_for(1)
+                    expect(page.locator('li.row[data-id="upcoming"]')).to_be_visible()
+                    if len(held) > 1:
+                        held[-2].abort()
+                # The last document can still accept a snapshot; earlier requests belong to
+                # discarded documents. The shared harness fails on every JavaScript pageerror.
+                held[-1].fulfill(content_type="application/json", body=json.dumps(snapshot()))
+                expect(page.locator('#app')).to_have_attribute('data-schedule-built', '2026-10-07T17:01:00Z')
+                expect(page.locator('#schedule-note')).not_to_contain_text('did not get through')
+
+    def test_live_score_transport_cancels_and_resumes_without_consuming_catchup(self):
+        fixtures = [("future", "2026-10-07T19:00:00Z", "pre", "Paramount+", "uefa.champions")]
+        with self.page("after", html=render_page(build, fixtures=fixtures)) as (page, _):
+            result = page.evaluate("""async () => {
+                const requests = [], applied = [], completed = [], original = window.fetch;
+                window.fetch = (url, options) => new Promise(resolve => requests.push({ options, resolve }));
+                const reader = window.SoccerOutlookLive.create({
+                    now: () => Date.now(), dateKey: () => '20261007',
+                    matches: () => [{ id: 'catchup', league: 'eng.1', eligible: true,
+                        kickoff: Date.parse('2026-10-07T12:00:00Z') }],
+                    applyEvent: (id, event, first) => applied.push({ id, first }),
+                    completed: state => completed.push(state.fails)
+                });
+                const first = reader.poll();
+                window.dispatchEvent(new Event('beforeunload'));
+                const blocked = reader.poll() === undefined && requests.length === 1;
+                window.dispatchEvent(new PageTransitionEvent('pagehide', { persisted: true }));
+                const aborted = requests[0].options.signal.aborted;
+                requests[0].resolve({ ok: true, json: () => Promise.resolve({ events: [{ id: 'catchup' }] }) });
+                await first;
+                const quiet = applied.length === 0 && completed.length === 0;
+                window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
+                const resumed = requests.length === 2;
+                requests[1].resolve({ ok: true, json: () => Promise.resolve({ events: [{ id: 'catchup' }] }) });
+                for (let i = 0; i < 15; i++) await Promise.resolve();
+                window.fetch = original;
+                return { blocked, aborted, quiet, resumed, applied, completed };
+            }""")
+            self.assertEqual(result, {"blocked": True, "aborted": True, "quiet": True, "resumed": True,
+                                      "applied": [{"id": "catchup", "first": True}], "completed": [0]})
+
+    def test_quick_reload_does_not_start_a_queued_poll_in_a_departing_document(self):
+        future = [("future", "2026-10-07T19:00:00Z", "pre", "Paramount+", "uefa.champions")]
+        for fixtures in (future, FIXTURES):
+            shared = BrowserChecks().shared_ai_payload(fixtures)
+            with self.subTest(live_poll=fixtures is FIXTURES), self.page("after", html=render_page(build, fixtures=fixtures, ai=False), shared=shared) as (page, _):
+                page.evaluate("localStorage.setItem('ssg3-ai-blurbs', 'true')")
+                self.serve(page, snapshot(fixtures))
+                for _ in range(8):
+                    # Keep startup polling queued while immediately reloading again. Safari
+                    # can otherwise attempt either fetch between beforeunload and pagehide.
+                    page.reload()
+                    expect(page.locator('#story-headlines')).to_be_visible()
+                page.clock.run_for(1)
+                expect(page.locator('#app')).to_have_attribute('data-schedule-built', '2026-10-07T17:01:00Z')
+
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)

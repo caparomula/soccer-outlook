@@ -69,22 +69,47 @@
   }
   function create(options) {
     var state = { busy: false, updatedAt: Date.parse(options.builtAt) || 0, okAt: 0, fails: 0, nextAt: 0, reason: '' };
+    var active = null, suspended = false;
+    // A navigation (including Safari's back/forward cache) ends the old document's
+    // request. Its late promise callbacks must not redraw or report a source outage.
+    function suspend() {
+      suspended = true;
+      var request = active; active = null; state.busy = false;
+      if (request) {
+        clearTimeout(request.timeout);
+        if (request.controller) request.controller.abort();
+      }
+    }
+    // WebKit may run an already-queued polling timer after beforeunload, before
+    // pagehide; starting fetch in that gap produces an access-control exception.
+    global.addEventListener('beforeunload', suspend);
+    global.addEventListener('pagehide', suspend);
+    global.addEventListener('pageshow', function () {
+      if (!suspended) return;
+      suspended = false; poll();
+    });
     function poll() {
-      if (!options.revision || !global.fetch || document.hidden || state.busy || Date.now() < state.nextAt) return;
+      if (suspended || !options.revision || !global.fetch || document.hidden || state.busy || Date.now() < state.nextAt) return;
       state.busy = true;
       var controller = global.AbortController ? new AbortController() : null;
-      var timeout = setTimeout(function () { if (controller) controller.abort(); }, 10000);
-      return fetch('schedule.json', { cache: 'no-cache', credentials: 'omit', signal: controller ? controller.signal : undefined })
-        .then(function (response) { if (!response.ok) throw new Error('Schedule unavailable'); return response.text(); })
+      var request = { controller: controller, timeout: setTimeout(function () { if (controller) controller.abort(); }, 10000) };
+      active = request;
+      function current() { return active === request && !suspended; }
+      return fetch('schedule.json', { mode: 'same-origin', cache: 'no-cache', credentials: 'omit', signal: controller ? controller.signal : undefined })
+        .then(function (response) { if (!current()) return; if (!response.ok) throw new Error('Schedule unavailable'); return response.text(); })
         .then(function (text) {
+          if (!current()) return;
           if (text.length > 16000000) throw new Error('Invalid schedule size');
           var snapshot = parse(JSON.parse(text), { revision: options.revision, after: state.updatedAt, leagues: options.leagues, services: options.services });
           if (snapshot) { options.apply(snapshot); state.updatedAt = snapshot.generatedAt; }
           state.okAt = Date.now(); state.fails = 0; state.reason = ''; state.nextAt = Date.now() + EVERY_MS;
         }).catch(function (error) {
+          if (!current()) return;
           state.fails++; state.reason = error.message; state.nextAt = Date.now() + Math.min(EVERY_MS * Math.pow(2, state.fails - 1), 30 * 60000);
         }).then(function () {
-          clearTimeout(timeout); state.busy = false;
+          clearTimeout(request.timeout);
+          if (!current()) return;
+          active = null; state.busy = false;
           if (options.completed) options.completed(state);
         });
     }

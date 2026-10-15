@@ -1776,7 +1776,7 @@
     return el;
   }
   function headlineMode(on) {
-    document.getElementById('story-headlines').hidden = !on;
+    document.getElementById('story-carousel').hidden = !on;
     document.getElementById('story-h').hidden = on;
     var detail = document.getElementById('story-details');
     detail.hidden = on;
@@ -1784,6 +1784,58 @@
     // preserving an opened disclosure and the reader's focus on its source links.
     detail.open = false;
   }
+  var headlineTrack = document.getElementById('story-headlines'), headlineIndex = 0, headlineScrollFrame = null;
+  var headlineResize = window.ResizeObserver ? new ResizeObserver(function () { syncHeadlineCarousel(); }) : null;
+  function syncHeadlineCarousel() {
+    var cards = Array.from(headlineTrack.children), count = cards.length;
+    headlineIndex = Math.max(0, Math.min(headlineIndex, count - 1));
+    cards.forEach(function (card, index) {
+      var current = index === headlineIndex;
+      if (current) card.setAttribute('aria-current', 'true'); else card.removeAttribute('aria-current');
+      card.setAttribute('aria-hidden', String(!current)); card.inert = !current;
+    });
+    var card = cards[headlineIndex];
+    if (card) {
+      headlineTrack.style.height = Math.ceil(card.getBoundingClientRect().height) + 'px';
+      document.getElementById('story').setAttribute('data-league', card.dataset.league);
+    } else headlineTrack.style.height = '';
+    document.getElementById('headline-nav').hidden = count < 2;
+    document.getElementById('headline-position').textContent = count ? (headlineIndex + 1) + ' of ' + count : '';
+    setText(document.getElementById('headline-announcement'), count > 1 ? (headlineIndex + 1) + ' of ' + count + ': ' + card.querySelector('.story-headline__title').textContent : '');
+    // Keep a keyboard user's place when a navigation button reaches the first/last card.
+    document.getElementById('headline-prev').setAttribute('aria-disabled', String(headlineIndex === 0));
+    document.getElementById('headline-next').setAttribute('aria-disabled', String(headlineIndex >= count - 1));
+    if (count > 1) headlineTrack.tabIndex = 0; else headlineTrack.removeAttribute('tabindex');
+  }
+  function showHeadline(index) {
+    var cards = headlineTrack.children;
+    if (!cards.length) return;
+    headlineIndex = Math.max(0, Math.min(index, cards.length - 1));
+    var left = headlineTrack.scrollLeft + cards[headlineIndex].getBoundingClientRect().left - headlineTrack.getBoundingClientRect().left;
+    // Button/key navigation is immediate; touch and trackpad scrolling remain native. No autoplay.
+    headlineTrack.scrollTo({ left: left, behavior: 'auto' }); syncHeadlineCarousel();
+  }
+  document.getElementById('headline-prev').addEventListener('click', function () { if (this.getAttribute('aria-disabled') !== 'true') showHeadline(headlineIndex - 1); });
+  document.getElementById('headline-next').addEventListener('click', function () { if (this.getAttribute('aria-disabled') !== 'true') showHeadline(headlineIndex + 1); });
+  headlineTrack.addEventListener('keydown', function (event) {
+    if (event.target !== headlineTrack || event.altKey || event.ctrlKey || event.metaKey) return;
+    var index = event.key === 'ArrowLeft' ? headlineIndex - 1 : event.key === 'ArrowRight' ? headlineIndex + 1 :
+      event.key === 'Home' ? 0 : event.key === 'End' ? headlineTrack.children.length - 1 : null;
+    if (index !== null) { event.preventDefault(); showHeadline(index); }
+  });
+  headlineTrack.addEventListener('scroll', function () {
+    if (headlineScrollFrame !== null) return;
+    headlineScrollFrame = requestAnimationFrame(function () {
+      headlineScrollFrame = null;
+      var left = headlineTrack.getBoundingClientRect().left, distance = Infinity;
+      Array.from(headlineTrack.children).forEach(function (card, index) {
+        var current = Math.abs(card.getBoundingClientRect().left - left);
+        if (current < distance) { distance = current; headlineIndex = index; }
+      });
+      syncHeadlineCarousel();
+    });
+  }, { passive: true });
+  window.addEventListener('resize', function () { if (!document.getElementById('story-carousel').hidden) showHeadline(headlineIndex); });
   // Headline interest measures editorial usefulness, separately from a game's pick score. Stories
   // within the next 24 hours come before later ones; low-rated filler never wins an empty slot.
   // Calendar notices use their verified event period, never an assumed "now".
@@ -1822,8 +1874,8 @@
     });
     var label = document.createElement('span'); label.textContent = text; heading.appendChild(label);
   }
-  function renderHeadlines(items, now, personal) {
-    var chosen = rankedHeadlines(items, now), storyEl = document.getElementById('story');
+  function renderHeadlines(items, now, personal, singleAuthoredHeadline) {
+    var chosen = singleAuthoredHeadline ? items : rankedHeadlines(items, now), storyEl = document.getElementById('story');
     var signature = JSON.stringify(['headlines', !!personal, chosen]);
     if (storyEl._signature === signature) return;
     storyEl._signature = signature;
@@ -1833,37 +1885,34 @@
       setText(document.getElementById('story-h'), 'League headlines');
       if (chosen.length) storyEl.setAttribute('data-league', chosen[0].league_id);
       else storyEl.removeAttribute('data-league');
-      var host = document.getElementById('story-headlines'); host.replaceChildren();
-      function article(item, main) {
+      var host = document.getElementById('story-headlines');
+      if (headlineResize) headlineResize.disconnect();
+      host.replaceChildren(); headlineIndex = 0;
+      function article(item, index) {
         var el = document.createElement('article'); el.className = 'story-headline';
-        el.setAttribute('data-league', item.league_id); el.setAttribute('data-interest', item.interest);
-        var heading = document.createElement(main ? 'h2' : 'h3'); heading.className = 'story-headline__title';
-        headlineTitle(heading, item.headline, [item.league_id]); el.appendChild(heading);
+        el.setAttribute('data-league', item.league_id);
+        if (typeof item.interest === 'number') el.setAttribute('data-interest', item.interest);
+        el.setAttribute('role', 'group'); el.setAttribute('aria-roledescription', 'slide'); el.setAttribute('aria-label', (index + 1) + ' of ' + chosen.length);
+        var heading = document.createElement('h2'); heading.className = 'story-headline__title';
+        headlineTitle(heading, item.headline, item.league_ids || [item.league_id]); el.appendChild(heading);
+        if (item.lede) {
+          var lede = document.createElement('p'); lede.className = 'story-headline__lede';
+          if (Array.isArray(item.legacy_items)) item.legacy_items.forEach(function (part, i) {
+            if (i) lede.appendChild(document.createTextNode(' ')); lede.appendChild(editorialItem(part));
+          });
+          else lede.textContent = item.lede;
+          el.appendChild(lede);
+        }
         var by = document.createElement('p'); by.className = 'story-headline__by';
         by.textContent = (personal ? 'Your AI headline · ' : 'AI headline · ') + (leagueNames[item.league_id] || item.league_id); el.appendChild(by);
         var links = sourceLinks(item.sources, 5);
-        if (item.lede || links.childNodes.length) {
-          var detail = document.createElement('details'); detail.className = 'story-headline__details';
-          var summary = document.createElement('summary'); summary.textContent = item.lede ? 'Read more' : 'Sources'; detail.appendChild(summary);
-          if (item.lede) {
-            var lede = document.createElement('p'); lede.className = 'story-headline__lede'; lede.textContent = item.lede; detail.appendChild(lede);
-          }
-          if (links.childNodes.length) {
-            var sources = document.createElement('p'); sources.className = 'story-headline__sources'; sources.appendChild(links); detail.appendChild(sources);
-          }
-          el.appendChild(detail);
+        if (links.childNodes.length) {
+          var sources = document.createElement('p'); sources.className = 'story-headline__sources'; sources.appendChild(links); el.appendChild(sources);
         }
         return el;
       }
-      if (!chosen.length) return;
-      host.appendChild(article(chosen[0], true));
-      if (chosen.length > 1) {
-        var more = document.createElement('details'); more.className = 'story-headlines__more';
-        var summary = document.createElement('summary'); summary.textContent = 'More headlines (' + (chosen.length - 1) + ')'; more.appendChild(summary);
-        var list = document.createElement('div'); list.className = 'story-headlines__list';
-        chosen.slice(1).forEach(function (item) { list.appendChild(article(item, false)); });
-        more.appendChild(list); host.appendChild(more);
-      }
+      chosen.forEach(function (item, index) { var card = article(item, index); host.appendChild(card); if (headlineResize) headlineResize.observe(card); });
+      showHeadline(0); syncHeadlineCarousel();
     });
     watchIcons();
   }
@@ -1938,30 +1987,12 @@
         if (source && typeof source.url === 'string' && !sources.some(function (s) { return s.url === source.url; })) sources.push(source);
       });
     });
-    // Called every minute: rebuilding unchanged text would drop the focus and selection of anyone on it.
-    var signature = JSON.stringify([title, sources.map(function (s) { return s.url; }), lead.map(function (item) {
-      return item.segments.map(function (part) { var refs = rowsForIds(part.match_ids); return [part.text, !!(refs && refs.length && !refs.every(editorialPasses))]; });
-    })]);
-    if (storyEl._signature === signature) return;
-    storyEl._signature = signature;
-    keepFocus(function () {
-      headlineMode(false);
-      storyEl.hidden = false;
-      document.getElementById('story-details').hidden = !lead.length;
-      var lede = document.getElementById('story-lede'); lede.innerHTML = '';
-      lead.forEach(function (item, i) {
-        if (i) lede.appendChild(document.createTextNode(' '));
-        lede.appendChild(editorialItem(item));
-      });
-      headlineTitle(document.getElementById('story-h'), title, headlineRows.map(function (r) { return r._lg; }));
-      if (lead.length && lead[0].league_id) storyEl.setAttribute('data-league', lead[0].league_id);
-      else storyEl.removeAttribute('data-league');
-      // Keep authorship and sources with the optional supporting text.
-      var storyBy = document.getElementById('story-by'); storyBy.textContent = lead.length ? 'AI headline' : '';
-      var links = sourceLinks(sources, 4);
-      if (links.childNodes.length) { storyBy.appendChild(document.createTextNode(' · ')); storyBy.appendChild(links); }
-    });
-    watchIcons();
+    // Older responses supplied one authored title without an interest score. Keep it as a
+    // single card, with its original supporting text, without assigning an invented rating.
+    return renderHeadlines([{ headline: title, league_id: headlineRows[0]._lg,
+      league_ids: headlineRows.map(function (r) { return r._lg; }), sources: sources,
+      legacy_items: lead, legacy_visibility: lead.map(function (item) { return referencedRows(item).map(editorialPasses); }),
+      lede: lead.map(function (item) { return item.segments.map(function (part) { return part.text; }).join(''); }).join(' ') }], now, false, true);
   }
   function applyStory(s) {
     if (!s || typeof s !== 'object' || s.version !== 1) return;
