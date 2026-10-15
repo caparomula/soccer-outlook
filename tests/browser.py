@@ -123,7 +123,7 @@ class BrowserChecks(unittest.TestCase):
                          "nickname": "Gunners", "form": "WWDLW", "isNational": False,
                          "venue": {"fullName": "Emirates Stadium", "address": {"city": "London", "country": "England"}}},
                 "roster": {"team": {"id": "1", "recordSummary": "5-0-1", "standingSummary": "2nd in English Premier League"},
-                           "season": {"year": 2026, "displayName": "2026-27 English Premier League"},
+                           "season": {"year": 2026, "displayName": "2026-27 English Premier League", "name": "2026-27 Premier League"},
                            "coach": [{"firstName": "Outdated", "lastName": "Coach"}],
                            "athletes": [athlete("Goals Leader", 5, 1), athlete("Assist Leader", 1, 6),
                                         athlete("Third Player", 2, 0), athlete("Unused Player", 0, 0), None]}}
@@ -162,6 +162,7 @@ class BrowserChecks(unittest.TestCase):
                     expect(dialog).to_contain_text('Emirates Stadium')
                     expect(dialog).to_contain_text('London, England')
                     expect(dialog).to_contain_text('5 won · 0 drawn · 1 lost')
+                    expect(dialog.locator('section h3').first).to_have_text('2026-27 English Premier League')
                     expect(dialog).not_to_contain_text('Outdated Coach')
                     expect(dialog.locator('.team-sheet__players strong')).to_have_text(['Assist Leader', 'Goals Leader', 'Third Player'])
                     expect(dialog.locator('.team-sheet__players')).to_contain_text('1 goal · 6 assists')
@@ -183,9 +184,14 @@ class BrowserChecks(unittest.TestCase):
                     page.clock.run_for(50)
                     expect(dialog).to_be_hidden()
                     expect(link).to_be_focused()
+                # Already-cached profiles from the first release get the same label cleanup.
+                page.evaluate("""() => { const c = JSON.parse(localStorage.getItem('soccer-team-vitals-v1'));
+                    Object.values(c).forEach(e => e.roster.season += ' · 2026-27 Premier League');
+                    localStorage.setItem('soccer-team-vitals-v1', JSON.stringify(c)); }""")
                 page.reload()
                 page.locator('#nextup .team-link').first.click()
                 expect(dialog).to_contain_text('Assist Leader')
+                expect(dialog.locator('section h3').first).to_have_text('2026-27 English Premier League')
                 self.assertEqual(len(feed['requests']), 2)
                 page.locator('#team-dialog-close').click()
                 page.clock.run_for(50)

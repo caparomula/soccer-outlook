@@ -44,13 +44,18 @@
     });
     // The coach field is deliberately unused: ESPN can return long-departed coaches here.
     var seasonName = text(data.season.displayName), stage = text(data.season.name);
-    if (stage && stage !== seasonName) seasonName += (seasonName ? ' · ' : '') + stage;
+    // Some leagues give two names for the same annual season ("French Ligue 1" / "Ligue 1").
+    // Retain a distinct phase such as Torneo Apertura, not a second year-prefixed season label.
+    if (stage && stage !== seasonName && !/^\d{4}(?:\D|$)/.test(stage)) seasonName += (seasonName ? ' · ' : '') + stage;
     return { season: seasonName, standing: text(data.team.standingSummary),
       record: text(data.team.recordSummary), players: players.slice(0, 3) };
   }
   function cached(key) {
     try { memory = Object.assign({}, JSON.parse(localStorage.getItem(CACHE_KEY) || '{}'), memory); } catch (_) {}
     var entry = memory[key], age = entry ? Date.now() - entry.checked : -1;
+    if (entry && entry.roster && typeof entry.roster.season === 'string') {
+      entry.roster.season = entry.roster.season.replace(/ · \d{4}(?:-\d{2,4})? .*$/, '');
+    }
     return age >= 0 && age < TTL && entry.profile && /^[a-z0-9.-]+$/.test(entry.profile.league) &&
       entry.roster && Array.isArray(entry.roster.players) && entry.roster.players.every(function (p) { return p && typeof p.name === 'string'; }) ? entry : null;
   }
