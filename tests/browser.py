@@ -4203,21 +4203,34 @@ class BrowserChecks(unittest.TestCase):
                 self.assertAlmostEqual(track.bounding_box()['height'], lead.bounding_box()['height'], delta=1)
                 if width > 600:
                     # The last short card stays aligned as the track shrinks and grows.
+                    def resize_carousel(viewport_width):
+                        # Native resize events run outside Playwright's frozen clock. Wait for
+                        # the real event before advancing the carousel's queued animation frame.
+                        page.evaluate("""() => {
+                            window.__headlineResizeSeen = false;
+                            window.addEventListener('resize', () => { window.__headlineResizeSeen = true; }, {once: true});
+                        }""")
+                        page.set_viewport_size({'width': viewport_width, 'height': 900})
+                        page.wait_for_function('window.__headlineResizeSeen', timeout=5000)
+                        page.clock.run_for(50)
                     initial_track_width = track.bounding_box()['width']
-                    page.set_viewport_size({'width': 900, 'height': 900})
-                    page.clock.run_for(50)
+                    resize_carousel(900)
                     self.assertLess(track.bounding_box()['width'], initial_track_width)
                     expect(lead).to_have_attribute('data-league', 'usa.1')
                     self.assertAlmostEqual(lead.bounding_box()['x'], track.bounding_box()['x'], delta=1)
-                    page.set_viewport_size({'width': width, 'height': 900})
-                    page.clock.run_for(50)
+                    resize_carousel(width)
                     self.assertAlmostEqual(lead.bounding_box()['x'], track.bounding_box()['x'], delta=1)
                 page.keyboard.press('ArrowLeft')
                 expect(lead).to_have_attribute('data-league', 'esp.1')
                 page.keyboard.press('Home')
                 expect(lead).to_have_attribute('data-league', 'eng.1')
                 # Native horizontal scrolling (touch/trackpad) selects the nearest card too.
-                track.evaluate('el => { el.scrollLeft = el.children[1].offsetLeft - el.children[0].offsetLeft; }')
+                track.evaluate("""el => {
+                    window.__headlineScrollSeen = false;
+                    el.addEventListener('scroll', () => { window.__headlineScrollSeen = true; }, {once: true});
+                    el.scrollLeft = el.children[1].offsetLeft - el.children[0].offsetLeft;
+                }""")
+                page.wait_for_function('window.__headlineScrollSeen', timeout=5000)
                 page.clock.run_for(50)
                 expect(lead).to_have_attribute('data-league', 'esp.1')
                 page.clock.run_for(61000)
