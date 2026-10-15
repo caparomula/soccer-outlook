@@ -356,6 +356,22 @@ class Requests(unittest.TestCase):
         self.assertEqual(spent, {"in": 40, "out": 20, "cache_write": 8, "cache_read": 12, "searches": 0, "fetches": 0,
                                  "prompt_max": 15})
 
+    def test_fable_full_run_keeps_exact_model_and_max_effort_without_forced_tools_or_fallback(self):
+        sdk = FakeSDK([news_reply(publication(), read=[READ])])
+        with patch.dict(sys.modules, {"anthropic": sdk.module}), patch.object(story, "log", lambda *_: None):
+            result, _ = story.write_story(RUN_FACTS, "claude-fable-5-1", "max", "full", None, totals())
+        self.assertTrue(result["rankings"])
+        self.assertEqual(len(sdk.research_calls()), 1)
+        self.assertTrue(sdk.rating_calls())
+        for call in sdk.calls:
+            self.assertEqual(call["model"], "claude-fable-5-1")
+            self.assertEqual(call["output_config"]["effort"], "max")
+            self.assertNotIn("fallbacks", call)
+            self.assertNotIn("betas", call)
+            self.assertNotIn("tool_choice", call)
+            self.assertNotIn("thinking", call)  # Fable's adaptive thinking is always on.
+        self.assertEqual(sdk.rating_calls()[0]["output_config"]["format"]["schema"], story.RATING_SCHEMA)
+
     def test_research_prompt_sends_each_fixture_once_and_no_rating_candidates(self):
         sdk = FakeSDK([news_reply(publication(), read=[READ])])
         run(sdk)

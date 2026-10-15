@@ -1015,12 +1015,22 @@ class BrowserChecks(unittest.TestCase):
 
         def enrich_and_render(matches, cache, built_at, failed, today):
             # Reproduce ESPN's missing broadcasters, then pass the recorded official listing
-            # through the production enrichment and rendering paths.
+            # through the production enrichment and rendering paths. Listings are discovered
+            # while a fixture is live; a later final retains that evidence without asking a
+            # broadcaster to advertise a finished match or mistaking its replay for live play.
             self.assertEqual(matches[0].outlets, [])
+            state, status = matches[0].state, matches[0].status
+            if state == "post":
+                fetched = []
+                self.assertEqual(broadcast_listings.enrich(
+                    build, matches, lambda url: fetched.append(url), built_at), {})
+                self.assertEqual(fetched, [])
+            matches[0].state, matches[0].status = "in", "In Progress"
             report = broadcast_listings.enrich(
                 build, matches, lambda url: schedule if url == tudn_listings.SCHEDULE_URL else event, built_at)
             self.assertEqual(report["TUDN"]["confirmed"], 1)
             self.assertEqual({outlet.label for outlet in matches[0].outlets}, {"TUDN", "Univision"})
+            matches[0].state, matches[0].status = state, status
             return original_build_page(matches, cache, built_at, failed, today)
 
         cases = (("in", "2026-10-11T03:30:00+00:00", "20261010-2330", "Live now"),

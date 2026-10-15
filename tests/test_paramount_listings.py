@@ -3,6 +3,7 @@ from copy import deepcopy
 from dataclasses import replace
 from datetime import datetime, timezone
 import json
+from pathlib import Path
 import unittest
 from unittest.mock import Mock
 
@@ -12,6 +13,7 @@ from tests.test_discovery import fixture
 
 
 US_PAGE = b"<script>CBS.Registry.region = {prefix: '', locale: 'en-us', property: 'US', international: false};</script>"
+LIVE_SAMPLE = json.loads((Path(__file__).parent / "fixtures/paramount-live-20261015.json").read_text())
 
 
 def match(**changes):
@@ -50,6 +52,40 @@ def exact_item(**changes):
 
 
 class ParamountListings(unittest.TestCase):
+    def test_recorded_live_event_uses_event_url_despite_generic_signup_href(self):
+        data = deepcopy(LIVE_SAMPLE["result"]["data"][0])
+        game = match(league="uefa.europa", state="in", utc=datetime(2026, 10, 15, 19, tzinfo=timezone.utc),
+                     outlets=[build.map_outlet("TUDN", "uefa.europa")], rule=None)
+        game.home.name, game.away.name = "Benfica", "Celtic"
+        result = source.enrich(build, [game], fetcher([data]))
+        self.assertEqual(result["confirmed"], 1)
+        self.assertEqual({outlet.label for outlet in game.outlets}, {"TUDN", "Paramount+"})
+        self.assertEqual(game.utc, datetime(2026, 10, 15, 19, tzinfo=timezone.utc))
+        self.assertEqual(result["per_match"][game.id]["url"], "https://www.paramountplus.com" + data["url"])
+
+    def test_live_signup_href_requires_verified_event_identity_and_route(self):
+        data = LIVE_SAMPLE["result"]["data"][0]
+        for field, value in (("url", "https://evil.example/stream"), ("url", "/"),
+                             ("url", data["url"].replace("uefa-europa-league", "serie-a")),
+                             ("url", data["url"] + "?redirect=elsewhere"),
+                             ("content_id", "another-event"), ("streamType", "vod"),
+                             ("contentType", "show"), ("isLive", False)):
+            with self.subTest(field=field, value=value):
+                changed = dict(data, **{field: value})
+                listings, _, _ = source.parse_schedule(page([changed]))
+                self.assertFalse(any(listing.url for listing in listings))
+
+    def test_recorded_live_title_and_game_team_aliases_agree(self):
+        listings, _, _ = source.parse_schedule(json.dumps(LIVE_SAMPLE))
+        self.assertEqual(len(listings), 5)
+        self.assertTrue(all(listing.url for listing in listings))
+        self.assertIn(("bournemouth", "sturm graz"), [(listing.home, listing.away) for listing in listings])
+        self.assertIn(("marseille", "olympiacos"), [(listing.home, listing.away) for listing in listings])
+
+    def test_supported_competition_discovered_without_a_usual_rights_rule(self):
+        game = match(rule=None)
+        self.assertEqual(source.enrich(build, [game], fetcher())["confirmed"], 1)
+
     def test_every_usual_paramount_competition_has_an_explicit_source_policy(self):
         configured = {league for league, rights in build.RIGHTS.leagues.items()
                       if rights.usual and rights.usual.channel == "Paramount+"}
@@ -154,9 +190,8 @@ class ParamountListings(unittest.TestCase):
             self.assertEqual(source.enrich(build, [match()], fetch)["failed"], 1)
             fetch.assert_called_once_with(source.SCHEDULE_URL)
 
-    def test_no_fetch_for_ineligible_matches_or_existing_listings(self):
-        games = [match(outlets=[build.map_outlet("Paramount+", "sco.1")]), match(rule=None),
-                 match(rule=build.map_outlet("ESPN+", "sco.1")), match(time_valid=False),
+    def test_no_fetch_for_ineligible_matches(self):
+        games = [match(league="unmapped", rule=None), match(time_valid=False),
                  match(state="post"), match(status="Postponed"), match(utc=datetime(2026, 10, 11, 11))]
         fetch = Mock()
         report = source.enrich(build, games, fetch)

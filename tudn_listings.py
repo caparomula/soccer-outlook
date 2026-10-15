@@ -9,18 +9,26 @@ from html.parser import HTMLParser
 import json
 import re
 from urllib.parse import urlsplit
+from zoneinfo import ZoneInfo
 
-from provider_utils import document, kickoff, name, fetch_document, report, unavailable
+from provider_utils import document, kickoff, name, fetch_document, report, unavailable, observe, reject, confirm
 
 
 SCHEDULE_URL = "https://www.tudn.com/futbol/liga-mx/resultados"
 BASE_URL = "https://www.tudn.com"
+LANDING_URL = BASE_URL + "/futbol/liga-mx"
+ET = ZoneInfo("America/New_York")
 MAX_MATCH_REQUESTS = 40
 COMPETITION_ID = "199"  # TUDN's verified Liga MX Apertura catalogue.
 CHANNELS = {"udn": "TUDN", "univision": "Univision", "unimas": "UniMás"}
 LEAGUES = {"Liga MX (Apertura)", "Liga MX (Clausura)", "Liga MX (AP)", "Liga MX (CL)"}
 ALIASES = {"tigres uanl": "tigres", "atletico de san luis": "atletico san luis",
            "santos": "santos laguna", "unam": "pumas unam", "tijuana": "club tijuana"}
+# Explicit public match-page slugs; unknown clubs never produce guessed URLs.
+TEAM_SLUGS = {club: club.replace(" ", "-") for club in (
+    "america", "atlas", "atlante", "atletico san luis", "club tijuana", "cruz azul",
+    "fc juarez", "guadalajara", "leon", "monterrey", "necaxa", "pachuca", "puebla",
+    "pumas unam", "queretaro", "santos laguna", "tigres", "toluca", "mazatlan")}
 
 
 def _name(value):
@@ -106,6 +114,20 @@ class Listing:
     url: str
 
 
+def _scorecell(event):
+    if (not isinstance(event, dict) or event.get("type") != "scorecell" or
+            event.get("leagueName") not in LEAGUES or event.get("status") not in ("pre", "in", "post")):
+        return None
+    home, away = event.get("home"), event.get("away")
+    if not isinstance(home, dict) or not isinstance(away, dict):
+        return None
+    home, away = _text(home.get("fullName")), _text(away.get("fullName"))
+    utc, event_id = kickoff(event.get("date")), _text(event.get("key"))
+    if not home or not away or utc is None or not re.fullmatch(r"\d{1,20}", event_id):
+        return None
+    return Listing(_name(home), _name(away), utc, event_id, _url(event.get("relativeUrl")))
+
+
 def parse_schedule(page):
     listings = set()
     found = False
@@ -122,21 +144,64 @@ def parse_schedule(page):
             raise ValueError("TUDN match list changed")
         found = True
         for event in events:
-            if (not isinstance(event, dict) or event.get("type") != "scorecell" or
-                    event.get("leagueName") not in LEAGUES or event.get("status") not in ("pre", "in", "post")):
-                continue
-            home, away = event.get("home"), event.get("away")
-            if not isinstance(home, dict) or not isinstance(away, dict):
-                continue
-            home, away = _text(home.get("fullName")), _text(away.get("fullName"))
-            utc, event_id = kickoff(event.get("date")), _text(event.get("key"))
-            if not home or not away or utc is None or not re.fullmatch(r"\d{1,20}", event_id):
-                continue
-            # Invalid URLs still participate in duplicate/ambiguity checks.
-            listings.add(Listing(_name(home), _name(away), utc, event_id, _url(event.get("relativeUrl"))))
+            listing = _scorecell(event)
+            if listing:
+                listings.add(listing)  # Invalid URLs still count toward ambiguity.
     if not found:
         raise ValueError("TUDN page has no Liga MX results component")
     return list(listings)
+
+
+def parse_landing(page):
+    """Read the landing page's US score-cell query, which can precede the results round."""
+    listings, found = set(), False
+    for obj in _objects(page):
+        if "queryRef" not in obj or "competitionKey" not in obj:
+            continue
+        if (obj.get("isMx") is not False or obj.get("competitionKey") != COMPETITION_ID or
+                obj.get("uri") != LANDING_URL):
+            raise ValueError("TUDN landing feed is not US Liga MX")
+        query = obj.get("queryRef")
+        if not isinstance(query, dict) or not isinstance(query.get("variables"), dict):
+            raise ValueError("TUDN landing query changed")
+        variables = query["variables"]
+        if variables.get("isMx") is not False or variables.get("competitionKey") != COMPETITION_ID:
+            raise ValueError("TUDN landing query scope changed")
+        data = query.get("response", {}).get("data", {})
+        cells = data.get("scorecells", {}).get("scorecells")
+        if not isinstance(cells, list) or len(cells) > 500:
+            raise ValueError("TUDN landing score cells changed")
+        found = True
+        listings.update(item for cell in cells if (item := _scorecell(cell)))
+    if not found:
+        raise ValueError("TUDN landing page has no US Liga MX score cells")
+    return list(listings)
+
+
+def candidate_url(match):
+    """One bounded fallback per known club pair; the returned page still needs full validation."""
+    home, away = TEAM_SLUGS.get(_name(match.home.name)), TEAM_SLUGS.get(_name(match.away.name))
+    if not home or not away:
+        return ""
+    date = match.utc.astimezone(ET).date()
+    season = "ap" if date.month >= 7 else "cl"
+    return _url(f"{LANDING_URL}/{home}-vs-{away}-liga-mx-{season}-{date.isoformat()}")
+
+
+def discover_match(page, match, url):
+    """Bind a candidate page to the requested clubs/time before accepting its publisher ID."""
+    objects = [obj for obj in _objects(page) if "livestreamConfig" in obj and "matchOpeningRef" in obj]
+    unique = {json.dumps(obj, sort_keys=True): obj for obj in objects}
+    if len(unique) != 1:
+        raise ValueError("TUDN candidate is missing or ambiguous")
+    obj = next(iter(unique.values()))
+    event_id = _text(obj.get("matchId"))
+    if not re.fullmatch(r"\d{1,20}", event_id):
+        raise ValueError("TUDN candidate has no valid publisher ID")
+    listing = Listing(_name(match.home.name), _name(match.away.name), match.utc, event_id, url)
+    # parse_match requires the same ID in opening metadata, stream ID and URL, as well as
+    # exact clubs, kickoff, competition and US authenticated live television coverage.
+    return listing, parse_match(page, listing)
 
 
 def parse_match(page, listing):
@@ -205,39 +270,62 @@ def enrich(builder, matches, fetch):
     result = report(candidates, SCHEDULE_URL)
     if not candidates:
         return result
+    listings, discovery_ok = [], False
     try:
         listings = parse_schedule(fetch_document(fetch, SCHEDULE_URL, result))
+        observe(result, listings, SCHEDULE_URL)
+        discovery_ok = True
     except (ValueError, UnicodeError, RecursionError):
-        unavailable(result, candidates)
+        unavailable(result, candidates, reason="results_unavailable", url=SCHEDULE_URL)
+    def found_for(match):
+        identity = (_name(match.home.name), _name(match.away.name), match.utc)
+        return [item for item in listings if (item.home, item.away, item.utc) == identity]
+
+    missing = [match for match in candidates if not found_for(match)]
+    if missing:
+        if listings and max(item.utc for item in listings) < min(match.utc for match in missing):
+            reject(result, "results_horizon_before_candidates", count=len(missing))
+        try:
+            landing = parse_landing(fetch_document(fetch, LANDING_URL, result))
+            observe(result, landing, LANDING_URL)
+            listings = list(set(listings + landing))
+            discovery_ok = True
+        except (ValueError, UnicodeError, RecursionError, AttributeError, TypeError):
+            # A valid results feed can still support bounded candidate discovery if the
+            # landing widget is unavailable. Neither widget alone certifies a channel.
+            reject(result, "landing_unavailable", count=len(missing))
+    if not discovery_ok:
         return result
     pages = {}
     for match in candidates:
-        identity = (_name(match.home.name), _name(match.away.name), match.utc)
-        found = [item for item in listings if (item.home, item.away, item.utc) == identity]
-        if len(found) != 1 or not found[0].url:
+        found = found_for(match)
+        if len(found) > 1 or (found and not found[0].url):
+            reject(result, "ambiguous_or_invalid_event", match=match)
             continue
-        listing = found[0]
-        if listing.url not in pages:
+        listing = found[0] if found else None
+        url = listing.url if listing else candidate_url(match)
+        if not url:
+            reject(result, "event_not_found", match=match)
+            continue
+        if url not in pages:
             if len(pages) >= MAX_MATCH_REQUESTS:
                 result["per_match"][match.id]["status"] = "unavailable"
+                reject(result, "request_budget_exhausted", match=match)
                 continue
-            pages[listing.url] = fetch_document(fetch, listing.url, result)
+            pages[url] = fetch_document(fetch, url, result)
         try:
-            channels = parse_match(pages[listing.url], listing)
+            if listing:
+                channels = parse_match(pages[url], listing)
+            else:
+                listing, channels = discover_match(pages[url], match, url)
         except (ValueError, UnicodeError, RecursionError):
-            unavailable(result, [match])
+            unavailable(result, [match], reason="match_page_unavailable", url=url)
             continue
         if not channels:
+            reject(result, "no_verified_us_live_channels", match=match)
             continue
-        additions = [builder.map_outlet(channel, match.league) for channel in channels]
-        if not all(outlet.known for outlet in additions):
-            continue
-        existing = {outlet.label for outlet in match.outlets}
-        match.outlets.extend(outlet for outlet in additions if outlet.label not in existing)
-        match.rule, match.hint = None, ""
-        match.broadcast_source, match.broadcast_url = "TUDN", listing.url
-        match.service, match.basis, match.outlet = builder.evaluate(match.outlets, None, builder.OWNER)
-        result["confirmed"] += 1
-        result["unmatched"] -= 1
-        result["per_match"][match.id] = dict(status="confirmed", url=listing.url)
+        observe(result, [listing], listing.url)
+        confirm(builder, match, channels, "TUDN", listing.url, result,
+                source_event_id=listing.event_id, broadcast_start=listing.utc.isoformat(),
+                authority="primary", discovery="scorecell" if found else "validated_match_page")
     return result

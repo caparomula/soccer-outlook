@@ -1,19 +1,26 @@
-"""Verify usual ESPN coverage against Watch ESPN's public US airing schedule.
+"""Discover US broadcasts in Watch ESPN's public airing schedule.
 
-The scoreboard and Watch schedule are separate ESPN products. Read only the latter's embedded
-JSON, never execute its scripts, and require an explicit event-local channel, competition,
-both club names and exact UTC start. A missing airing is not proof that a match is unavailable.
+Watch dates are Eastern calendar days; programme starts can precede kickoff. Accept only
+explicit channels, known competitions and exact team identities (including reviewed aliases).
+An absent airing is not proof that a match is unavailable, and a replay is never a live match.
 """
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import json
 import re
 import unicodedata
+from zoneinfo import ZoneInfo
+
+from provider_utils import confirm, fetch_document, observe, reject, report, unavailable
 
 
 SOCCER_ID = "119cfa41-71d4-39bf-a790-6273a52b0259"
 SCHEDULE_URL = "https://www.espn.com/watch/schedule/_/type/{kind}/categoryId/" + SOCCER_ID
-DATED_URL = SCHEDULE_URL + "/startDate/{day}/endDate/{day}"
+# This is the date URL emitted by Watch's own soccer filter. Adding endDate currently
+# returns an empty schedule even when the linked startDate page contains airings.
+DATED_URL = SCHEDULE_URL + "/startDate/{day}"
+SCHEDULE_ZONE = ZoneInfo("America/New_York")
+PREGAME = timedelta(minutes=15)
 MAX_PAGE_BYTES = 4_000_000
 PAYLOAD = "window['__espnfitt__']="
 LEAGUES = {
@@ -28,10 +35,66 @@ CHANNELS = {name.casefold(): name for name in (
     "ESPN+", "ESPN", "ESPN2", "ESPNU", "ESPNEWS", "ESPN Deportes", "ESPN Unlimited")}
 CHANNELS["espn on abc"] = "ABC"
 
+# Explicit Watch/scoreboard names and ESPN team IDs observed in the 2026-10-15 captures.
+# Keep these competition-scoped; stripping arbitrary FC/CF/RC words is unsafe for clubs
+# with similar names. Unknown names continue to require exact normalized equality.
+TEAM_ALIASES = {
+    "esp.1": {
+        "90": ("Deportivo", "Deportivo A Coruña"),
+        "1538": ("Levante", "Levante UD"),
+        "88": ("Espanyol", "RCD Espanyol"),
+        "1068": ("Atlético Madrid", "Atlético de Madrid"),
+        "102": ("Villarreal", "Villarreal CF"),
+        "3751": ("Elche", "Elche CF"),
+        "244": ("Real Betis",),
+        "83": ("Barcelona", "FC Barcelona"),
+        "94": ("Valencia", "Valencia CF"),
+        "93": ("Athletic Club",),
+    },
+    "usa.usl.1": {
+        "17827": ("Pittsburgh Riverhounds", "Pittsburgh Riverhounds SC"),
+        "20687": ("Oakland Roots", "Oakland Roots SC"),
+        "21370": ("Monterey Bay", "Monterey Bay FC"),
+        "21822": ("Lexington", "Lexington Sporting Club"),
+    },
+    "usa.usl.l1": {
+        "21821": ("One Knoxville", "One Knoxville SC"),
+        "19964": ("Greenville Triumph", "Greenville Triumph SC"),
+        "131580": ("Fort Wayne", "Fort Wayne FC"),
+        "20000": ("Chattanooga Red Wolves", "Chattanooga Red Wolves SC"),
+    },
+    "ned.1": {
+        "148": ("PSV Eindhoven", "PSV"),
+        "142": ("Feyenoord Rotterdam", "Feyenoord"),
+        "2726": ("ADO Den Haag",),
+        "3735": ("Telstar",),
+    },
+}
+
 
 def _name(value):
     value = unicodedata.normalize("NFKD", value).casefold()
     return " ".join("".join(c for c in value if not unicodedata.combining(c)).split())
+
+
+def _team_key(league, value, identity=""):
+    normalized = _name(value)
+    for team_id, aliases in TEAM_ALIASES.get(league, {}).items():
+        if normalized in {_name(alias) for alias in aliases}:
+            # A conflicting explicit ID must not be rescued by a familiar club name.
+            return "id:" + team_id if not identity or str(identity) == team_id else "conflicting-id:" + str(identity)
+    return "name:" + normalized
+
+
+def _teams(title, league):
+    # These are observed language/matchday wrappers, not generic title cleanup. Thus
+    # Highlights, Replay, women's and reserve-team labels remain part of the identity.
+    title = re.sub(r"^En Español-\s*", "", title)
+    title = re.sub(r" \(Matchday #\d{1,2}\)$", "", title)
+    names = re.split(r"\s+vs\.?\s+", title, flags=re.IGNORECASE)
+    if len(names) != 2 or not all(name.strip() for name in names):
+        return frozenset()
+    return frozenset(_team_key(league, name) for name in names)
 
 
 def _time(value):
@@ -51,9 +114,10 @@ class Listing:
     league: str
     channels: tuple
     url: str
+    identity: str = ""
 
 
-def parse_schedule(page):
+def parse_schedule(page, expected_day=None):
     """Read the US schedule's airing groups; malformed/non-US responses raise ValueError."""
     if not isinstance(page, (bytes, str)) or len(page) > MAX_PAGE_BYTES:
         raise ValueError("Watch ESPN schedule is missing or too large")
@@ -69,6 +133,12 @@ def parse_schedule(page):
             not isinstance(watch.get("p13n"), dict) or watch["p13n"].get("countryCode") != "us" or
             not isinstance(watch.get("arngs"), list)):
         raise ValueError("Watch ESPN response is not a US airing schedule")
+    if expected_day is not None:
+        filters = watch.get("fltrs", {}).get("sptFlts", []) if isinstance(watch.get("fltrs", {}), dict) else []
+        soccer_links = [item.get("url", "") for item in filters if isinstance(item, dict) and item.get("value") == SOCCER_ID] if isinstance(filters, list) else []
+        expected_path = DATED_URL.format(kind="upcoming", day=expected_day).removeprefix("https://www.espn.com")
+        if soccer_links and any(link != expected_path for link in soccer_links):
+            raise ValueError("Watch ESPN returned a different schedule date")
     listings = []
     groups = watch["arngs"]
     if len(groups) > 100:
@@ -104,10 +174,7 @@ def parse_schedule(page):
                         not isinstance(sports, list) or
                         not any(isinstance(c, dict) and c.get("id") == SOCCER_ID for c in sports)):
                     continue
-                teams = re.split(r"\s+vs\.?\s+", title, flags=re.IGNORECASE)
-                if len(teams) != 2 or not all(team.strip() for team in teams):
-                    continue
-                teams = frozenset(_name(team) for team in teams)
+                teams = _teams(title, league)
                 if len(teams) != 2:
                     continue
                 identity = event.get("id", "")
@@ -120,51 +187,70 @@ def parse_schedule(page):
                                          if isinstance(b, dict) and isinstance(name := b.get("nme"), str)
                                          and name.casefold() in CHANNELS})) if isinstance(broadcasts, list) else ()
                 # Invalid channels/links still count toward duplicate ambiguity.
-                listings.append(Listing(teams, start, league, channels, url))
+                listings.append(Listing(teams, start, league, channels, url, identity if valid_id else ""))
     return listings
 
 
+def candidate_urls(match):
+    """Use the Eastern airing date, including a previous day only across pregame midnight."""
+    if match.state == "in":
+        return (SCHEDULE_URL.format(kind="live"),)
+    days = {match.utc.astimezone(SCHEDULE_ZONE).date(),
+            (match.utc - PREGAME).astimezone(SCHEDULE_ZONE).date()}
+    return tuple(DATED_URL.format(kind="upcoming", day=day.strftime("%Y%m%d")) for day in sorted(days))
+
+
 def enrich(builder, matches, fetch):
-    """Fetch each needed UTC day once, preserving existing listings and uncertain source failures."""
-    batches = {}
-    for match in matches:
-        if (match.outlets or not match.rule or match.rule.label != "ESPN+" or
-                match.league not in LEAGUES or not match.time_valid or
-                match.state not in ("pre", "in") or match.status.lower() in builder.VOID_STATUSES or
-                match.utc.utcoffset() is None):
-            continue
-        url = (SCHEDULE_URL.format(kind="live") if match.state == "in" else
-               DATED_URL.format(kind="upcoming", day=match.utc.astimezone(timezone.utc).strftime("%Y%m%d")))
-        batches.setdefault(url, []).append(match)
-    report = {"requested": 0, "confirmed": 0, "unmatched": 0, "failed": 0, "per_match": {}}
-    for url, games in sorted(batches.items()):
-        report["requested"] += 1
+    """Discover compatible simulcasts without changing kickoff or erasing other outlets."""
+    games = [match for match in matches if match.league in LEAGUES and match.time_valid and
+             match.state in ("pre", "in") and match.status.lower() not in builder.VOID_STATUSES and
+             match.utc.utcoffset() is not None]
+    result = report(games, SCHEDULE_URL.format(kind="upcoming"))
+    result["timezone"] = "America/New_York"
+    urls_by_id = {game.id: candidate_urls(game) for game in games}
+    schedules = {}
+    for url in sorted({url for urls in urls_by_id.values() for url in urls}):
+        page = fetch_document(fetch, url, result)
         try:
-            page = fetch(url)
-        except Exception:
-            page = None
-        try:
-            listings = parse_schedule(page)
+            listings = parse_schedule(page, url.rsplit("/startDate/", 1)[1] if "/startDate/" in url else None)
         except (ValueError, UnicodeError, RecursionError):
-            report["failed"] += 1
-            report["unmatched"] += len(games)
-            report["per_match"].update({game.id: {"status": "unavailable", "url": url} for game in games})
+            unavailable(result, [], reason="unrecognized_or_unavailable_schedule", url=url)
+            schedules[url] = None
             continue
-        for game in games:
-            report["per_match"][game.id] = {"status": "unlisted", "url": url}
-            teams = frozenset((_name(game.home.name), _name(game.away.name)))
-            found = [item for item in listings if (item.teams, item.utc, item.league) == (teams, game.utc, game.league)]
-            if len(found) != 1 or not found[0].channels or not found[0].url:
-                report["unmatched"] += 1
-                continue
-            listing = found[0]
-            outlets = [builder.map_outlet(channel, game.league) for channel in listing.channels]
-            if not all(outlet.known for outlet in outlets):
-                report["unmatched"] += 1
-                continue
-            game.outlets, game.rule, game.hint = outlets, None, ""
-            game.broadcast_source, game.broadcast_url = "Watch ESPN", listing.url
-            game.service, game.basis, game.outlet = builder.evaluate(outlets, None, builder.OWNER)
-            report["confirmed"] += 1
-            report["per_match"][game.id] = {"status": "confirmed", "url": listing.url}
-    return report
+        schedules[url] = listings
+        observe(result, listings, url, complete=False)
+        if not listings:
+            reject(result, "no_supported_airings")
+    for game in games:
+        urls = urls_by_id[game.id]
+        available = [schedules[url] for url in urls if schedules[url] is not None]
+        if not available:
+            result["per_match"][game.id] = {"status": "unavailable", "url": urls[0],
+                                             "reason": "unrecognized_or_unavailable_schedule"}
+            continue
+        teams = frozenset(_team_key(game.league, team.name, team.id) for team in (game.home, game.away))
+        entries = {item for page_entries in available for item in page_entries}
+        identities = {}
+        for item in entries:
+            identities.setdefault(item.identity, set()).add(item)
+        conflicting_ids = {identity for identity, records in identities.items() if len(records) > 1}
+        found = [item for item in entries if item.teams == teams and item.league == game.league and
+                 timedelta(0) <= game.utc - item.utc <= PREGAME]
+        # The same airing can occur on overlapping pages. Deduplicate identical evidence,
+        # but reject an ID reused for contradictory identity/channel/time information.
+        unique = set(found)
+        if (not unique or not all(item.channels and item.url and item.identity for item in unique) or
+                any(item.identity in conflicting_ids for item in unique)):
+            result["per_match"][game.id]["url"] = urls[0]
+            reject(result, "invalid_or_conflicting_airings" if unique else "not_seen_in_partial_catalogue", match=game)
+            continue
+        channels = sorted({channel for item in unique for channel in item.channels})
+        if not all(builder.map_outlet(channel, game.league).known for channel in channels):
+            reject(result, "unmapped_channel", match=game)
+            continue
+        # Each channel keeps its own observed programme time and player link. Calling
+        # confirm repeatedly merges routes and counts a match only once.
+        for listing in sorted(unique, key=lambda item: (item.utc, item.identity)):
+            confirm(builder, game, listing.channels, "Watch ESPN", listing.url, result,
+                    source_event_id=listing.identity, broadcast_start=listing.utc.isoformat())
+    return result

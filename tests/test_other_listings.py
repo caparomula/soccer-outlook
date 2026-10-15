@@ -13,6 +13,7 @@ from tests.test_discovery import fixture
 
 FIXTURES = Path(__file__).parent / "fixtures"
 APPLE = json.loads((FIXTURES / "apple-mls.json").read_text())
+APPLE_CURRENT = json.loads((FIXTURES / "apple-mls-schedule-20261015.json").read_text())
 FANDANGO = (FIXTURES / "fandango-bundesliga.xml").read_bytes()
 BEIN = (FIXTURES / "bein-catalogue.html").read_bytes()
 BEIN_EVENT = (FIXTURES / "bein-event.html").read_bytes()
@@ -39,6 +40,21 @@ def game(provider):
 
 
 class PublicBroadcasterListings(unittest.TestCase):
+    def test_current_apple_schedule_shelf_discovers_five_upcoming_events_not_final(self):
+        listings = apple_listings.parse_schedule(apple_page(APPLE_CURRENT))
+        self.assertEqual(len(listings), 5)
+        self.assertTrue(all(row[2] >= kickoff("2026-10-17T18:30:00Z") for row in listings))
+        for home, away, when in (("Philadelphia Union", "Charlotte FC", "2026-10-17T18:30:00Z"),
+                                 ("Minnesota United FC", "St. Louis CITY SC", "2026-10-17T20:30:00Z"),
+                                 ("New York Red Bulls", "Toronto FC", "2026-10-17T23:30:00Z")):
+            match = fixture(league="usa.1", channel="FS1", kickoff=when)
+            match.home.name, match.away.name = home, away
+            match.rule = None
+            result = apple_listings.enrich(build, [match], lambda _: apple_page(APPLE_CURRENT))
+            self.assertEqual(result["confirmed"], 1)
+            self.assertEqual({o.label for o in match.outlets}, {"FS1", "Apple TV"})
+            self.assertEqual(match.utc, kickoff(when))
+
     def test_recorded_apple_event_confirms_exact_match_and_keeps_kickoff(self):
         match = game("apple")
         result = apple_listings.enrich(build, [match], lambda _: apple_page())
@@ -163,10 +179,11 @@ class PublicBroadcasterListings(unittest.TestCase):
         self.assertEqual(result["requested"], 2)
         self.assertEqual(result["per_match"][no_match.id]["status"], "unavailable")
 
-    def test_all_providers_preserve_espn_listings_and_skip_void_invalid_matches(self):
+    def test_all_providers_skip_void_invalid_and_finished_matches(self):
         for key, module in (("apple", apple_listings), ("bein", bein_listings), ("fandango", fandango_listings)):
             match = game(key)
             match.outlets = [build.map_outlet("FS1", match.league)]
+            match.state = "post"
             invalid, void = game(key), game(key)
             invalid.time_valid = False
             void.status = "Postponed"

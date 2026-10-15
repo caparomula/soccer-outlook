@@ -11,6 +11,8 @@ import re
 import unicodedata
 from urllib.parse import urlsplit
 
+from provider_utils import candidates as eligible_matches, confirm, fetch_document, observe, reject, report, unavailable
+
 
 SCHEDULE_URL = "https://www.peacocktv.com/sports"
 MAX_PAGE_BYTES = 2_000_000
@@ -110,43 +112,24 @@ def parse_schedule(page):
 
 
 def enrich(builder, matches, fetch):
-    """Confirm missing Peacock listings in place; ``fetch(url)`` returns bytes or None."""
-    candidates = [m for m in matches if m.league == "mex.1" and not m.outlets and m.rule
-                  and m.rule.label == "Peacock" and m.time_valid and m.state in ("pre", "in")
-                  and m.status.lower() not in builder.VOID_STATUSES and m.utc.utcoffset() is not None]
-    report = {"requested": 0, "confirmed": 0, "unmatched": 0, "failed": 0, "per_match": {}}
-    if not candidates:
-        return report
-    report["requested"] = 1
-    try:
-        page = fetch(SCHEDULE_URL)
-    except Exception:
-        page = None
+    """Check every valid Liga MX fixture for a public, explicit Peacock listing."""
+    games = eligible_matches(builder, matches, "mex.1")
+    result = report(games, SCHEDULE_URL)
+    if not games:
+        return result
+    page = fetch_document(fetch, SCHEDULE_URL, result)
     try:
         listings = parse_schedule(page)
     except (ValueError, UnicodeError, RecursionError):
-        report["failed"] = 1
-        report["unmatched"] = len(candidates)
-        report["per_match"] = {m.id: {"status": "unavailable", "url": SCHEDULE_URL} for m in candidates}
-        return report
-    for match in candidates:
+        unavailable(result, games, "fetch_failed" if page is None else "invalid_schedule")
+        return result
+    observe(result, listings, SCHEDULE_URL)
+    for match in games:
         identity = (_name(match.home.name), _name(match.away.name), match.utc)
         found = [item for item in listings if (item.home, item.away, item.utc) == identity]
         if len(found) != 1 or not found[0].url:
-            report["unmatched"] += 1
-            report["per_match"][match.id] = {"status": "unlisted", "url": SCHEDULE_URL}
+            reject(result, "ambiguous_listing" if len(found) > 1 else "no_matching_listing", match=match)
             continue
-        outlet = builder.map_outlet("Peacock", match.league)
-        if not outlet.known:
-            report["unmatched"] += 1
-            report["per_match"][match.id] = {"status": "unavailable", "url": SCHEDULE_URL}
-            continue
-        match.outlets = [outlet]
-        match.rule = None
-        match.hint = ""
-        match.broadcast_source = "Peacock"
-        match.broadcast_url = found[0].url
-        match.service, match.basis, match.outlet = builder.evaluate(match.outlets, None, builder.OWNER)
-        report["confirmed"] += 1
-        report["per_match"][match.id] = {"status": "confirmed", "url": match.broadcast_url}
-    return report
+        confirm(builder, match, "Peacock", "Peacock", found[0].url, result,
+                broadcast_start=found[0].utc.isoformat())
+    return result

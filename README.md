@@ -15,7 +15,7 @@ Choose subscriptions and channels you can actually watch. FOX One's paid subscri
 - **Viewing links:** hover over or tap a network pill to see your providers and any supported match links. Links follow your selected services; manually supplied YouTube TV links are available only while the match is live.
 - **Your own AI:** open **Settings → AI** to copy a prompt into your preferred chat, then paste its response back for personal headlines, match blurbs and ratings. Headlines and blurbs start hidden; one switch enables both. Add your interests to the prompt and choose how much its ratings influence recommendations. No AI account connection is required. Repository maintainers can also [publish a response as the site's shared defaults](docs/user-guide.md#publish-recommendations-for-everyone).
 
-ESPN supplies fixtures and live scores. When a match only has usual coverage, the builder checks the broadcaster's public schedule for a match-specific listing. Liga MX also gets a check for TUDN and Univision simulcasts that may be missing from ESPN. Confirmed listings replace the uncertainty label; **Details** links to the source or explains why coverage remains unconfirmed. The project maps US broadcast coverage in [rights.toml](rights.toml). Its recommendations combine an AI rating, an Outlook score calculated from fixture and broadcast data, and your league preferences. The site uses OpenAI's `gpt-6.1-sol` for daily ratings, with automatic overviews and match blurbs turned off. Personal imports take precedence over shared recommendations; both expire within 24 hours of their original prompt. Applying a response stays local unless you connect GitHub publishing in **Settings → AI**.
+ESPN supplies fixtures and live scores. The builder also checks supported broadcasters' public schedules, including simulcasts that may be missing from ESPN even when another channel is already listed. Confirmed listings replace the uncertainty label; **Details** links to the source or explains why coverage remains unconfirmed. The project maps US broadcast coverage in [rights.toml](rights.toml). Its recommendations combine an AI rating, an Outlook score calculated from fixture and broadcast data, and your league preferences. The site uses Claude Fable 5.1 at max effort for daily researched headlines, match blurbs and ratings. The browser's text-display switch still starts off. Personal imports take precedence over shared recommendations; both expire within 24 hours of their original prompt. Applying a response stays local unless you connect GitHub publishing in **Settings → AI**.
 
 ## Guides
 
@@ -25,6 +25,7 @@ ESPN supplies fixtures and live scores. When a match only has usual coverage, th
 | Understand the golden dots, ranking formula, or default league order | [How recommendations work](docs/scoring.md) |
 | Compare past ratings and their inputs with recorded match outcomes | [Match history and retrospective analysis](docs/history.md) |
 | Run locally, change settings, maintain coverage, or deploy | [Development and maintenance](docs/development.md) |
+| Understand schedule sources, coverage gaps and refreshes | [Schedule data and coverage](docs/schedule-data.md) |
 | Register with search engines or help people find the app | [Search and discovery](docs/discovery.md) |
 
 ## Run locally
@@ -43,7 +44,7 @@ Page structure, styles and browser behavior live in [web/](web/). Rebuild after 
 
 ## Updates and coverage
 
-GitHub Actions normally rebuilds the published schedule three times a day. While the page is open, the browser also checks live scores about once a minute. Broadcast listings can change; **usually** means an established rights arrangement rather than a confirmed listing for that match. Check the broadcaster's app before kickoff.
+GitHub Actions runs full builds three times a day and lightweight fixture/broadcast refreshes every half hour. Lightweight runs reuse standings and existing AI output. Open pages check for schedule updates every five minutes and live scores about once a minute; GitHub can delay scheduled jobs. Broadcast listings can change; **usually** means an established rights arrangement rather than a confirmed listing for that match. Check the broadcaster's app before kickoff.
 
 Each successful refresh saves match metrics and available AI ratings to a permanent `match-history` branch before publishing. These snapshots preserve the score components, inputs, configuration and later match results for retrospective analysis. Reported attendance is retained when available; television and streaming audience figures are not supplied by the current feeds. This records public match data, not visitors' viewing activity. See the [history guide](docs/history.md) for the limits and how to retrieve it.
 

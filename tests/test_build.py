@@ -146,7 +146,7 @@ class SourceQuality(unittest.TestCase):
             return json.dumps(data).encode() if data is not None else None
 
         with patch.dict(build.LEAGUES, leagues, clear=True), patch.object(build, "curl_bytes", request):
-            merged, _, failed = build.fetch_scoreboards([TODAY], 2, quality)
+            merged, _, failed = build.fetch_scoreboards([date(2026, 10, 10)], 2, quality)
         return quality, merged, failed
 
     def test_error_objects_are_failed_sources_not_empty_days(self):
@@ -202,6 +202,33 @@ class SourceQuality(unittest.TestCase):
         self.assertTrue(quality.report(1)["publishable"])
         self.assertFalse(quality.report(0)["publishable"])
 
+    def test_explicit_wrong_league_or_requested_date_is_not_a_successful_empty_day(self):
+        for metadata in ({"leagues": [{"slug": "mex.1"}]}, {"day": {"date": "2026-10-11"}}):
+            quality, merged, failed = self.fetch({"eng.1": {"events": [], **metadata}})
+            self.assertEqual(len(failed), 1)
+            self.assertEqual(merged["eng.1"], {})
+            self.assertFalse(quality.report(0)["complete"])
+
+    def test_eastern_date_accepts_after_utc_midnight_and_rejects_another_day(self):
+        for instant, accepted in (("2026-10-11T03:05:00Z", True),
+                                  ("2026-10-11T04:05:00Z", False),
+                                  ("2026-10-10T23:05:00-04:00", True)):
+            with self.subTest(instant=instant):
+                event = dict(test_render.Markup.event(), date=instant)
+                quality, merged, failed = self.fetch({"mex.1": {"events": [event], "leagues": [{"slug": "mex.1"}]}})
+                self.assertEqual(bool(merged["mex.1"]), accepted)
+                self.assertEqual(bool(failed), not accepted)
+                self.assertEqual(quality.report(len(merged["mex.1"]))["complete"], accepted)
+
+    def test_incomplete_result_limit_preserves_usable_events_but_reports_source_failure(self):
+        for data in ({"events": [test_render.Markup.event()], "totalEvents": 2},
+                     {"events": [dict(test_render.Markup.event(), id=str(i)) for i in range(200)]}):
+            quality, merged, failed = self.fetch({"eng.1": data})
+            self.assertTrue(merged["eng.1"])
+            self.assertEqual(len(failed), 1)
+            self.assertIn("limit", quality.sources[0]["reason"])
+            self.assertFalse(quality.report(len(merged["eng.1"]))["complete"])
+
 
 class BuildCommand(unittest.TestCase):
     def run_build(self, payload, directory, extra_args=()):
@@ -236,7 +263,7 @@ class BuildCommand(unittest.TestCase):
         for events in ([], [test_render.Markup.event()]):
             with self.subTest(count=len(events)), tempfile.TemporaryDirectory() as temporary:
                 directory = Path(temporary)
-                self.assertEqual(self.run_build({"events": events}, directory), 0)
+                self.assertEqual(self.run_build({"events": events}, directory, ["--date", "2026-10-10"]), 0)
                 report = json.loads((directory / "report.json").read_text())
                 self.assertEqual((report["fixtures"], report["complete"], report["publishable"]), (len(events), True, True))
                 page = (directory / "index.html").read_text()

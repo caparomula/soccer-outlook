@@ -76,6 +76,16 @@ class Recorder:
 
 
 class Configs(unittest.TestCase):
+    def test_fable_full_design_max_effort_and_published_prices(self):
+        config, problems = providers.check_ai(dict(enabled=True, design="full", model="claude-fable-5-1", effort="max"))
+        self.assertEqual(problems, [])
+        self.assertEqual(config["provider"], "anthropic")
+        self.assertIn(config["model"], providers.SEARCH_MODELS)
+        self.assertEqual(providers.KEY_NAMES[config["provider"]], "ANTHROPIC_API_KEY")
+        usage = dict.fromkeys(("in", "cache_write", "cached", "out"), 1_000_000)
+        self.assertAlmostEqual(providers.cost(config["model"], dict(usage, searches=2)), 10 + 12.5 + 0.25 + 50 + 0.02)
+        self.assertIsNone(providers.check_ai(dict(enabled=True, design="full", model="claude-fable-5-1", effort="ultra"))[0])
+
     def test_every_entry_that_cannot_run_is_named_at_once(self):
         with self.assertRaises(ValueError) as caught:
             compare.parse_configs("openai:gpt-6-luna x:gpt:low openai:gpt-9:low google:gemini-3.8-flash:max "

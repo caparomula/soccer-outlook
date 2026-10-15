@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Generate Soccer Outlook's optional AI ratings and text from build.py --facts output.
 
-settings.toml selects whether AI is enabled, the design, model and effort. The default ratings
+settings.toml selects whether AI is enabled, the design, model and effort. The ratings-only
 design asks for popularity, gameplay and competitive-impact scores, without web search or prose.
 It covers today and three later days, with a 4 am Eastern boundary. Optional overview and card-blurb
-models can add researched text; both are disabled in the current settings.
+models can add researched text. The current settings use the full design instead.
 
 The full design uses Claude for sourced news and ratings. Research produces an overview, league
 paragraphs, fixture notes and a league order. Separate bounded requests rate fixtures and write
@@ -18,7 +18,7 @@ separate fact-check of the text. The browser chooses and filters eligible text a
 
 Modes describe when to generate or reuse output:
   keep     reuse previous output; a changed AI configuration can trigger generation instead
-  daily    reuse today's output; add missing ratings and retry missing optional text
+  daily    reuse today's output; the ratings design also fills missing ratings and optional text
   auto     ratings design: same as daily; full design: reuse recent output, otherwise refresh
   full     generate afresh using the configured design
   refresh  update using the configured design; without matching current output, start afresh
@@ -83,9 +83,10 @@ SCORES_CHUNK = 200                    # ratings mode: about 25 output tokens a f
 LIMITS = {"blurb": 260, "league": 450, "item": 520, "lede": 450, "note": 320}
 FACTS_TITLE = "ESPN table and form"
 WEIGHTS = (("popularity", .25), ("gameplay", .35), ("impact", .40))
-# List prices, the models each provider offers here and what each can run are in providers.py. Opus and
-# Sonnet 5.5 take the dynamic-filtering web tools, effort, structured outputs and server-side fallbacks,
-# which the research relies on. Haiku 5.5 takes effort and structured outputs but not those web tools,
+# List prices and capabilities are in providers.py. Fable 5.1, Opus and Sonnet 5.5 support
+# dynamic-filtering web tools, effort and structured output. Keep the explicitly selected
+# Fable model throughout a run; its requests never opt into a different-model fallback.
+# Haiku 5.5 takes effort and structured outputs but not those web tools,
 # and has no server-side fallback (sending one is an error), so like every OpenAI and Google model it
 # runs the ratings design only.
 PRICES = providers.ANTHROPIC_PRICES
@@ -94,8 +95,8 @@ REQUEST_OPTIONS = dict(betas=["server-side-fallback-2026-07-01"], fallbacks="def
 
 
 def request_options(model):
-    """The server-side fallback for a declined request, on the models that have one."""
-    return {} if model in RATINGS_ONLY_MODELS else REQUEST_OPTIONS
+    """Keep Fable explicit; retain the older models' supported fallback policy."""
+    return {} if model == "claude-fable-5-1" or model in RATINGS_ONLY_MODELS else REQUEST_OPTIONS
 
 SYSTEM = """You write the daily storylines for Soccer Outlook, a soccer schedule with visitor-controlled competition and service filters. News serves upcoming matches available through the visitor's selected services. The news candidate lists contain only fixtures with listed or usual service coverage. Prioritize the default lineup for the opening; visitors can select other services and the browser filters the text accordingly. The page already lists kickoff times, channels, table positions, recent form and top scorers. Cover only facts that directly affect a specific upcoming fixture: the stakes, player availability, likely selection supported by reporting, a relevant matchup, or a scheduling change. An upcoming international break belongs only when explaining its effect on a listed fixture. Exclude general club news, financial investigations, ownership stories, or unrelated managerial controversy. Mentioning a team that has a fixture is not enough: explain the concrete match connection.
 
@@ -1320,8 +1321,8 @@ def write_news(client, facts, model, effort, mode, previous, totals, links, seen
             messages=messages,
             tools=tools(budget),
             output_config={"effort": effort},
-            cache_control={"type": "ephemeral"},   # continuations resend the research so far; cached at a tenth of the price
-            **REQUEST_OPTIONS,
+            cache_control={"type": "ephemeral"},   # continuations reuse the research at the model's published cache-read rate
+            **request_options(model),
         ) as stream:
             message = stream.get_final_message()
         served = message.model

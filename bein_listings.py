@@ -13,7 +13,7 @@ from urllib.parse import urljoin, urlsplit
 from zoneinfo import ZoneInfo
 
 from provider_utils import (candidates, confirm, document, fetch_document, kickoff, name,
-                            report, unavailable)
+                            report, unavailable, observe, reject)
 
 SCHEDULE_URL = "https://watch.beinsports-apps.com/upcoming-events"
 MAX_PAGES = 5
@@ -136,13 +136,16 @@ def enrich(builder, matches, fetch):
         try:
             items, next_url = parse_catalogue(fetch_document(fetch, url, result))
         except (ValueError, UnicodeError, RecursionError):
-            unavailable(result, games)
+            unavailable(result, games, "invalid_catalogue")
             return result
+        observe(result, list(items), url, complete=not next_url)
         for item_url, identities in items.items():
             all_items.setdefault(item_url, set()).update(identities)
         if not next_url:
             complete = True
         url = next_url
+    if not complete:
+        reject(result, "pagination_incomplete")
     event_cache = {}
     for match in games:
         pair = (club(match.home.name), club(match.away.name))
@@ -152,9 +155,11 @@ def enrich(builder, matches, fetch):
             if item_url not in event_cache:
                 try:
                     event_cache[item_url] = parse_event(fetch_document(fetch, item_url, result), item_url)
+                    observe(result, [event_cache[item_url]], item_url)
                 except (ValueError, UnicodeError, RecursionError):
                     event_cache[item_url] = None
                     result["failed"] += 1
+                    reject(result, "invalid_event")
             event = event_cache[item_url]
             if event is None:
                 failed = True
@@ -165,5 +170,8 @@ def enrich(builder, matches, fetch):
                 match.utc - same_day[0][2] in (timedelta(0), timedelta(minutes=5))):
             confirm(builder, match, "beIN Sports Connect", "beIN Sports Connect", same_day[0][3], result)
         elif failed or not complete:
-            result["per_match"][match.id]["status"] = "unavailable"
+            result["per_match"][match.id].update(status="unavailable", reason="invalid_event" if failed else "pagination_incomplete")
+        else:
+            reject(result, "conflicting_start_times" if len({event[2] for event in same_day}) > 1 else
+                   "kickoff_mismatch" if same_day else "no_matching_listing", match=match)
     return result

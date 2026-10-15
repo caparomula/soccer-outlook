@@ -3,7 +3,7 @@
 
 Fetch fixtures and standings from ESPN, map US broadcasters through rights.toml, and write the main
 HTML file with web/page.html, web/styles.css, web/live.js, web/personal-ai.js,
-web/github-publish.js and web/app.js embedded. Full builds also write three public schedule pages,
+web/github-publish.js, web/schedule.js and web/app.js embedded. Full builds also write three public schedule pages,
 a sitemap, a PNG favicon, an IndexNow ownership file and any fresh shared AI defaults. The default
 fetch covers yesterday, today and four days ahead in Eastern time. Before 4 am Eastern, it also
 fetches the preceding date so the previous evening's results are retained. The browser displays
@@ -16,7 +16,8 @@ browser preferences decide which matches a viewer sees. settings.toml configures
 This script calculates the Outlook score but makes no AI calls; story.py writes optional story.json.
 
 The browser checks live scores while relevant matches are on. GitHub Actions rebuilds the fixtures
-and broadcaster listings three times a day. The page warns when its build is over 30 hours old.
+and broadcaster listings every half hour, with full standings/AI builds three times a day.
+Open pages check published schedule updates every five minutes and warn after 30 hours without fresh data.
 
 Images normally load from ESPN. --embed-images includes them as data URIs, using --logos as a cache;
 it does not make live scores, fonts or story loading work offline. --facts writes input for story.py,
@@ -35,6 +36,7 @@ import argparse
 import base64
 import collections
 import concurrent.futures as cf
+import functools
 import gzip
 import html
 import json
@@ -57,6 +59,8 @@ import discovery
 import broadcast_listings
 import watch_links
 import metrics
+import schedule_data
+import fixture_comparison
 
 ET = ZoneInfo("America/New_York")
 ESPN = "https://site.api.espn.com/apis/site/v2/sports/soccer/{league}/scoreboard?dates={day}&limit=200"
@@ -690,6 +694,8 @@ class Match:
     broadcast_check_source: str = ""
     broadcast_check_url: str = ""
     broadcast_checked_at: str = ""
+    broadcast_checks: list = field(default_factory=list)
+    broadcast_evidence: list = field(default_factory=list)
 
 
 def implied_chance(moneyline):
@@ -893,6 +899,24 @@ def scoreboard_dates(today, built_at, days_back, days_ahead, *, fixed_date=False
     return [today + timedelta(days=i) for i in range(-days_back - extra_back, days_ahead + 1)]
 
 
+def _scoreboard_scope_error(data, league, day):
+    """Reject explicit source-scope contradictions; older minimal payloads remain usable."""
+    slugs = {item.get("slug") for item in dicts(data.get("leagues"))
+             if isinstance(item.get("slug"), str) and item["slug"]}
+    if slugs and slugs != {league}:
+        return "Scoreboard identifies a different competition."
+    claimed_day = data.get("day")
+    if isinstance(claimed_day, dict):
+        claimed_day = claimed_day.get("date")
+    if isinstance(claimed_day, str) and re.fullmatch(r"\d{4}-?\d{2}-?\d{2}", claimed_day):
+        try:
+            if date.fromisoformat(claimed_day) != day:
+                return "Scoreboard identifies a different requested date."
+        except ValueError:
+            return "Scoreboard identifies an invalid requested date."
+    return ""
+
+
 def fetch_scoreboards(days, workers, quality=None):
     """Returns ({league: {event_id: event}}, {league: logo url}, [failed (league, day)])."""
     jobs = [(lg, day) for lg in LEAGUES for day in days]
@@ -919,13 +943,43 @@ def fetch_scoreboards(days, workers, quality=None):
                 quality.sources.append(dict(league=lg, date=day.isoformat(), ok=False,
                                             reason="Request failed or invalid JSON." if data is None else "Scoreboard has no events list."))
                 continue
-            quality.sources.append(dict(league=lg, date=day.isoformat(), ok=True))
+            scope_error = _scoreboard_scope_error(data, lg, day)
+            if scope_error:
+                failed.append((lg, day))
+                quality.sources.append(dict(league=lg, date=day.isoformat(), ok=False, reason=scope_error))
+                continue
+            advertised = [data.get(key) for key in ("total", "totalEvents", "eventCount", "count")]
+            truncated = (len(data["events"]) >= 200 or any(
+                type(total) is int and total > len(data["events"]) for total in advertised))
+            source = dict(league=lg, date=day.isoformat(), ok=not truncated,
+                          records=len(data["events"]), observed_dates=[])
+            if truncated:
+                source["reason"] = "Scoreboard reached its result limit or advertises omitted events."
+            quality.sources.append(source)
             for ev in data["events"]:
                 if not isinstance(ev, dict) or not isinstance(ev.get("id"), (str, int)) or isinstance(ev.get("id"), bool) or not str(ev["id"]).strip():
                     quality.skip(lg, ev.get("id") if isinstance(ev, dict) else None, "Event has no usable ID.", day)
                     continue
                 event_id = str(ev["id"])
+                # ESPN's dates parameter is an Eastern calendar day, including
+                # games after UTC midnight. Do not silently assign another day's
+                # valid fixtures to this request when a cache/date parameter fails.
+                try:
+                    kickoff = datetime.fromisoformat(str(ev.get("date", "")).replace("Z", "+00:00"))
+                    event_day = kickoff.astimezone(ET).date() if kickoff.utcoffset() is not None else None
+                except (ValueError, OverflowError):
+                    event_day = None  # interpret() handles genuinely unconfirmed kickoff times.
+                if event_day is not None:
+                    source["observed_dates"].append(event_day.isoformat())
+                if event_day is not None and event_day != day:
+                    quality.skip(lg, event_id, "Fixture falls outside the requested Eastern date.", day)
+                    source["ok"] = False
+                    source["reason"] = "Scoreboard contains fixtures outside the requested Eastern date."
+                    continue
                 merged[lg][event_id] = dict(ev, id=event_id)
+            source["observed_dates"] = sorted(set(source["observed_dates"]))
+            if not source["ok"]:
+                failed.append((lg, day))
             league_info = dicts(data.get("leagues"))
             for lo in dicts(league_info[0].get("logos")) if league_info else []:
                 if "dark" not in (lo.get("rel") or []) and lo.get("href") and lg not in logos:
@@ -1611,15 +1665,64 @@ def detail_html(m, cache):
     recap = f'<p class="detail__recap">{esc(m.recap)}</p>' if m.recap else ""
     links = []
     broadcast_note = ""
-    if m.broadcast_source and m.broadcast_url:
+
+    def source_url(value):
+        if not isinstance(value, str) or len(value) > 2048 or re.search(r"[\x00-\x20\x7f\"'<>\\]", value):
+            return False
+        try:
+            parsed = urllib.parse.urlsplit(value)
+            return parsed.scheme == "https" and bool(parsed.hostname) and not parsed.username and not parsed.password
+        except ValueError:
+            return False
+
+    # Evidence belongs to a particular channel: a ViX confirmation does not also
+    # establish TUDN, and a retained listing keeps its original observation time.
+    coverage = []
+    seen = set()
+    retained = False
+    channels = {outlet.label.casefold() for outlet in m.outlets}
+    for evidence in m.broadcast_evidence:
+        if not isinstance(evidence, dict):
+            continue
+        channel, source = evidence.get("channel"), evidence.get("source")
+        if (not isinstance(channel, str) or channel.casefold() not in channels or
+                not isinstance(source, str) or not source or evidence.get("country") != "US" or
+                evidence.get("kind") != "match_listing"):
+            continue
+        observed = schedule_data.timestamp(evidence.get("checked_at"))
+        saved = evidence.get("retained") is True
+        if saved and observed is None:
+            continue  # Do not describe undated evidence as a bounded retained listing.
+        url = evidence.get("url")
+        identity = (channel, source, url if source_url(url) else "", observed, saved)
+        if identity in seen:
+            continue
+        seen.add(identity)
+        label = esc(source) + " broadcast listing"
+        if source_url(url):
+            label = f'<a href="{esc(url)}" target="_blank" rel="noopener">{label}</a>'
+        when = ""
+        if observed is not None:
+            clock, period, local = et_parts(observed)
+            when = f' · {"originally checked" if saved else "checked"} {local.strftime("%b")} {local.day}, {local.year}, {clock} {period} ET'
+        coverage.append(f'<p class="detail__broadcast"><b>{esc(channel)}</b> · {label}{esc(when)}'
+                        + (' · saved listing' if saved else '') + '</p>')
+        retained = retained or saved
+    if retained:
+        coverage.append('<p class="detail__broadcast">When verification fails, refreshes reuse saved listings for at most 6 hours from their original check.</p>')
+    if coverage:
+        broadcast_note = "".join(coverage)
+    elif m.broadcast_source and source_url(m.broadcast_url):
         links.append(f'<a href="{esc(m.broadcast_url)}" target="_blank" rel="noopener">{esc(m.broadcast_source)} broadcast listing</a>')
-    elif m.broadcast_check_source and m.broadcast_check_url:
-        links.append(f'<a href="{esc(m.broadcast_check_url)}" target="_blank" rel="noopener">{esc(m.broadcast_check_source)} schedule</a>')
+    elif m.broadcast_check_source:
+        if source_url(m.broadcast_check_url):
+            links.append(f'<a href="{esc(m.broadcast_check_url)}" target="_blank" rel="noopener">{esc(m.broadcast_check_source)} schedule</a>')
         outcome = {"unlisted": "No matching confirmed broadcast listing was found at the last build.",
                    "unavailable": "The broadcaster listing could not be verified automatically at the last build.",
                    "not_checked": "The broadcaster listing has not been verified for this fixture."}.get(m.broadcast_check, "")
         if outcome:
-            broadcast_note = f'<p class="detail__broadcast">{outcome} Coverage shown is the usual arrangement.</p>'
+            fallback = " Coverage shown is the usual arrangement." if m.rule and not m.outlets else ""
+            broadcast_note = f'<p class="detail__broadcast">{outcome}{fallback}</p>'
     if m.link:
         links.append(f'<a href="{esc(m.link)}" target="_blank" rel="noopener">ESPN match page</a>')
     if m.state == "pre" and m.time_valid:
@@ -1921,6 +2024,7 @@ def build_page(matches, cache, built_at, failed, today, skipped=(), site_url=Non
             .replace("@@ABOUT_SCORES@@", esc(about_scores()))
             .replace("@@BROWSE@@", discovery.navigation(site_url or SITE_URL))
             .replace("@@BUILT_ISO@@", built_at.strftime("%Y-%m-%dT%H:%M:%SZ"))
+            .replace("@@RUNTIME_REVISION@@", RUNTIME_REVISION)
             .replace("@@INCOMPLETE@@", "1" if failed or skipped else "0")
             .replace("@@BUILT_ET@@", esc(built_et.strftime("%a %b ") + str(built_et.day) + built_et.strftime(", %I:%M %p ET").replace(" 0", " ")))
             .replace("@@N_ON@@", str(n_on))
@@ -2027,10 +2131,11 @@ def sitemap(site_url, built_at, paths=()):
 # Page sources stay separate for editing and are inlined into one generated HTML file.
 # ----------------------------------------------------------------------------------------------
 WEB_DIR = Path(__file__).resolve().parent / "web"
+RUNTIME_REVISION = schedule_data.runtime_revision(Path(__file__).resolve().parent)
 TEMPLATE = (WEB_DIR.joinpath("page.html").read_text(encoding="utf-8")
             .replace("@@STYLES@@", WEB_DIR.joinpath("styles.css").read_text(encoding="utf-8"))
             .replace("@@SCRIPT@@", "\n".join(WEB_DIR.joinpath(name).read_text(encoding="utf-8")
-                                            for name in ("live.js", "teams.js", "personal-ai.js", "github-publish.js", "app.js"))))
+                                            for name in ("live.js", "teams.js", "personal-ai.js", "github-publish.js", "schedule.js", "app.js"))))
 
 
 SHARED_AI_SOURCE = Path(__file__).resolve().parent / "content" / "shared-ai.json"
@@ -2264,6 +2369,9 @@ def main():
     ap.add_argument("--metrics", help="write all scoring inputs and observed outcomes for the historical archive")
     ap.add_argument("--warnings", help="also write the mapping report to this file, one warning per line (empty when clean)")
     ap.add_argument("--report", help="write JSON source-completeness and publication status, including on a failed build")
+    ap.add_argument("--lightweight", action="store_true",
+                    help="refresh fixtures and broadcasts using recent cached standings; makes no AI calls")
+    ap.add_argument("--previous-context", help="previous schedule-context.json (defaults to the output directory)")
     args = ap.parse_args()
     # Reject malformed deployment settings before making requests or writing output.
     head_extra = verification_meta() if not args.fragment else ""
@@ -2273,6 +2381,12 @@ def main():
                                         reasons=["Build did not complete."]))
 
     built_at = datetime.now(timezone.utc)
+    previous_path = args.previous_context or str(Path(args.out).resolve().parent / "schedule-context.json")
+    previous = schedule_data.read_context(previous_path,
+                                         RUNTIME_REVISION, built_at)
+    if args.lightweight and previous is None:
+        print("FAIL Lightweight refresh needs a compatible schedule-context.json with standings less than 30 hours old; run a full build.", file=sys.stderr)
+        return 3
     today = datetime.strptime(args.date, "%Y-%m-%d").date() if args.date else built_at.astimezone(ET).date()
     global TODAY
     TODAY = today
@@ -2280,19 +2394,40 @@ def main():
 
     quality = BuildQuality()
     merged, league_logos, failed = fetch_scoreboards(days, args.workers, quality)
+    if previous:
+        LEAGUE_LOGOS.update(previous["league_logos"])
     LEAGUE_LOGOS.update(league_logos)
-    STANDINGS.update(fetch_standings(list(LEAGUES), args.workers))
+    if args.lightweight:
+        STANDINGS.update(previous["standings"])
+    else:
+        STANDINGS.update(fetch_standings(list(LEAGUES), args.workers))
     matches = interpret_all(merged, quality)
     report = quality.report(len(matches))
+    if (args.lightweight or previous is not None) and not report["complete"]:
+        report["publishable"] = False
+        report["reasons"].append("A refresh with reusable context requires complete fixture responses; keeping the last published schedule and context.")
     if not report["publishable"]:
         write_build_report(args.report, report)
         print("FAIL " + " ".join(report["reasons"]), file=sys.stderr)
         return 3
     # Direct broadcaster schedules can fill gaps in ESPN's listings. Optional lookup
     # failures preserve the rights fallback and are explained in the match's Details.
-    checks = broadcast_listings.enrich(sys.modules[__name__], matches,
-                                      lambda url: curl_bytes(url, timeout=15, attempts=1), built_at)
+    # Share responses across adapters/comparison within this build, without extending
+    # their freshness into the next scheduled refresh or hiding source failures.
+    @functools.lru_cache(maxsize=256)
+    def fetch_listing(url):
+        return curl_bytes(url, timeout=15, attempts=1)
+
+    checks = broadcast_listings.enrich(sys.modules[__name__], matches, fetch_listing, built_at)
     report["broadcast_checks"] = checks
+    report["broadcast_health"] = broadcast_listings.compact_report(checks)
+    if previous:
+        report["retained_broadcasts"] = broadcast_listings.retain_recent_evidence(
+            sys.modules[__name__], matches, previous["matches"], built_at)
+    report["fixture_comparison"] = fixture_comparison.compare(matches, days, fetch_listing, observed_at=built_at)
+    if os.environ.get("GITHUB_STEP_SUMMARY"):
+        with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as stream:
+            stream.write(schedule_data.summary(report))
     for channel, check in checks.items():
         print(f"{channel} listings: {check['confirmed']} confirmed, {check['unmatched']} unconfirmed, "
               f"{check['failed']} failed lookup(s).")
@@ -2337,6 +2472,8 @@ def main():
     if not args.fragment:
         # A separate PNG supports Safari versions without SVG/data-URI favicons.
         output_dir = Path(args.out).resolve().parent
+        schedule_data.publish(sys.modules[__name__], output_dir, matches, cache, built_at, report,
+                              standings_at=schedule_data.timestamp(previous["standings_at"]) if args.lightweight else built_at)
         write_shared_ai(output_dir, built_at)
         output_dir.joinpath("favicon.png").write_bytes(WEB_DIR.joinpath("favicon.png").read_bytes())
         public_pages = discovery.pages(sys.modules[__name__], matches, cache, built_at, args.site_url,

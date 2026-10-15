@@ -1,0 +1,166 @@
+{
+  "title": "DAILY SPORTS TV SCHEDULE",
+  "description": "See live and upcoming sporting events on FOX and across the sports world!",
+  "events": [
+    {
+      "template": "broadcast",
+      "title": "Soccer - Liga MX: Santos vs. Querétaro",
+      "tvStations": [
+        "ViX+"
+      ],
+      "eventTime": "2026-10-17T23:00:00Z",
+      "eventStatus": 2,
+      "entityLink": {
+        "webUrl": "/soccer/liga-mx-santos-vs-queretaro-oct-17-2026-game-boxscore-878151",
+        "contentUri": "soccer/liga_mx/events/878151",
+        "contentType": "event",
+        "layout": {
+          "path": "/layouts?type=layout&subtype=soccerEventLayout",
+          "tokens": {
+            "id": "878151",
+            "eventUri": "soccer/liga_mx/events/878151",
+            "homeUri": "soccer/all/teams/107",
+            "awayUri": "soccer/all/teams/112"
+          }
+        },
+        "analyticsSport": "soccer",
+        "type": "entity"
+      },
+      "filterValue": {
+        "eventFilter": "Soccer - Liga MX"
+      }
+    },
+    {
+      "template": "broadcast",
+      "title": "Soccer - Liga MX: Guadalajara vs. Tigres",
+      "tvStations": [
+        "NBCU"
+      ],
+      "eventTime": "2026-10-17T23:07:00Z",
+      "eventStatus": 2,
+      "entityLink": {
+        "webUrl": "/soccer/liga-mx-guadalajara-vs-tigres-oct-17-2026-game-boxscore-878150",
+        "contentUri": "soccer/liga_mx/events/878150",
+        "contentType": "event",
+        "layout": {
+          "path": "/layouts?type=layout&subtype=soccerEventLayout",
+          "tokens": {
+            "id": "878150",
+            "eventUri": "soccer/liga_mx/events/878150",
+            "homeUri": "soccer/all/teams/102",
+            "awayUri": "soccer/all/teams/109"
+          }
+        },
+        "analyticsSport": "soccer",
+        "type": "entity"
+      },
+      "filterValue": {
+        "eventFilter": "Soccer - Liga MX"
+      }
+    },
+    {
+      "template": "broadcast",
+      "title": "Soccer - Liga MX: León vs. América",
+      "tvStations": [
+        "UNIV",
+        "TUDN",
+        "ViX+"
+      ],
+      "eventTime": "2026-10-18T01:00:00Z",
+      "eventStatus": 2,
+      "entityLink": {
+        "webUrl": "/soccer/liga-mx-leon-vs-america-oct-17-2026-game-boxscore-878152",
+        "contentUri": "soccer/liga_mx/events/878152",
+        "contentType": "event",
+        "layout": {
+          "path": "/layouts?type=layout&subtype=soccerEventLayout",
+          "tokens": {
+            "id": "878152",
+            "eventUri": "soccer/liga_mx/events/878152",
+            "homeUri": "soccer/all/teams/103",
+            "awayUri": "soccer/all/teams/100"
+          }
+        },
+        "analyticsSport": "soccer",
+        "type": "entity"
+      },
+      "filterValue": {
+        "eventFilter": "Soccer - Liga MX"
+      }
+    },
+    {
+      "template": "broadcast",
+      "title": "Soccer - Liga MX: Toluca vs. Atletico de San Luis",
+      "tvStations": [
+        "ViX+"
+      ],
+      "eventTime": "2026-10-18T01:00:00Z",
+      "eventStatus": 2,
+      "entityLink": {
+        "webUrl": "/soccer/liga-mx-toluca-vs-atletico-de-san-luis-oct-17-2026-game-boxscore-878153",
+        "contentUri": "soccer/liga_mx/events/878153",
+        "contentType": "event",
+        "layout": {
+          "path": "/layouts?type=layout&subtype=soccerEventLayout",
+          "tokens": {
+            "id": "878153",
+            "eventUri": "soccer/liga_mx/events/878153",
+            "homeUri": "soccer/all/teams/108",
+            "awayUri": "soccer/all/teams/1633"
+          }
+        },
+        "analyticsSport": "soccer",
+        "type": "entity"
+      },
+      "filterValue": {
+        "eventFilter": "Soccer - Liga MX"
+      }
+    },
+    {
+      "template": "broadcast",
+      "title": "Soccer - Liga MX: Cruz Azul vs. FC Juarez",
+      "tvStations": [
+        "TUDN",
+        "ViX+"
+      ],
+      "eventTime": "2026-10-18T03:10:00Z",
+      "eventStatus": 2,
+      "entityLink": {
+        "webUrl": "/soccer/liga-mx-cruz-azul-vs-fc-juarez-oct-17-2026-game-boxscore-878154",
+        "contentUri": "soccer/liga_mx/events/878154",
+        "contentType": "event",
+        "layout": {
+          "path": "/layouts?type=layout&subtype=soccerEventLayout",
+          "tokens": {
+            "id": "878154",
+            "eventUri": "soccer/liga_mx/events/878154",
+            "homeUri": "soccer/all/teams/101",
+            "awayUri": "soccer/all/teams/1926"
+          }
+        },
+        "analyticsSport": "soccer",
+        "type": "entity"
+      },
+      "filterValue": {
+        "eventFilter": "Soccer - Liga MX"
+      }
+    }
+  ],
+  "filters": [
+    {
+      "id": "dateFilter",
+      "template": "datePicker",
+      "items": [
+        {
+          "uri": "https://api.foxsports.com/bifrost/v1/topevents/broadcast/eventschedule?date=20261017",
+          "webUrl": "/event-schedule?date=2026-10-17",
+          "parameters": {
+            "date": "2026-10-17"
+          },
+          "date": "2026-10-17T04:00:00Z",
+          "selected": true
+        }
+      ]
+    }
+  ]
+}

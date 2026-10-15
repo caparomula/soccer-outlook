@@ -68,8 +68,9 @@ def main(argv=None):
         print(f"::error::{problem}", file=sys.stderr)
     if problems:
         return 1
-    print(f"Page verified: {report['fixtures']} matches; sources "
-          f"{'complete' if report.get('complete') else 'partially available, accepted by the builder'}.")
+    print(f"Page verified: {report['fixtures']} matches; ESPN fixture requests "
+          f"{'complete' if report.get('complete') else 'partially available, accepted by the builder'}. "
+          "Broadcast coverage and independent fixture comparisons are reported separately in coverage.json.")
     return 0
 
 

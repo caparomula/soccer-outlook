@@ -8,7 +8,7 @@ import re
 from urllib.parse import urlencode
 
 from provider_utils import (candidates, confirm, fetch_document, kickoff, name, report,
-                            unavailable, xml)
+                            unavailable, xml, observe, reject)
 
 SCHEDULE_URL = "https://athome.fandango.com/content/browse/uxpage/Bundesliga/405"
 API_URL = "https://apicache.vudu.com/api2/"
@@ -71,12 +71,17 @@ def enrich(builder, matches, fetch):
         url = API_URL + "?" + urlencode(dict(_type="uxPageGet", pageId="405", elementCount="30", rowCount="5", zToken=token))
         listings, complete = parse_schedule(fetch_document(fetch, url, result))
     except (ValueError, UnicodeError, RecursionError, TypeError):
-        unavailable(result, games)
+        unavailable(result, games, "invalid_browse_schedule")
         return result
+    observe(result, listings, url, complete=complete)
+    if not complete:
+        reject(result, "pagination_incomplete")
     for match in games:
         identity = (club(match.home.name), club(match.away.name), match.utc)
         if listings.count(identity) == 1:
             confirm(builder, match, "Fandango", "Fandango", SCHEDULE_URL, result)
         elif not complete:
-            result["per_match"][match.id]["status"] = "unavailable"
+            result["per_match"][match.id].update(status="unavailable", reason="pagination_incomplete")
+        else:
+            reject(result, "ambiguous_listing" if listings.count(identity) > 1 else "no_matching_listing", match=match)
     return result

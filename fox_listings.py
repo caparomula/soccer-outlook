@@ -1,24 +1,32 @@
-"""Confirm missing Liga MX listings against FOX Sports' public, dated scoreboards.
+"""Confirm FOX-owned US networks from the public, dated television schedule.
 
-This optional source only supplements ESPN when the home-club rights already point to FOX.
-It never infers coverage from page navigation, network logos, or a league's usual broadcaster.
+The scoreboard provides club identities and remains a fallback for explicit FOX channels.
+Other networks in FOX's television guide are observations, not first-party confirmations.
 FOX's Nuxt payload is a JSON reference table, not executable JavaScript; only the small set of
 event fields below is read. If its shape changes, the existing uncertain listing survives.
 """
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from html.parser import HTMLParser
 import json
 import re
 import unicodedata
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, urlencode
 from zoneinfo import ZoneInfo
+
+from provider_utils import document, report, fetch_document, unavailable, observe, reject, confirm
 
 
 SCORES_URL = "https://www.foxsports.com/soccer/liga-mx/scores?date={day}"
+TV_URL = "https://www.foxsports.com/event-schedule"
+TV_API = "https://api.foxsports.com/bifrost/v1/topevents/broadcast/eventschedule"
 ET = ZoneInfo("America/New_York")
 MAX_PAGE_BYTES = 2_000_000
 CHANNELS = {"fox": "FOX", "fs1": "FS1", "fs2": "FS2", "fox deportes": "Fox Deportes"}
+TV_CHANNELS = {"FOX": "FOX", "FS1": "FS1", "FS2": "FS2", "FOXDEP": "Fox Deportes"}
+TIME_TOLERANCE = timedelta(minutes=15)
+ALIASES = {"tigres uanl": "tigres", "atletico de san luis": "atletico san luis",
+           "santos": "santos laguna", "pumas": "pumas unam", "club tijuana": "tijuana"}
 
 
 class _Payload(HTMLParser):
@@ -50,12 +58,27 @@ class Listing:
     utc: datetime
     channel: str
     url: str
+    event_id: str = ""
+    home_uri: str = ""
+    away_uri: str = ""
+
+
+@dataclass(frozen=True)
+class Broadcast:
+    home: str
+    away: str
+    utc: datetime
+    channels: tuple[str, ...]
+    raw_channels: tuple[str, ...]
+    url: str
+    event_id: str
 
 
 def _name(value):
     """Fold accents and whitespace, without guessing abbreviated or renamed clubs."""
     value = unicodedata.normalize("NFKD", value).casefold()
-    return " ".join("".join(c for c in value if not unicodedata.combining(c)).split())
+    folded = " ".join("".join(c for c in value if not unicodedata.combining(c)).split())
+    return ALIASES.get(folded, folded)
 
 
 def _kickoff(value):
@@ -137,63 +160,148 @@ def parse_schedule(page):
             continue
         channel = CHANNELS.get(text(event, "tvStation").strip().casefold(), "")
         listings.append(Listing(_name(home[0]), _name(away[0]), kickoff, channel,
-                                _source_url(text(link, "webUrl"), identity.group(1))))
+                                _source_url(text(link, "webUrl"), identity.group(1)),
+                                identity.group(1), home_uri, away_uri))
+    return listings
+
+
+def schedule_api_key(page):
+    """Read the public site's current client configuration without executing JavaScript."""
+    text = document(page)
+    configs = re.findall(r"\bbifrost:\{([^{}]{1,4000})\}", text)
+    if len(configs) != 1:
+        raise ValueError("FOX public schedule configuration missing or ambiguous")
+    keys = re.findall(r'\bapiKey:"([A-Za-z0-9_-]{16,200})"', configs[0])
+    paths = re.findall(r'\bapiPath:"([^"]+)"', configs[0])
+    if len(keys) != 1 or paths != ["https://api.foxsports.com/bifrost/v1/"]:
+        raise ValueError("FOX public schedule endpoint changed")
+    return keys[0]
+
+
+def parse_tv_schedule(page, day, scoreboard):
+    """Join dated broadcast events to independently named scoreboard teams by publisher IDs.
+
+    FOX mixes foreign, shorthand, and third-party codes into its guide. Only explicit
+    FOX-owned US channels are eligible for confirmation; all other codes stay observations.
+    """
+    payload = json.loads(document(page))
+    if not isinstance(payload, dict) or payload.get("title") != "DAILY SPORTS TV SCHEDULE":
+        raise ValueError("FOX television schedule changed")
+    events, filters = payload.get("events"), payload.get("filters")
+    if not isinstance(events, list) or len(events) > 2000 or not isinstance(filters, list):
+        raise ValueError("FOX television schedule is not bounded")
+    selected = [item for group in filters if isinstance(group, dict) and group.get("id") == "dateFilter"
+                for item in group.get("items", []) if isinstance(item, dict) and item.get("selected") is True]
+    midnight = datetime.fromisoformat(day).replace(tzinfo=ET).astimezone(timezone.utc)
+    if (len(selected) != 1 or selected[0].get("parameters") != {"date": day} or
+            _kickoff(selected[0].get("date")) != midnight):
+        raise ValueError("FOX television schedule returned a different day")
+    listings = []
+    for event in events:
+        if not isinstance(event, dict) or event.get("template") != "broadcast":
+            continue
+        if event.get("filterValue") != {"eventFilter": "Soccer - Liga MX"}:
+            continue
+        # This feed describes live/upcoming fixtures, not channel playback sessions.
+        # Matching original kickoff below prevents a repeat airing being marked live.
+        title = event.get("title", "")
+        if (type(event.get("eventStatus")) is not int or event["eventStatus"] not in (1, 2) or
+                not isinstance(title, str) or re.search(r"\b(replay|repeat|encore|highlights)\b", title, re.I) or
+                any(event.get(key) is True for key in ("isReplay", "isRepeat", "replay"))):
+            continue
+        utc = _kickoff(event.get("eventTime"))
+        link = event.get("entityLink")
+        if utc is None or utc.astimezone(ET).date().isoformat() != day or not isinstance(link, dict):
+            continue
+        content = link.get("contentUri")
+        identity = re.fullmatch(r"soccer/liga_mx/events/(\d+)", content or "")
+        tokens = link.get("layout", {}).get("tokens", {})
+        if (not identity or not isinstance(tokens, dict) or tokens.get("eventUri") != content or
+                tokens.get("id") != identity[1] or link.get("contentType") != "event"):
+            continue
+        found = [item for item in scoreboard if item.event_id == identity[1] and
+                 item.home_uri == tokens.get("homeUri") and item.away_uri == tokens.get("awayUri")]
+        if len(found) != 1 or abs(found[0].utc - utc) > TIME_TOLERANCE:
+            continue
+        codes = event.get("tvStations")
+        if not isinstance(codes, list) or len(codes) > 20 or any(not isinstance(code, str) or len(code) > 50 for code in codes):
+            codes = []
+        listings.append(Broadcast(found[0].home, found[0].away, utc,
+                                  tuple(sorted({TV_CHANNELS[code] for code in codes if code in TV_CHANNELS})),
+                                  tuple(codes), _source_url(link.get("webUrl"), identity[1]), identity[1]))
     return listings
 
 
 def enrich(builder, matches, fetch):
-    """Update confirmed matches in place and return fetch/match counts; source failure is optional.
+    """Supplement every eligible Liga MX fixture, preserving existing outlet evidence.
 
-    ``fetch(url)`` returns bytes or None. Callers own its timeout/retry policy. One request per
-    Eastern date is sufficient; FOX sometimes returns a different day's default scoreboard,
-    which cannot match because both clubs and the full UTC kickoff must agree.
+    The TV guide is bounded by Eastern dates and checked against FOX scoreboard IDs.
+    A small airtime tolerance never changes the canonical kickoff and never permits
+    more than one candidate or a replay. Missing/secondary channels remain unresolved.
     """
-    candidates = {}
-    for match in matches:
-        if (match.league != "mex.1" or match.outlets or not match.rule or
-                match.rule.label != "FOX Sports networks" or not match.time_valid or
-                match.state not in ("pre", "in") or
-                match.status.lower() in builder.VOID_STATUSES or
-                match.utc.utcoffset() is None):
-            continue
-        day = match.utc.astimezone(ET).date().isoformat()
-        candidates.setdefault(day, []).append(match)
-
-    report = {"requested": 0, "confirmed": 0, "unmatched": 0, "failed": 0, "per_match": {}}
-    for day, day_matches in sorted(candidates.items()):
-        source_url = SCORES_URL.format(day=day)
-        report["requested"] += 1
+    candidates = [match for match in matches if match.league == "mex.1" and
+                  match.time_valid and match.utc.utcoffset() is not None and
+                  match.state in ("pre", "in") and match.status.lower() not in builder.VOID_STATUSES]
+    result = report(candidates, TV_URL)
+    if not candidates:
+        return result
+    days = {}
+    for match in candidates:
+        days.setdefault(match.utc.astimezone(ET).date().isoformat(), []).append(match)
+    api_key, config_checked = None, False
+    for day, day_matches in sorted(days.items()):
+        score_url = SCORES_URL.format(day=day)
+        tv_url = TV_URL + "?date=" + day
         try:
-            page = fetch(source_url)
-        except Exception:
-            page = None  # Optional source transport failures must not discard the ESPN schedule.
-        try:
-            listings = parse_schedule(page)
+            scores = parse_schedule(fetch_document(fetch, score_url, result))
+            observe(result, scores, score_url)
         except (ValueError, UnicodeError, RecursionError):
-            report["failed"] += 1
-            report["unmatched"] += len(day_matches)
-            for match in day_matches:
-                report["per_match"][match.id] = {"status": "unavailable", "url": source_url}
+            unavailable(result, day_matches, reason="scoreboard_unavailable", url=score_url)
             continue
+        if not config_checked:
+            config_checked = True
+            try:
+                api_key = schedule_api_key(fetch_document(fetch, TV_URL, result))
+            except (ValueError, UnicodeError, RecursionError):
+                unavailable(result, candidates, reason="tv_configuration_unavailable", url=TV_URL)
+        broadcasts = []
+        if api_key:
+            api_url = TV_API + "?" + urlencode({"date": day.replace("-", ""), "apikey": api_key})
+            try:
+                broadcasts = parse_tv_schedule(fetch_document(fetch, api_url, result), day, scores)
+                observe(result, broadcasts, tv_url, complete=True)
+            except (ValueError, UnicodeError, RecursionError, AttributeError, TypeError):
+                unavailable(result, day_matches, reason="tv_schedule_unavailable", url=tv_url)
         for match in day_matches:
-            identity = (_name(match.home.name), _name(match.away.name), match.utc)
-            found = [item for item in listings if (item.home, item.away, item.utc) == identity]
-            if len(found) != 1 or not found[0].channel or not found[0].url:
-                report["unmatched"] += 1
-                report["per_match"][match.id] = {"status": "unlisted", "url": source_url}
+            home, away = _name(match.home.name), _name(match.away.name)
+            found = [item for item in broadcasts if item.home == home and item.away == away and
+                     abs(item.utc - match.utc) <= TIME_TOLERANCE]
+            compared_time = found[0].utc if len(found) == 1 else match.utc
+            competing = {other.id for other in day_matches if _name(other.home.name) == home and
+                         _name(other.away.name) == away and abs(other.utc - compared_time) <= TIME_TOLERANCE}
+            if len(found) > 1 or len(competing) > 1:
+                reject(result, "ambiguous_event", match=match)
                 continue
-            listing = found[0]
-            outlet = builder.map_outlet(listing.channel, match.league)
-            if not outlet.known:
-                report["unmatched"] += 1
-                report["per_match"][match.id] = {"status": "unlisted", "url": source_url}
+            if found:
+                item = found[0]
+                result["per_match"][match.id]["observed_channels"] = list(item.raw_channels)
+                if item.channels and item.url:
+                    confirm(builder, match, item.channels, "FOX Sports", item.url, result,
+                            source_event_id=item.event_id, broadcast_start=item.utc.isoformat(),
+                            kickoff_difference_seconds=int((item.utc - match.utc).total_seconds()),
+                            raw_channels=list(item.raw_channels), authority="primary")
+                    continue
+                reject(result, "secondary_or_unknown_channels" if item.raw_channels else "no_channels", match=match)
+            # The dated scoreboard remains useful when it explicitly names a FOX channel.
+            # This fallback still requires exact kickoff and unique publisher identity.
+            exact = [item for item in scores if (item.home, item.away, item.utc) == (home, away, match.utc)]
+            if len(exact) != 1:
+                reject(result, "event_not_found" if not exact else "ambiguous_event", match=match)
                 continue
-            match.outlets = [outlet]
-            match.rule = None
-            match.hint = ""
-            match.broadcast_source = "FOX Sports"
-            match.broadcast_url = listing.url
-            match.service, match.basis, match.outlet = builder.evaluate(match.outlets, None, builder.OWNER)
-            report["confirmed"] += 1
-            report["per_match"][match.id] = {"status": "confirmed", "url": listing.url}
-    return report
+            item = exact[0]
+            if item.channel and item.url:
+                confirm(builder, match, item.channel, "FOX Sports", item.url, result,
+                        source_event_id=item.event_id, broadcast_start=item.utc.isoformat(), authority="primary")
+            elif not found:
+                reject(result, "no_verified_us_channels", match=match)
+    return result

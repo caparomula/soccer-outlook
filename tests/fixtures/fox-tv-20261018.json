@@ -1,0 +1,52 @@
+{
+  "title": "DAILY SPORTS TV SCHEDULE",
+  "description": "See live and upcoming sporting events on FOX and across the sports world!",
+  "events": [
+    {
+      "template": "broadcast",
+      "title": "Soccer - Liga MX: Monterrey vs. Pachuca",
+      "tvStations": [
+        "TUDN",
+        "ViX+"
+      ],
+      "eventTime": "2026-10-19T01:00:00Z",
+      "eventStatus": 2,
+      "entityLink": {
+        "webUrl": "/soccer/liga-mx-monterrey-vs-pachuca-oct-18-2026-game-boxscore-878155",
+        "contentUri": "soccer/liga_mx/events/878155",
+        "contentType": "event",
+        "layout": {
+          "path": "/layouts?type=layout&subtype=soccerEventLayout",
+          "tokens": {
+            "id": "878155",
+            "eventUri": "soccer/liga_mx/events/878155",
+            "homeUri": "soccer/all/teams/104",
+            "awayUri": "soccer/all/teams/111"
+          }
+        },
+        "analyticsSport": "soccer",
+        "type": "entity"
+      },
+      "filterValue": {
+        "eventFilter": "Soccer - Liga MX"
+      }
+    }
+  ],
+  "filters": [
+    {
+      "id": "dateFilter",
+      "template": "datePicker",
+      "items": [
+        {
+          "uri": "https://api.foxsports.com/bifrost/v1/topevents/broadcast/eventschedule?date=20261018",
+          "webUrl": "/event-schedule?date=2026-10-18",
+          "parameters": {
+            "date": "2026-10-18"
+          },
+          "date": "2026-10-18T04:00:00Z",
+          "selected": true
+        }
+      ]
+    }
+  ]
+}

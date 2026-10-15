@@ -51,7 +51,7 @@ League priority uses the same saved order and 0–100 scale described below. The
 
 ## AI rating
 
-The automatic configuration uses `gpt-6.1-sol` at `low` effort in the `ratings` design. It rates supplied fixture facts without web research. Automatic overview and match-blurb generation are optional and currently off; personal or shared chat responses can still supply text. The `full` design instead uses Claude's researched context alongside those facts.
+The automatic configuration uses `claude-fable-5-1` at `max` effort in the `full` design. It combines researched context with supplied fixture facts to generate daily ratings, headlines and match blurbs. Personal or shared chat responses can still take precedence. The optional `ratings` design instead requests scores from supplied facts without research.
 
 [story.py](../story.py) requires three integer ratings from 0 to 100 and calculates their weighted total:
 

@@ -1,0 +1,108 @@
+# Refresh time-sensitive fixtures and broadcast evidence without generating AI
+# or fetching standings. Full refreshes renew the public context three times daily.
+name: Refresh schedule
+
+on:
+  schedule:
+    - cron: "17,47 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# Shared with the full refresh: publishing cannot overwrite another build mid-run.
+concurrency:
+  group: refresh
+  cancel-in-progress: false
+  queue: max
+
+jobs:
+  schedule:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - name: Skip superseded source revisions
+        run: bash .github/scripts/check-current-revision.sh
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: actions/checkout@v5
+        with:
+          ref: gh-pages
+          path: published
+
+      - name: Check reusable context and preserve published assets
+        id: context
+        run: |
+          python3 - <<'PY'
+          from datetime import datetime, timezone
+          import os
+          from pathlib import Path
+          import shutil
+          import schedule_data
+          root = Path.cwd()
+          context = schedule_data.read_context('published/schedule-context.json',
+              schedule_data.runtime_revision(root), datetime.now(timezone.utc))
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('ready=' + ('true' if context else 'false') + '\n')
+          if context:
+              shutil.copytree('published', 'site', ignore=shutil.ignore_patterns('.git'))
+          else:
+              print('::notice::No compatible recent standings context; keeping the published site until a full refresh succeeds.')
+          PY
+
+      - name: Unit tests
+        if: steps.context.outputs.ready == 'true'
+        run: python3 -m unittest -v
+
+      - name: Refresh fixtures and broadcasts
+        if: steps.context.outputs.ready == 'true'
+        env:
+          SITE_URL: ${{ vars.SITE_URL || format('https://{0}.github.io/{1}/', github.repository_owner, github.event.repository.name) }}
+          GOOGLE_SITE_VERIFICATION: ${{ vars.GOOGLE_SITE_VERIFICATION }}
+          BING_SITE_VERIFICATION: ${{ vars.BING_SITE_VERIFICATION }}
+          INDEXNOW_KEY: ${{ vars.INDEXNOW_KEY }}
+        run: |
+          bash .github/scripts/check-current-revision.sh
+          python3 build.py --lightweight --previous-context published/schedule-context.json --out site/index.html --site-url "$SITE_URL" --facts work/facts.json --metrics work/metrics.json --warnings work/mapping-report.txt --report work/build-report.json
+
+      - name: Check the page
+        if: steps.context.outputs.ready == 'true'
+        run: python3 .github/scripts/check-build.py --page site/index.html --report work/build-report.json
+
+      - name: Archive observations without regenerating AI
+        if: steps.context.outputs.ready == 'true'
+        run: |
+          bash .github/scripts/check-current-revision.sh
+          bash .github/scripts/archive-history.sh
+
+      - name: Publish to gh-pages
+        if: steps.context.outputs.ready == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          bash .github/scripts/check-current-revision.sh
+          cd site
+          touch .nojekyll
+          git init -q -b gh-pages
+          git add -A
+          git -c user.name="github-actions[bot]" \
+              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit -q -m "Schedule refreshed $(date -u +%Y-%m-%dT%H:%MZ) from ${GITHUB_SHA::7}"
+          git push -q --force "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" gh-pages
+
+      - name: Keep source coverage reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: schedule-reports
+          path: |
+            work/build-report.json
+            work/mapping-report.txt
+            work/metrics.json
+            work/history-snapshot.json.gz
+            site/coverage.json
+          if-no-files-found: ignore
+          retention-days: 7

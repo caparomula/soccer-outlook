@@ -49,7 +49,9 @@ class TUDNListings(unittest.TestCase):
         self.assertEqual([outlet.label for outlet in target.outlets], ["TUDN", "Univision"])
         self.assertEqual(build.evaluate(target.outlets, target.rule, {"yttv"})[:2], ("yttv", "listed"))
         self.assertEqual(target.broadcast_source, "TUDN")
-        self.assertEqual(result["per_match"][target.id], {"status": "confirmed", "url": URL})
+        self.assertEqual(result["per_match"][target.id]["status"], "confirmed")
+        self.assertEqual(result["per_match"][target.id]["url"], URL)
+        self.assertEqual(result["per_match"][target.id]["channels"], ["TUDN", "Univision"])
         self.assertIsNone(target.rule)
 
     def test_existing_vix_and_espn_outlets_are_preserved_without_duplicates(self):
@@ -68,7 +70,7 @@ class TUDNListings(unittest.TestCase):
             self.assertEqual(result["confirmed"], 1)
             self.assertEqual(target.state, state)
 
-    def test_exact_clubs_home_assignment_and_kickoff_required_before_fetch(self):
+    def test_exact_clubs_home_assignment_and_kickoff_required_for_confirmation(self):
         targets = [game(utc=game().utc + timedelta(minutes=1)), game(utc=game().utc + timedelta(days=1))]
         wrong_home = game(); wrong_home.home.name = "Atlas"; targets.append(wrong_home)
         wrong_away = game(); wrong_away.away.name = "Toluca"; targets.append(wrong_away)
@@ -78,7 +80,7 @@ class TUDNListings(unittest.TestCase):
             with self.subTest(target=target):
                 _, result, fetch = enrich(target)
                 self.assertEqual(result["confirmed"], 0)
-                self.assertEqual(fetch.call_count, 1)
+                self.assertLessEqual(fetch.call_count, 3)
                 self.assertEqual(target.rule.label, "ViX")
 
     def test_unlisted_vix_match_does_not_imply_tudn(self):
@@ -104,9 +106,14 @@ class TUDNListings(unittest.TestCase):
                 if case == "league": event["leagueName"] = "Liga MX Femenil"
                 if case == "naive": event["date"] = "2026-10-11T03:10:00"
                 if case == "replay": event["status"] = "replay"
-                _, result, fetch = enrich(schedule=page(data))
-                self.assertEqual(result["confirmed"], 0)
-                self.assertEqual(fetch.call_count, 1)
+                if case in ("mx", "competition", "uri"):
+                    with self.assertRaises(ValueError): tudn.parse_schedule(page(data))
+                else:
+                    found = [item for item in tudn.parse_schedule(page(data))
+                             if (item.home, item.away, item.utc) == ("america", "monterrey", game().utc)]
+                    if case == "duplicate": self.assertEqual(len(found), 2)
+                    elif case == "url": self.assertFalse(found[0].url)
+                    else: self.assertEqual(found, [])
 
     def test_identical_responsive_duplicate_scorecards_are_allowed(self):
         data = payload(RESULTS, "queryResponse")

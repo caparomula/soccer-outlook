@@ -1,7 +1,7 @@
 """Match-specific Watch listings supplement ESPN scoreboards without asserting league-wide rights."""
 from copy import deepcopy
 from dataclasses import replace
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import json
 from pathlib import Path
 import unittest
@@ -13,6 +13,7 @@ from tests.test_discovery import fixture
 
 
 SAMPLE = (Path(__file__).parent / "fixtures" / "espn-watch-schedule.html").read_bytes()
+CURRENT = (Path(__file__).parent / "fixtures" / "espn-watch-20261017.html").read_bytes()
 
 
 def payload():
@@ -41,12 +42,13 @@ class WatchESPNListings(unittest.TestCase):
         fetch = Mock(return_value=SAMPLE)
         report = source.enrich(build, [game], fetch)
         self.assertEqual(report["confirmed"], 1)
-        fetch.assert_called_once_with(source.DATED_URL.format(kind="upcoming", day="20261011"))
+        fetch.assert_called_once_with(source.DATED_URL.format(kind="upcoming", day="20261010"))
         self.assertEqual([outlet.label for outlet in game.outlets], ["ESPN+"])
         self.assertIsNone(game.rule)
         self.assertEqual(game.broadcast_source, "Watch ESPN")
         self.assertEqual(game.broadcast_url, "https://www.espn.com/watch/player/_/id/4c56bbec-c7ea-471d-a225-87b7cdcc3fd2")
-        self.assertEqual(report["per_match"][game.id], {"status": "confirmed", "url": game.broadcast_url})
+        self.assertEqual(report["per_match"][game.id]["status"], "confirmed")
+        self.assertEqual(report["per_match"][game.id]["url"], game.broadcast_url)
         self.assertEqual(build.evaluate(game.outlets, None, {"espnplus"}), ("espnplus", "listed", "ESPN+"))
 
     def test_both_teams_competition_start_and_live_or_upcoming_type_must_match(self):
@@ -91,13 +93,25 @@ class WatchESPNListings(unittest.TestCase):
             event(data)["hrf"] = url
             self.assertEqual(source.enrich(build, [match()], lambda _: page(data))["confirmed"], 0)
 
-    def test_duplicate_airings_remain_ambiguous_even_if_one_has_bad_channel(self):
-        for channel in ("ESPN+", "ESPN2", "unknown"):
+    def test_contradictory_airing_ids_are_rejected_but_identical_copies_are_deduplicated(self):
+        for channel in ("ESPN2", "unknown"):
             data = payload()
             duplicate = deepcopy(event(data))
             duplicate["bcsts"] = [{"nme": channel}]
             data["page"]["content"]["watch"]["arngs"][0]["sctgys"][0]["arngs"].append(duplicate)
             self.assertEqual(source.enrich(build, [match()], lambda _: page(data))["confirmed"], 0)
+
+        for key, value in (("nme", "Another Team vs. Orange County SC"),
+                           ("stme", "2026-10-12T01:00:00Z")):
+            data = payload()
+            duplicate = deepcopy(event(data))
+            duplicate[key] = value
+            data["page"]["content"]["watch"]["arngs"][0]["sctgys"][0]["arngs"].append(duplicate)
+            self.assertEqual(source.enrich(build, [match()], lambda _: page(data))["confirmed"], 0)
+        data = payload()
+        data["page"]["content"]["watch"]["arngs"][0]["sctgys"][0]["arngs"].append(deepcopy(event(data)))
+        report = source.enrich(build, [match()], lambda _: page(data))
+        self.assertEqual(report["confirmed"], 1)
 
     def test_public_us_schedule_is_required_and_failures_preserve_uncertainty(self):
         bad = [None, b"unavailable", b"\xff", SAMPLE + SAMPLE, b"x" * (source.MAX_PAGE_BYTES + 1), page([])]
@@ -122,9 +136,8 @@ class WatchESPNListings(unittest.TestCase):
         self.assertEqual((report["failed"], report["unmatched"]), (0, 1))
         self.assertEqual(report["per_match"][game.id]["status"], "unlisted")
 
-    def test_only_eligible_unlisted_matches_are_checked_once_per_date(self):
-        games = [match(outlets=[build.map_outlet("ESPN+", "usa.usl.1")]), match(rule=None),
-                 match(time_valid=False), match(state="post"), match(status="Postponed"),
+    def test_only_eligible_matches_are_checked_once_per_eastern_date(self):
+        games = [match(time_valid=False), match(state="post"), match(status="Postponed"),
                  match(league="eng.1"), match(utc=datetime(2026, 10, 11, 1))]
         fetch = Mock(return_value=SAMPLE)
         self.assertEqual(source.enrich(build, games, fetch)["requested"], 0)
@@ -133,7 +146,84 @@ class WatchESPNListings(unittest.TestCase):
         report = source.enrich(build, games, fetch)
         self.assertEqual(report["requested"], 2)
         self.assertEqual({c.args[0] for c in fetch.call_args_list}, {
-            source.DATED_URL.format(kind="upcoming", day="20261011"), source.SCHEDULE_URL.format(kind="live")})
+            source.DATED_URL.format(kind="upcoming", day="20261010"), source.SCHEDULE_URL.format(kind="live")})
+
+    def test_current_recorded_aliases_affixes_and_simulcasts_preserve_channel_routes(self):
+        game = fixture(league="esp.1", channel="", kickoff="2026-10-17T12:00:00+00:00")
+        game.home.name, game.home.id = "Espanyol", "88"
+        game.away.name, game.away.id = "Atlético Madrid", "1068"
+        original_kickoff = game.utc
+        report = source.enrich(build, [game], lambda _: CURRENT)
+        self.assertEqual((report["confirmed"], report["unmatched"], report["failed"]), (1, 0, 0))
+        self.assertEqual({o.label for o in game.outlets}, {"ESPN+", "ESPN Deportes"})
+        self.assertEqual(game.utc, original_kickoff)
+        self.assertEqual(len(game.broadcast_evidence), 3)
+        self.assertEqual({e["broadcast_start"] for e in game.broadcast_evidence},
+                         {"2026-10-17T11:50:00+00:00", "2026-10-17T11:55:00+00:00"})
+        self.assertEqual(report["diagnostics"]["observed_listings"], 5)
+        self.assertEqual(report["timezone"], "America/New_York")
+        self.assertEqual(build.evaluate(game.outlets, None, {"yttvsportsplus"})[0], "")
+        self.assertEqual(build.evaluate(game.outlets, None, {"yttv"})[0], "yttv")
+
+    def test_alias_ids_are_competition_scoped_and_never_override_a_conflicting_id(self):
+        game = fixture(league="ned.1", channel="", kickoff="2026-10-17T14:30:00+00:00")
+        game.home.name, game.home.id = "ADO Den Haag", "2726"
+        game.away.name, game.away.id = "PSV Eindhoven", "148"
+        self.assertEqual(source.enrich(build, [game], lambda _: CURRENT)["confirmed"], 1)
+        game.away.id = "9999"
+        self.assertEqual(source.enrich(build, [game], lambda _: CURRENT)["confirmed"], 0)
+        game.away.id, game.away.name = "148", "PSV Eindhoven Women"
+        self.assertEqual(source.enrich(build, [game], lambda _: CURRENT)["confirmed"], 0)
+
+    def test_programme_pregame_window_is_bounded_and_does_not_accept_late_airings(self):
+        for minutes, expected in [(0, 1), (5, 1), (15, 1), (16, 0), (-1, 0), (1440, 0)]:
+            with self.subTest(minutes=minutes):
+                data = payload()
+                event(data)["stme"] = (match().utc - timedelta(minutes=minutes)).isoformat()
+                self.assertEqual(source.enrich(build, [match()], lambda _: page(data))["confirmed"], expected)
+        for title in ["Replay: El Paso Locomotive FC vs. Orange County SC",
+                      "El Paso Locomotive FC vs. Orange County SC (Replay)",
+                      "El Paso Locomotive FC Women vs. Orange County SC Women"]:
+            data = payload()
+            event(data)["nme"] = title
+            self.assertEqual(source.enrich(build, [match()], lambda _: page(data))["confirmed"], 0)
+
+    def test_late_us_matches_use_the_previous_utc_day_and_dst_aware_eastern_dates(self):
+        game = match(utc=datetime(2026, 10, 18, 2, 30, tzinfo=timezone.utc))
+        game.home.name, game.away.name, game.away.id = "Las Vegas Lights FC", "Lexington", "21822"
+        fetch = Mock(return_value=CURRENT)
+        self.assertEqual(source.enrich(build, [game], fetch)["confirmed"], 1)
+        fetch.assert_called_once_with(source.DATED_URL.format(kind="upcoming", day="20261017"))
+        for utc, day in [(datetime(2026, 7, 2, 4, 30, tzinfo=timezone.utc), "20260702"),
+                         (datetime(2026, 12, 2, 4, 30, tzinfo=timezone.utc), "20261201")]:
+            self.assertEqual(source.candidate_urls(match(utc=utc)),
+                             (source.DATED_URL.format(kind="upcoming", day=day),))
+
+    def test_local_midnight_overlap_deduplicates_evidence_and_survives_one_failed_page(self):
+        game = match(utc=datetime(2026, 10, 11, 4, 5, tzinfo=timezone.utc))
+        data = payload()
+        event(data)["stme"] = "2026-10-11T03:55:00Z"
+        urls = source.candidate_urls(game)
+        self.assertEqual(len(urls), 2)
+        for fail_second in [False, True]:
+            with self.subTest(fail_second=fail_second):
+                current = match(utc=game.utc)
+                fetch = Mock(side_effect=lambda url: None if fail_second and url == urls[1] else page(data))
+                report = source.enrich(build, [current], fetch)
+                self.assertEqual((report["requested"], report["confirmed"], report["unmatched"]), (2, 1, 0))
+                self.assertEqual(report["failed"], int(fail_second))
+                self.assertEqual(len(current.broadcast_evidence), 1)
+
+    def test_alternative_routes_are_checked_without_rule_and_do_not_erase_existing_outlets(self):
+        game = match(outlets=[build.map_outlet("CBS Sports Network", "usa.usl.1")], rule=None)
+        source.enrich(build, [game], lambda _: SAMPLE)
+        self.assertEqual({o.label for o in game.outlets}, {"CBS Sports Network", "ESPN+"})
+        self.assertEqual(source.enrich(build, [match(rule=None)], lambda _: SAMPLE)["confirmed"], 1)
+
+    def test_page_date_must_agree_with_its_own_source_link_when_present(self):
+        with self.assertRaisesRegex(ValueError, "different schedule date"):
+            source.parse_schedule(CURRENT, expected_day="20261018")
+        self.assertEqual(len(source.parse_schedule(CURRENT, expected_day="20261017")), 5)
 
 
 if __name__ == "__main__":

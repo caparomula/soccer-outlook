@@ -16,6 +16,7 @@ from tests.test_discovery import fixture
 
 FIXTURES = Path(__file__).parent / "fixtures"
 VIX_SAMPLE = (FIXTURES / "vix-liga-mx.html").read_bytes()
+VIX_FUTURE = json.loads((FIXTURES / "vix-future-20261015.json").read_text())
 PEACOCK_SAMPLE = (FIXTURES / "peacock-sports.html").read_bytes()
 
 
@@ -55,6 +56,41 @@ def peacock_case():
 
 
 class ViXListings(unittest.TestCase):
+    def test_announced_future_premium_event_needs_no_playback_link(self):
+        game = match(rule=None, utc=vix_listings._kickoff("2026-10-17T03:00:00Z"),
+                     outlets=[build.map_outlet("TUDN", "mex.1")])
+        game.home.name, game.away.name = "Atlante", "Pumas UNAM"
+        result = vix_listings.enrich(build, [game], lambda _: page(VIX_FUTURE))
+        self.assertEqual(result["confirmed"], 1)
+        self.assertEqual({outlet.label for outlet in game.outlets}, {"TUDN", "ViX"})
+        self.assertEqual(result["per_match"][game.id]["url"], vix_listings.SCHEDULE_URL)
+        self.assertEqual(build.evaluate(game.outlets, None, {"vix"}), ("vix", "listed", "ViX"))
+
+    def test_future_listing_keeps_country_package_replay_and_availability_checks(self):
+        for case in ("country", "free", "missing_package", "region_block", "missing_availability",
+                     "no_start", "wrong_end", "replay", "live_match"):
+            with self.subTest(case=case):
+                data = copy.deepcopy(VIX_FUTURE)
+                event = data["props"]["apolloState"]["SportsEvent:transmission:matchid:2641273"]
+                game = match(rule=None, utc=vix_listings._kickoff("2026-10-17T03:00:00Z"))
+                game.home.name, game.away.name = "Atlante", "Pumas UNAM"
+                if case == "country": data["props"]["initialState"]["requestCountryCode"] = "MX"
+                if case == "free": event["badges"] = ["FREE"]
+                if case == "missing_package": event["badges"] = []
+                if case == "region_block": event["vodAvailability"]["reason"] = "GEO_BLOCKED"
+                if case == "missing_availability": del event["vodAvailability"]
+                if case == "no_start": del event["playbackData"]["scheduledStartTime"]
+                if case == "wrong_end": event["playbackData"]["scheduledEndTime"] = "2026-10-17T02:00:00Z"
+                if case == "replay": event["playbackData"]["__typename"] = "VideoPlaybackData"
+                if case == "live_match": game.state = "in"
+                self.assertEqual(vix_listings.enrich(build, [game], lambda _: page(data))["confirmed"], 0)
+
+    def test_rendered_link_cannot_override_a_known_region_block(self):
+        data = payload(VIX_SAMPLE)
+        data["props"]["apolloState"]["SportsEvent:transmission:matchid:2641263"]["vodAvailability"] = {
+            "__typename": "ContentAvailability", "isBlocked": True, "reason": "GEO_BLOCKED"}
+        self.assertEqual(vix_listings.enrich(build, [match()], lambda _: vix_page(data))["confirmed"], 0)
+
     def test_recorded_us_live_events_confirm_exact_kickoff_not_pregame(self):
         game = match()
         fetch = Mock(return_value=VIX_SAMPLE)
@@ -65,7 +101,9 @@ class ViXListings(unittest.TestCase):
         self.assertEqual(game.broadcast_source, "ViX")
         self.assertEqual(game.broadcast_url, "https://vix.com/live/transmission-matchid-2641263")
         self.assertEqual(build.evaluate(game.outlets, game.rule, {"vix"}), ("vix", "listed", "ViX"))
-        self.assertEqual(report["per_match"][game.id], {"status": "confirmed", "url": game.broadcast_url})
+        self.assertEqual(report["per_match"][game.id]["status"], "confirmed")
+        self.assertEqual(report["per_match"][game.id]["url"], game.broadcast_url)
+        self.assertEqual(report["per_match"][game.id]["channels"], ["ViX"])
         pregame = match(utc=match().utc - timedelta(minutes=15))
         self.assertEqual(vix_listings.enrich(build, [pregame], lambda _: VIX_SAMPLE)["confirmed"], 0)
 
@@ -115,7 +153,9 @@ class PeacockListings(unittest.TestCase):
         self.assertEqual(peacock_listings.parse_schedule(PEACOCK_SAMPLE), [])
         game = match("Peacock")
         result = peacock_listings.enrich(build, [game], lambda _: PEACOCK_SAMPLE)
-        self.assertEqual(result["per_match"][game.id], {"status": "unlisted", "url": peacock_listings.SCHEDULE_URL})
+        self.assertEqual(result["per_match"][game.id]["status"], "unlisted")
+        self.assertEqual(result["per_match"][game.id]["reason"], "no_matching_listing")
+        self.assertEqual(result["diagnostics"]["parsed_pages"], 1)
 
     def test_exact_live_direct_to_consumer_event_confirms_only_peacock(self):
         data, _, _ = peacock_case()
@@ -174,9 +214,8 @@ class OptionalListingFailures(unittest.TestCase):
 
     def test_no_request_for_non_candidates_and_confirmed_outlets_are_untouched(self):
         for provider, module in (("ViX", vix_listings), ("Peacock", peacock_listings)):
-            for changes in ({"state": "post"}, {"time_valid": False}, {"status": "postponed"},
-                            {"rule": None}, {"league": "usa.1"},
-                            {"outlets": [build.map_outlet("ESPN+", "mex.1")]}):
+            cases = [{"state": "post"}, {"time_valid": False}, {"status": "postponed"}, {"league": "usa.1"}]
+            for changes in cases:
                 with self.subTest(provider=provider, changes=changes):
                     fetch = Mock()
                     game = match(provider, **changes)

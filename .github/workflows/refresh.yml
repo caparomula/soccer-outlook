@@ -1,6 +1,6 @@
 # Builds the schedule from ESPN and publishes it to the gh-pages branch.
-# AI configuration lives in settings.toml. Scheduled runs use daily reuse: compatible ratings
-# are kept, newly listed fixtures receive ratings, and missing optional text can be retried.
+# AI configuration lives in settings.toml. Full research is generated daily and reused later
+# that day. The ratings-only design can also fill missing ratings and optional text.
 # Ordinary code pushes keep the published result unless the configured AI setup changed.
 # API keys are repository secrets; the schedule still publishes when AI is unavailable.
 #
@@ -39,6 +39,7 @@ permissions:
 concurrency:
   group: refresh
   cancel-in-progress: false
+  queue: max
 
 jobs:
   refresh:
@@ -46,6 +47,9 @@ jobs:
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v5
+      - name: Skip superseded source revisions
+        run: bash .github/scripts/check-current-revision.sh
+
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
@@ -70,6 +74,9 @@ jobs:
           fi
           status=0
           .browser-venv/bin/python -m tests.browser || status=$?
+          if [ "$status" -eq 0 ]; then
+            .browser-venv/bin/python -m tests.browser_schedule || status=$?
+          fi
           if [ "$status" -eq 77 ]; then     # tests/browser.py: Chromium couldn't start
             echo "::warning::Chromium couldn't start; publishing without the browser checks."
             exit 0
@@ -85,13 +92,22 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+      - name: Read previous broadcast evidence
+        run: |
+          mkdir -p work
+          if git fetch -q --no-tags --depth=1 origin gh-pages; then
+            git show FETCH_HEAD:schedule-context.json > work/previous-context.json || rm -f work/previous-context.json
+          fi
+
       - name: Build the page
         env:
           SITE_URL: ${{ vars.SITE_URL || format('https://{0}.github.io/{1}/', github.repository_owner, github.event.repository.name) }}
           GOOGLE_SITE_VERIFICATION: ${{ vars.GOOGLE_SITE_VERIFICATION }}
           BING_SITE_VERIFICATION: ${{ vars.BING_SITE_VERIFICATION }}
           INDEXNOW_KEY: ${{ vars.INDEXNOW_KEY }}
-        run: python3 build.py --out site/index.html --site-url "$SITE_URL" --facts work/facts.json --metrics work/metrics.json --warnings work/mapping-report.txt --report work/build-report.json
+        run: |
+          bash .github/scripts/check-current-revision.sh
+          python3 build.py --out site/index.html --site-url "$SITE_URL" --facts work/facts.json --metrics work/metrics.json --warnings work/mapping-report.txt --report work/build-report.json --previous-context work/previous-context.json
 
       - name: Check the page
         run: python3 .github/scripts/check-build.py --page site/index.html --report work/build-report.json
@@ -106,6 +122,7 @@ jobs:
           EVENT: ${{ github.event_name }}
           WANT: ${{ inputs.storylines }}
         run: |
+          bash .github/scripts/check-current-revision.sh
           site_url="https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}"
           previous=()
           if curl -fsS --max-time 30 "${site_url}/story.json" -o work/previous-story.json; then
@@ -136,12 +153,15 @@ jobs:
           "$story_python" story.py "${story_args[@]}" --usage-out work/usage.json
 
       - name: Archive match metrics and ratings
-        run: bash .github/scripts/archive-history.sh
+        run: |
+          bash .github/scripts/check-current-revision.sh
+          bash .github/scripts/archive-history.sh
 
       - name: Publish to gh-pages
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          bash .github/scripts/check-current-revision.sh
           cd site
           touch .nojekyll
           git init -q -b gh-pages

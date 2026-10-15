@@ -5,7 +5,7 @@ called without an SDK (OpenAI's Responses API and Google's generateContent).
 The page's daily AI work can run on any model in MODELS once its provider's key is set: Claude through
 the anthropic SDK (story.py), the others through request() here. Each model belongs to one provider,
 so settings.toml names a model alone. Only Claude runs the full design (research, overview, blurbs):
-story.py's research rests on Claude's tool use and web tools, so RESEARCH_MODELS lists the two Claude
+story.py's research rests on Claude's tool use and web tools, so RESEARCH_MODELS lists the Claude
 models that have them; every model here can do the ratings. The ratings design's overview needs only a
 web search, so SEARCH_MODELS adds every OpenAI model and the Gemini models with Grounding with Google
 Search.
@@ -32,10 +32,15 @@ EFFORTS = {"anthropic": ("low", "medium", "high", "xhigh", "max"),              
 # Claude, checked 2026-10-08 against https://platform.claude.com/docs/en/about-claude/pricing: input,
 # 5-minute cache write, cache read, output. Haiku 5.5 is priced by prompt length: a request whose
 # prompt (fresh, cache-written and cache-read input together) is over the limit pays the second card.
+# Fable 5.1 model ID, prices, structured output and max effort verified 2026-10-15:
+# https://platform.claude.com/docs/en/models/fable-5-1/overview
+# https://platform.claude.com/docs/en/about-claude/pricing
+# https://platform.claude.com/docs/en/build-with-claude/effort
 ANTHROPIC_PRICES = {
     "claude-opus-5-5": (4.00e-6, 5.00e-6, 0.20e-6, 20.00e-6),
     "claude-sonnet-5-5": (2.00e-6, 2.50e-6, 0.10e-6, 10.00e-6),
     "claude-haiku-5-5": (0.10e-6, 0.125e-6, 0.01e-6, 0.50e-6),
+    "claude-fable-5-1": (10.00e-6, 12.50e-6, 0.25e-6, 50.00e-6),
 }
 ANTHROPIC_LONG = {"claude-haiku-5-5": (100_000, (0.50e-6, 0.625e-6, 0.05e-6, 2.50e-6))}
 ANTHROPIC_SEARCH = 0.01               # per web search on any model; web fetch costs only its tokens
@@ -62,7 +67,7 @@ GEMINI_SEARCH = 0.014
 
 MODELS = {**dict.fromkeys(ANTHROPIC_PRICES, "anthropic"), **dict.fromkeys(OPENAI_PRICES, "openai"),
           **dict.fromkeys(GEMINI_PRICES, "google")}
-RESEARCH_MODELS = ("claude-opus-5-5", "claude-sonnet-5-5")
+RESEARCH_MODELS = ("claude-opus-5-5", "claude-sonnet-5-5", "claude-fable-5-1")
 # Haiku 5.5 has no dynamic web tools, and Google doesn't list Grounding with Google Search for Gemini
 # 3.1 Flash-Lite.
 SEARCH_MODELS = RESEARCH_MODELS + tuple(OPENAI_PRICES) + ("gemini-3.8-flash", "gemini-3.1-pro-preview")

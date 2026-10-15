@@ -7,12 +7,14 @@ import re
 from urllib.parse import urlsplit, urlunsplit
 
 from provider_utils import (JsonScript, candidates, confirm, fetch_document, kickoff, name,
-                            report, unavailable)
+                            observe, reject, report, unavailable)
 
 SCHEDULE_URL = "https://tv.apple.com/us/channel/mls/tvs.sbd.7000"
 ALIASES = {"orlando city": "orlando city sc", "atlanta united": "atlanta united fc",
            "minnesota united": "minnesota united fc", "houston dynamo": "houston dynamo fc",
-           "vancouver whitecaps fc": "vancouver whitecaps", "los angeles football club": "lafc"}
+           "vancouver whitecaps fc": "vancouver whitecaps", "los angeles football club": "lafc",
+           "red bull new york": "new york red bulls", "st. louis city sc": "st. louis city",
+           "st louis city sc": "st. louis city"}
 
 
 def club(value):
@@ -36,7 +38,7 @@ def parse_schedule(page):
         raise ValueError("Unexpected Apple storefront")
     listings = {}
     for shelf in data["shelves"]:
-        if not isinstance(shelf, dict) or shelf.get("$type") != "sportsCardLockup":
+        if not isinstance(shelf, dict) or shelf.get("$type") not in ("sportsCardLockup", "gameScheduleLockup"):
             continue
         for item in shelf.get("items", []):
             if not isinstance(item, dict) or item.get("$kind") != "SportingEventLockup":
@@ -81,8 +83,12 @@ def enrich(builder, matches, fetch):
     except (ValueError, UnicodeError, RecursionError, TypeError):
         unavailable(result, games)
         return result
+    # A carousel is a partial catalogue, even when all of its rendered cards parsed.
+    observe(result, listings, SCHEDULE_URL, complete=False)
     for match in games:
         found = [row for row in listings if row[:3] == (club(match.home.name), club(match.away.name), match.utc)]
         if len(found) == 1:
             confirm(builder, match, "Apple TV", "Apple TV", found[0][3], result)
+        elif len(found) > 1:
+            reject(result, "ambiguous_event", match=match)
     return result

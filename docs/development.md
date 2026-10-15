@@ -1,12 +1,12 @@
 # Development and maintenance
 
-Soccer Outlook is a static site. Python fetches fixtures and builds the page; JavaScript applies the visitor's preferences and updates live scores. Automatic AI ratings are optional and stored separately as `story.json`. Visitors can import personal AI recommendations through a browser-only copy-and-paste workflow. Authorized maintainers can publish those recommendations as shared defaults through GitHub's API, without an application server.
+Soccer Outlook is a static site. Python fetches fixtures and builds the page; JavaScript applies the visitor's preferences, updates live scores and polls the published schedule snapshot. Automatic AI ratings are optional and stored separately as `story.json`. Visitors can import personal AI recommendations through a browser-only copy-and-paste workflow. Authorized maintainers can publish those recommendations as shared defaults through GitHub's API, without an application server.
 
 For how the page works, see the [user guide](user-guide.md). For the ranking formula and default league order, see [scoring](scoring.md).
 
 ## Run it locally
 
-The schedule builder needs **Python 3.11 or newer**, `curl`, and network access to ESPN. It also requests public broadcaster schedules to verify usual coverage; an unavailable broadcaster source leaves that coverage unconfirmed. It uses Python's standard library; no API key or Python package installation is needed to build the schedule or run unit tests.
+The schedule builder needs **Python 3.11 or newer**, `curl`, and network access to ESPN. It also requests public broadcaster schedules to discover confirmed channels and missing simulcasts; an unavailable broadcaster source leaves that coverage unconfirmed. It uses Python's standard library; no API key or Python package installation is needed to build the schedule or run unit tests.
 
 From the repository root:
 
@@ -27,7 +27,9 @@ Useful build options:
 | `--facts work/facts.json` | Save the fixture and team data used by `story.py`. This does not call an AI model. |
 | `--metrics work/metrics.json` | Save all parsed schedule matches' scoring inputs, Outlook components and available outcomes for the durable history archive, regardless of filters. Unlike AI facts, this includes finished matches. |
 | `--warnings work/mapping-report.txt` | Save broadcast-mapping warnings; the file is empty when the report is clean. |
-| `--report work/build-report.json` | Save source-health and fixture counts used to decide whether the build can be published. |
+| `--report work/build-report.json` | Save fixture health, broadcaster coverage diagnostics and independent fixture comparisons. |
+| `--lightweight` | Refresh fixtures and broadcasts using compatible standings cached less than 30 hours ago; no AI generation. Run a full build first. |
+| `--previous-context PATH` | Read previous `schedule-context.json` for cached standings and bounded broadcast-evidence retention. Defaults to the output directory. |
 | `--site-url https://example.com/soccer/` | Set the public directory URL used by the canonical link, sharing metadata and sitemap. Defaults to the published Soccer Outlook URL. |
 | `--date YYYY-MM-DD` | Choose the Eastern date used to fetch fixtures, evaluate rights and date the public static schedules. The configured calendar range is exact, without the extra date before 4 a.m. It does not change the build timestamp or the browser's clock. |
 | `--days-back N --days-ahead N` | Change the dates fetched. Builds before 4 a.m. Eastern fetch one additional prior date unless `--date` is set. This does not change the browser's display window. |
@@ -43,7 +45,9 @@ For a browser preview at a chosen local time, append a fragment such as `#at-202
 | --- | --- |
 | [`build.py`](../build.py) | Fetch and interpret ESPN data, validate configuration, calculate the Outlook score and generate HTML. Also defines tracked leagues, their short descriptions, default selection and order, default services, and teams receiving an occasion-score bonus. |
 | [`discovery.py`](../discovery.py) | Generate public league and service schedule pages, their links, and search-discovery metadata. |
-| [`broadcast_listings.py`](../broadcast_listings.py) and the provider `*_listings.py` modules | Check public broadcaster schedules for usual coverage and Liga MX simulcasts, apply confirmed listings, and retain source/check results. |
+| [`broadcast_listings.py`](../broadcast_listings.py) and the provider `*_listings.py` modules | Discover supported US broadcast routes, merge confirmed channels, retain per-channel evidence and record every source check. |
+| [`schedule_data.py`](../schedule_data.py) and [`web/schedule.js`](../web/schedule.js) | Publish versioned schedule snapshots, reuse public standings, and safely refresh an open page. |
+| [`fixture_comparison.py`](../fixture_comparison.py) | Compare Liga MX fixtures with a second source and report omissions/time conflicts without changing availability. |
 | [`watch_links.py`](../watch_links.py) | Validate broadcaster and manually supplied viewing URLs, then map them to eligible providers. |
 | [`watch-links.toml`](../watch-links.toml) | Manually supplied YouTube TV watch URLs, keyed by ESPN fixture ID and matched to a confirmed channel. |
 | [`rights.toml`](../rights.toml) | Broadcaster aliases, services, simulcasts and each competition's usual coverage, with sources and check dates. |
@@ -77,7 +81,7 @@ Team links embed the schedule's existing team facts and open an accessible modal
 
 Each request has an eight-second timeout. Failures leave the schedule snapshot available, with a retry button. Successful profiles are stored under `soccer-team-vitals-v1` for six hours, limited to 30 entries; storage failures fall back to memory. Partial results are not persisted. Requests omit credentials and referrers, and only happen on opening a sheet; there is no build-time profile crawl or AI dependency. Browser tests cover card roles, touch/keyboard dismissal, record separation, failures, stale responses, cache expiry and blocked storage.
 
-Deployment consists of `index.html`, `favicon.png`, `sitemap.xml`, the `premier-league/`, `mls/` and `paramount-plus/` schedule pages, optional `shared-ai.json` and `story.json`, an optional IndexNow key file and a `.nojekyll` file; there is no application server or JavaScript bundler. Generated files in `site/` and test artifacts in `work/` are ignored by Git.
+Deployment consists of `index.html`, `favicon.png`, `sitemap.xml`, `schedule.json`, `coverage.json`, `schedule-context.json`, the `premier-league/`, `mls/` and `paramount-plus/` schedule pages, optional `shared-ai.json` and `story.json`, an optional IndexNow key file and a `.nojekyll` file; there is no application server or JavaScript bundler. Generated files in `site/` and test artifacts in `work/` are ignored by Git.
 
 Full pages allow search indexing and include a descriptive title, summary, canonical URL and sharing metadata in the document head. Each build writes three focused league/service schedules and a sitemap listing the homepage and those pages, dated with the schedule rebuild time. These public schedules use Eastern time and do not apply personal browser filters. Fragment builds leave search metadata and discovery files to the host. The workflows use the repository's GitHub Pages URL by default; for a custom domain, set the repository Actions variable `SITE_URL` to its public directory URL. This keeps generation and IndexNow submission aligned. Use `--site-url` for other public deployments so their canonical links point to the correct site.
 
@@ -105,6 +109,8 @@ python3 -m venv .venv
 .venv/bin/python -m playwright install chromium webkit
 .venv/bin/python -m tests.browser
 .venv/bin/python -m tests.browser --browser webkit --smoke
+.venv/bin/python -m tests.browser_schedule
+.venv/bin/python -m tests.browser_schedule --browser webkit
 ```
 
 On Linux, missing system libraries can be installed with `.venv/bin/python -m playwright install --with-deps chromium webkit`. This may require administrator access. The harness uses Playwright's Chromium by default; set `BROWSER_EXECUTABLE` to an existing compatible browser executable only when you intend to override it.
@@ -173,7 +179,7 @@ That connection is **not implemented**. The current GitHub Pages deployment cann
 
 ## Configure published AI ratings and text
 
-The current [`settings.toml`](../settings.toml) configuration enables the **ratings** design with `gpt-6.1-sol` at `low` effort. It requests scores without web research. The optional automatically generated overview and card blurbs are disabled; manual personal or shared responses can still supply prose.
+The current [`settings.toml`](../settings.toml) configuration enables the **full** design with `claude-fable-5-1` at `max` effort. It researches daily headlines and match blurbs and generates ratings. Scheduled full builds reuse a compatible same-day result; lightweight schedule refreshes never invoke AI. Set the repository secret `ANTHROPIC_API_KEY` for generation. Manual personal or shared responses can still take precedence.
 
 The `[ai]` table controls this behavior:
 
@@ -181,7 +187,7 @@ The `[ai]` table controls this behavior:
 | --- | --- |
 | `enabled = false` | Disable site-generated AI calls and prevent the browser from requesting `story.json`. Personal imports and shared defaults remain available; otherwise picks use the Outlook score and league priority. |
 | `design = "ratings"` | Rate upcoming fixtures within the display window. Optionally add separately researched overview text or card blurbs. |
-| `design = "full"` | Ask Claude for an authored headline with fixture references, researched league context, ratings and match blurbs. Requires a supported Claude Sonnet or Opus model. |
+| `design = "full"` | Ask Claude for an authored headline with fixture references, researched league context, ratings and match blurbs. Requires a supported Claude research model, including Fable 5.1. |
 | `model`, `effort` | Choose the main model and its reasoning effort. |
 | `overview_model`, `overview_effort` | In the ratings design, generate a researched paragraph in `story.json`'s `overview` field. This legacy output contains no authored headline and is not used in the homepage headline area. Leave both out to disable generation. |
 | `blurbs_model`, `blurbs_effort` | In the ratings design, research blurbs for six leading fixtures using the default league order. Individual visitors' filtered picks can include other matches without blurbs. Leave both out to disable this step. |
@@ -247,7 +253,7 @@ Before rendering, the builder checks the public schedules behind every configure
 
 Adapters require match-specific evidence: competition, both teams, a dated kickoff or narrowly matched live-broadcast start, and an explicit channel or service. Replays and general league rights do not confirm a live listing. Some providers start their broadcast a few minutes before the match; this never changes ESPN's kickoff time. Existing ESPN listings are preserved; a verified TUDN simulcast can add viewing options. The TUDN check also covers recent results, and never changes ESPN's score, kickoff or match status. Missing, conflicting, changed-format or unreachable supplemental data leaves the usual coverage intact, with a source link and explanation in Details. A provider failure does not make the ESPN fixture feed unusable.
 
-`build-report.json` records `broadcast_checks` by provider or usual channel, including request, confirmation and failure counts and per-match source URLs/status. Confirmed source URLs are also included in the match facts supplied to optional AI generation. Check those records before changing an adapter: an empty or unavailable provider page must not be treated as a confirmed listing. Parser tests use small recorded or synthetic responses and make no live requests.
+`build-report.json` records `broadcast_checks` by provider, including every per-match outcome, source URLs, requested/observed date ranges, parsed counts and rejection reasons. `broadcast_health` summarizes those checks separately from ESPN request success, and `fixture_comparison` records independent Liga MX discrepancies. The public `coverage.json` exposes these summaries. See [Schedule data and coverage](schedule-data.md) for source limits and retention rules. Confirmed source URLs are also included in the match facts supplied to optional AI generation. Check those records before changing an adapter: an empty or unavailable provider page must not be treated as a confirmed listing. Parser tests use small recorded or synthetic responses and make no live requests.
 
 Viewing links use these existing verified URLs without additional network requests. `watch_links.py` requires an appropriate confirmed outlet, source name and allowlisted HTTPS match-page path. It excludes generic sports hubs and boxscores from exact-match links. `service_links(match, channel)` maps each eligible provider to a destination for that exact network; the builder embeds the network-to-provider maps in the row's `data-watch` attribute. Network pills are native `details` disclosures, enhanced with floating hover/tap panels. Each panel lists selected providers in preference order and offers native links only for verified, listed coverage. Static markup and the browser use the same map, and featured cards clone the network disclosures. A supported ESPN player can serve a compatible YouTube TV plan; its link title names ESPN, and the viewer may need to link their accounts. Providers without a supported destination remain plain labels.
 
@@ -259,7 +265,9 @@ Viewing links do not change match availability, scores or live status. They do n
 
 [`Refresh outlook`](../.github/workflows/refresh.yml) runs at **09:50, 16:50 and 22:50 UTC** each day. That is 5:50 a.m., 12:50 p.m. and 6:50 p.m. during Eastern daylight time, or 4:50 a.m., 11:50 a.m. and 5:50 p.m. during standard time. The morning run stays after the 4 a.m. day boundary in both seasons. GitHub can delay scheduled runs.
 
-The workflow also runs on relevant changes to `main`, and can be started from **Actions → Refresh outlook → Run workflow**. Its manual `storylines` choice selects `refresh`, `full` or `keep`; the configured AI design still applies. Documentation-only changes do not trigger this workflow.
+The separate [`Refresh schedule`](../.github/workflows/schedule.yml) workflow runs at minutes 17 and 47 each hour. It reuses published standings less than 30 hours old, refreshes fixtures and broadcasts, archives observations and republishes the site. It preserves existing AI files and never calls an AI provider. Missing/incompatible context or incomplete ESPN responses leave the existing site in place. Both workflows share a publication lock. Open pages poll `schedule.json` every five minutes; malformed, older, incomplete or incompatible snapshots are rejected.
+
+The full workflow also runs on relevant changes to `main`, and can be started from **Actions → Refresh outlook → Run workflow**. Its manual `storylines` choice selects `refresh`, `full` or `keep`; the configured AI design still applies. Documentation-only changes do not trigger this workflow.
 
 Each run:
 
@@ -315,7 +323,7 @@ After publication, [the mapping script](../.github/scripts/mapping-issue.sh) mai
 | Symptom | What to check |
 | --- | --- |
 | Local build cannot fetch fixtures | Confirm that `curl` can reach ESPN from this machine. Unit and browser tests can still run without ESPN access, but they cannot produce a current real schedule. |
-| No AI prose | Check **Settings → AI → Show AI headlines and match blurbs**, then response expiry, filters and headline interest. A response can legitimately have no headlines or blurbs. Automatic prose generation is off by default; when enabled, check its provider key and generation log. |
+| No AI prose | Check **Settings → AI → Show AI headlines and match blurbs**, then response expiry, filters and headline interest. A response can legitimately have no headlines or blurbs. Automatic prose generation is enabled in the current configuration; check the Anthropic key and generation log. The browser display switch remains off until the visitor enables it. |
 | No AI ratings | Check `[ai] enabled`, the correct provider secret, whether generation returned ratings, and the result's freshness. Picks still use the Outlook score. |
 | A local `story.py` run does nothing | Its default mode is `keep`. Use `daily` or another generation mode, and supply `--previous` if reuse is wanted. |
 | A card has no blurb | A personal or shared response may not cover this fixture, may have expired, or may leave its blurb empty. Automatic text may be disabled, the match may not be one of the six researched candidates, or its text may have failed validation. Cards show match facts in its place. |

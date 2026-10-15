@@ -41,15 +41,17 @@ class FOXListings(unittest.TestCase):
         fetch = Mock(return_value=SAMPLE)
         report = fox_listings.enrich(build, [game], fetch)
         self.assertEqual({key: report[key] for key in ("requested", "confirmed", "unmatched", "failed")},
-                         {"requested": 1, "confirmed": 1, "unmatched": 0, "failed": 0})
-        fetch.assert_called_once_with("https://www.foxsports.com/soccer/liga-mx/scores?date=2026-10-10")
+                         {"requested": 2, "confirmed": 1, "unmatched": 0, "failed": 1})
+        self.assertEqual([call.args[0] for call in fetch.call_args_list],
+                         [fox_listings.SCORES_URL.format(day="2026-10-10"), fox_listings.TV_URL])
         self.assertEqual([outlet.label for outlet in game.outlets], ["FS2"])
         self.assertIsNone(game.rule)
         self.assertEqual(game.hint, "")
         self.assertEqual(game.broadcast_source, "FOX Sports")
         self.assertEqual(game.broadcast_url,
                          "https://www.foxsports.com/soccer/liga-mx-fc-juarez-vs-tijuana-oct-10-2026-game-boxscore-878141")
-        self.assertEqual(report["per_match"][game.id], {"status": "confirmed", "url": game.broadcast_url})
+        self.assertEqual(report["per_match"][game.id]["status"], "confirmed")
+        self.assertEqual(report["per_match"][game.id]["url"], game.broadcast_url)
         self.assertEqual(build.evaluate(game.outlets, game.rule, {"foxone"}), ("foxone", "listed", "FS2"))
         self.assertEqual(build.evaluate(game.outlets, game.rule, {"fs2"}), ("fs2", "listed", "FS2"))
         self.assertEqual(build.evaluate(game.outlets, game.rule, {"fubo"}), ("fubo", "listed", "FS2"))
@@ -68,8 +70,8 @@ class FOXListings(unittest.TestCase):
                 self.assertEqual(report["confirmed"], 0)
                 self.assertEqual(game.outlets, [])
                 self.assertEqual(game.rule.label, "FOX Sports networks")
-                self.assertEqual(report["per_match"][game.id],
-                                 {"status": "unlisted", "url": fox_listings.SCORES_URL.format(day="2026-10-10")})
+                self.assertEqual(report["per_match"][game.id]["status"], "unavailable")
+                self.assertEqual(report["per_match"][game.id]["reason"], "no_verified_us_channels")
 
     def test_both_clubs_home_assignment_and_exact_aware_time_must_agree(self):
         cases = [
@@ -120,18 +122,23 @@ class FOXListings(unittest.TestCase):
                 table[entity["webUrl"]] = url
                 self.assertEqual(fox_listings.enrich(build, [match()], lambda _: page(table))["confirmed"], 0)
 
-    def test_no_fetch_for_espn_listed_or_ineligible_matches(self):
-        games = [
-            match(outlets=[build.map_outlet("FS1", "mex.1")]),
-            match(league="eng.1"), match(rule=None), match(rule=build.map_outlet("ViX", "mex.1")),
-            match(time_valid=False), match(state="post"), match(status="Postponed"),
-            match(utc=datetime(2026, 10, 10, 23)),
-        ]
+    def test_existing_listings_and_non_fox_rights_do_not_prevent_discovery(self):
+        for changes in ({"outlets": [build.map_outlet("FS1", "mex.1")]}, {"rule": None},
+                        {"rule": build.map_outlet("ViX", "mex.1")}):
+            game = match(**changes)
+            result = fox_listings.enrich(build, [game], lambda _: SAMPLE)
+            self.assertEqual(result["confirmed"], 1)
+            self.assertIn("FS2", [outlet.label for outlet in game.outlets])
+            if changes.get("outlets"):
+                self.assertIn("FS1", [outlet.label for outlet in game.outlets])
+
+    def test_ineligible_matches_do_not_request(self):
+        games = [match(league="eng.1"), match(time_valid=False), match(state="post"),
+                 match(status="Postponed"), match(utc=datetime(2026, 10, 10, 23))]
         fetch = Mock(return_value=SAMPLE)
-        self.assertEqual(fox_listings.enrich(build, games, fetch),
-                         {"requested": 0, "confirmed": 0, "unmatched": 0, "failed": 0, "per_match": {}})
+        result = fox_listings.enrich(build, games, fetch)
+        self.assertEqual(result["requested"], 0)
         fetch.assert_not_called()
-        self.assertEqual(games[0].outlets[0].label, "FS1")
 
     def test_fetch_once_per_needed_eastern_day_including_after_utc_midnight(self):
         games = [match(), match(utc=datetime(2026, 10, 11, 1, tzinfo=timezone.utc)),
@@ -139,9 +146,9 @@ class FOXListings(unittest.TestCase):
         fetch = Mock(return_value=SAMPLE)
         report = fox_listings.enrich(build, games, fetch)
         self.assertEqual([call.args[0] for call in fetch.call_args_list],
-                         [fox_listings.SCORES_URL.format(day="2026-10-10"),
+                         [fox_listings.SCORES_URL.format(day="2026-10-10"), fox_listings.TV_URL,
                           fox_listings.SCORES_URL.format(day="2026-10-11")])
-        self.assertEqual((report["requested"], report["confirmed"], report["unmatched"]), (2, 1, 2))
+        self.assertEqual((report["requested"], report["confirmed"], report["unmatched"]), (3, 1, 2))
 
     def test_unavailable_malformed_or_unbounded_source_preserves_original_listing(self):
         bad_pages = [None, b"unavailable", b"\xff", b"<![spam]>", page({}), page([None] * 20_001),
@@ -155,7 +162,8 @@ class FOXListings(unittest.TestCase):
                 self.assertEqual((report["confirmed"], report["failed"], report["unmatched"]), (0, 1, 1))
                 self.assertEqual((game.rule, game.hint, game.service, game.basis, game.outlet), original)
                 self.assertEqual(report["per_match"][game.id],
-                                 {"status": "unavailable", "url": fox_listings.SCORES_URL.format(day="2026-10-10")})
+                                 {"status": "unavailable", "url": fox_listings.SCORES_URL.format(day="2026-10-10"),
+                                  "reason": "scoreboard_unavailable"})
         report = fox_listings.enrich(build, [match()], Mock(side_effect=OSError("offline")))
         self.assertEqual(report["failed"], 1)
 

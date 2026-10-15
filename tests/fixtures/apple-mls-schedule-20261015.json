@@ -1,0 +1,116 @@
+{
+  "_provenance": {
+    "source": "https://tv.apple.com/us/channel/mls/tvs.sbd.7000",
+    "captured": "2026-10-15",
+    "note": "Reduced public response; only catalogue identity, availability and link fields retained. No stream credentials."
+  },
+  "data": [
+    {
+      "intent": {
+        "id": "tvs.sbd.7000",
+        "storefront": "us",
+        "language": null,
+        "$kind": "ChannelPageIntent"
+      },
+      "data": {
+        "canonicalURL": "https://tv.apple.com/us/channel/mls/tvs.sbd.7000",
+        "shelves": [
+          {
+            "$type": "gameScheduleLockup",
+            "items": [
+              {
+                "$kind": "SportingEventLockup",
+                "id": "umc.cse.5j7ppm1wjhy3w38unn0cq3z02",
+                "ariaLabel": "FC Cincinnati vs. New England Revolution",
+                "broadcastState": "final",
+                "badge": {
+                  "$kind": "FinalBadge"
+                },
+                "contextAction": {
+                  "$kind": "ContextAction",
+                  "type": "SportingEvent",
+                  "url": "https://tv.apple.com/us/sporting-event/fc-cincinnati-vs-new-england-revolution/umc.cse.5j7ppm1wjhy3w38unn0cq3z02?ctx_brand=tvs.sbd.7000%2Ctvs.sbd.4000"
+                }
+              },
+              {
+                "$kind": "SportingEventLockup",
+                "id": "umc.cse.4dfui64tyja0r78j3w7hujtme",
+                "ariaLabel": "Philadelphia Union vs. Charlotte FC",
+                "broadcastState": "upcoming",
+                "badge": {
+                  "$kind": "FormattedDatetime",
+                  "isoDatetime": "2026-10-17T18:30:00.000Z"
+                },
+                "contextAction": {
+                  "$kind": "ContextAction",
+                  "type": "SportingEvent",
+                  "url": "https://tv.apple.com/us/sporting-event/philadelphia-union-vs-charlotte-fc/umc.cse.4dfui64tyja0r78j3w7hujtme?ctx_brand=tvs.sbd.7000%2Ctvs.sbd.4000"
+                }
+              },
+              {
+                "$kind": "SportingEventLockup",
+                "id": "umc.cse.26wfz4mebu333pmo51kwft8ly",
+                "ariaLabel": "Minnesota United vs. St. Louis CITY SC",
+                "broadcastState": "upcoming",
+                "badge": {
+                  "$kind": "FormattedDatetime",
+                  "isoDatetime": "2026-10-17T20:30:00.000Z"
+                },
+                "contextAction": {
+                  "$kind": "ContextAction",
+                  "type": "SportingEvent",
+                  "url": "https://tv.apple.com/us/sporting-event/minnesota-united-vs-st-louis-city-sc/umc.cse.26wfz4mebu333pmo51kwft8ly?ctx_brand=tvs.sbd.7000%2Ctvs.sbd.4000"
+                }
+              },
+              {
+                "$kind": "SportingEventLockup",
+                "id": "umc.cse.4i2vpgvbdwl9wd6wakh84rfq8",
+                "ariaLabel": "New England Revolution vs. Chicago Fire FC",
+                "broadcastState": "upcoming",
+                "badge": {
+                  "$kind": "FormattedDatetime",
+                  "isoDatetime": "2026-10-17T23:30:00.000Z"
+                },
+                "contextAction": {
+                  "$kind": "ContextAction",
+                  "type": "SportingEvent",
+                  "url": "https://tv.apple.com/us/sporting-event/new-england-revolution-vs-chicago-fire-fc/umc.cse.4i2vpgvbdwl9wd6wakh84rfq8?ctx_brand=tvs.sbd.7000%2Ctvs.sbd.4000"
+                }
+              },
+              {
+                "$kind": "SportingEventLockup",
+                "id": "umc.cse.qvz0knomafnl6e8qcd81rjpr",
+                "ariaLabel": "Red Bull New York vs. Toronto FC",
+                "broadcastState": "upcoming",
+                "badge": {
+                  "$kind": "FormattedDatetime",
+                  "isoDatetime": "2026-10-17T23:30:00.000Z"
+                },
+                "contextAction": {
+                  "$kind": "ContextAction",
+                  "type": "SportingEvent",
+                  "url": "https://tv.apple.com/us/sporting-event/red-bull-new-york-vs-toronto-fc/umc.cse.qvz0knomafnl6e8qcd81rjpr?ctx_brand=tvs.sbd.7000%2Ctvs.sbd.4000"
+                }
+              },
+              {
+                "$kind": "SportingEventLockup",
+                "id": "umc.cse.6st2esd7w6gepmin7bqnr7nmm",
+                "ariaLabel": "Orlando City vs. D.C. United",
+                "broadcastState": "upcoming",
+                "badge": {
+                  "$kind": "FormattedDatetime",
+                  "isoDatetime": "2026-10-17T23:30:00.000Z"
+                },
+                "contextAction": {
+                  "$kind": "ContextAction",
+                  "type": "SportingEvent",
+                  "url": "https://tv.apple.com/us/sporting-event/orlando-city-vs-dc-united/umc.cse.6st2esd7w6gepmin7bqnr7nmm?ctx_brand=tvs.sbd.7000%2Ctvs.sbd.4000"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

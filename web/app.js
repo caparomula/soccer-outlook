@@ -40,8 +40,10 @@
   var TITLES = { live: 'Live now', today: 'Today', tomorrow: 'Tomorrow', earlier: 'Earlier today', yesterday: 'Yesterday' };
   var FOLDED = { earlier: true, yesterday: true };
 
-  rows.forEach(function (r) {
-    r._card = new MatchCard(r);
+  function initializeRow(r, card) {
+    r._card = card || new MatchCard(r);
+    r._card.row = r;
+    r._card.newsSignature = '';
     r._k = Date.parse(r.getAttribute('data-utc'));
     r._tv = r.getAttribute('data-tv') === '1';
     r._svc = r.getAttribute('data-svc');
@@ -55,7 +57,8 @@
     try { r._r = r.hasAttribute('data-r') ? JSON.parse(r.getAttribute('data-r')) : null; } catch (e) { r._r = null; }
     try { r._watch = JSON.parse(r.getAttribute('data-watch') || '{}'); } catch (e) { r._watch = {}; }
     try { r._facts = JSON.parse(r.getAttribute('data-ai-facts') || '{}'); } catch (e) { r._facts = {}; }
-  });
+  }
+  rows.forEach(function (r) { initializeRow(r); });
 
   function read(key) { try { var v = localStorage.getItem(key); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
   function write(key, v) { try { localStorage.setItem(key, JSON.stringify(v)); } catch (e) {} }
@@ -1690,10 +1693,10 @@
 
   // ---- freshness -----------------------------------------------------------------------------
   function checkStale() {
-    var built = Date.parse(app.getAttribute('data-built'));
+    var built = Date.parse(app.getAttribute('data-schedule-built') || app.getAttribute('data-built'));
     var age = (Date.now() - built) / 3600000;
     var el = document.getElementById('stale');
-    if (age > 30) { el.textContent = 'This page was last rebuilt ' + Math.round(age) + ' hours ago; the daily refresh may have failed, so fixtures and channels could have moved.'; el.hidden = false; }
+    if (age > 30) { el.textContent = 'This schedule was last updated ' + Math.round(age) + ' hours ago; fixtures and channels could have moved.'; el.hidden = false; }
     else el.hidden = true;
   }
 
@@ -2064,6 +2067,7 @@
       return played && /^\d{1,3}$/.test(String(v)) ? String(v) : '';
     });
     r._seen = Date.now();
+    r._liveEvent = ev;
     if (state !== r._state) {
       r._state = state; r.setAttribute('data-state', state); changed.state = true;
       closeNetwork();
@@ -2125,6 +2129,81 @@
     }
   });
 
+  // ---- lightweight fixture refresh ------------------------------------------------------------
+  // A complete server snapshot owns kickoff/broadcast facts. Keep the visitor's filters and AI
+  // responses in place, and retain a live score observed after the snapshot was collected.
+  function refreshCompetitionPills() {
+    var counts = {}, samples = {}, previous = {};
+    rows.forEach(function (row) { counts[row._lg] = (counts[row._lg] || 0) + 1; samples[row._lg] = row; });
+    filterPills.comp.forEach(function (pill) { previous[pill.dataset.key] = pill; if (!counts[pill.dataset.key]) pill.remove(); });
+    filterPills.comp = leagueOrder().filter(function (id) { return counts[id]; }).map(function (id) {
+      var pill = previous[id];
+      if (!pill) {
+        pill = document.createElement('button'); pill.type = 'button'; pill.className = 'fpill';
+        pill.dataset.kind = 'comp'; pill.dataset.key = id; pill.dataset.short = leagueNames[id].slice(0, 3).toUpperCase();
+        pill.dataset.defaultOff = DEFAULT_OFF[id] ? '1' : '0';
+        var grip = document.createElement('span'); grip.className = 'fpill__grip'; grip.setAttribute('aria-hidden', 'true'); grip.textContent = '⠿'; pill.appendChild(grip);
+        var icon = samples[id].querySelector('.row__league .lg');
+        if (icon) {
+          pill.appendChild(icon.cloneNode(true));
+          var key = Array.from(icon.classList).find(function (name) { return /^l-[A-Za-z0-9_-]+$/.test(name); });
+          if (key) { SERVICES.league_icons = SERVICES.league_icons || {}; SERVICES.league_icons[id] = key.slice(2); }
+        }
+        pill.appendChild(document.createTextNode(leagueNames[id]));
+        var number = document.createElement('span'); number.className = 'fpill__n'; pill.appendChild(number);
+      }
+      pill.querySelector('.fpill__n').textContent = counts[id];
+      return pill;
+    });
+    ['comp-enabled', 'comp-disabled'].forEach(function (id) { document.getElementById(id).removeAttribute('data-order'); });
+    stripList.removeAttribute('data-order');
+    applyFilterUI();
+    applyCompChoices();
+  }
+  function applySchedule(snapshot) {
+    // A pointer drag owns its pill until it ends. Retry this snapshot on the next poll.
+    if (filterDrag) throw new Error('Filter reorder in progress');
+    keepPlace(function () {
+      keepFocus(function () {
+        closeNetwork();
+        var oldRows = rows, oldById = ROW_BY_ID, nextById = Object.create(null);
+        snapshot.rows.forEach(function (row) {
+          var old = oldById[row.dataset.id];
+          initializeRow(row, old && old._card);
+          if (old && old._liveEvent && old._seen > snapshot.generatedAt && old._lg === row._lg &&
+              old.dataset.home === row.dataset.home && old.dataset.away === row.dataset.away) {
+            applyEvent(row, old._liveEvent, true, {}); row._seen = old._seen;
+          }
+          nextById[row.dataset.id] = row;
+        });
+        rows = snapshot.rows; ROW_BY_ID = nextById;
+        if (dialogState && !nextById[dialogState.card.row.dataset.id]) detailDialog.close();
+        if (previewState && !nextById[previewState.card.row.dataset.id]) hideDetailPreview();
+        oldRows.forEach(function (row) { row.remove(); });
+        var logos = document.getElementById('schedule-logos');
+        if (!logos) { logos = document.createElement('style'); logos.id = 'schedule-logos'; document.head.appendChild(logos); }
+        logos.textContent = snapshot.logoCss;
+        app.setAttribute('data-schedule-built', snapshot.generated); app.setAttribute('data-incomplete', '0');
+        refreshCompetitionPills(); evaluateAll(); draw(true); refreshDetailPreview(); checkStale();
+      });
+    });
+  }
+  function scheduleNote(state) {
+    var note = document.getElementById('schedule-note');
+    if (!note) {
+      note = document.createElement('p'); note.id = 'schedule-note'; note.className = 'fresh';
+      document.getElementById('livenote').before(note);
+    }
+    var updated = splitTime(new Date(state.updatedAt));
+    note.textContent = state.reason === 'New page version' ? 'A newer page version is available. Reload to receive schedule updates.' :
+      'Fixtures and channels last updated at ' + updated.t + ' ' + updated.ap + '. ' +
+      (state.fails ? 'The latest refresh did not get through; the saved schedule remains available.' : 'This page checks for updates every five minutes.');
+  }
+  var scheduleUpdates = window.SoccerOutlookSchedule && window.SoccerOutlookSchedule.create({
+    revision: app.getAttribute('data-runtime-revision'), builtAt: app.getAttribute('data-schedule-built') || app.getAttribute('data-built'),
+    leagues: SERVICES.leagues, services: SERVICES.order, apply: applySchedule, completed: scheduleNote
+  });
+
   // The manual workflow and a future connected provider use the same match-scoped prompt.
   // Only selected viewing routes enter the prompt; AI output never writes fixture facts.
   function personalLookup(id) {
@@ -2140,7 +2219,7 @@
   function personalSnapshot() {
     var now = nowMs();
     return {
-      now: new Date(now).toISOString(), built_at: app.getAttribute('data-built'), timezone: tz || 'local time',
+      now: new Date(now).toISOString(), built_at: app.getAttribute('data-schedule-built') || app.getAttribute('data-built'), timezone: tz || 'local time',
       league_order: leagueOrder().filter(personalLeagueEligible).map(function (id) {
         return { id: id, name: leagueNames[id] || id };
       }),
@@ -2176,7 +2255,8 @@
   loadShared();
   window.addEventListener('hashchange', function () { render(true); checkStory(); });
   setTimeout(liveScores.poll, 0);
+  if (scheduleUpdates) { setTimeout(scheduleUpdates.poll, 0); setInterval(scheduleUpdates.poll, scheduleUpdates.everyMs); }
   setInterval(function () { render(false); checkStale(); checkStory(); }, 60000);
   setInterval(liveScores.poll, liveScores.everyMs);
-  document.addEventListener('visibilitychange', function () { if (!document.hidden) { render(false); checkStale(); checkStory(); liveScores.poll(); } });
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) { render(false); checkStale(); checkStory(); liveScores.poll(); if (scheduleUpdates) scheduleUpdates.poll(); } });
 })();

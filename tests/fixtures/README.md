@@ -19,9 +19,20 @@ These reduced samples were captured on 10 October 2026. They preserve the event 
 - `fandango-bundesliga.xml`: Fandango's public Bundesliga catalogue, including its live-match event rows. It contains no anonymous session token.
 - `bein-catalogue.html` and `bein-event.html`: beIN Sports Connect's upcoming-event links and Benfica–Vitória event page, including the broadcast start with its UTC offset.
 
-Paramount+ tests construct small responses following its observed US live/upcoming catalogue structure. Synthetic variants across the tests exercise wrong teams, times, countries, replay types, duplicate listings and unavailable sources.
+Paramount+ tests combine a reduced current live response with synthetic responses following its observed US live/upcoming catalogue structure. Synthetic variants across the tests exercise wrong teams, times, countries, replay types, duplicate listings and unavailable sources.
 
 The TUDN samples were captured on 12 October 2026. They retain reduced public Next.js component data, without player credentials or stream URLs:
 
 - `tudn-results.html`: [TUDN's US Liga MX results](https://www.tudn.com/futbol/liga-mx/resultados), retaining the América–Monterrey and Querétaro–Atlante identities, dates and match-page links from the Apertura catalogue (`competitionKey: "199"`).
 - `tudn-match.html`: [América–Monterrey's match page](https://www.tudn.com/futbol/liga-mx/america-vs-monterrey-liga-mx-ap-2026-10-10), retaining the exact kickoff, event ID, US scope and authenticated live-event channel metadata for TUDN and Univision. This confirms that specific simulcast; it does not imply that every ViX fixture airs on those channels.
+
+`fox-fixtures-20261016.html` was captured on 15 October 2026 from [FOX's dated Liga MX scoreboard](https://www.foxsports.com/soccer/liga-mx/scores?date=2026-10-16). It preserves the selected date/segment and three upcoming fixture identities, including FOX event/team IDs and kickoff times. The Nuxt reference table was reduced and reindexed without changing those values; broadcast fields, advertising and unrelated cards were removed. Fixture-comparison tests use this sample only to check schedule identity and time, never to establish a US viewing entitlement.
+
+The October 15 repairs add these reduced real-response samples:
+
+- `apple-mls-schedule-20261015.json`: the current MLS `gameScheduleLockup` shelf.
+- `paramount-live-20261015.json`: live soccer entries with separate event URLs and generic show links.
+- `vix-future-20261015.json`: a US premium future event whose player link is not active yet.
+- `espn-watch-20261017.html`: source-linked Eastern-date Watch schedule, with pregame starts and Spanish simulcasts.
+
+The JSON captures include source/date provenance. [Liga MX discovery captures](ligamx-discovery.md) describes the additional TUDN and FOX fixtures. These preserve public schedule facts, not subscriber credentials or playback tokens.

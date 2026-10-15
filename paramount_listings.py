@@ -1,4 +1,4 @@
-"""Verify usual Paramount+ coverage against its public US live-event listings.
+"""Discover Paramount+ coverage in its public US live-event listings.
 
 The sports page's own carousel endpoint supplies event-local teams and times. A true
 game kickoff must agree exactly. Where Paramount supplies only live broadcast airtime,
@@ -11,6 +11,9 @@ import json
 import re
 import unicodedata
 from zoneinfo import ZoneInfo
+
+from provider_utils import (confirm, fetch_document, observe, reject,
+                            report as source_report, unavailable)
 
 
 SCHEDULE_URL = "https://www.paramountplus.com/sports/"
@@ -36,6 +39,11 @@ LEAGUE_SLUGS = {
 # navigation or live catalogue, and /shows/coppa-italia/ returns 404. Do not invent
 # a competition slug or treat this missing mapping as proof of no broadcast.
 UNVERIFIED_LEAGUES = {"ita.coppa_italia"}
+# Explicit differences between titles and gameData in the 15 October US catalogue.
+# Never remove arbitrary club prefixes or use substring matching to infer identity.
+NAME_ALIASES = {"afc bournemouth": "bournemouth", "sk sturm graz": "sturm graz",
+                "celta de vigo": "celta vigo", "olympique marseille": "marseille",
+                "olympiakos piraeus": "olympiacos", "jagiellonia białystok": "jagiellonia bialystok"}
 
 
 @dataclass(frozen=True)
@@ -55,7 +63,8 @@ def _text(value):
 def _name(value):
     value = unicodedata.normalize("NFKD", value).casefold()
     # A period is typographic punctuation in names such as St. Johnstone.
-    return " ".join("".join(c for c in value if not unicodedata.combining(c) and c != ".").split())
+    folded = " ".join("".join(c for c in value if not unicodedata.combining(c) and c != ".").split())
+    return NAME_ALIASES.get(folded, folded)
 
 
 def _iso_time(value):
@@ -95,6 +104,15 @@ def is_us_page(page):
         r"\bproperty\s*:\s*(['\"])US\1\s*,",
         r"\binternational\s*:\s*false\s*(?:,|$)",
     ))
+
+
+def _event_url(item, slug):
+    """Validate the observed live route independently of a generic sign-up href."""
+    identity = _text(item.get("content_id"))
+    if not re.fullmatch(r"[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}", identity):
+        return ""
+    path = "/live-tv/stream/" + slug + "/" + identity
+    return "https://www.paramountplus.com" + path if item.get("url") == path else ""
 
 
 def parse_schedule(page):
@@ -153,9 +171,14 @@ def parse_schedule(page):
         if kickoff is None:
             continue
         expected_href = "/shows/" + slug
-        valid = valid and _text(item.get("href")).rstrip("/") == expected_href
+        event_url = _event_url(item, slug)
+        href = _text(item.get("href"))
+        # Live catalogue cards use '/' as their logged-out sign-up target. Their
+        # separately published event route still identifies the actual airing.
+        valid = valid and (href.rstrip("/") == expected_href or
+                           (href == "/" and bool(event_url)))
         listings.append(Listing(home, away, kickoff, slug, has_kickoff,
-                                SCHEDULE_URL if valid else ""))
+                                (event_url or SCHEDULE_URL) if valid else ""))
     return listings, len(items), total
 
 
@@ -170,39 +193,37 @@ def _matches(listing, match):
 
 
 def enrich(builder, matches, fetch):
-    """Check every eligible usual Paramount+ match; preserve uncertainty on any source error."""
+    """Check supported competitions, including possible missing simulcasts."""
     candidates = [match for match in matches if (
-        not match.outlets and match.rule and match.rule.label == "Paramount+" and
+        (match.league in LEAGUE_SLUGS or (match.rule and match.rule.label == "Paramount+")) and
         match.time_valid and match.state in ("pre", "in") and
         match.status.lower() not in builder.VOID_STATUSES and match.utc.utcoffset() is not None)]
-    report = {"requested": 0, "confirmed": 0, "unmatched": 0, "failed": 0, "per_match": {}}
+    report = source_report(candidates, SCHEDULE_URL)
     if not candidates:
         return report
 
     def request(url):
-        report["requested"] += 1
-        return fetch(url)
+        return fetch_document(fetch, url, report)
 
     try:
         if not is_us_page(request(SCHEDULE_URL)):
             raise ValueError("Paramount+ page is not the public US catalogue")
         listings, offset, expected_total = [], 0, None
         while True:
-            page_listings, count, total = parse_schedule(request(EVENTS_URL.format(offset=offset)))
+            page_url = EVENTS_URL.format(offset=offset)
+            page_listings, count, total = parse_schedule(request(page_url))
             if expected_total is not None and total != expected_total:
                 raise ValueError("Paramount+ schedule changed during pagination")
             expected_total = total
             listings.extend(page_listings)
             offset += count
+            observe(report, page_listings, page_url, complete=offset == total)
             if offset == total:
                 break
             if not count or offset > total:
                 raise ValueError("Paramount+ schedule pagination is incomplete")
     except Exception:
-        report["failed"] += 1
-        report["unmatched"] = len(candidates)
-        report["per_match"] = {match.id: {"status": "unavailable", "url": SCHEDULE_URL}
-                               for match in candidates}
+        unavailable(report, candidates)
         return report
 
     for match in candidates:
@@ -211,26 +232,17 @@ def enrich(builder, matches, fetch):
             listing.slug == LEAGUE_SLUGS.get(match.league) and
             (listing.home, listing.away) == (_name(match.home.name), _name(match.away.name)) and
             listing.utc.astimezone(ET).date() == match.utc.astimezone(ET).date())]
-        report["per_match"][match.id] = {"status": "unlisted", "url": SCHEDULE_URL}
         if match.league not in LEAGUE_SLUGS:
             # An unmapped new competition must not be described as absent from the source.
             report["per_match"][match.id]["status"] = "unavailable"
-            report["unmatched"] += 1
+            reject(report, "unsupported_competition", match=match)
             continue
         if len(found) != 1 or not found[0].url or not _matches(found[0], match):
-            report["unmatched"] += 1
+            if found:
+                reason = "ambiguous_event" if len(found) != 1 else (
+                    "invalid_event" if not found[0].url else "kickoff_mismatch")
+                reject(report, reason, match=match)
             continue
         listing = found[0]
-        outlet = builder.map_outlet("Paramount+", match.league)
-        if not outlet.known:
-            report["unmatched"] += 1
-            continue
-        match.outlets = [outlet]
-        match.rule = None
-        match.hint = ""
-        match.broadcast_source = "Paramount+"
-        match.broadcast_url = listing.url
-        match.service, match.basis, match.outlet = builder.evaluate(match.outlets, None, builder.OWNER)
-        report["confirmed"] += 1
-        report["per_match"][match.id] = {"status": "confirmed", "url": listing.url}
+        confirm(builder, match, "Paramount+", "Paramount+", listing.url, report)
     return report

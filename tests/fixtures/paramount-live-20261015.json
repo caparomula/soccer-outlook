@@ -1,0 +1,153 @@
+{
+  "_provenance": {
+    "source": "https://www.paramountplus.com/carousels/collections/live-and-upcoming/xhr/multichannel-events/offset/0/limit/100/?timezone=America%2FNew_York&title=Live-%26-Upcoming&sportsDataVariant=true",
+    "captured": "2026-10-15",
+    "note": "Reduced public response; only catalogue identity, availability and link fields retained. No stream credentials."
+  },
+  "success": true,
+  "result": {
+    "data": [
+      {
+        "url": "/live-tv/stream/uefa-europa-league/6ff1038f-947a-4128-8afb-eaaec5fc27cb",
+        "isLive": true,
+        "channelSlug": "uefa-europa-league",
+        "title": "Benfica vs. Celtic",
+        "startTimestamp": 1792090200000,
+        "streamStartTimestamp": 1792088400000,
+        "content_id": "6ff1038f-947a-4128-8afb-eaaec5fc27cb",
+        "status": "PREMIUM",
+        "href": "/",
+        "gameData": {
+          "scheduledTime": "2026-10-15T19:00:00.000Z",
+          "sportName": "SOCCER",
+          "homeTeam": {
+            "mediumName": "Benfica"
+          },
+          "awayTeam": {
+            "mediumName": "Celtic"
+          },
+          "score": {
+            "gameStatus": "IN_PROGRESS"
+          }
+        },
+        "gameStartTimestamp": 1792090800000,
+        "contentType": "event",
+        "streamType": "mpx_live",
+        "isUpcoming": false
+      },
+      {
+        "url": "/live-tv/stream/uefa-europa-league/1442cc4c-e12e-4c3f-9030-b2074f13b8c8",
+        "isLive": true,
+        "channelSlug": "uefa-europa-league",
+        "title": "AFC Bournemouth vs. Sturm Graz",
+        "startTimestamp": 1792090200000,
+        "streamStartTimestamp": 1792088400000,
+        "content_id": "1442cc4c-e12e-4c3f-9030-b2074f13b8c8",
+        "status": "PREMIUM",
+        "href": "/",
+        "gameData": {
+          "scheduledTime": "2026-10-15T19:00:00.000Z",
+          "sportName": "SOCCER",
+          "homeTeam": {
+            "mediumName": "Bournemouth"
+          },
+          "awayTeam": {
+            "mediumName": "SK Sturm Graz"
+          },
+          "score": {
+            "gameStatus": "IN_PROGRESS"
+          }
+        },
+        "gameStartTimestamp": 1792090800000,
+        "contentType": "event",
+        "streamType": "mpx_live",
+        "isUpcoming": false
+      },
+      {
+        "url": "/live-tv/stream/uefa-europa-league/fe1f4c62-8ebe-44ce-9fcd-39d1428fbd81",
+        "isLive": true,
+        "channelSlug": "uefa-europa-league",
+        "title": "Celta Vigo vs. Juventus",
+        "startTimestamp": 1792090200000,
+        "streamStartTimestamp": 1792088400000,
+        "content_id": "fe1f4c62-8ebe-44ce-9fcd-39d1428fbd81",
+        "status": "PREMIUM",
+        "href": "/",
+        "gameData": {
+          "scheduledTime": "2026-10-15T19:00:00.000Z",
+          "sportName": "SOCCER",
+          "homeTeam": {
+            "mediumName": "Celta de Vigo"
+          },
+          "awayTeam": {
+            "mediumName": "Juventus"
+          },
+          "score": {
+            "gameStatus": "IN_PROGRESS"
+          }
+        },
+        "gameStartTimestamp": 1792090800000,
+        "contentType": "event",
+        "streamType": "mpx_live",
+        "isUpcoming": false
+      },
+      {
+        "url": "/live-tv/stream/uefa-europa-league/3aa5804d-a423-48ee-85fe-53e7702bac2c",
+        "isLive": true,
+        "channelSlug": "uefa-europa-league",
+        "title": "Marseille vs. Olympiacos",
+        "startTimestamp": 1792090184000,
+        "streamStartTimestamp": 1792088400000,
+        "content_id": "3aa5804d-a423-48ee-85fe-53e7702bac2c",
+        "status": "PREMIUM",
+        "href": "/",
+        "gameData": {
+          "scheduledTime": "2026-10-15T19:00:00.000Z",
+          "sportName": "SOCCER",
+          "homeTeam": {
+            "mediumName": "Olympique Marseille"
+          },
+          "awayTeam": {
+            "mediumName": "Olympiakos Piraeus"
+          },
+          "score": {
+            "gameStatus": "IN_PROGRESS"
+          }
+        },
+        "gameStartTimestamp": 1792090800000,
+        "contentType": "event",
+        "streamType": "mpx_live",
+        "isUpcoming": false
+      },
+      {
+        "url": "/live-tv/stream/uefa-europa-league/3a4af911-da6f-4839-ae3d-6399287da16a",
+        "isLive": true,
+        "channelSlug": "uefa-europa-league",
+        "title": "Jagiellonia Białystok vs. Ararat-Armenia",
+        "startTimestamp": 1792090186000,
+        "streamStartTimestamp": 1792088400000,
+        "content_id": "3a4af911-da6f-4839-ae3d-6399287da16a",
+        "status": "PREMIUM",
+        "href": "/",
+        "gameData": {
+          "scheduledTime": "2026-10-15T19:00:00.000Z",
+          "sportName": "SOCCER",
+          "homeTeam": {
+            "mediumName": "Jagiellonia Bialystok"
+          },
+          "awayTeam": {
+            "mediumName": "Ararat-Armenia"
+          },
+          "score": {
+            "gameStatus": "IN_PROGRESS"
+          }
+        },
+        "gameStartTimestamp": 1792090800000,
+        "contentType": "event",
+        "streamType": "mpx_live",
+        "isUpcoming": false
+      }
+    ],
+    "total": 5
+  }
+}
