@@ -1447,15 +1447,15 @@
       name.replaceChildren(link);
     });
     // Without a blurb a card has room for what the Details panel holds: each team's season record and
-    // top scorer join its lines (CSS shows them under .match--facts), and the panel's links take the
-    // place beside its Details button, which still opens the rating breakdown. With a blurb, or in
+    // top scorer join its lines (CSS shows them under .match--facts), along with the panel's links.
+    // Its Details button still opens the rating breakdown. With a blurb, or in
     // a row, those facts stay in the panel.
     var detail = content.querySelector('.row__detail'), facts = !content.querySelector('.row__story');
     host.classList.toggle('match--facts', facts);
     if (facts) {
       var links = detail.querySelector('.detail__links'), more = content.querySelector('.pills .more');
       if (more && pickValue(r) === null) more.remove();
-      if (links) { links.className = 'match__links'; content.appendChild(links); }
+      if (links) { links.className = 'match__links'; content.querySelector('.row__info').appendChild(links); }
     }
     detail.remove();
     content.querySelectorAll('.network').forEach(function (network) { network.open = false; });
@@ -1970,7 +1970,7 @@
   function setGoals(r, parts) {
     var el = r.querySelector('.row__goals');
     if (!el) {
-      var before = r.querySelector('.row__body > .row__note, .row__body > .pills'); if (!before) return;
+      var before = r.querySelector('.row__info > .row__note, .row__info > .row__detail'); if (!before) return;
       el = document.createElement('div'); el.className = 'row__goals'; before.parentNode.insertBefore(el, before);
     }
     el.textContent = '';

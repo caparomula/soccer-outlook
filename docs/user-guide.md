@@ -173,7 +173,7 @@ Links open on the device you are using. Whether they launch an installed app dep
 
 League emblems identify competitions; badges beside team names identify the teams. Dark emblems and badges receive a contrast adjustment for the dark theme, while already bright images retain their colors.
 
-Match cards show only network pills beneath the match information. For example, **USA Network** can reveal **YouTube TV (main plan)** in its provider list. A service that is also the broadcaster, such as **Paramount+**, has just one pill. Changing your service preferences updates the pill colors, provider lists and viewing links.
+Network pills stack on the right when a match card has enough width. In narrower cards, they run along the bottom and wrap as needed. For example, **USA Network** can reveal **YouTube TV (main plan)** in its provider list. A service that is also the broadcaster, such as **Paramount+**, has just one pill. Changing your service preferences updates the pill colors, provider lists and viewing links.
 
 ### Match details
 

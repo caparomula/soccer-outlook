@@ -795,6 +795,21 @@ class BrowserChecks(unittest.TestCase):
                                       ('alternatives', ['USA Network', 'Peacock']), ('apple', ['Apple TV'])]:
                     for host in (page.locator(f'li.row[data-id="chips-{mid}"]'), page.locator(f'[data-match-id="chips-{mid}"]')):
                         expect(host.locator('.network summary')).to_have_text(channels)
+                        info, pills = host.locator('.row__info').bounding_box(), host.locator('.pills').bounding_box()
+                        wide = width == 1280 and host.get_attribute('data-match-role') != 'pick'
+                        if wide:
+                            self.assertGreaterEqual(pills['x'], info['x'] + info['width'])
+                            self.assertAlmostEqual(pills['y'], info['y'], delta=1)
+                        else:
+                            self.assertGreaterEqual(pills['y'], info['y'] + info['height'])
+                            self.assertAlmostEqual(pills['x'], info['x'], delta=1)
+                        if len(channels) == 2:
+                            first, second = (pill.bounding_box() for pill in host.locator('.network summary').all())
+                            if wide:
+                                self.assertGreaterEqual(second['y'], first['y'] + first['height'])
+                                self.assertAlmostEqual(first['x'] + first['width'], second['x'] + second['width'], delta=1)
+                            else:
+                                self.assertAlmostEqual(first['y'], second['y'], delta=1)
                         for network in host.locator('.network').all():
                             summary, panel = network.locator('summary'), network.locator('.network__providers')
                             summary.scroll_into_view_if_needed()
@@ -2149,7 +2164,7 @@ class BrowserChecks(unittest.TestCase):
                     lines = card.locator(".row__teams > .team, .row__teams > .vs").evaluate_all(
                         "els => els.map(e => { const r = e.getBoundingClientRect(); return [r.top, r.bottom]; })")
                     self.assertLess(max(top for top, _ in lines), min(bottom for _, bottom in lines))
-                # Networks share the match body, with no reserved provider column.
+                # Network placement adapts inside the shared match body.
                 expect(card.locator('.network summary')).to_have_text(['ESPN+'])
                 self.assertAlmostEqual(body['x'] + body['width'], box['x'] + box['width'] - (11 if width <= 600 else 17), delta=1)
                 if width <= 600:

@@ -1644,12 +1644,12 @@ def row_html(m, cache):
         (f' data-watch="{esc(json.dumps(destinations, ensure_ascii=False))}"' if destinations else "") +
         (f' data-r="{esc(rule_json)}"' if rule_json else "") + '>'
         f'<div class="row__time">{league_badge}<div class="row__kickoff">{time_html}<span class="row__et" hidden></span><span class="row__until" hidden></span><span class="row__live" hidden>Live</span>{status}</div></div>'
-        f'<div class="row__body">'
+        f'<div class="row__body"><div class="row__info">'
         f'<div class="row__teams">{team_html(m.home, cache, score_h)}<span class="vs">v</span>{team_html(m.away, cache, score_a)}</div>'
         f'<div class="row__meta">{"".join(meta)}</div>{goals_html(m)}{note}'
+        f'{detail_html(m, cache)}</div>'
         f'<div class="pills">{pills_html(m, destinations)}<button type="button" class="more" aria-haspopup="dialog" aria-controls="match-dialog" '
         f'aria-label="Details: {esc(m.home.name)} v {esc(m.away.name)}">Details</button></div>'
-        f'{detail_html(m, cache)}'
         f'</div>'
         f'</li>'
     )

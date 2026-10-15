@@ -1,5 +1,5 @@
 /* Layout: a broadcast rundown re-bucketed by the viewer's clock. Time rail left, match alongside,
-   and broadcast networks under the match. Providers live in each network disclosure. */
+   and networks to the right when the card has room, beneath otherwise. */
 :root {
   --bg: #f2f4ef; --card: #ffffff; --fg: #15201a; --muted: #5b6a61; --line: #d6dcd4; --line-strong: #b9c3ba;
   --accent: #15744a; --gold: #a87a00; --amber: #b86b12; --amber-soft: #fbead3; --warn-bg: #fff3e0; --win: #2e9e5b; --loss: #c84b3c; --draw: #a8b1a9;
@@ -153,7 +153,7 @@ a { color: inherit; }
 /* For screen readers only: the schedule's day headings stand on their own on screen. */
 .vh { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 .picks { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
-.pick { position: relative; display: block; text-decoration: none; background: var(--card); border: 1px solid var(--line); border-top: 4px solid var(--svc); border-radius: var(--radius); padding: 14px 14px 28px; min-width: 0; }
+.pick { position: relative; display: flex; flex-direction: column; text-decoration: none; background: var(--card); border: 1px solid var(--line); border-top: 4px solid var(--svc); border-radius: var(--radius); padding: 14px 14px 28px; min-width: 0; }
 .pick__rating, .pick__when { padding-right: 48px; }
 .pick .pick__league { position: absolute; top: 14px; right: 14px; width: 38px; height: 38px; margin: 0; }
 .pick__when { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; }
@@ -171,7 +171,8 @@ a { color: inherit; }
 .match__body .row__story { font-size: 14px; line-height: 1.4; }
 .match__body .pill { white-space: normal; overflow-wrap: anywhere; }
 .match__kickoff { margin-top: 5px; font-size: 12px; color: var(--muted); }
-.pick .match__body { margin-top: 12px; }
+.pick .match__body { display: flex; flex-direction: column; flex: 1; margin-top: 12px; }
+.pick .pills { margin-top: auto; padding-top: 6px; }
 .pick .row__teams { flex-direction: column; align-items: stretch; gap: 9px; }
 .pick .row__teams > .vs { display: none; }
 /* Both stacked teams start their form and standings line in the same column. */
@@ -328,7 +329,8 @@ a { color: inherit; }
 .row__live--pending { color: var(--muted); background: transparent; box-shadow: inset 0 0 0 1px var(--line-strong); }
 .row__status { color: var(--muted); background: var(--off-bg); }
 .row[data-state="post"] .row__time .t, .row[data-state="post"] .row__time .ap { opacity: 0.6; }
-.row__body { min-width: 0; }
+.row, .nextup, .pick { container: match / inline-size; }
+.row__body, .row__info { min-width: 0; }
 .row__teams { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
 .team { display: inline-flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; }
 .team__txt { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }
@@ -336,7 +338,7 @@ a { color: inherit; }
 .team__sub { display: inline-flex; align-items: baseline; gap: 6px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; margin-top: 3px; }
 .team__table { min-width: 0; overflow-wrap: anywhere; }
 /* A team's season record and top scorer: in a row they wait in the Details panel; a card with no
-   blurb shows them, and the panel's links under its broadcasters instead of a Details button. */
+   blurb shows them, along with the panel's links. */
 .team__more, .team__rec, .team__scorer { display: none; }
 .match--facts .team__more, .match--facts .team__rec { display: inline; }
 .match--facts .team__scorer { display: block; margin-top: 3px; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
@@ -438,6 +440,14 @@ html.has-match-dialog, .has-match-dialog body { overflow: hidden; }
 .pill--unk { background: transparent; border: 1px dashed var(--line-strong); }
 .pill__free { font-weight: 400; opacity: 0.8; }
 .pill__free::before { content: "\00b7"; margin-right: 5px; }
+/* Use each card's width: three narrow picks stay horizontal even on a wide desktop. */
+@container match (min-width: 52rem) {
+  .row__body, .pick .match__body { display: grid; grid-template-columns: minmax(0, 1fr) fit-content(12rem); gap: 18px; }
+  .row__body > .pills { flex-direction: column; align-items: flex-end; align-self: start; max-width: 12rem; margin-top: 0; padding-top: 0; gap: 6px; }
+  .row__body > .pills .pill { white-space: normal; overflow-wrap: anywhere; }
+  .row__body > .pills .network__providers:not([style]) { left: auto; right: 0; }
+  .row__body > .pills .more { margin-top: 2px; }
+}
 details.fold { margin-top: 22px; }
 details.fold summary { cursor: pointer; list-style: none; }
 details.fold summary::-webkit-details-marker { display: none; }
