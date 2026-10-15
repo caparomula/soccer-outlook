@@ -1448,19 +1448,18 @@ def about_ai():
                      "generated AI data. That paragraph is not displayed in the headline area, which requires an "
                      "authored headline.")
         if SETTINGS.blurbs_model:
-            text += (f" For the cards, {who(SETTINGS.blurbs_model)}, searches the web for a blurb on each of the "
+            text += (f" For match Details, {who(SETTINGS.blurbs_model)}, searches the web for a blurb on each of the "
                      f"{story_candidates()} best-scored matches in the days the page shows.")
         each = "Each is" if SETTINGS.overview_model and SETTINGS.blurbs_model else "It is"
         return text + (f" {each} published only with a page its own search returned as a source; without one, the text "
                        "is omitted. Settings → AI can also add personal ratings and text in your browser.")
-    return ("Authored headlines and match blurbs are written by Claude, Anthropic's AI model "
-            f"({SETTINGS.model}), once a day, early in the morning; the midday and evening rebuilds update fixtures, "
-            "broadcasters and scores but keep the morning's text. Blurbs link to their sources; one that rests only on "
-            "ESPN's table, form and stage is labelled \"ESPN table and form\". Claude supplies a general overview, league "
-            "context and match blurbs. An authored headline appears at the top only while its referenced matches pass "
-            "your filters; supporting text is collapsed under Read more. It focuses on the current day when possible "
-            "and looks further ahead when needed. Blurbs with no available matches are hidden; excluded phrases within "
-            "a relevant blurb are dimmed. Match-specific news stays with its match card or schedule row. "
+    return ("Each morning, Claude, Anthropic's AI model "
+            f"({SETTINGS.model}), researches league headlines and match blurbs. Later rebuilds update fixtures, "
+            "broadcasters and scores, preserving accepted AI work and finishing an incomplete generation when needed. "
+            "When AI text is enabled in Settings, qualifying league headlines appear in a carousel with their "
+            "supporting text and sources. They follow your filters, favor the next 24 hours and look further ahead "
+            "when needed. Match-specific news and sources are available through each match's Details. "
+            "Text based only on ESPN's table, form and stage is labelled \"ESPN table and form\". "
             "Claude also rates each upcoming match for popularity (25%), expected gameplay (35%) and "
             "competitive impact (40%), without seeing the Outlook score; its ratings are editorial judgments, not "
             "predicted results.")
@@ -1483,7 +1482,7 @@ def about_scores():
     dots = (" Each match shows its pick score on a six-dot scale: multiply the score out of 100 by six and round "
             "to the nearest whole number (halves round up). For example, 80.5 out of 100 gives five dots. "
             "A score that rounds to zero dots is labelled 0/6. Hover over the dots for the rating breakdown, "
-            "or click or tap them to open it. It is also available in Details.")
+            "or click or tap them to open it.")
     if SETTINGS.ai:
         mix = shares({"ai": b["ai"], "outlook": b["outlook"]})
         return text + (f"A match's interest is {mix['ai']}% the AI rating and {mix['outlook']}% the Outlook score (the "
@@ -1574,7 +1573,7 @@ def record_html(record):
 
 def team_sub(t):
     """Under a team's name: its form, then table place and points. The season record rides along
-    hidden, for a card with no blurb to show (a row keeps it in its Details panel)."""
+    hidden, for a featured card to show (a row keeps it in its Details panel)."""
     bits = []
     if t.rank:
         bits.append(ordinal(t.rank) + (f" of {t.size}" if t.size and t.size <= 6 else ""))
@@ -1592,7 +1591,7 @@ def team_sub(t):
 
 
 def scorer_html(t):
-    """The team's top scorer, hidden in a row (its Details panel has it) and shown on a card with no blurb."""
+    """The team's top scorer, hidden in a row (its Details panel has it) and shown on featured cards."""
     if not t.leader or t.leader_goals in ("", "0"):
         return ""
     goals = "1 goal" if t.leader_goals == "1" else f"{t.leader_goals} goals"

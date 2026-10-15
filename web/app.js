@@ -850,6 +850,10 @@
       });
       if (twin) { twin.focus({ preventScroll: true }); return result; }
     }
+    // Expired match news can remove the focused source entirely. Keep the reader in the open
+    // dialog, or return to the preview's trigger, when there is no corresponding replacement link.
+    if (key.scope === 'match-dialog' && detailDialog.open) document.getElementById('match-dialog-close').focus({ preventScroll: true });
+    else if (key.scope === 'match-preview' && previewState) restoreDetailFocus(previewState);
     return result;
   }
   var lastSig = '', foldContext = '', foldChoices = {};
@@ -1422,7 +1426,6 @@
   MatchCard.prototype.detailsContent = function () {
     var panel = this.row.querySelector('.row__detail').cloneNode(true);
     panel.hidden = false;
-    panel.appendChild(ratingBreakdown(this.row));
     return panel;
   };
   MatchCard.prototype.detailsSignature = function () {
@@ -1442,7 +1445,7 @@
     if (!existing || signature !== this.newsSignature) {
       if (existing) existing.remove();
       existing = storyLine(note, 'row__story');
-      var meta = r.querySelector('.row__meta'); meta.after(existing);
+      r.querySelector('.row__detail').prepend(existing);
       this.newsSignature = signature;
     }
     existing.hidden = !editorialPasses(r) || staleNews(r, now);
@@ -1511,20 +1514,11 @@
     var content = r.querySelector('.row__body').cloneNode(true);
     content.classList.add('match__body');
     if (top) content.id = 'nextup-match';
-    // A row outside the lineup hides its blurb; a pick shows it, since the pick is there to be read.
-    var blurb = content.querySelector('.row__story');
-    if (blurb && role === 'pick') blurb.hidden = staleNews(r, now);
-    // Without a blurb a card has room for what the Details panel holds: each team's season record and
-    // top scorer join its lines (CSS shows them under .match--facts), along with the panel's links.
-    // Its Details button still opens the rating breakdown. With a blurb, or in
-    // a row, those facts stay in the panel.
-    var detail = content.querySelector('.row__detail'), facts = !content.querySelector('.row__story');
-    host.classList.toggle('match--facts', facts);
-    if (facts) {
-      var links = detail.querySelector('.detail__links'), more = content.querySelector('.pills .more');
-      if (more && pickValue(r) === null) more.remove();
-      if (links) { links.className = 'match__links'; content.querySelector('.row__info').appendChild(links); }
-    }
+    // Match stories stay in the shared Details overlay. Featured cards use that space for each
+    // team's season record, top scorer and useful links; schedule rows keep these facts in Details.
+    var detail = content.querySelector('.row__detail'), links = detail.querySelector('.detail__links');
+    host.classList.add('match--facts');
+    if (links) { links.className = 'match__links'; content.querySelector('.row__info').appendChild(links); }
     detail.remove();
     content.querySelectorAll('.network').forEach(function (network) { network.open = false; });
     host.appendChild(content);
@@ -1704,7 +1698,7 @@
   // Tagged stories carry the build's 24-hour horizon, so crossing midnight does not discard
   // still-relevant phrases. Legacy stories retain their calendar-day check for match notes only.
   // An open tab checks freshness each minute and fetches updates every ten minutes.
-  var STORY = { notes: {} };   // while a story is shown, also: s (as published), written (ms)
+  var STORY = { notes: {} };   // while a story is shown, also: s (as published), written and revised (ms)
   var STORY_MAX_AGE_H = 30, STORY_EVERY_MS = 10 * 60000, storyAskedAt = 0;
   function localYmd(k) { var d = new Date(k); return '' + d.getFullYear() + ('0' + (d.getMonth() + 1)).slice(-2) + ('0' + d.getDate()).slice(-2); }
   function storyIsCurrent(s, written, now) {
@@ -2032,12 +2026,16 @@
     s.overview = o && typeof o === 'object' && typeof o.text === 'string' && o.text.trim() ? o : null;
     var written = Date.parse(typeof s.generated_at === 'string' ? s.generated_at : '');
     if (!(written > 0) || !storyIsCurrent(s, written, nowMs())) return;
-    if (STORY.s && STORY.written >= written) return;   // the one on show already, or a newer one
+    // Checkpoint saves keep their original generation time and expiry. A later revision can add
+    // accepted ratings to that same generation without outranking a newer generation.
+    var updated = Date.parse(typeof s.updated_at === 'string' ? s.updated_at : '');
+    var revised = Number.isFinite(updated) ? Math.max(written, updated) : written;
+    if (STORY.s && (STORY.written > written || (STORY.written === written && (STORY.revised || STORY.written) >= revised))) return;
     clearStory(true);
     var notes = {};
     var rawNotes = s.notes && typeof s.notes === 'object' && !Array.isArray(s.notes) ? s.notes : {};
     Object.keys(rawNotes).forEach(function (id) { var n = rawNotes[id]; if (n && typeof n.note === 'string' && n.note) notes[id] = n; });
-    STORY = { notes: notes, s: s, written: written, single: {},
+    STORY = { notes: notes, s: s, written: written, revised: revised, single: {},
               rankings: s.rankings && typeof s.rankings === 'object' && !Array.isArray(s.rankings) ? s.rankings : {} };
     s.league_blurbs.forEach(function (item) {
       var refs = referencedRows(item), id = refs.length === 1 && refs[0].getAttribute('data-id');
@@ -2046,13 +2044,13 @@
     renderFilterGroups();
     render(true);
   }
-  // Takes the story down: the section, the notes under the rows, and (at the next render) the notes
-  // on the cards and the overview.
+  // Takes the headlines and match stories down, including any open Details overlay on the next render.
   function clearStory(quiet) {
     if (!STORY.s) return;
     STORY = { notes: {} };
     var storyEl = document.getElementById('story'); storyEl.hidden = true; storyEl._signature = null;
-    Array.prototype.slice.call(document.querySelectorAll('.row__story')).forEach(function (el) { el.parentNode.removeChild(el); });
+    // Refresh open overlays through keepFocus, rather than removing a source link being read here.
+    rows.forEach(function (row) { row.querySelectorAll('.row__story').forEach(function (el) { el.remove(); }); });
     if (!quiet) render(true);
   }
   function loadStory() {

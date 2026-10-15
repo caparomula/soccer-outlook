@@ -115,6 +115,15 @@ class BrowserChecks(unittest.TestCase):
         page.screenshot(path=str(self.artifacts / name), full_page=True)
 
     @staticmethod
+    def card_story(page, selector):
+        """Featured cards use the canonical schedule Details; they carry no duplicate story."""
+        card = page.locator(selector).first
+        mid = card.get_attribute('data-match-id')
+        if not mid:
+            raise AssertionError(f'No match ID on {selector}')
+        return page.locator(f'li.row[data-id="{mid}"] .row__detail .row__story')
+
+    @staticmethod
     def team_feed(page):
         """The shapes of ESPN's core team and site roster endpoints, with synthetic players."""
         def athlete(name, goals, assists):
@@ -416,11 +425,10 @@ class BrowserChecks(unittest.TestCase):
                 page.clock.run_for(200)
                 preview = page.locator('#match-preview')
                 expect(preview).to_be_visible()
-                expect(preview.locator('.rating-breakdown [data-metric="overall"]')).to_be_visible()
-                expect(preview.locator('.rating-breakdown summary')).to_have_count(0)
+                expect(preview.locator('.rating-breakdown')).to_have_count(0)
                 expect(page.locator('#match-dialog')).to_be_hidden()
                 expect(row.locator('.row__detail')).to_be_hidden()
-                self.assertEqual(preview.locator('.row__detail').evaluate("el => { const facts = el.cloneNode(true); facts.querySelector('.rating-breakdown').remove(); return facts.textContent; }"), row.locator('.row__detail').text_content())
+                self.assertEqual(preview.locator('.row__detail').text_content(), row.locator('.row__detail').text_content())
                 box = preview.bounding_box()
                 anchor = button.bounding_box()
                 self.assertLessEqual(box['y'] + box['height'], anchor['y'])
@@ -466,6 +474,7 @@ class BrowserChecks(unittest.TestCase):
                 expect(page.locator('#match-dialog-title')).to_have_text('Arsenal v Chelsea')
                 expect(page.locator('#match-dialog-close')).to_be_focused()
                 expect(dialog.locator('.detail__facts').first).to_contain_text('Top scorer A. Player, 6 goals')
+                expect(dialog.locator('.rating-breakdown')).to_have_count(0)
                 calendar = dialog.get_by_role('link', name='Add to calendar')
                 expect(calendar).to_have_attribute('href', re.compile('^https://calendar.google.com/'))
                 expect(calendar).to_have_attribute('title', 'Add to Google Calendar')
@@ -557,6 +566,7 @@ class BrowserChecks(unittest.TestCase):
                 page.locator('li.row[data-id="upcoming"] button.more').click()
                 expect(page.locator('#match-dialog')).to_have_attribute('data-kind', 'details')
                 expect(page.locator('#match-dialog .detail__grid')).to_be_visible()
+                expect(page.locator('#match-dialog .rating-breakdown')).to_have_count(0)
 
     def test_league_emblems_show_vitals_in_each_role_without_changing_filters(self):
         fixtures = [('live', '2026-10-07T16:30:00+00:00', 'in', 'ESPN+', 'eng.1'),
@@ -644,7 +654,7 @@ class BrowserChecks(unittest.TestCase):
                 expect(page.locator('#story')).to_be_hidden()
                 for selector in ('#nextup', '#picks .pick', 'li.row[data-id="upcoming"]'):
                     card = page.locator(selector).first
-                    card.locator('button.more').click()
+                    card.locator('button.rating-trigger').click()
                     dialog = page.locator('#match-dialog')
                     panel = dialog.locator('.rating-breakdown')
                     expect(panel.locator('summary')).to_have_count(0)
@@ -689,7 +699,7 @@ class BrowserChecks(unittest.TestCase):
                 page.locator('#ai-apply').click()
                 expect(page.locator('#ai-error')).to_be_empty()
                 self.close_personal_ai(page)
-                page.locator('#nextup button.more').click()
+                page.locator('#nextup button.rating-trigger').click()
                 panel = page.locator('#match-dialog .rating-breakdown')
                 expect(panel).to_contain_text('Component ratings are not available for this imported score.')
                 self.assertNotIn('81/100', panel.inner_text())
@@ -2032,11 +2042,11 @@ class BrowserChecks(unittest.TestCase):
                 page.clock.run_for(60000)
                 expect(page.locator("#story")).to_be_hidden()
                 expect(page.locator("#nextup")).to_have_attribute("data-match-id", "pl")
-                expect(page.locator("#nextup .row__story")).to_contain_text("Friday Premier League context.")
+                expect(self.card_story(page, '#nextup')).to_contain_text("Friday Premier League context.")
                 self.open_settings(page, "leagues")
                 page.locator('#comp-pills [data-key="eng.1"]').click()
                 expect(page.locator("#nextup")).to_have_attribute("data-match-id", "france")
-                expect(page.locator("#nextup .row__story")).to_contain_text("Friday French match context.")
+                expect(self.card_story(page, '#nextup')).to_contain_text("Friday French match context.")
                 page.locator("#btn-filters-close").click()
                 self.full_page_shot(page, f"league-fallback-{width}.png")
                 self.open_settings(page)
@@ -2045,12 +2055,12 @@ class BrowserChecks(unittest.TestCase):
                 self.open_settings(page)
                 page.locator('[data-kind="have"][data-key="fs1"]').click()
                 expect(page.locator("#nextup")).to_have_attribute("data-match-id", "france")
-                expect(page.locator("#nextup .row__story")).to_contain_text("Friday French match context.")
+                expect(self.card_story(page, '#nextup')).to_contain_text("Friday French match context.")
                 self.open_settings(page)
                 page.locator('[data-kind="have"][data-key="fs1"]').click()
                 self.open_settings(page)
                 page.locator('[data-kind="have"][data-key="espn"]').click()
-                expect(page.locator("#nextup .row__story")).to_contain_text("Saturday Italian context.")
+                expect(self.card_story(page, '#nextup')).to_contain_text("Saturday Italian context.")
                 expect(page.locator("#nextup")).to_have_attribute("data-match-id", "far")
                 # The top card follows the lineup, and so do the picks: with ESPN alone and the Premier League off,
                 # far, on the top card, is the only match left to watch, so there are none.
@@ -2090,7 +2100,7 @@ class BrowserChecks(unittest.TestCase):
                 expect(page.locator('#headline-position')).to_have_text('1 of 3')
                 expect(lead.locator('.story-headline__lede')).to_have_text(story['league_blurbs'][0]['text'])
                 expect(page.locator('li.row[data-id="upcoming"] .row__story')).to_contain_text(story['notes']['upcoming']['note'])
-                expect(page.locator('#nextup .row__story')).to_contain_text(story['notes']['upcoming']['note'])
+                expect(self.card_story(page, '#nextup')).to_contain_text(story['notes']['upcoming']['note'])
                 self.open_settings(page)
                 page.locator('[data-kind="have"][data-key="para"]').click()
                 expect(lead).to_have_attribute('data-league', 'usa.1')
@@ -2218,9 +2228,10 @@ class BrowserChecks(unittest.TestCase):
         story = self.tagged_story()
         story["rankings"] = {mid: dict(score=score, blurb=f"Specific context for {mid}.", sources=[{"url": "https://example.com/report"}])
                              for mid, score in (("upcoming", 80), ("live-second", 80.5), ("mls", 90), ("future", 70), ("fourth", 40))}
-        story['rankings']['live-second']['blurb'] = 'A longer match preview with team news and recent form, demonstrating that every card keeps its color bar aligned even when the commentary takes several more lines than its neighboring cards.'
+        story['rankings']['live-second']['blurb'] = 'A longer match preview with team news and recent form, available in Details without pushing the match facts farther down the card.'
         for width in (1280, 820, 390, 320):
-            with self.subTest(width=width), self.page("after", width=width, html=render_page(build, fixtures=fixtures, league_logos=True), story=story) as (page, feed):
+            with self.subTest(width=width), self.page("after", width=width, touch=width < 600,
+                    html=render_page(build, fixtures=fixtures, league_logos=True), story=story) as (page, feed):
                 self.enable_ai_text(page)
                 expect(page.locator('#nextup')).to_have_attribute('data-match-id', 'upcoming')
                 expect(page.locator('#nextup-h')).to_have_text('Live now')
@@ -2232,14 +2243,14 @@ class BrowserChecks(unittest.TestCase):
                 expect(page.locator('#nextup-rating i')).to_have_count(4)
                 expect(page.locator('#nextup-rating')).to_have_text('')
                 self.assertEqual(page.locator('#picks .pick').evaluate_all('els => els.map(e => e.dataset.matchId)'), ['live-second', 'mls', 'future'])
-                expect(page.locator('#picks .row__story')).to_have_count(3)
-                expect(page.locator('#picks .story-src a')).to_have_count(3)
+                expect(page.locator('#nextup .row__story, #picks .row__story, li.row .row__info > .row__story')).to_have_count(0)
+                expect(page.locator('#picks .story-src a')).to_have_count(0)
                 expect(page.locator('#picks .pick__league')).to_have_count(3)
-                # The same match body must retain every field in both featured shapes.
-                for card in page.locator('#nextup, #picks .pick').all():
-                    mid = card.get_attribute('data-match-id')
+                # All roles share the same facts and the same canonical Details story.
+                for card in page.locator('#nextup, #picks .pick, li.row[data-id="upcoming"]').all():
+                    mid = card.get_attribute('data-match-id') or card.get_attribute('data-id')
                     row = page.locator(f'li.row[data-id="{mid}"]')
-                    for selector in ('.row__teams', '.row__meta', '.row__story', '.pills'):
+                    for selector in ('.row__teams', '.row__meta', '.pills'):
                         self.assertEqual(card.locator(selector).text_content(), row.locator(selector).text_content())
                     self.assertEqual(card.locator('.form').evaluate_all('els => els.map(e => [e.title, e.innerHTML])'),
                                      row.locator('.form').evaluate_all('els => els.map(e => [e.title, e.innerHTML])'))
@@ -2250,22 +2261,42 @@ class BrowserChecks(unittest.TestCase):
                         expect(card.locator('.row__until')).to_be_visible()
                         expect(card.locator('.row__until')).to_have_text(row.locator('.row__until').text_content())
                     self.assertEqual(card.locator('.network').all_text_contents(), row.locator('.network').all_text_contents())
-                    card.locator('button.more').click()
-                    expect(page.locator('#match-dialog')).to_be_visible()
-                    self.assertEqual(page.locator('#match-dialog .row__detail').evaluate("el => { const facts = el.cloneNode(true); facts.querySelector('.rating-breakdown').remove(); return facts.textContent; }"), row.locator('.row__detail').text_content())
+                    button = card.locator('button.more')
+                    if width >= 600:
+                        button.hover()
+                        page.clock.run_for(200)
+                        preview = page.locator('#match-preview')
+                        expect(preview).to_be_visible()
+                        expect(preview.locator('.row__story')).to_contain_text(story['rankings'][mid]['blurb'])
+                        expect(preview.locator('.story-src a')).to_be_visible()
+                        expect(preview.locator('.rating-breakdown')).to_have_count(0)
+                        page.keyboard.press('Escape')
+                    button.tap() if width < 600 else button.click()
+                    dialog = page.locator('#match-dialog')
+                    expect(dialog).to_be_visible()
+                    expect(dialog.locator('.row__story')).to_be_visible()
+                    expect(dialog.locator('.row__story')).to_contain_text(story['rankings'][mid]['blurb'])
+                    expect(dialog.locator('.story-src a')).to_have_attribute('href', 'https://example.com/report')
+                    expect(dialog.locator('.story-src a')).to_be_visible()
+                    expect(dialog.locator('.rating-breakdown')).to_have_count(0)
+                    self.assertEqual(dialog.locator('.row__detail').text_content(), row.locator('.row__detail').text_content())
+                    self.assertTrue(dialog.locator('.row__detail').evaluate("el => el.firstElementChild.matches('.row__story')"))
                     expect(row.locator('.row__detail')).to_be_hidden()
+                    self.assertLessEqual(dialog.evaluate('el => el.scrollWidth'), dialog.evaluate('el => el.clientWidth'))
+                    if mid == 'upcoming':
+                        page.screenshot(path=str(self.artifacts / f'details-story-{width}-{card.get_attribute("data-match-role")}.png'))
                     page.locator('#match-dialog-close').click()
                     page.clock.run_for(50)
-                expect(page.locator('#nextup .row__story')).to_contain_text('Specific context for upcoming.')
+                expect(self.card_story(page, '#nextup')).to_contain_text('Specific context for upcoming.')
                 bars = []
                 for card in page.locator('#picks .pick').all():
                     rect = card.bounding_box()
                     bar = card.locator('.pick__colors').bounding_box()
-                    sources = card.locator('.row__story').bounding_box()
+                    facts = card.locator('.row__info').bounding_box()
                     emblem = card.locator('.pick__league').bounding_box()
                     bars.append(bar['y'])
                     self.assertAlmostEqual(rect['y'] + rect['height'] - (bar['y'] + bar['height']), 13, delta=1)
-                    self.assertGreater(bar['y'], sources['y'] + sources['height'])
+                    self.assertGreater(bar['y'], facts['y'] + facts['height'])
                     self.assertGreater(emblem['x'], rect['x'] + rect['width'] / 2)
                     self.assertLess(emblem['y'] - rect['y'], 25)
                 self.assertLess(max(bars) - min(bars), 1)
@@ -2294,6 +2325,8 @@ class BrowserChecks(unittest.TestCase):
                 self.assertEqual(page.locator('#picks .pick').evaluate_all('els => els.map(e => e.dataset.matchId)'), ['mls', 'future', 'fourth'])
                 expect(page.locator('#match-dialog-title')).to_have_text('Arsenal v Chelsea')
                 expect(page.locator('#match-dialog')).to_have_attribute('data-match-id', 'upcoming')
+                expect(page.locator('#match-dialog .row__story')).to_be_hidden()  # completed previews no longer apply
+                expect(page.locator('#match-dialog .story-src a')).to_be_hidden()
                 page.locator('#match-dialog-close').click()
                 page.clock.run_for(50)
                 self.open_settings(page)
@@ -2306,11 +2339,22 @@ class BrowserChecks(unittest.TestCase):
                 # The picks follow the lineup too: the ESPN+ matches go with YouTube TV, and the lineup has nothing else.
                 expect(page.locator('#picks-section')).to_be_hidden()
                 expect(page.locator('li.row[data-id="future"]')).to_be_hidden()
+                expect(page.locator('li.row[data-id="future"] .row__story')).to_have_count(0)
                 self.open_settings(page)
                 page.locator('[data-kind="have"][data-key="yttv"]').click()
                 self.assertEqual(page.locator('#picks .pick').evaluate_all('els => els.map(e => e.dataset.matchId)'), ['mls', 'future', 'fourth'])
                 page.locator('#btn-filters-close').click()
                 expect(page.locator('#nextup')).to_have_attribute('data-match-id', 'live-second')
+                self.open_settings(page, 'ai')
+                page.locator('#ai-blurbs').uncheck()
+                self.close_personal_ai(page)
+                page.locator('#nextup button.more').click()
+                expect(page.locator('#match-dialog .row__story')).to_have_count(0)
+                expect(page.locator('#match-dialog .detail__grid')).to_be_visible()
+                page.locator('#match-dialog-close').click()
+                self.enable_ai_text(page)
+                page.locator('#nextup button.more').click()
+                expect(page.locator('#match-dialog .row__story')).to_be_visible()
 
     def test_top_card_counts_down_to_the_next_match_to_watch_until_one_is_live(self):
         fixtures = [("tbd", "2026-10-07T17:05:00+00:00", "pre", "ESPN+", "eng.1"),
@@ -2753,7 +2797,7 @@ class BrowserChecks(unittest.TestCase):
             expect(card.locator('.pick__rating i')).to_have_count(5)
             expect(page.locator('#nextup-rating i')).to_have_count(6)
             for mid, score, count in (cases[0], cases[12]):
-                page.locator(f'li.row[data-id="{mid}"] button.more').click()
+                page.locator(f'li.row[data-id="{mid}"] button.rating-trigger').click()
                 overall = page.locator('#match-dialog [data-metric="overall"]')
                 expect(overall).to_be_visible()
                 expect(overall).to_have_text(f'{score:g}/100')
@@ -3296,7 +3340,7 @@ class BrowserChecks(unittest.TestCase):
                 expect(page.locator("#nextup")).to_have_attribute("data-match-id", "main")
                 expect(page.locator("#picks .pick")).to_have_count(1)
                 for card, mid in (("#nextup", "main"), ("#picks .pick", "second")):
-                    expect(page.locator(f'{card}[data-match-id="{mid}"] .row__story')).to_contain_text(f"Match news for {mid}.")
+                    expect(self.card_story(page, f'{card}[data-match-id="{mid}"]')).to_contain_text(f"Match news for {mid}.")
                     expect(page.locator(f'li.row[data-id="{mid}"] .row__story')).to_contain_text(f"Match news for {mid}.")
                 expect(page.locator('li.row[data-id="main"]')).to_be_visible()
                 self.full_page_shot(page, f"empty-near-{width}.png")
@@ -3334,7 +3378,14 @@ class BrowserChecks(unittest.TestCase):
             self.open_settings(page)
             page.locator('[data-kind="have"][data-key="peacock"]').click()
             expect(page.locator('li.row[data-id="peacock"]')).to_be_visible()
-            expect(page.locator('li.row .row__story')).to_be_visible()
+            expect(page.locator('li.row .row__story')).to_be_hidden()
+            page.locator('#btn-filters-close').click()
+            page.locator('li.row button.more').click()
+            expect(page.locator('#match-dialog .row__story')).to_be_visible()
+            expect(page.locator('#match-dialog .row__story')).to_contain_text('Match-specific lineup news.')
+            # Without a live score, preview text becomes stale when its kickoff passes.
+            page.evaluate("location.hash = '#at-20261007-1401'")
+            expect(page.locator('#match-dialog .row__story')).to_be_hidden()
 
     def test_filtering_the_published_headline_does_not_promote_other_match_prose(self):
         fixtures = [("near", "2026-10-07T18:00:00+00:00", "pre", "Apple TV", "usa.1"),
@@ -3352,7 +3403,7 @@ class BrowserChecks(unittest.TestCase):
             self.open_settings(page)
             page.locator('[data-kind="have"][data-key="apple"]').click()
             expect(page.locator("#story")).to_be_hidden()
-            expect(page.locator("#nextup .row__story")).to_contain_text("Later match context.")
+            expect(self.card_story(page, '#nextup')).to_contain_text("Later match context.")
             self.open_settings(page)
             page.locator('[data-kind="have"][data-key="apple"]').click()
             expect(page.locator("#story-headlines > article[aria-current=true] .story-headline__title")).to_have_text(story["headline"])
@@ -3537,7 +3588,7 @@ class BrowserChecks(unittest.TestCase):
                 expect(home.locator(".team__rec")).to_have_attribute("title", "Won 6, drawn 0, lost 2 this season")
                 expect(home.locator(".team__scorer")).to_have_text("Top scorer A. Player, 6 goals")
                 expect(home.locator(".team__scorer")).to_be_visible()
-                expect(card.locator(".more")).to_have_count(1)                 # rating breakdown remains in Details
+                expect(card.locator(".more")).to_have_count(1)                 # match details remain available
                 expect(card.locator(".match__links a")).to_have_text(["Add to calendar", "League table"])
                 expect(page.locator("#nextup")).to_have_class(re.compile(r"\bmatch--facts\b"))
                 expect(page.locator("#nextup .match__links")).to_be_visible()
@@ -3550,18 +3601,22 @@ class BrowserChecks(unittest.TestCase):
                 card.screenshot(path=str(self.artifacts / f"pick-facts-{width}.png"))
                 card.get_by_role("link", name="League table").click()
                 expect(page.locator('.tables__item[data-lg="eng.1"]')).to_have_attribute("open", "")
-        # With a blurb the card keeps it and its Details button, and the facts stay in the panel.
+        # Adding news leaves the card's facts and useful links in place; only Details gains prose.
         story = self.overview_story()
         story["rankings"] = {mid: {"score": 60, "popularity": 60, "gameplay": 60, "impact": 60, "blurb": f"Context for {mid}.",
                                    "sources": [{"url": "https://news.example/a", "title": "A"}]} for mid in ("upcoming", "midnight", "late", "dawn")}
         with self.page("after", story=story) as (page, _):
             self.enable_ai_text(page)
             card = page.locator("#picks .pick").first
-            expect(card.locator(".row__story")).to_have_count(1)
-            expect(card).not_to_have_class(re.compile(r"\bmatch--facts\b"))
-            expect(card.locator(".team__scorer").first).to_be_hidden()
+            expect(card.locator(".row__story, .row__detail")).to_have_count(0)
+            expect(card).to_have_class(re.compile(r"\bmatch--facts\b"))
+            expect(card.locator(".team__scorer").first).to_be_visible()
             expect(card.locator("button.more")).to_have_count(1)
-            expect(card.locator(".match__links")).to_have_count(0)
+            expect(card.locator(".match__links")).to_be_visible()
+            card.locator('button.more').click()
+            expect(page.locator('#match-dialog .row__story')).to_be_visible()
+            expect(page.locator('#match-dialog .row__story')).to_contain_text(f'Context for {card.get_attribute("data-match-id")}.')
+            expect(page.locator('#match-dialog .rating-breakdown')).to_have_count(0)
 
     def test_picks_are_scored_before_the_ai_rates_them(self):
         with self.page("after") as (page, _):
@@ -3581,6 +3636,13 @@ class BrowserChecks(unittest.TestCase):
         with self.page("after", html=re.sub(r' data-outlook="[^"]*"', "", render_page(build))) as (page, _):
             expect(page.locator("#picks-h")).to_have_text("Upcoming")
             expect(page.locator("#picks-sub")).to_have_text("In kickoff order · no ratings yet")
+            for selector in ('#nextup', '#picks .pick'):
+                card = page.locator(selector).first
+                expect(card.locator('button.rating-trigger')).to_have_count(0)
+                card.locator('button.more').click()
+                expect(page.locator('#match-dialog .detail__grid')).to_be_visible()
+                expect(page.locator('#match-dialog .rating-breakdown')).to_have_count(0)
+                page.locator('#match-dialog-close').click()
 
     # Five matches in the next 24 hours, one league, statures chosen so the Outlook scores differ:
     # 100 x (0.40 x stature / 150 + 0.25 x 0.5 + 0 + 0 + 0.10 x 0.5) gives a 25.5, b 57.5, c 33.5,
@@ -3668,6 +3730,93 @@ class BrowserChecks(unittest.TestCase):
                     self.assertIn("not from reporting", page.locator("#story-headlines > article[aria-current=true] .story-headline__sources a").first.get_attribute("title"))
                 else:
                     expect(page.locator("#story-headlines > article[aria-current=true] .story-headline__sources a")).to_have_count(0)
+
+    def test_story_checkpoints_refresh_details_ratings_and_headlines_without_extending_expiry(self):
+        fixtures = [('upcoming', '2026-10-09T18:00:00+00:00', 'pre', 'ESPN+', 'eng.1')]
+        story = self.tagged_story()
+        story['focus_until'] = '2026-10-10T17:00:00Z'  # the original generation's age expires first
+        source = {'url': 'https://news.example/team-update', 'title': 'Team update'}
+
+        def revision(generated, updated, label, popularity):
+            story.update(generated_at=generated, headline=f'Premier League: {label}',
+                         headline_segments=[{'text': f'Premier League: {label}', 'match_ids': ['upcoming']}],
+                         lede_items=[{'segments': [{'text': label, 'match_ids': ['upcoming']}], 'sources': [source]}],
+                         rankings={'upcoming': dict(score=popularity, popularity=popularity, gameplay=60, impact=50,
+                                                   blurb=f'Match update: {label}.', sources=[source])})
+            story.pop('updated_at', None)
+            if updated is not None:
+                story['updated_at'] = updated
+
+        revision('2026-10-07T16:00:00Z', None, 'Initial team news', 40)
+        with self.page('after', html=render_page(build, fixtures=fixtures), story=story) as (page, feed):
+            self.enable_ai_text(page)
+            headline = page.locator('#story-headlines > article[aria-current=true] .story-headline__title')
+            dialog = page.locator('#match-dialog')
+
+            def poll():
+                previous = feed['stories']
+                with page.expect_response(lambda response: urlsplit(response.url).path.endswith('/story.json')):
+                    page.clock.run_for(10 * 60 * 1000)
+                page.wait_for_load_state('networkidle')
+                self.assertGreater(feed['stories'], previous)
+
+            expect(headline).to_have_text('Premier League: Initial team news')
+            page.locator('#nextup button.rating-trigger').click()
+            expect(dialog.locator('[data-metric="popularity"]').first).to_have_text('40/100')
+            # A completed checkpoint has the same generation time; its later revision must be read.
+            revision('2026-10-07T16:00:00Z', '2026-10-07T16:20:00Z', 'The returning captain starts', 81)
+            poll()
+            expect(headline).to_have_text('Premier League: The returning captain starts')
+            expect(self.card_story(page, '#nextup')).to_contain_text('Match update: The returning captain starts.')
+            expect(dialog.locator('[data-metric="popularity"]').first).to_have_text('81/100')
+            expect(page.locator('#match-dialog-close')).to_be_focused()
+            page.locator('#match-dialog-close').click()
+            page.locator('#nextup button.more').click()
+            expect(dialog.locator('.rating-breakdown')).to_have_count(0)
+            source_link = dialog.locator('.story-src a')
+            source_link.focus()
+            revision('2026-10-07T16:00:00Z', '2026-10-07T16:30:00Z', 'The captain faces a changed midfield', 85)
+            poll()
+            expect(dialog.locator('.row__story')).to_contain_text('Match update: The captain faces a changed midfield.')
+            expect(source_link).to_be_focused()  # the same source survives a replacement of its story
+            # Duplicate, stale, malformed and missing revisions cannot overwrite that checkpoint.
+            for updated in ('2026-10-07T16:20:00Z', '2026-10-07T16:30:00Z', 'invalid timestamp', None):
+                with self.subTest(updated=updated):
+                    revision('2026-10-07T16:00:00Z', updated, 'Rejected checkpoint', 10)
+                    poll()
+                    expect(headline).to_have_text('Premier League: The captain faces a changed midfield')
+                    expect(dialog.locator('.row__story')).to_contain_text('The captain faces a changed midfield')
+                    expect(source_link).to_be_focused()
+            # Generation order wins over revision order, even when the revision timestamp is older.
+            revision('2026-10-07T16:05:00Z', '2026-10-07T16:06:00Z', 'A new preview weighs the midfield matchup', 70)
+            poll()
+            expect(headline).to_have_text('Premier League: A new preview weighs the midfield matchup')
+            expect(dialog.locator('.row__story')).to_contain_text('A new preview weighs the midfield matchup')
+            expect(source_link).to_be_focused()
+            revision('2026-10-07T16:00:00Z', '2026-10-07T17:00:00Z', 'Older generation with a later checkpoint', 99)
+            poll()
+            expect(headline).to_have_text('Premier League: A new preview weighs the midfield matchup')
+            expect(dialog.locator('.row__story')).to_contain_text('A new preview weighs the midfield matchup')
+            expect(source_link).to_be_focused()
+            page.locator('#match-dialog-close').click()
+            page.locator('#nextup button.rating-trigger').click()
+            expect(dialog.locator('[data-metric="popularity"]').first).to_have_text('70/100')
+            page.locator('#match-dialog-close').click()
+            page.locator('#nextup button.more').click()
+            source_link.focus()
+            page.evaluate("location.hash = '#at-20261009-0000'")
+            page.clock.run_for(60001)
+            expect(page.locator('#story')).to_be_hidden()
+            expect(dialog.locator('.row__story')).to_have_count(0)
+            self.assertTrue(dialog.evaluate('el => el.contains(document.activeElement)'),
+                            'Removing expired news must keep keyboard focus inside the open dialog')
+            # A new checkpoint timestamp must not revive an expired original generation.
+            revision('2026-10-07T16:05:00Z', '2026-10-09T04:00:00Z', 'Expired preview with a fresh timestamp', 99)
+            poll()
+            expect(page.locator('#story')).to_be_hidden()
+            expect(dialog.locator('.row__story')).to_have_count(0)
+            expect(self.card_story(page, '#nextup')).to_have_count(0)
+            expect(dialog.locator('.detail__grid')).to_be_visible()
 
     def test_published_legacy_overviews_stay_hidden_without_discarding_match_notes(self):
         text = "Arsenal meet Chelsea with the league lead at stake, and Spain's women visit the United States."
@@ -3775,8 +3924,8 @@ class BrowserChecks(unittest.TestCase):
                 page.locator("#ai-blurbs").check()
                 self.close_personal_ai(page)
                 expect(page.locator("#story-headlines > article[aria-current=true] .story-headline__title")).to_have_text("The shared league headline")
-                expect(page.locator("#nextup .row__story")).to_contain_text("Shared preview for a.")
-                expect(page.locator('#picks [data-match-id="c"] .row__story')).to_contain_text("Shared preview for c.")
+                expect(self.card_story(page, '#nextup')).to_contain_text("Shared preview for a.")
+                expect(self.card_story(page, '#picks [data-match-id="c"]')).to_contain_text("Shared preview for c.")
                 expect(page.locator('li.row[data-id="d"] .row__story')).to_contain_text("Shared preview for d.")
                 self.assertEqual(page.evaluate("localStorage.getItem('ssg3-ai-blurbs')"), "true")
                 self.assertEqual(picks(), ["b", "c", "e"])
@@ -3895,8 +4044,8 @@ class BrowserChecks(unittest.TestCase):
                 page.locator("#ai-blurbs").check()
                 self.close_personal_ai(page)
                 expect(page.locator("#story-headlines > article[aria-current=true] .story-headline__title")).to_have_text("Your match headline.")
-                expect(page.locator("#nextup .row__story")).to_contain_text("Your preview for a.")
-                expect(page.locator('#picks [data-match-id="d"] .row__story')).to_contain_text("Your preview for d.")
+                expect(self.card_story(page, '#nextup')).to_contain_text("Your preview for a.")
+                expect(self.card_story(page, '#picks [data-match-id="d"]')).to_contain_text("Your preview for d.")
                 expect(page.locator('li.row[data-id="c"] .row__story')).to_contain_text("Your preview for c.")
                 self.assertEqual(picks(), ["b", "d", "e"])
 
@@ -3954,9 +4103,9 @@ class BrowserChecks(unittest.TestCase):
                 self.close_personal_ai(page)
                 expect(page.locator("#story-headlines > article[aria-current=true] .story-headline__title")).to_have_text("Your match headline.")
                 self.assertEqual(picks.evaluate_all("els => els.map(e => e.dataset.matchId)"), ["b", "c", "e"])
-                expect(page.locator("#nextup .row__story")).to_contain_text("Your preview for a.")
+                expect(self.card_story(page, '#nextup')).to_contain_text("Your preview for a.")
                 for mid in "bce":
-                    expect(page.locator(f'#picks [data-match-id="{mid}"] .row__story')).to_contain_text(f"Your preview for {mid}.")
+                    expect(self.card_story(page, f'#picks [data-match-id="{mid}"]')).to_contain_text(f"Your preview for {mid}.")
                 for mid in "abce":
                     expect(page.locator(f'li.row[data-id="{mid}"] .row__story')).to_contain_text(f"Your preview for {mid}.")
                 expect(page.locator('li.row[data-id="d"] .row__story')).to_have_count(0)
@@ -3965,7 +4114,7 @@ class BrowserChecks(unittest.TestCase):
                 self.open_settings(page)
                 page.locator('[data-kind="have"][data-key="peacock"]').click()
                 self.assertEqual(picks.evaluate_all("els => els.map(e => e.dataset.matchId)"), ["c", "e", "unavailable"])
-                expect(page.locator('#picks [data-match-id="unavailable"] .row__story')).to_have_count(0)
+                expect(self.card_story(page, '#picks [data-match-id="unavailable"]')).to_have_count(0)
                 page.locator('[data-kind="have"][data-key="peacock"]').click()
                 page.locator("#btn-filters-close").click()
                 page.reload()
@@ -3975,7 +4124,7 @@ class BrowserChecks(unittest.TestCase):
                 page.locator("#ai-weight").fill("0")
                 self.close_personal_ai(page)
                 self.assertEqual(picks.evaluate_all("els => els.map(e => e.dataset.matchId)"), ["b", "d", "e"])
-                expect(page.locator('#picks [data-match-id="d"] .row__story')).to_have_count(0)
+                expect(self.card_story(page, '#picks [data-match-id="d"]')).to_have_count(0)
                 expect(page.locator("#story-headlines > article[aria-current=true] .story-headline__title")).to_have_text("Your match headline.")
                 self.open_settings(page, "ai")
                 page.locator("#ai-clear").click()
@@ -4532,8 +4681,8 @@ class BrowserChecks(unittest.TestCase):
                 self.assertEqual(feed["stories"], 0)
                 self.assertIsNone(page.evaluate("localStorage.getItem('sso-personal-ai-v1')"))
                 self.assertEqual(picks.evaluate_all("els => els.map(e => e.dataset.matchId)"), ["b", "c", "e"])
-                expect(page.locator("#nextup .row__story")).to_contain_text("Shared preview for a.")
-                expect(page.locator('#picks [data-match-id="c"] .row__story')).to_contain_text("Shared preview for c.")
+                expect(self.card_story(page, '#nextup')).to_contain_text("Shared preview for a.")
+                expect(self.card_story(page, '#picks [data-match-id="c"]')).to_contain_text("Shared preview for c.")
                 expect(page.locator('li.row[data-id="d"] .row__story')).to_contain_text("Shared preview for d.")
                 expect(page.locator("#story-headlines > article[aria-current=true] .story-headline__by")).not_to_contain_text("Your AI")
                 self.open_settings(page, "ai")
@@ -4549,7 +4698,7 @@ class BrowserChecks(unittest.TestCase):
                 self.close_personal_ai(page)
                 expect(title).to_have_text("My own league headline")
                 self.assertEqual(picks.evaluate_all("els => els.map(e => e.dataset.matchId)"), ["b", "d", "e"])
-                expect(page.locator("#nextup .row__story")).to_contain_text("Your preview for a.")
+                expect(self.card_story(page, '#nextup')).to_contain_text("Your preview for a.")
                 page.reload()
                 expect(title).to_have_text("My own league headline")
                 self.open_settings(page, "ai")
@@ -4564,7 +4713,7 @@ class BrowserChecks(unittest.TestCase):
                 self.close_personal_ai(page)
                 expect(title).to_have_text("The shared league headline")
                 self.assertEqual(picks.evaluate_all("els => els.map(e => e.dataset.matchId)"), ["b", "c", "e"])
-                expect(page.locator("#nextup .row__story")).to_contain_text("Shared preview for a.")
+                expect(self.card_story(page, '#nextup')).to_contain_text("Shared preview for a.")
                 self.assertLessEqual(page.evaluate("document.documentElement.scrollWidth"), width)
 
     def test_shared_ai_headlines_follow_filters_finals_rescheduling_and_expiry(self):
@@ -4782,6 +4931,8 @@ NOT_RUN = 77
 # Chromium still runs every check by default; WebKit smoke is an additional compatibility check.
 SMOKE_TESTS = (
     "test_automatic_league_headlines_share_filters_toggle_and_match_news",
+    "test_story_checkpoints_refresh_details_ratings_and_headlines_without_extending_expiry",
+    "test_live_feature_uses_blended_score_is_unique_and_updates_on_final",
     "test_rating_dots_open_focused_breakdown_by_hover_touch_and_keyboard",
     "test_league_emblems_show_vitals_in_each_role_without_changing_filters",
     "test_league_vitals_handle_cups_without_standings_or_badges",

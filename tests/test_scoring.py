@@ -247,9 +247,9 @@ class PageScoring(unittest.TestCase):
 
     def test_the_footer_names_the_model_and_what_it_does(self):
         full = self.footer(render_page(build, design="full", model="claude-opus-5-5"))
-        self.assertIn("written by Claude, Anthropic&#x27;s AI model (claude-opus-5-5)", full)
-        self.assertIn("An authored headline appears at the top only while its referenced matches pass your filters", full)
-        self.assertIn("supporting text is collapsed under Read more", full)
+        self.assertIn("Claude, Anthropic&#x27;s AI model (claude-opus-5-5)", full)
+        self.assertIn("qualifying league headlines appear in a carousel with their supporting text and sources", full)
+        self.assertIn("Match-specific news and sources are available through each match&#x27;s Details", full)
         haiku = self.footer(render_page(build, model="claude-haiku-5-5"))
         self.assertIn("claude-haiku-5-5, an Anthropic AI model, is asked to rate the matches", haiku)
         gemini = self.footer(render_page(build, model="gemini-3.1-flash-lite"))
@@ -312,7 +312,7 @@ class PageScoring(unittest.TestCase):
             self.assertIn(expected, str(raised.exception))
         with patch.object(build, "SETTINGS", replace(fixture_settings(build), blurbs_model="gpt-6.1-sol", blurbs_effort="medium")):
             footer = build.about_ai()
-        self.assertIn("For the cards, gpt-6.1-sol, an OpenAI AI model, searches the web for a blurb on each of the 6 best-scored matches", footer)
+        self.assertIn("For match Details, gpt-6.1-sol, an OpenAI AI model, searches the web for a blurb on each of the 6 best-scored matches", footer)
         self.assertIn("It is published only with a page its own search returned", footer)
         with patch.object(build, "SETTINGS", replace(fixture_settings(build), blurbs_model="gpt-6.1-sol", blurbs_effort="medium",
                                                      overview_model="gemini-3.1-pro-preview", overview_effort="medium")):
