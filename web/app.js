@@ -24,9 +24,9 @@
   var SERVICE_NAMES = SERVICES.name;
   // How a pick score is made (settings.toml, embedded by build.py), and whether an AI model takes part
   // at all: with AI off the page never asks for story.json. A visitor can still import personal AI data.
-  var SCORING = { blend: { ai: 70, outlook: 30, interest: 95, league_priority: 5 }, dots: [35, 45, 55, 68] };
+  var SCORING = { blend: { ai: 70, outlook: 30, interest: 95, league_priority: 5 }, dots: [35, 45, 55, 68, 80] };
   try { SCORING = JSON.parse(document.getElementById('scoring').textContent) || SCORING; } catch (e) {}
-  if (!Array.isArray(SCORING.dots) || SCORING.dots.length !== 4) SCORING.dots = [35, 45, 55, 68];   // a page from before the dots
+  if (!Array.isArray(SCORING.dots) || SCORING.dots.length !== 5) SCORING.dots = [35, 45, 55, 68, 80];   // a page from before six dots
   var AI_ON = app.getAttribute('data-ai') !== 'off';
   var PERSONAL = null;              // optional, private ratings/text imported by this visitor
   var SHARED = null, PUBLISHER = null; // repository-published manual response and optional owner connection
@@ -778,7 +778,7 @@
   function keepFocus(update) {
     var el = document.activeElement;
     if (!el || el === document.body || !el.isConnected) return update();
-    var host = el.closest('[data-match-role]'), scope = el.closest('#story, #match-preview, #schedule-summary, #lineup, #misses');
+    var host = el.closest('[data-match-role]'), scope = el.closest('#story, #match-preview, #match-dialog, #schedule-summary, #lineup, #misses');
     var key = { role: host && host.dataset.matchRole, id: host && (host.dataset.matchId || host.getAttribute('data-id')),
                 scope: !host && scope ? scope.id : '', tag: el.tagName, cls: el.className, href: el.getAttribute('href'), text: el.textContent };
     var result = update();
@@ -957,7 +957,7 @@
     return position < 0 ? 0 : order.length < 2 ? 100 : 100 * (order.length - 1 - position) / (order.length - 1);
   }
   function blendedScore(r) { var v = pickValue(r); return v === null ? null : Math.round(v * 10) / 10; }
-  // A pick score as one to five golden dots: one, and one more from each of settings.toml's [dots]
+  // A pick score as one to six golden dots: one, and one more from each of settings.toml's [dots]
   // thresholds, which are fixed scores, so a dot means the same every day.
   function dotCount(score) { return 1 + SCORING.dots.filter(function (t) { return score >= t; }).length; }
   function fillDots(el, n) {
@@ -970,8 +970,8 @@
     var n = dotCount(score);
     fillDots(el, n);
     el.setAttribute('role', 'img');
-    el.setAttribute('aria-label', 'Pick score ' + score + ' out of 100, ' + n + (n === 1 ? ' dot' : ' dots') + ' of 5');
-    el.title = 'Pick score ' + score + '/100, ' + n + ' of 5 dots. ' + scoreDetails(r);
+    el.setAttribute('aria-label', 'Pick score ' + score + ' out of 100, ' + n + (n === 1 ? ' dot' : ' dots') + ' of 6');
+    el.title = 'Pick score ' + score + '/100, ' + n + ' of 6 dots. ' + scoreDetails(r);
   }
   function share(a, b) { return Math.round(100 * a / (a + b)); }
   function oneDecimal(x) { return Math.round(x * 10) / 10; }
@@ -992,6 +992,46 @@
       }).join(' · ') + '.');
     }
     return lines.join(' ');
+  }
+  // Component scores are estimates, not measured attendance or audience. Keep them in Details,
+  // using only the rating actually selected for this visitor; imported totals have no components.
+  function ratingBreakdown(r) {
+    var panel = document.createElement('details'); panel.className = 'rating-breakdown';
+    var summary = document.createElement('summary'); summary.textContent = 'Rating breakdown'; panel.appendChild(summary);
+    function text(tag, words) { var el = document.createElement(tag); el.textContent = words; panel.appendChild(el); return el; }
+    function scores(items) {
+      var list = document.createElement('dl'); list.className = 'rating-breakdown__scores';
+      items.forEach(function (item) {
+        var label = document.createElement('dt'), value = document.createElement('dd'), score = item[1];
+        label.textContent = item[0]; value.dataset.metric = item[2];
+        if (typeof score !== 'number' || !isFinite(score) || score < 0 || score > 100) value.textContent = 'Not available';
+        else {
+          var dots = document.createElement('span'); dots.className = 'dots rating-breakdown__dots rating-breakdown__dots--' + item[2];
+          var n = dotCount(score); fillDots(dots, n); dots.setAttribute('aria-hidden', 'true');
+          dots.title = item[0] + ': ' + score + '/100, ' + n + ' of 6 dots';
+          value.appendChild(dots); value.appendChild(document.createTextNode(score + '/100'));
+        }
+        list.appendChild(label); list.appendChild(value);
+      });
+      panel.appendChild(list);
+    }
+    scores([['Pick score', blendedScore(r), 'overall']]);
+    var rating = ratingOf(r);
+    text('h3', 'AI components');
+    if (!rating) text('p', 'No AI component ratings available.');
+    else if (rating._personal || rating._shared) text('p', 'Component ratings are not available for this imported score.');
+    else {
+      scores([['Popularity', rating.popularity, 'popularity'], ['Expected gameplay', rating.gameplay, 'gameplay'], ['Competitive impact', rating.impact, 'impact']]);
+      text('p', 'AI estimates' + (raterName(rating) ? ' by ' + raterName(rating) : '') + '; not measured attendance or viewership.');
+    }
+    text('h3', 'Outlook inputs');
+    // build.py serializes these row attributes as percentages already, preserving missing values.
+    var parts = {};
+    try { parts = JSON.parse(r.getAttribute('data-outlook-parts') || '{}') || {}; } catch (e) {}
+    scores([['Match stature', parts.stature, 'stature'], ['Evenness', parts.close, 'gameplay'], ['Competitive stakes', parts.stakes, 'impact'],
+      ['TV reach', parts.tv, 'popularity'], ['Expected goals', parts.goals, 'goals']]);
+    text('p', 'Inputs are scaled to 100; missing inputs are shown without dots. The pick score also includes your league priority.');
+    return panel;
   }
   function upcomingIn(now, keep) {
     return rows.filter(function (r) { return r._b && keep(r) && r._state !== 'post' && (r._k > now || r._b === 'live'); });
@@ -1066,11 +1106,12 @@
   }
   function fillDetails(surface, state) {
     var prefix = surface === detailDialog ? 'match-dialog' : 'match-preview';
-    var detail = state.card.row.querySelector('.row__detail');
-    surface._signature = detail ? detail.innerHTML : '';
+    var old = surface.querySelector('.rating-breakdown'), expanded = surface.dataset.matchId === state.card.row.getAttribute('data-id') && old && old.open;
+    surface._signature = state.card.detailsSignature();
     surface.dataset.matchId = state.card.row.getAttribute('data-id');
     document.getElementById(prefix + '-title').textContent = matchName(state.card.row);
     document.getElementById(prefix + '-content').replaceChildren(state.card.detailsContent());
+    if (expanded) surface.querySelector('.rating-breakdown').open = true;
   }
   function hideDetailPreview() {
     clearTimeout(previewTimer); clearTimeout(previewCloseTimer);
@@ -1110,13 +1151,15 @@
   // A live update rebuilds cards; the preview stays open while it or its button is hovered or holds
   // focus, and shows the match's current details. Otherwise it closes, as before.
   function refreshDetailPreview() {
+    if (dialogState && detailDialog.open && detailDialog._signature !== dialogState.card.detailsSignature()) {
+      keepFocus(function () { fillDetails(detailDialog, dialogState); });
+    }
     if (!previewState) return;
     var trigger = liveTrigger(previewState);
     var held = detailPreview.matches(':hover') || detailPreview.contains(document.activeElement) || (trigger && trigger.matches(':hover'));
     if (!held) { hideDetailPreview(); return; }
     if (trigger) previewState.trigger = trigger;
-    var detail = previewState.card.row.querySelector('.row__detail');
-    if (detailPreview._signature !== (detail ? detail.innerHTML : '')) keepFocus(function () { fillDetails(detailPreview, previewState); });
+    if (detailPreview._signature !== previewState.card.detailsSignature()) keepFocus(function () { fillDetails(detailPreview, previewState); });
     if (trigger) positionDetailPreview();
   }
   function openDetailDialog(button) {
@@ -1146,6 +1189,7 @@
   });
   detailPreview.addEventListener('focusin', function () { clearTimeout(previewCloseTimer); });
   detailPreview.addEventListener('focusout', function (ev) { if (!detailPreview.contains(ev.relatedTarget)) schedulePreviewClose(); });
+  detailPreview.addEventListener('toggle', positionDetailPreview, true);
   document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape') hideDetailPreview(); });
   document.addEventListener('pointerdown', function (ev) {
     if (!detailPreview.contains(ev.target) && !ev.target.closest('button.more')) hideDetailPreview();
@@ -1162,7 +1206,7 @@
   document.getElementById('match-dialog-close').addEventListener('click', function () { detailDialog.close(); });
   detailDialog.addEventListener('keydown', function (ev) {
     if (ev.key !== 'Tab') return;
-    var stops = Array.from(detailDialog.querySelectorAll('button:not(:disabled), a[href]')).filter(function (el) { return el.getClientRects().length; });
+    var stops = Array.from(detailDialog.querySelectorAll('button:not(:disabled), a[href], summary')).filter(function (el) { return el.getClientRects().length; });
     var first = stops[0], last = stops[stops.length - 1];
     if (ev.shiftKey && document.activeElement === first) { ev.preventDefault(); last.focus(); }
     else if (!ev.shiftKey && document.activeElement === last) { ev.preventDefault(); first.focus(); }
@@ -1253,7 +1297,12 @@
   MatchCard.prototype.detailsContent = function () {
     var panel = this.row.querySelector('.row__detail').cloneNode(true);
     panel.hidden = false;
+    panel.appendChild(ratingBreakdown(this.row));
     return panel;
+  };
+  MatchCard.prototype.detailsSignature = function () {
+    return JSON.stringify([this.row.querySelector('.row__detail').innerHTML, ratingOf(this.row), this.row._outlook,
+      this.row.getAttribute('data-outlook-parts'), blendedScore(this.row)]);
   };
   MatchCard.prototype.tick = function (host, now) {
     var r = this.row, el = host.querySelector('.row__until'); if (!el) return;
@@ -1347,12 +1396,13 @@
     });
     // Without a blurb a card has room for what the Details panel holds: each team's season record and
     // top scorer join its lines (CSS shows them under .match--facts), and the panel's links take the
-    // place of its Details button. With a blurb, or in a row, they stay in the panel.
+    // place beside its Details button, which still opens the rating breakdown. With a blurb, or in
+    // a row, those facts stay in the panel.
     var detail = content.querySelector('.row__detail'), facts = !content.querySelector('.row__story');
     host.classList.toggle('match--facts', facts);
     if (facts) {
       var links = detail.querySelector('.detail__links'), more = content.querySelector('.pills .more');
-      if (more) more.remove();
+      if (more && pickValue(r) === null) more.remove();
       if (links) { links.className = 'match__links'; content.appendChild(links); }
     }
     detail.remove();

@@ -21,7 +21,8 @@ and broadcaster listings three times a day. The page warns when its build is ove
 Images normally load from ESPN. --embed-images includes them as data URIs, using --logos as a cache;
 it does not make live scores, fonts or story loading work offline. --facts writes input for story.py,
 --warnings writes coverage issues for maintainers, and --report records source completeness and
-publication status. See docs/development.md for the full workflow.
+publication status. --metrics records scoring inputs and observed outcomes for the historical
+archive. See docs/development.md for the full workflow.
 
 Usage: python3 build.py --out site/index.html [--days-ahead 4] [--days-back 1] [--warnings FILE] [--report FILE]
                         [--date YYYY-MM-DD] [--embed-images --logos logos.json] [--fragment] [--workers 6]
@@ -55,6 +56,7 @@ import story_state  # shared window and candidate limits; the builder does not i
 import discovery
 import broadcast_listings
 import watch_links
+import metrics
 
 ET = ZoneInfo("America/New_York")
 ESPN = "https://site.api.espn.com/apis/site/v2/sports/soccer/{league}/scoreboard?dates={day}&limit=200"
@@ -369,7 +371,7 @@ class Settings:
     blurbs_effort: str | None
     blend: dict          # ai, outlook, interest, league_priority: weights, at least one of each pair above 0
     outlook: dict        # the [outlook] table as checked; knockout words in lower case, channel lists as sets
-    dots: tuple          # the four pick scores where a match's second to fifth golden dots begin
+    dots: tuple          # the five pick scores where a match's second to sixth golden dots begin
 
     @property
     def provider(self):
@@ -467,10 +469,10 @@ def load_settings(path, channels):
         problems.append(f"[outlook] network and cable both list {', '.join(both)}")
     d = table("[dots]", top.get("dots", {}), ("thresholds",))
     dots = d.get("thresholds")
-    if not (isinstance(dots, list) and len(dots) == 4
+    if not (isinstance(dots, list) and len(dots) == 5
             and all(isinstance(t, (int, float)) and not isinstance(t, bool) and 0 < t <= 100 for t in dots)
             and all(a < b for a, b in zip(dots, dots[1:]))):
-        problems.append("[dots] thresholds: must be four rising scores from above 0 to 100, where a match's second to fifth dots begin")
+        problems.append("[dots] thresholds: must be five rising scores from above 0 to 100, where a match's second to sixth dots begin")
         dots = None
     if problems:
         raise SettingsError(f"{os.path.basename(path)}:\n  " + "\n  ".join(problems))
@@ -1400,8 +1402,8 @@ def about_scores():
     text = ("The page's own Outlook score rates every match from fixture and broadcast data, by the same arithmetic for each: "
             f"{listed}. Betting-market inputs come from the odds in ESPN's feed; the page shows no prices. ")
     d = [f"{t:g}" for t in SETTINGS.dots]
-    dots = (f" Each match shows its pick score as one to five golden dots: two from {d[0]}, three from {d[1]}, four from "
-            f"{d[2]} and five from {d[3]} out of 100.")
+    dots = (f" Each match shows its pick score as one to six golden dots: two from {d[0]}, three from {d[1]}, four from "
+            f"{d[2]}, five from {d[3]} and six from {d[4]} out of 100.")
     if SETTINGS.ai:
         mix = shares({"ai": b["ai"], "outlook": b["outlook"]})
         return text + (f"A match's interest is {mix['ai']}% the AI rating and {mix['outlook']}% the Outlook score (the "
@@ -2219,6 +2221,7 @@ def main():
     ap.add_argument("--no-logos", action="store_true", help="no team or league images at all")
     ap.add_argument("--workers", type=int, default=6)
     ap.add_argument("--facts", help="also write the facts story.py gives the model to this JSON file")
+    ap.add_argument("--metrics", help="write all scoring inputs and observed outcomes for the historical archive")
     ap.add_argument("--warnings", help="also write the mapping report to this file, one warning per line (empty when clean)")
     ap.add_argument("--report", help="write JSON source-completeness and publication status, including on a failed build")
     args = ap.parse_args()
@@ -2308,6 +2311,9 @@ def main():
             output_dir.joinpath(f"{discovery_key}.txt").write_text(discovery_key + "\n", encoding="utf-8")
     if args.facts:
         write_facts(args.facts, matches, built_at, today)
+    if args.metrics:
+        metrics.write(args.metrics, sys.modules[__name__], matches, merged, datetime.now(timezone.utc),
+                      build_started_at=built_at, source_report=report)
     write_build_report(args.report, report)
     n_on = sum(1 for m in matches if m.service)
     image_mode = "none" if args.no_logos else ("embedded" if args.embed_images else "linked")

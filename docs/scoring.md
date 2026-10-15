@@ -49,6 +49,8 @@ The automatic configuration uses `gpt-6.1-sol` at `low` effort in the `ratings` 
 | Expected gameplay | 35% | Football quality and competitiveness, without predicting a result |
 | Competitive impact | 40% | Stakes supported by the table or competition stage |
 
+Popularity is a judgment of audience appeal, not a forecast of attendance or a measured television or streaming audience. The Outlook score's occasion and TV components below are also proxies for appeal and reach. The project does not currently predict a number of spectators or viewers.
+
 The prompt uses a common scale across days and competitions: 40 is routine, 60 notably appealing, 80 exceptional, and 95 a rare global event or decisive final. A quiet slate is not a reason to inflate ratings. Invalid or missing components cause that rating to be rejected. These weights are fixed in `story.py`, separate from the adjustable blend in `settings.toml`.
 
 The automatic AI rating request does not include the Outlook score or its betting inputs. The two assessments contribute different information; agreement between them is not a guarantee of a good match.
@@ -118,9 +120,15 @@ The sources behind that choice are retained here so an owner can revisit it:
 
 Lower positions rely more on editorial judgment about access and the teams involved because comparable US audience data is sparse. Nielsen measurement changes in 2025 also complicate comparisons with earlier seasons. Reorder leagues to suit your own interests rather than treating this default as authoritative.
 
+## Retaining the evidence behind scores
+
+Production refreshes save all three automatic AI dimensions, all five Outlook components, their raw inputs and the configuration used to combine them. Repeated snapshots preserve what was known before kickoff and what the feed reported later, including results and attendance when available. They cover all parsed schedule matches, independent of visitor filters. The saved default pick calculation uses the site's league order, not an individual's browser preferences.
+
+This gives future analysis separate quantities to test: for example, whether popularity scores rank reported attendance sensibly, or whether the expected-gameplay rating relates to match outcomes. Attendance is not viewership, and a high-scoring game does not by itself demonstrate entertaining football. The feed does not supply television or streaming audience measurements; missing values stay missing. See [Match history and retrospective analysis](history.md) for the stored data, timestamps and comparison limits.
+
 ## What the golden dots mean
 
-Dots summarize the pick score using fixed thresholds in `[dots]`, not percentiles of that day's matches:
+One to six golden dots summarize the pick score using fixed thresholds in `[dots]`, not percentiles of that day's matches:
 
 | Pick score, rounded to one decimal | Dots |
 | --- | ---: |
@@ -128,8 +136,11 @@ Dots summarize the pick score using fixed thresholds in `[dots]`, not percentile
 | 35 to below 45 | 2 |
 | 45 to below 55 | 3 |
 | 55 to below 68 | 4 |
-| 68 or more | 5 |
+| 68 to below 80 | 5 |
+| 80 or more | 6 |
 
 Changing league priority can change a match's dots. Hover over them for the exact score and its components; screen readers receive the score and dot count. They are separate from the colored squares showing each team's recent results.
+
+**Details → Rating breakdown** shows the numeric pick score, the three automatic AI dimensions when available, and the five Outlook inputs. Components use a 0–100 display scale and the same six-dot thresholds, with distinct colors and text labels. Missing Outlook inputs show **Not available** rather than the midpoint assumption used in the total. Personal and shared imports have no component dimensions in their response format; the breakdown says they are unavailable and does not borrow automatic AI components. These additional rows appear only in the Details popup or dialog.
 
 See the [development guide](development.md) for changing settings and running the checks, or return to the [project overview](../README.md).

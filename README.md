@@ -22,6 +22,7 @@ ESPN supplies fixtures and live scores. When a match only has usual coverage, th
 | --- | --- |
 | Choose services, save preferences, or understand the cards | [Using Soccer Outlook](docs/user-guide.md) |
 | Understand the golden dots, ranking formula, or default league order | [How recommendations work](docs/scoring.md) |
+| Compare past ratings and their inputs with recorded match outcomes | [Match history and retrospective analysis](docs/history.md) |
 | Run locally, change settings, maintain coverage, or deploy | [Development and maintenance](docs/development.md) |
 | Register with search engines or help people find the app | [Search and discovery](docs/discovery.md) |
 
@@ -42,6 +43,8 @@ Page structure, styles and browser behavior live in [web/](web/). Rebuild after 
 ## Updates and coverage
 
 GitHub Actions normally rebuilds the published schedule three times a day. While the page is open, the browser also checks live scores about once a minute. Broadcast listings can change; **usually** means an established rights arrangement rather than a confirmed listing for that match. Check the broadcaster's app before kickoff.
+
+Each successful refresh saves match metrics and available AI ratings to a permanent `match-history` branch before publishing. These snapshots preserve the score components, inputs, configuration and later match results for retrospective analysis. Reported attendance is retained when available; television and streaming audience figures are not supplied by the current feeds. This records public match data, not visitors' viewing activity. See the [history guide](docs/history.md) for the limits and how to retrieve it.
 
 The site allows search indexing and publishes a [sitemap](https://caparomula.github.io/soccer-outlook/sitemap.xml). Its [Premier League](https://caparomula.github.io/soccer-outlook/premier-league/), [MLS](https://caparomula.github.io/soccer-outlook/mls/) and [Paramount+](https://caparomula.github.io/soccer-outlook/paramount-plus/) schedule pages offer direct routes into the app. See [Search and discovery](docs/discovery.md) for search-engine registration and update notifications. Images normally load from ESPN, and fonts load from Google Fonts.
 

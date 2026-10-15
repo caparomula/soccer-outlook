@@ -7,6 +7,8 @@
 # Tests and the builder's source report gate publication. A healthy quiet or empty schedule is
 # valid. Generated pages, facts and reports are retained as artifacts for 14 days, including on
 # failed runs, because gh-pages is replaced with a single commit on each successful publication.
+# Match metrics and available ratings are also appended to match-history without an expiry.
+# Archiving must succeed before the page can be published.
 # Broadcast mapping warnings maintain one issue labelled "mapping" after publication.
 #
 # Schedules use UTC and GitHub may start them late. The runs land at 5:50 am, 12:50 pm and
@@ -28,7 +30,7 @@ on:
         default: refresh
   push:
     branches: [main]
-    paths: ["**/*.py", "settings.toml", "rights.toml", "watch-links.toml", "content/shared-ai.json", "web/**", "tests/**", ".github/workflows/**", ".github/scripts/**"]
+    paths: ["**/*.py", "settings.toml", "rights.toml", "watch-links.toml", "content/shared-ai.json", "content/match-observations.json", "web/**", "tests/**", ".github/workflows/**", ".github/scripts/**"]
 
 permissions:
   contents: write
@@ -89,7 +91,7 @@ jobs:
           GOOGLE_SITE_VERIFICATION: ${{ vars.GOOGLE_SITE_VERIFICATION }}
           BING_SITE_VERIFICATION: ${{ vars.BING_SITE_VERIFICATION }}
           INDEXNOW_KEY: ${{ vars.INDEXNOW_KEY }}
-        run: python3 build.py --out site/index.html --site-url "$SITE_URL" --facts work/facts.json --warnings work/mapping-report.txt --report work/build-report.json
+        run: python3 build.py --out site/index.html --site-url "$SITE_URL" --facts work/facts.json --metrics work/metrics.json --warnings work/mapping-report.txt --report work/build-report.json
 
       - name: Check the page
         run: python3 .github/scripts/check-build.py --page site/index.html --report work/build-report.json
@@ -133,6 +135,9 @@ jobs:
           fi
           "$story_python" story.py "${story_args[@]}" --usage-out work/usage.json
 
+      - name: Archive match metrics and ratings
+        run: bash .github/scripts/archive-history.sh
+
       - name: Publish to gh-pages
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -161,6 +166,8 @@ jobs:
           path: |
             site/
             work/facts.json
+            work/metrics.json
+            work/history-snapshot.json.gz
             work/mapping-report.txt
             work/build-report.json
             work/usage.json

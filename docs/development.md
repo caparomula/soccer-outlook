@@ -25,6 +25,7 @@ Useful build options:
 | Option | Purpose |
 | --- | --- |
 | `--facts work/facts.json` | Save the fixture and team data used by `story.py`. This does not call an AI model. |
+| `--metrics work/metrics.json` | Save all parsed schedule matches' scoring inputs, Outlook components and available outcomes for the durable history archive, regardless of filters. Unlike AI facts, this includes finished matches. |
 | `--warnings work/mapping-report.txt` | Save broadcast-mapping warnings; the file is empty when the report is clean. |
 | `--report work/build-report.json` | Save source-health and fixture counts used to decide whether the build can be published. |
 | `--site-url https://example.com/soccer/` | Set the public directory URL used by the canonical link, sharing metadata and sitemap. Defaults to the published Soccer Outlook URL. |
@@ -58,10 +59,14 @@ For a browser preview at a chosen local time, append a fragment such as `#at-202
 | [`web/logos/`](../web/logos/README.md) | Compact official league artwork used instead of unsuitable ESPN wordmarks, with source attribution. |
 | [`story.py`](../story.py) | Generate, validate and reuse optional AI ratings and text. |
 | [`story_state.py`](../story_state.py) | Pure rules for the ratings window, missing ratings and reusable results. |
+| [`history.py`](../history.py) | Combine build metrics with available automatic/shared ratings and write immutable history snapshots. |
+| [`metrics.py`](../metrics.py) | Capture all parsed schedule fixtures, scoring inputs and observed outcomes before AI enrichment. |
+| [`observations.py`](../observations.py) | Validate optional sourced attendance, audience and other popularity measurements for the archive. |
+| [`history_report.py`](../history_report.py) | Export frozen pre-match components and later outcomes to CSV, including comparable prior home-match attendance baselines. |
 | [`providers.py`](../providers.py) | Supported models, provider requests, configuration validation and price estimates. |
 | [`tests/`](../tests/) | Unit tests and the browser test harness. |
 | [`.github/workflows/`](../.github/workflows/) | Automated builds, browser checks and optional AI comparisons. |
-| [`.github/scripts/`](../.github/scripts/) | Mapping-issue maintenance and AI comparison reports. |
+| [`.github/scripts/`](../.github/scripts/) | Durable history archiving, mapping-issue maintenance and AI comparison reports. |
 
 The generator inlines the HTML, CSS and JavaScript assets into the page. Rebuild after editing them. Full builds copy `web/favicon.png` beside the HTML; the PNG works in browsers that do not support SVG favicons. If the SVG artwork changes, re-export the PNG at 64 × 64 with a transparent background. Fragment builds leave the icon to the host page.
 
@@ -248,12 +253,13 @@ The workflow also runs on relevant changes to `main`, and can be started from **
 Each run:
 
 1. Runs unit and browser checks.
-2. Builds the HTML, AI facts, mapping report and source-health report, and copies any fresh shared recommendations.
+2. Builds the HTML, AI facts, match metrics, mapping report and source-health report, and copies any fresh shared recommendations.
 3. Checks source health and verifies that the page's match count agrees with the report and that the document is complete. A genuinely small or empty schedule can pass.
 4. Generates or reuses optional AI data. Scheduled runs use `daily`; ordinary pushes use `keep`, with the configuration-change exceptions above.
-5. Replaces the `gh-pages` branch with a single commit containing the generated site.
-6. Opens, updates or closes the broadcast-mapping issue as needed.
-7. Retains generated files and reports in a `generated-site` Actions artifact for 14 days, including any files available after a failed run.
+5. Appends an immutable metrics/ratings snapshot to `match-history` using a normal Git push. Failure stops publication so the page cannot silently outrun its history.
+6. Replaces the `gh-pages` branch with a single commit containing the generated site.
+7. Opens, updates or closes the broadcast-mapping issue as needed.
+8. Retains generated files and reports in a `generated-site` Actions artifact for 14 days, including any files available after a failed run. The separate history branch has no automatic expiry.
 
 GitHub Pages serves the `gh-pages` branch. When configuring a fork, set Pages to **Deploy from a branch**, choose **gh-pages**, and use the root directory after the first successful publish. The workflow requests `contents: write` and `issues: write`; no separate deployment token is configured beyond GitHub's supplied token.
 
@@ -261,7 +267,9 @@ A failing unit test, browser assertion, invalid configuration or unusable source
 
 There are two intentional exceptions: if Chromium cannot be installed or started, the refresh workflow publishes with a warning; and AI generation or mapping-issue failures do not block the schedule. Before AI setup, it saves a compatible, fresh result from the same day as a fallback. The Anthropic SDK is installed only if the planned work needs it. The separate [`Browser checks`](../.github/workflows/browser.yml) workflow runs unit tests, Chromium checks and WebKit smoke checks on relevant pushes and pull requests, including changes to AI and maintenance scripts. It saves screenshots even when checks fail and does not have the refresh workflow's browser-setup bypass.
 
-The `generated-site` artifact includes the homepage and focused schedules, favicon, sitemap, any IndexNow key file, available AI output, source facts, warnings, health report and usage report. Download it from a workflow run to inspect the exact inputs and outputs behind a page. To restore an earlier page, use that artifact's `site/` contents in a new `gh-pages` commit, add `.nojekyll`, and push the branch; the next scheduled build will replace it. Check the source commit and build time before restoring, since old fixtures and ratings will still expire normally.
+The `generated-site` artifact includes the homepage and focused schedules, favicon, sitemap, any IndexNow key file, available AI output, source facts, match metrics, the history snapshot, warnings, health report and usage report. Download it from a workflow run to inspect the exact inputs and outputs behind a page. To restore an earlier page, use that artifact's `site/` contents in a new `gh-pages` commit, add `.nojekyll`, and push the branch; the next scheduled build will replace it. Check the source commit and build time before restoring, since old fixtures and ratings will still expire normally.
+
+The durable archive is independent of `gh-pages` and Actions artifact retention. [`.github/scripts/archive-history.sh`](../.github/scripts/archive-history.sh) uses an isolated checkout of `match-history`, creates one new file under `snapshots/YYYY/MM/`, and pushes without force. Its filename includes UTC time, the full source revision, workflow run ID and attempt. The existing refresh concurrency group serializes these writes. A failed branch lookup, fetch, snapshot validation or push blocks publication; an absent branch is created only after Git confirms the repository is reachable. Missing optional AI output does not prevent saving fixture metrics. See [the history guide](history.md) for the schema, local commands and analysis precautions.
 
 The [Notify search engines](../.github/workflows/discovery.yml) workflow notifies IndexNow only after a successful production Pages deployment, using [`.github/scripts/indexnow.py`](../.github/scripts/indexnow.py). It reads the published sitemap and verifies the public key file before submitting URLs. It makes no AI calls; failures are visible in its Actions log and do not block or undo the site deployment. See the [discovery guide](discovery.md) for the public token file and separate search-engine verification steps.
 
