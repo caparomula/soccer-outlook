@@ -8,7 +8,7 @@ The page shows **today and the next three days**, with the previous three days a
 
 Choose subscriptions and channels you can actually watch. FOX One's paid subscription and individual FOX channels have separate filters, so a TV-provider login is not treated as full FOX One access. The [user guide](docs/user-guide.md#fox-one-and-tv-provider-access) explains the choices.
 
-- **Match carousel:** browse your filtered schedule, starting with the highest-rated live match or the next confirmed kickoff. Recent matches and results are to the left; time-group headings help you find what is on this morning, tonight or later in the week. Swipe or use the previous/next buttons, then return to the live or next match with the center button.
+- **Match carousel:** swipe through your filtered schedule, starting with the highest-rated live match or the next confirmed kickoff. Recent matches and results are to the left; time-group headings help you find what is on this morning, tonight or later in the week. Keyboard users can focus the carousel and use the arrow keys, Home or End.
 - **Top picks:** up to three other recommended matches, selected by interest and shown in kickoff order. League headlines follow these cards, then the schedule.
 - **Daily schedule:** kickoff times, broadcasters, team form, standings and match details. A day changes at 4 am in your time zone so late games stay with their evening.
 - **Team vitals:** tap a team name or badge for its record, recent form, home ground, home city and leading contributors, where ESPN provides them.

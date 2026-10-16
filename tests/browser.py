@@ -2410,8 +2410,6 @@ class BrowserChecks(unittest.TestCase):
             with self.subTest(width=width), self.page('after', width=width, touch=width < 600,
                     html=render_page(build, fixtures=fixtures, tbd={'tbd'})) as (page, feed):
                 track = page.locator('#nextup-track')
-                previous, following = page.locator('#nextup-prev'), page.locator('#nextup-next')
-                return_to_opening = page.locator('#nextup-return')
                 cards = track.locator('.nextup')
                 ids = ['yesterday', 'finished', 'live', 'afternoon', 'afternoon-later', 'evening', 'tonight', 'tbd', 'tomorrow', 'friday']
                 self.assertEqual(cards.evaluate_all('els => els.map(el => el.dataset.matchId)'), ids)
@@ -2425,13 +2423,8 @@ class BrowserChecks(unittest.TestCase):
                 self.assertNotIn('live', picks)
                 self.assertNotIn('finished', picks)
                 baseline = page.locator('#picks-section').evaluate('el => el.getBoundingClientRect().top + window.scrollY')
-                expect(page.locator('#nextup-dots')).to_have_count(0)
+                expect(page.locator('#nextup-nav, #nextup-dots, #nextup-prev, #nextup-next, #nextup-return, #nextup-jump, #nextup-position')).to_have_count(0)
                 expect(page.locator('#nextup')).to_have_attribute('aria-label', '3 of 10')
-                expect(previous).to_be_enabled()
-                expect(following).to_be_enabled()
-                expect(page.locator('#nextup-jump, #nextup-position')).to_have_count(0)
-                expect(return_to_opening).to_have_text('Live now')
-                expect(return_to_opening).to_be_disabled()
 
                 def select(mid):
                     self.select_match(page, mid)
@@ -2441,20 +2434,14 @@ class BrowserChecks(unittest.TestCase):
                     self.assertAlmostEqual(page.locator('#picks-section').evaluate('el => el.getBoundingClientRect().top + window.scrollY'), baseline, delta=1)
 
                 select('yesterday')
-                expect(previous).to_be_disabled()
                 expect(page.locator('#nextup-status')).to_have_text('FT')
                 expect(page.locator('#nextup-count')).to_have_text('2–1')
                 # Explicitly browsing a completed game survives routine refreshes.
                 page.clock.run_for(60000)
                 expect(page.locator('#nextup')).to_have_attribute('data-match-id', 'yesterday')
-                following.click()
-                expect(page.locator('#nextup')).to_have_attribute('data-match-id', 'finished')
-                previous.click()
-                expect(page.locator('#nextup')).to_have_attribute('data-match-id', 'yesterday')
-                expect(return_to_opening).to_have_text('Back to live now')
-                return_to_opening.click()
-                expect(page.locator('#nextup')).to_have_attribute('data-match-id', 'live')
-                expect(return_to_opening).to_be_disabled()
+                select('finished')
+                select('yesterday')
+                select('live')
                 select('afternoon')
                 expect(page.locator('#nextup-sub')).to_have_text('2 matches')
                 group = page.locator('.nextup-group').filter(has=page.locator('.nextup[data-match-id="afternoon"]'))
@@ -2489,19 +2476,17 @@ class BrowserChecks(unittest.TestCase):
                 expect(page.locator('#nextup-count')).to_have_text('TBD')
                 expect(page.locator('#nextup-status')).to_have_text('Kickoff time to be confirmed')
                 expect(page.locator('#nextup-h')).to_have_text('Today · time TBD')
-                # Track keys reach both ends; the return control goes back to the live opening.
+                # Track keys reach both ends; native scrolling can return to the live opening.
                 track.focus()
                 page.keyboard.press('End')
                 expect(page.locator('#nextup')).to_have_attribute('data-match-id', 'friday')
                 expect(page.locator('#nextup-h')).to_have_text('Friday')
-                expect(following).to_be_disabled()
                 expect(page.locator('#nextup')).to_have_attribute('aria-label', '10 of 10')
                 page.keyboard.press('Home')
                 expect(page.locator('#nextup')).to_have_attribute('data-match-id', 'yesterday')
                 page.keyboard.press('ArrowRight')
                 expect(page.locator('#nextup')).to_have_attribute('data-match-id', 'finished')
-                return_to_opening.click()
-                expect(page.locator('#nextup')).to_have_attribute('data-match-id', 'live')
+                select('live')
                 select('tomorrow')
                 expect(page.locator('#nextup-h')).to_have_text('Tomorrow')
                 self.assertLessEqual(page.evaluate('document.documentElement.scrollWidth'), width)
@@ -2531,8 +2516,7 @@ class BrowserChecks(unittest.TestCase):
                 page.clock.run_for(60000)
                 expect(page.locator('#nextup')).to_have_attribute('data-match-id', 'later')
                 # Returning to the opening card resumes following the live/next selection.
-                expect(page.locator('#nextup-return')).to_have_text('Back to live now')
-                page.locator('#nextup-return').click()
+                self.select_match(page, 'new-live')
                 expect(page.locator('#nextup')).to_have_attribute('data-match-id', 'new-live')
                 for expected in ('next', 'new-live'):
                     self.open_settings(page)
@@ -2574,8 +2558,6 @@ class BrowserChecks(unittest.TestCase):
                 expect(page.locator('#nextup')).to_have_attribute('data-match-id', 'next')
                 expect(track.locator('.nextup-group__heading h2')).to_have_text(
                     ['Monday', 'Tuesday', 'Yesterday', 'This morning'])
-                expect(page.locator('#nextup-return')).to_have_text('Next up')
-                expect(page.locator('#nextup-return')).to_be_disabled()
                 self.assertLessEqual(page.evaluate('document.documentElement.scrollWidth'), width)
 
     def test_match_time_groups_follow_local_four_am_boundary_and_completed_only_fallback(self):
@@ -2598,11 +2580,8 @@ class BrowserChecks(unittest.TestCase):
             expect(page.locator('#nextup')).to_have_attribute('data-match-id', 'old')
             page.clock.run_for(60000)
             expect(page.locator('#nextup')).to_have_attribute('data-match-id', 'old')
-            expect(page.locator('#nextup-return')).to_have_text('Back to latest result')
-            page.locator('#nextup-return').click()
+            self.select_match(page, 'latest')
             expect(page.locator('#nextup')).to_have_attribute('data-match-id', 'latest')
-            expect(page.locator('#nextup-return')).to_have_text('Latest result')
-            expect(page.locator('#nextup-return')).to_be_disabled()
 
     def test_lead_carousel_preserves_selection_scores_and_shared_actions(self):
         fixtures = [('upcoming', '2026-10-07T16:30:00+00:00', 'in', 'ESPN+', 'eng.1'),

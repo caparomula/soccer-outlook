@@ -205,7 +205,6 @@ class ScheduleChecks(unittest.TestCase):
                 expect(page.locator('#nextup-h')).to_have_text('Sunday')
                 expect(page.locator('#nextup .venue')).to_have_text('Updated Stadium')
                 expect(page.locator('#nextup')).to_have_attribute('aria-label', '1 of 3')
-                expect(page.locator('#nextup-prev')).to_be_disabled()
                 expect(page.locator('#nextup-status')).to_have_text('FT')
 
     def test_a_newer_live_score_survives_an_older_schedule_snapshot(self):

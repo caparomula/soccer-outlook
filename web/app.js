@@ -968,16 +968,9 @@
   // ---- the schedule carousel and kickoff countdowns -----------------------------------------
   var nextupTrack = document.getElementById('nextup-track'), nextupSection = document.getElementById('nextup-section'), openingRows = [], nextupBrowsing = false;
   function nextupCards() { return Array.from(nextupTrack.querySelectorAll('.nextup')); }
-  var nextupCarousel = createCarousel('nextup-track', 'nextup-nav', null, 'nextup-announcement', 'match',
+  var nextupCarousel = createCarousel('nextup-track', null, null, 'nextup-announcement', 'match',
     function (card) { return card.dataset.timeLabel + ': ' + matchName(card._row); }, selectNextup, '.nextup',
-    function (card) { nextupBrowsing = !!card && (!openingRows.length || card.dataset.matchId !== openingRows[0].dataset.id); },
-    { previous: 'nextup-prev', next: 'nextup-next' });
-  function openingCardIndex(cards) {
-    return openingRows.length ? cards.findIndex(function (card) { return card.dataset.matchId === openingRows[0].dataset.id; }) : cards.length - 1;
-  }
-  document.getElementById('nextup-return').addEventListener('click', function () {
-    nextupBrowsing = false; nextupCarousel.show(openingCardIndex(nextupCards()));
-  });
+    function (card) { nextupBrowsing = !!card && (!openingRows.length || card.dataset.matchId !== openingRows[0].dataset.id); });
   function selectNextup(active) {
     // These IDs identify the selected card only; each slide otherwise uses scoped class selectors.
     nextupCards().forEach(function (card) {
@@ -994,11 +987,6 @@
       if (chosen) { heading.id = 'nextup-h'; sub.id = 'nextup-sub'; }
       else { heading.removeAttribute('id'); sub.removeAttribute('id'); }
     });
-    var cards = nextupCards(), home = document.getElementById('nextup-return');
-    var atOpening = !active || cards.indexOf(active) === openingCardIndex(cards);
-    var label = !openingRows.length ? 'Latest result' : openingRows[0]._state === 'in' ? 'Live now' : 'Next up';
-    home.disabled = atOpening;
-    setText(home, atOpening ? label : 'Back to ' + label.toLowerCase());
     if (openNetwork && nextupTrack.contains(openNetwork) && !visibleEl(openNetwork)) closeNetwork();
     if (previewState && nextupTrack.contains(previewState.trigger) && !visibleEl(previewState.trigger)) hideDetailPreview();
   }
@@ -1867,11 +1855,10 @@
     detail.open = false;
   }
   // Both carousels use native scrolling and one shared height. News has a few selection dots;
-  // the full match schedule uses previous/next controls and a return to live/next button.
+  // the full match schedule has no visible navigation controls.
   // Keep selection independent of the render cycle so live updates do not advance a card.
-  function createCarousel(trackId, navId, dotsId, announcementId, noun, labelFor, selected, cardSelector, navigated, navigation) {
-    var track = document.getElementById(trackId), nav = document.getElementById(navId), dots = dotsId && document.getElementById(dotsId);
-    var previous = navigation && document.getElementById(navigation.previous), nextButton = navigation && document.getElementById(navigation.next);
+  function createCarousel(trackId, navId, dotsId, announcementId, noun, labelFor, selected, cardSelector, navigated) {
+    var track = document.getElementById(trackId), nav = navId && document.getElementById(navId), dots = dotsId && document.getElementById(dotsId);
     var index = 0, scrollFrame = null, trackWidth = 0, dotSignature = '', widths = new WeakMap();
     function cardsInTrack() { return Array.from(cardSelector ? track.querySelectorAll(cardSelector) : track.children); }
     function current() { return cardsInTrack()[index] || null; }
@@ -1887,7 +1874,7 @@
         card.setAttribute('aria-hidden', String(!readable)); card.inert = !readable;
         if (heldFocus) track.focus({ preventScroll: true });
       });
-      nav.hidden = count < 2;
+      if (nav) nav.hidden = count < 2;
       if (dots) Array.from(dots.children).forEach(function (dot, i) {
         if (i === index) dot.setAttribute('aria-current', 'true'); else dot.removeAttribute('aria-current');
         dot.tabIndex = i === index ? 0 : -1;
@@ -1898,9 +1885,6 @@
         var dotBox = activeDot.getBoundingClientRect(), dotBounds = dots.getBoundingClientRect();
         if (dotBox.left < dotBounds.left) dots.scrollLeft += dotBox.left - dotBounds.left;
         else if (dotBox.right > dotBounds.right) dots.scrollLeft += dotBox.right - dotBounds.right;
-      }
-      if (navigation) {
-        previous.disabled = !count || index === 0; nextButton.disabled = !count || index === count - 1;
       }
       setText(document.getElementById(announcementId), count > 1 ? (index + 1) + ' of ' + count + ': ' + labelFor(current()) : '');
       if (count > 1) track.tabIndex = 0; else track.removeAttribute('tabindex');
@@ -1940,10 +1924,6 @@
         event.key === 'Home' ? 0 : event.key === 'End' ? cardsInTrack().length - 1 : null;
       if (next !== null) { event.preventDefault(); show(next, true); dots.children[index].focus({ preventScroll: true }); }
     });
-    if (navigation) {
-      previous.addEventListener('click', function () { show(index - 1, true); });
-      nextButton.addEventListener('click', function () { show(index + 1, true); });
-    }
     track.addEventListener('scroll', function () {
       if (scrollFrame !== null) return;
       scrollFrame = requestAnimationFrame(function () {
