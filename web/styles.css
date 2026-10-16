@@ -160,7 +160,7 @@ a { color: inherit; }
   grid-template-rows: auto 1fr; border-radius: 0; }
 .nextup-group { display: grid; grid-template-columns: repeat(var(--match-count), var(--match-card-width));
   grid-template-rows: subgrid; grid-row: span 2; gap: 12px; min-width: 0; }
-.nextup-group > .nextup-group__heading { grid-column: 1 / -1; position: sticky; left: 0; width: min(100cqw, 100%);
+.nextup-group > .nextup-group__heading { grid-column: 1 / -1; position: sticky; left: 0; width: var(--match-card-width);
   box-sizing: border-box; margin-bottom: 0; }
 .nextup-group > .nextup { grid-row: 2; min-width: 0; scroll-snap-align: start; }
 @container nextup (min-width: 654px) {

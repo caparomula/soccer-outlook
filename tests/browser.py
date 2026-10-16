@@ -2618,6 +2618,9 @@ class BrowserChecks(unittest.TestCase):
                     expect(cards.locator('[id="nextup-status"]')).to_have_count(1)
                     expect(page.locator('#nextup')).to_have_attribute('aria-label', f'{index + 1} of 6')
                     self.assertAlmostEqual(page.locator('#nextup').bounding_box()['x'], track.bounding_box()['x'], delta=1)
+                    # Even a short group keeps its heading readable over its last card.
+                    heading = page.locator('#nextup').locator('..').locator('.nextup-group__heading')
+                    self.assertAlmostEqual(heading.bounding_box()['x'], track.bounding_box()['x'], delta=1)
                     heights = cards.evaluate_all('els => els.map(el => el.getBoundingClientRect().height)')
                     self.assertLess(max(heights) - min(heights), 1)
                     self.assertAlmostEqual(page.locator('#picks-section').evaluate('el => el.getBoundingClientRect().top + window.scrollY'),
