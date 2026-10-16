@@ -987,7 +987,7 @@
     });
     Array.from(nextupTrack.children).forEach(function (group) {
       var chosen = active && group.contains(active), heading = group.querySelector('h2'), sub = group.querySelector('p');
-      heading.parentElement.setAttribute('aria-hidden', String(!chosen));
+      heading.parentElement.setAttribute('aria-hidden', String(!chosen && !group.querySelector('.nextup[aria-hidden="false"]')));
       if (chosen) { heading.id = 'nextup-h'; sub.id = 'nextup-sub'; }
       else { heading.removeAttribute('id'); sub.removeAttribute('id'); }
     });
@@ -1247,38 +1247,12 @@
     nextupCarousel.refresh(selectedIndex >= 0 ? selectedIndex : Math.max(0, openingIndex));
     tickNextup();
   }
-  // Scores for live/results cards; a countdown or explicit TBD for upcoming fixtures. A kickoff
-  // that passes without word from ESPN says "Awaiting score", as the schedule row does.
-  // The live poll updates each competition as its answer comes and redraws once all have answered,
-  // so a tick in between can find the card's match just finished: it reads as its row does ("FT"
-  // over the score) until that redraw moves the card on. A status in two parts ("Kickoff 1:10 pm",
-  // "status pending") is stacked by a phone's narrow column.
-  function nextupText(r, now) {
-    var clk = clockOf(r);
-    if (r._state === 'in') return { what: clk, when: '', count: scoreOf(r) || 'In progress' };
-    if (r._state === 'post') return { what: clk || 'FT', when: '', count: scoreOf(r) || 'Final' };
-    if (!r._tv) return { what: 'Kickoff time to be confirmed', when: '', count: 'TBD' };
-    var kickoff = 'Kickoff ' + timeLabel(r) + dayTag(r, now);
-    return r._k > now ? { what: kickoff, when: '', count: fmtCount(r._k - now) }
-      : { what: kickoff, when: 'status pending', count: 'Awaiting score' };
-  }
   function setText(el, text) { if (el && el.textContent !== text) el.textContent = text; }
-  // "A · B" in three spans; the separator is empty when there is no B.
-  function pairHtml() { return '<span class="pair__a"></span><span class="pair__sep"></span><span class="pair__b"></span>'; }
-  function setPair(el, a, b) {
-    setText(el.children[0], a); setText(el.children[1], b ? ' · ' : ''); setText(el.children[2], b || '');
-  }
-  // Words ("Awaiting score") are set smaller than figures, so they don't widen the column.
-  function showNextupText(status, count, text) {
-    setPair(status, text.what, text.when);
-    setText(count, text.count);
-    count.classList.toggle('nextup__count--words', !/\d/.test(text.count));
-  }
   function tickNextup() {
     var now = nowMs();
     nextupCards().forEach(function (card) {
       card.classList.toggle('nextup--live', card._row._state === 'in');
-      showNextupText(card.querySelector('.nextup__status'), card.querySelector('.nextup__count'), nextupText(card._row, now));
+      card._matchCard.tick(card, now);
     });
     rows.forEach(function (r) { r._card.tick(r, now); });
     picksEl.querySelectorAll('.pick').forEach(function (card) { card._matchCard.tick(card, now); });
@@ -1449,14 +1423,16 @@
   function dayTag(r, now) { var idx = dayIndex(r._k, now); return idx === 0 ? '' : idx === 1 ? ' tomorrow' : ' ' + fmtShortDay.format(new Date(r._k)); }
   function pickDay(r, now) {
     var idx = dayIndex(r._k, now);
-    return idx === 0 ? 'Today' : idx === 1 ? 'Tomorrow' : fmtLongDay.format(sportsDayStart(new Date(r._k)));
+    return idx === 0 ? 'Today' : idx === 1 ? 'Tomorrow' : idx === -1 ? 'Yesterday' : fmtLongDay.format(sportsDayStart(new Date(r._k)));
   }
 
   function setPickWhen(when, r, now) {
-    var live = r._b === 'live' && r._state === 'in';
-    var st = r._tv ? splitTime(new Date(r._k)) : { t: 'TBD', ap: '' }, sc = live ? scoreOf(r) : '';
-    when.firstChild.textContent = sc || st.t;
-    when.lastChild.textContent = live ? (sc ? 'live ' + clockOf(r) : 'live now') : st.ap + (r._tv && r._k <= now ? ' · status pending' : '');
+    var live = r._b === 'live' && r._state === 'in', finished = r._state === 'post';
+    var st = r._tv ? splitTime(new Date(r._k)) : { t: 'TBD', ap: 'Time to be confirmed' };
+    var sc = live || finished ? scoreOf(r) : '';
+    setText(when.firstChild, live || finished ? sc || (finished ? 'Final' : 'Live') : st.t);
+    setText(when.lastChild, finished ? clockOf(r) || 'FT' : live ? (sc ? 'live ' + clockOf(r) : clockOf(r) || 'in progress') :
+      st.ap + (r._tv && r._k <= now ? ' · status pending' : ''));
   }
   function missTime(r, now) {
     var sc = r._b === 'live' ? scoreOf(r) : '', clk = clockOf(r);
@@ -1511,9 +1487,12 @@
       this.row.getAttribute('data-outlook-parts'), blendedScore(this.row)]);
   };
   MatchCard.prototype.tick = function (host, now) {
-    var r = this.row, el = host.querySelector('.row__until'); if (!el) return;
+    var r = this.row, when = host.querySelector('.pick__when'), day = host.querySelector('.pick__day');
+    if (when) setPickWhen(when, r, now);
+    if (day) setText(day, pickDay(r, now));
+    var el = host.querySelector('.row__until'); if (!el) return;
     var d = r._k - now;
-    var show = r._tv && r._state === 'pre' && d > 0 && d < 12 * 3600000 && r._b && r._b !== 'live';
+    var show = r._tv && r._state === 'pre' && d > 0 && (host.dataset.matchRole === 'nextup' || d < 12 * 3600000) && r._b && r._b !== 'live';
     el.hidden = !show; if (show) el.textContent = 'in ' + fmtCount(d);
   };
   MatchCard.prototype.renderNews = function (now) {
@@ -1555,42 +1534,36 @@
     host = host || document.createElement('article');
     var heldNetwork = openNetwork && host.contains(openNetwork) ?
       (openNetwork.hasAttribute('data-rule') ? '.network[data-rule]' : '.network[data-i="' + openNetwork.dataset.i + '"]') : '';
-    host.className = (top ? 'nextup' + (r._state === 'in' ? ' nextup--live' : '') : 'pick') + ' svc-' + r._svc;
+    host.className = 'pick' + (top ? ' nextup' + (r._state === 'in' ? ' nextup--live' : '') : '') + ' svc-' + r._svc;
     host.dataset.matchRole = role; host.dataset.matchId = r.getAttribute('data-id');
     host._row = r; host._matchCard = this; host.replaceChildren();
     var emblem = r.querySelector('.row__league .lg'), badge = null;
     if (emblem) {
-      badge = leagueButton(r, emblem.cloneNode(true)); badge.classList.add('match__league', top ? 'nextup__league' : 'pick__league');
+      badge = leagueButton(r, emblem.cloneNode(true)); badge.classList.add('match__league', 'pick__league');
+      if (top) badge.classList.add('nextup__league');
     }
-    var head = document.createElement('div'); head.className = top ? 'nextup__left' : 'pick__head';
-    // The pick score as its dots alone; a page built without scores labels its cards Upcoming instead.
+    var head = document.createElement('div'); head.className = 'pick__head';
+    // Both card roles share the rating position; unscored carousel matches leave it empty.
     var score = blendedScore(r), label = document.createElement(score !== null ? 'button' : 'div');
-    label.className = (top ? 'nextup__rating' : 'pick__rating') + (score !== null ? ' dots' : '');
+    label.className = 'pick__rating' + (top ? ' nextup__rating' : '') + (score !== null ? ' dots' : '');
     if (score !== null) showDots(label, r, score);
     else label.textContent = 'Upcoming';
-    if (top) {
-      head.appendChild(label);
-      label.hidden = score === null;
-      var status = document.createElement('div'); status.className = 'nextup__status pair';
-      var count = document.createElement('div'); count.className = 'nextup__count';
-      status.innerHTML = pairHtml(); showNextupText(status, count, nextupText(r, now));
-      head.appendChild(status); head.appendChild(count);
-    } else {
-      var topLine = document.createElement('div'); topLine.className = 'pick__top'; topLine.appendChild(label);
-      var day = document.createElement('span'); day.className = 'pick__day'; day.textContent = pickDay(r, now); topLine.appendChild(day);
-      if (badge) topLine.appendChild(badge);
-      head.appendChild(topLine);
-      var when = document.createElement('div'); when.className = 'pick__when';
-      when.innerHTML = '<span class="t"></span><span class="ap"></span>'; setPickWhen(when, r, now); head.appendChild(when);
-      head.appendChild(r.querySelector('.row__until').cloneNode(true));
-    }
+    label.hidden = top && score === null;
+    var topLine = document.createElement('div'); topLine.className = 'pick__top'; topLine.appendChild(label);
+    var day = document.createElement('span'); day.className = 'pick__day'; day.textContent = pickDay(r, now); topLine.appendChild(day);
+    if (badge) topLine.appendChild(badge);
+    head.appendChild(topLine);
+    var when = document.createElement('div'); when.className = 'pick__when';
+    when.innerHTML = '<span class="t"></span><span class="ap"></span>';
+    if (top) { when.firstChild.classList.add('nextup__count'); when.lastChild.classList.add('nextup__status'); }
+    setPickWhen(when, r, now); head.appendChild(when);
+    head.appendChild(r.querySelector('.row__until').cloneNode(true));
     if (r._state === 'in' || showET) {
       var kickoff = document.createElement('div'); kickoff.className = 'match__kickoff';
       kickoff.textContent = (r._state === 'in' ? 'Kickoff ' + timeLabel(r) + dayTag(r, now) : '') +
         (showET && r._tv ? (r._state === 'in' ? ' · ' : '') + fmtET.format(new Date(r._k)) + ' ET' : '');
       head.appendChild(kickoff);
     }
-    if (top && badge) head.appendChild(badge);
     host.appendChild(head);
     var content = r.querySelector('.row__body').cloneNode(true);
     content.classList.add('match__body');
@@ -1608,13 +1581,11 @@
       openNetwork = content.querySelector(heldNetwork);
       if (openNetwork) { openNetwork.open = true; positionNetwork(); }
     }
-    if (role === 'pick') {
-      var colors = document.createElement('div'); colors.className = 'pick__colors'; colors.setAttribute('aria-hidden', 'true');
-      [r.getAttribute('data-hc'), r.getAttribute('data-ac')].forEach(function (c) {
-        var bar = document.createElement('i'); bar.style.background = /^[0-9a-f]{6}$/.test(c || '') ? '#' + c : 'var(--line-strong)'; colors.appendChild(bar);
-      });
-      host.appendChild(colors);
-    }
+    var colors = document.createElement('div'); colors.className = 'pick__colors'; colors.setAttribute('aria-hidden', 'true');
+    [r.getAttribute('data-hc'), r.getAttribute('data-ac')].forEach(function (c) {
+      var bar = document.createElement('i'); bar.style.background = /^[0-9a-f]{6}$/.test(c || '') ? '#' + c : 'var(--line-strong)'; colors.appendChild(bar);
+    });
+    host.appendChild(colors);
     this.tick(host, now);
     return host;
   };

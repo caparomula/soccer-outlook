@@ -1169,7 +1169,7 @@ class BrowserChecks(unittest.TestCase):
                             self.select_match(page, index)
                         expect(host.locator('.network summary')).to_have_text(channels)
                         info, pills = host.locator('.row__info').bounding_box(), host.locator('.pills').bounding_box()
-                        wide = width == 1280 and host.get_attribute('data-match-role') != 'pick'
+                        wide = width == 1280 and host.get_attribute('data-match-role') == 'schedule'
                         if wide:
                             self.assertGreaterEqual(pills['x'], info['x'] + info['width'])
                             self.assertAlmostEqual(pills['y'], info['y'], delta=1)
@@ -2233,8 +2233,8 @@ class BrowserChecks(unittest.TestCase):
             # Nothing in the next 24 hours: the soonest match is next up, two days and an hour away ...
             expect(page.locator("#nextup")).to_have_attribute("data-match-id", "early")
             expect(page.locator("#nextup-h")).to_have_text("Friday")
-            expect(page.locator("#nextup-status")).to_have_text("Kickoff 2:00 pm Fri")
-            expect(page.locator("#nextup-count")).to_have_text("2d 01h")
+            expect(page.locator("#nextup-status")).to_have_text("pm")
+            expect(page.locator("#nextup .row__until")).to_have_text("in 2d 01h")
             # ... and the picks are the window's two others: too-far and farther, past Saturday (the window is
             # today to Saturday), are better rated but neither picked nor listed. Two places, two cards.
             self.assertEqual(page.locator("#picks .pick").evaluate_all("els => els.map(e => e.dataset.matchId)"), ["best", "low"])
@@ -2266,7 +2266,7 @@ class BrowserChecks(unittest.TestCase):
                 expect(page.locator('#nextup')).to_have_attribute('data-match-id', 'upcoming')
                 expect(page.locator('#nextup-h')).to_have_text('Live now')
                 expect(page.locator('#nextup-sub')).to_have_text('2 matches')
-                expect(page.locator('#nextup-status')).to_have_text("30'")
+                expect(page.locator('#nextup-status')).to_have_text("live 30'")
                 # Interest (80 + Outlook 57.5) / 2 = 68.75; 80% of that and 20% of the league priority.
                 pick = round(0.8 * 68.75 + 0.2 * self.default_priority("eng.1"), 1)
                 expect(page.locator('#nextup-rating')).to_have_attribute('aria-label', f'Pick score {pick:g} out of 100, 4 dots of 6')
@@ -2291,12 +2291,8 @@ class BrowserChecks(unittest.TestCase):
                     expect(card.locator('.form .f')).to_have_count(10)
                     expect(card.locator('.venue')).to_have_text('Fixture Stadium')
                     if row.get_attribute('data-state') == 'pre':
-                        if card.get_attribute('data-match-role') == 'nextup':
-                            expect(card.locator('.nextup__count')).to_be_visible()
-                            expect(card.locator('.nextup__count')).to_have_text(row.locator('.row__until').text_content().removeprefix('in '))
-                        else:
-                            expect(card.locator('.row__until')).to_be_visible()
-                            expect(card.locator('.row__until')).to_have_text(row.locator('.row__until').text_content())
+                        expect(card.locator('.row__until')).to_be_visible()
+                        expect(card.locator('.row__until')).to_have_text(row.locator('.row__until').text_content())
                     self.assertEqual(card.locator('.network').all_text_contents(), row.locator('.network').all_text_contents())
                     button = card.locator('button.more')
                     if width >= 600:
@@ -2372,8 +2368,8 @@ class BrowserChecks(unittest.TestCase):
                 expect(page.locator('#nextup')).to_have_attribute('data-match-id', 'mls')
                 expect(page.locator('#nextup')).not_to_have_class(re.compile(r'\bnextup--live\b'))
                 expect(page.locator('#nextup-h')).to_have_text('This afternoon')
-                expect(page.locator('#nextup-status')).to_have_text('Kickoff 3:00 pm')
-                expect(page.locator('#nextup-count')).to_have_text('2h 00m')
+                expect(page.locator('#nextup-status')).to_have_text('pm')
+                expect(page.locator('#nextup .row__until')).to_have_text('in 2h 00m')
                 # The picks follow the lineup too: the ESPN+ matches go with YouTube TV, and the lineup has nothing else.
                 expect(page.locator('#picks-section')).to_be_hidden()
                 expect(page.locator('li.row[data-id="future"]')).to_be_hidden()
@@ -2400,6 +2396,9 @@ class BrowserChecks(unittest.TestCase):
                     ('live', '2026-10-07T16:30:00+00:00', 'in', 'ESPN+', 'eng.1'),
                     ('afternoon', '2026-10-07T18:00:00+00:00', 'pre', 'ESPN+', 'eng.1'),
                     ('afternoon-later', '2026-10-07T20:00:00+00:00', 'pre', 'ESPN+', 'esp.1'),
+                    ('afternoon-third', '2026-10-07T20:10:00+00:00', 'pre', 'ESPN+', 'eng.1'),
+                    ('afternoon-fourth', '2026-10-07T20:20:00+00:00', 'pre', 'ESPN+', 'eng.1'),
+                    ('afternoon-last', '2026-10-07T20:30:00+00:00', 'pre', 'ESPN+', 'eng.1'),
                     ('evening', '2026-10-07T23:00:00+00:00', 'pre', 'Apple TV', 'usa.1'),
                     ('tonight', '2026-10-08T02:00:00+00:00', 'pre', 'ESPN+', 'eng.1'),
                     ('tbd', '2026-10-07T23:30:00+00:00', 'pre', 'ESPN+', 'eng.1'),
@@ -2411,7 +2410,8 @@ class BrowserChecks(unittest.TestCase):
                     html=render_page(build, fixtures=fixtures, tbd={'tbd'})) as (page, feed):
                 track = page.locator('#nextup-track')
                 cards = track.locator('.nextup')
-                ids = ['yesterday', 'finished', 'live', 'afternoon', 'afternoon-later', 'evening', 'tonight', 'tbd', 'tomorrow', 'friday']
+                ids = ['yesterday', 'finished', 'live', 'afternoon', 'afternoon-later', 'afternoon-third',
+                       'afternoon-fourth', 'afternoon-last', 'evening', 'tonight', 'tbd', 'tomorrow', 'friday']
                 self.assertEqual(cards.evaluate_all('els => els.map(el => el.dataset.matchId)'), ids)
                 expect(page.locator('#nextup')).to_have_attribute('data-match-id', 'live')
                 expect(page.locator('#nextup-h')).to_have_text('Live now')
@@ -2424,7 +2424,7 @@ class BrowserChecks(unittest.TestCase):
                 self.assertNotIn('finished', picks)
                 baseline = page.locator('#picks-section').evaluate('el => el.getBoundingClientRect().top + window.scrollY')
                 expect(page.locator('#nextup-nav, #nextup-dots, #nextup-prev, #nextup-next, #nextup-return, #nextup-jump, #nextup-position')).to_have_count(0)
-                expect(page.locator('#nextup')).to_have_attribute('aria-label', '3 of 10')
+                expect(page.locator('#nextup')).to_have_attribute('aria-label', '3 of 13')
 
                 def select(mid):
                     self.select_match(page, mid)
@@ -2443,16 +2443,17 @@ class BrowserChecks(unittest.TestCase):
                 select('yesterday')
                 select('live')
                 select('afternoon')
-                expect(page.locator('#nextup-sub')).to_have_text('2 matches')
+                expect(page.locator('#nextup-sub')).to_have_text('5 matches')
                 group = page.locator('.nextup-group').filter(has=page.locator('.nextup[data-match-id="afternoon"]'))
                 heading = group.locator('.nextup-group__heading')
                 evening = page.locator('.nextup-group').filter(has=page.locator('.nextup[data-match-id="evening"]')).locator('.nextup-group__heading')
                 # The heading stays at the reading edge within its batch, then moves with the batch boundary.
                 select('afternoon-later')
                 self.assertAlmostEqual(heading.bounding_box()['x'], track.bounding_box()['x'], delta=1)
+                select('afternoon-last')
                 track.evaluate('''el => {
                     el.style.scrollSnapType = 'none';
-                    const current = el.querySelector('[data-match-id="afternoon-later"]').getBoundingClientRect();
+                    const current = el.querySelector('[data-match-id="afternoon-last"]').getBoundingClientRect();
                     const next = el.querySelector('[data-match-id="evening"]').getBoundingClientRect();
                     el.scrollLeft += (next.left - current.left) / 2;
                 }''')
@@ -2474,14 +2475,14 @@ class BrowserChecks(unittest.TestCase):
                 expect(page.locator('#nextup-h')).to_have_text('Tonight')
                 select('tbd')
                 expect(page.locator('#nextup-count')).to_have_text('TBD')
-                expect(page.locator('#nextup-status')).to_have_text('Kickoff time to be confirmed')
+                expect(page.locator('#nextup-status')).to_have_text('Time to be confirmed')
                 expect(page.locator('#nextup-h')).to_have_text('Today · time TBD')
                 # Track keys reach both ends; native scrolling can return to the live opening.
                 track.focus()
                 page.keyboard.press('End')
                 expect(page.locator('#nextup')).to_have_attribute('data-match-id', 'friday')
                 expect(page.locator('#nextup-h')).to_have_text('Friday')
-                expect(page.locator('#nextup')).to_have_attribute('aria-label', '10 of 10')
+                expect(page.locator('#nextup')).to_have_attribute('aria-label', '13 of 13')
                 page.keyboard.press('Home')
                 expect(page.locator('#nextup')).to_have_attribute('data-match-id', 'yesterday')
                 page.keyboard.press('ArrowRight')
@@ -2503,7 +2504,7 @@ class BrowserChecks(unittest.TestCase):
                 expect(page.locator('#nextup-track .nextup')).to_have_count(3)
                 self.select_match(page, 0)
                 expect(page.locator('#nextup-h')).to_have_text('Earlier today')
-                expect(page.locator('#nextup-count')).to_have_text('Awaiting score')
+                expect(page.locator('#nextup-status')).to_contain_text('status pending')
                 expect(page.locator('#nextup-status')).not_to_have_text('FT')
                 self.select_match(page, 'later')
                 expect(page.locator('#nextup')).to_have_attribute('data-match-id', 'later')
@@ -2549,7 +2550,8 @@ class BrowserChecks(unittest.TestCase):
                 self.select_match(page, 'oldest')
                 expect(page.locator('#nextup-h')).to_have_text('Sunday')
                 expect(page.locator('#nextup-status')).to_have_text('FT')
-                self.assertAlmostEqual(page.locator('#nextup').bounding_box()['width'], track.bounding_box()['width'], delta=1)
+                expected_width = track.bounding_box()['width'] * .76 if width <= 600 else (track.bounding_box()['width'] - 24) / 3
+                self.assertAlmostEqual(page.locator('#nextup').bounding_box()['width'], expected_width, delta=1)
                 page.clock.run_for(60000)
                 expect(page.locator('#nextup')).to_have_attribute('data-match-id', 'oldest')
                 # At 4am local time Sunday becomes four sports days ago and leaves the carousel.
@@ -2689,9 +2691,9 @@ class BrowserChecks(unittest.TestCase):
                 self.select_match(page, 4)
                 expect(page.locator('#nextup')).to_have_attribute('data-match-id', 'next-low')
                 page.evaluate("location.hash = ''")
-                before = track.locator('[data-match-id="next-high"] .nextup__count, [data-match-id="next-low"] .nextup__count').all_text_contents()
+                before = track.locator('[data-match-id="next-high"] .row__until, [data-match-id="next-low"] .row__until').all_text_contents()
                 page.clock.run_for(2000)
-                after = track.locator('[data-match-id="next-high"] .nextup__count, [data-match-id="next-low"] .nextup__count').all_text_contents()
+                after = track.locator('[data-match-id="next-high"] .row__until, [data-match-id="next-low"] .row__until').all_text_contents()
                 self.assertEqual(len(set(after)), 1)
                 self.assertNotEqual(before, after)
                 self.assertLessEqual(page.evaluate('document.documentElement.scrollWidth'), width)
@@ -2711,6 +2713,7 @@ class BrowserChecks(unittest.TestCase):
         for width in (1280, 320):
             with self.subTest(width=width), self.page("after", width=width, html=html, story=story) as (page, feed):
                 card, status, count = page.locator("#nextup"), page.locator("#nextup-status"), page.locator("#nextup-count")
+                countdown = page.locator('#nextup .row__until')
                 # The soonest confirmed kickoff on the lineup, with nothing live: not the earlier match whose
                 # time is still to be set, nor the ones outside the lineup. Both simultaneous matches
                 # appear in the lead carousel, with the higher-rated match selected first.
@@ -2720,8 +2723,9 @@ class BrowserChecks(unittest.TestCase):
                 expect(page.locator('#picks [data-match-id="apple"]')).to_have_count(0)
                 expect(card).not_to_have_class(re.compile(r"\bnextup--live\b"))
                 expect(page.locator("#nextup-h")).to_have_text("This afternoon")
-                expect(status).to_have_text("Kickoff 1:10 pm")
-                expect(count).to_have_text("10:00")
+                expect(status).to_have_text("pm")
+                expect(count).to_have_text("1:10")
+                expect(countdown).to_have_text("in 10:00")
                 expect(page.locator('#picks [data-match-id="upcoming"]')).to_have_count(0)
                 # The lower-rated of the two at 1:10 comes first on the page, so only the rating can choose.
                 self.assertEqual(page.locator('li.row[data-id="apple"]').evaluate(
@@ -2730,17 +2734,17 @@ class BrowserChecks(unittest.TestCase):
                 # Without a time fixed in the address, the countdown runs with the clock, second by second.
                 # (The page loaded on the second; its ticks fall on the next two, at 599 and 598 seconds to go.)
                 page.evaluate("location.hash = ''")
-                expect(count).to_have_text("9:59")
+                expect(countdown).to_have_text("in 9:59")
                 page.clock.run_for(2000)
-                expect(count).to_have_text("9:58")
+                expect(countdown).to_have_text("in 9:58")
                 page.evaluate("location.hash = '#at-20261007-1300'")
-                expect(count).to_have_text("10:00")
+                expect(countdown).to_have_text("in 10:00")
                 # It follows the lineup both ways: a service added brings its sooner kickoff to the card, and taking
                 # the service away gives the card back.
                 self.open_settings(page, "leagues")
                 page.locator('#comp-pills [data-key="ned.1"]').click()
                 expect(card).to_have_attribute("data-match-id", "dutch")
-                expect(count).to_have_text("8:00")
+                expect(countdown).to_have_text("in 8:00")
                 self.open_settings(page, "leagues")
                 page.locator('#comp-pills [data-key="ned.1"]').click()
                 expect(card).to_have_attribute("data-match-id", "upcoming")
@@ -2759,13 +2763,14 @@ class BrowserChecks(unittest.TestCase):
                 page.locator("#btn-filters-close").click()
                 # The countdown runs to kickoff ...
                 page.evaluate("location.hash = '#at-20261007-1309'")
-                expect(count).to_have_text("1:00")
+                expect(countdown).to_have_text("in 1:00")
                 # ... and a kickoff without word from ESPN keeps the card, in the words its row uses.
                 page.evaluate("location.hash = '#at-20261007-1311'")
                 expect(card).to_have_attribute("data-match-id", "upcoming")
                 expect(page.locator("#nextup-h")).to_have_text("This afternoon")      # only ESPN's word makes it live
-                expect(status).to_have_text("Kickoff 1:10 pm · status pending")
-                expect(count).to_have_text("Awaiting score")
+                expect(status).to_have_text("pm · status pending")
+                expect(count).to_have_text("1:10")
+                expect(countdown).to_be_hidden()
                 expect(page.locator('li.row[data-id="upcoming"] .row__live')).to_have_text("Awaiting score")
                 self.assertLessEqual(page.evaluate("document.documentElement.scrollWidth"), width)
                 # Once ESPN reports it under way, the same card turns live and keeps keyboard focus (on its
@@ -2776,7 +2781,7 @@ class BrowserChecks(unittest.TestCase):
                 expect(card).to_have_class(re.compile(r"\bnextup--live\b"))
                 expect(page.locator("#nextup-h")).to_have_text("Live now")
                 expect(page.locator("#nextup-sub")).to_have_text("1 match")
-                expect(status).to_have_text("63'")
+                expect(status).to_have_text("live 63'")
                 expect(count).to_have_text("2\u20131")
                 expect(page.locator("#nextup a.detail__table")).to_be_focused()
                 self.assertLessEqual(page.evaluate("document.documentElement.scrollWidth"), width)
@@ -2785,7 +2790,9 @@ class BrowserChecks(unittest.TestCase):
                 page.clock.run_for(60000)
                 expect(card).to_have_attribute("data-match-id", "apple")
                 expect(card).not_to_have_class(re.compile(r"\bnextup--live\b"))
-                expect(count).to_have_text("Awaiting score")
+                expect(status).to_have_text("pm · status pending")
+                expect(count).to_have_text("1:10")
+                expect(countdown).to_be_hidden()
                 # Nothing on the lineup, no card.
                 self.open_settings(page)
                 page.locator("#btn-clear").click()
@@ -2814,7 +2821,7 @@ class BrowserChecks(unittest.TestCase):
             feed["held"].pop().fulfill(content_type="application/json", body=json.dumps(feed["data"]))
             expect(card).to_have_attribute("data-match-id", "spain")
             expect(page.locator("#nextup-h")).to_have_text("This afternoon")
-            expect(page.locator("#nextup-status")).to_have_text("Kickoff 1:05 pm")
+            expect(page.locator("#nextup-status")).to_have_text("pm")
 
     def test_coffee_link_ends_the_bar_at_every_width(self):
         for width in (1280, 390, 320):
@@ -2930,50 +2937,52 @@ class BrowserChecks(unittest.TestCase):
                 self.assertEqual(page.evaluate("scrollY"), 2200)
                 page.screenshot(path=str(self.artifacts / f"bar-stuck-{width}.png"))
 
-    def test_top_card_takes_the_rows_layout_with_the_emblem_under_its_countdown(self):
+    def test_top_carousel_uses_top_picks_card_format(self):
         fixtures = [("upcoming", "2026-10-07T17:10:00+00:00", "pre", "ESPN+", "eng.1"),
-                    ("spain", "2026-10-07T19:00:00+00:00", "pre", "ESPN+", "esp.1")]
+                    ("spain", "2026-10-07T19:00:00+00:00", "pre", "ESPN+", "esp.1"),
+                    ("later", "2026-10-07T20:00:00+00:00", "pre", "ESPN+", "eng.1"),
+                    ("last", "2026-10-07T21:00:00+00:00", "pre", "ESPN+", "esp.1")]
         story = self.tagged_story()
         story["rankings"] = {mid: dict(score=score, blurb=f"Context for {mid}: the stakes, team news and recent form.",
-                                       sources=[{"url": "https://example.com/report"}]) for mid, score in (("upcoming", 90), ("spain", 80))}
+                                       sources=[{"url": "https://example.com/report"}]) for mid, score in (("upcoming", 90), ("spain", 80), ("later", 70), ("last", 60))}
         html = render_page(build, fixtures=fixtures, league_logos=True)
-        for width in (1280, 820, 390, 320):
+        for width in (1280, 820, 660, 390, 320):
             with self.subTest(width=width), self.page("after", width=width, html=html, story=story, touch=width <= 600) as (page, _):
                 self.enable_ai_text(page)
-                card = page.locator("#nextup")
+                card, track = page.locator("#nextup"), page.locator("#nextup-track")
                 expect(card).to_have_attribute("data-match-id", "upcoming")
-                box, column, count, emblem, body = (loc.bounding_box() for loc in (
-                    card, card.locator(".nextup__left"), page.locator("#nextup-count"), card.locator(".nextup__league"), card.locator(".match__body")))
-                # The emblem is in the countdown's column, under the countdown, at the foot of the card.
-                self.assertAlmostEqual(emblem["x"], column["x"], delta=1)
-                self.assertGreaterEqual(emblem["y"], count["y"] + count["height"])
-                self.assertAlmostEqual(emblem["y"] + emblem["height"], column["y"] + column["height"], delta=1)
-                self.assertAlmostEqual(column["y"] + column["height"], box["y"] + box["height"] - 13, delta=1)
-                # The match beside that column, as in a schedule row, with home, v and away on one line where there's room.
-                self.assertGreaterEqual(body["x"], column["x"] + column["width"])
-                if width >= 820:
-                    lines = card.locator(".row__teams > .team, .row__teams > .vs").evaluate_all(
-                        "els => els.map(e => { const r = e.getBoundingClientRect(); return [r.top, r.bottom]; })")
-                    self.assertLess(max(top for top, _ in lines), min(bottom for _, bottom in lines))
-                # Network placement adapts inside the shared match body.
+                expect(card).to_have_class(re.compile(r"\bpick\b"))
+                box = card.bounding_box()
+                track_width = track.bounding_box()['width']
+                columns = 3 if track_width >= 654 else 2
+                expected_width = track_width * .76 if width <= 600 else (track_width - 12 * (columns - 1)) / columns
+                self.assertAlmostEqual(box['width'], expected_width, delta=1)
+                # Both card roles share their layout: day centered between rating and league,
+                # stacked teams, network pills below the facts, and team colors at the foot.
+                for host in (card, page.locator('#picks .pick').first):
+                    host_box = host.bounding_box()
+                    rating, day, emblem = (host.locator(selector).bounding_box()
+                                           for selector in ('.pick__rating', '.pick__day', '.pick__league'))
+                    self.assertAlmostEqual(day['x'] + day['width'] / 2, host_box['x'] + host_box['width'] / 2, delta=1)
+                    self.assertGreaterEqual(day['x'], rating['x'] + rating['width'])
+                    self.assertLessEqual(day['x'] + day['width'], emblem['x'])
+                    home, away = (team.bounding_box() for team in host.locator('.row__teams > .team').all())
+                    self.assertGreaterEqual(away['y'], home['y'] + home['height'])
+                    expect(host.locator('.row__teams > .vs')).to_be_hidden()
+                    info, pills = host.locator('.row__info').bounding_box(), host.locator('.pills').bounding_box()
+                    self.assertGreaterEqual(pills['y'], info['y'] + info['height'])
+                    colors = host.locator('.pick__colors').bounding_box()
+                    self.assertAlmostEqual(host_box['y'] + host_box['height'] - colors['y'] - colors['height'], 13, delta=1)
+                    expect(host.locator('.pick__colors i')).to_have_count(2)
+                    expect(host.locator('.form .f')).to_have_count(10)
+                    expect(host.locator('.venue')).to_have_text('Fixture Stadium')
                 expect(card.locator('.network summary')).to_have_text(['ESPN+'])
-                self.assertAlmostEqual(body['x'] + body['width'], box['x'] + box['width'] - (11 if width <= 600 else 17), delta=1)
-                if width <= 600:
-                    # The score's dots at the head of the narrow column, from its edge, all on one line.
-                    dots = page.locator("#nextup-rating i").evaluate_all(
-                        "els => els.map(e => { const r = e.getBoundingClientRect(); return [r.left, r.top, r.width]; })")
-                    self.assertEqual(len(dots), 5)
-                    self.assertAlmostEqual(dots[0][0], column["x"], delta=1)
-                    self.assertEqual(len({round(top) for _, top, _ in dots}), 1)
-                    self.assertTrue(all(w > 3 for _, _, w in dots))
-                    # Interest (90 + Outlook 57.5) / 2 = 73.75; 80% of that, 20% of the Premier League's league priority.
-                    pick = round(0.8 * 73.75 + 0.2 * self.default_priority("eng.1"), 1)
-                    expect(page.locator("#nextup-rating")).to_have_attribute("aria-label", f"Pick score {pick:g} out of 100, 5 dots of 6")
-                    expect(page.locator("#nextup-status")).to_have_text("Kickoff 1:10 pm")
-                    status = page.locator("#nextup-status").bounding_box()
-                    self.assertLessEqual(status["x"] + status["width"], column["x"] + column["width"] + 1)
-                self.assertLessEqual(page.evaluate("document.documentElement.scrollWidth"), width)
-                card.screenshot(path=str(self.artifacts / f"top-card-{width}.png"))
+                expect(card.locator('.row__until')).to_have_text('in 10:00')
+                expect(page.locator('#nextup-count')).to_have_text('1:10')
+                expect(page.locator('#nextup-status')).to_have_text('pm')
+                expect(page.locator('#nextup-rating i')).to_have_count(5)
+                self.assertLessEqual(page.evaluate('document.documentElement.scrollWidth'), width)
+                card.screenshot(path=str(self.artifacts / f'top-card-{width}.png'))
 
     def test_league_priority_breaks_kickoff_ties_persists_and_resets(self):
         fixtures = [("eng", "2026-10-07T18:00:00+00:00", "pre", "ESPN+", "eng.1"),
@@ -2986,8 +2995,8 @@ class BrowserChecks(unittest.TestCase):
                 # A kickoff time that has passed is not a confirmed live game; the top card says so.
                 expect(page.locator('#nextup')).to_have_attribute('data-match-id', 'unconfirmed-live')
                 expect(page.locator('#nextup')).not_to_have_class(re.compile(r'\bnextup--live\b'))
-                expect(page.locator('#nextup-status')).to_have_text('Kickoff 12:45 pm · status pending')
-                expect(page.locator('#nextup-count')).to_have_text('Awaiting score')
+                expect(page.locator('#nextup-status')).to_have_text('pm · status pending')
+                expect(page.locator('#nextup-count')).to_have_text('12:45')
                 expect(page.locator('#picks .pick:not([data-match-id="unconfirmed-live"])').first).to_have_attribute('data-match-id', 'eng')
                 page.locator('#btn-menu').click()
                 expect(page.locator('#comp-pills .lg')).to_have_count(2)
@@ -4719,7 +4728,7 @@ class BrowserChecks(unittest.TestCase):
 
                 def assert_carousel_alignment():
                     track_box = track.bounding_box()
-                    match_box = page.locator('#nextup').bounding_box()
+                    match_box = page.locator('#nextup-track').bounding_box()
                     self.assertAlmostEqual(track_box['x'], match_box['x'], delta=1)
                     self.assertAlmostEqual(track_box['width'], match_box['width'], delta=1)
                     self.assertGreaterEqual(page.locator('#headline-dots').bounding_box()['y'],
@@ -5429,6 +5438,7 @@ SMOKE_TESTS = (
     "test_match_carousel_keeps_exactly_three_previous_local_sports_days",
     "test_match_time_groups_follow_local_four_am_boundary_and_completed_only_fallback",
     "test_top_picks_show_their_day_range_and_centered_card_days",
+    "test_top_carousel_uses_top_picks_card_format",
     "test_rating_dots_open_focused_breakdown_by_hover_touch_and_keyboard",
     "test_league_emblems_show_vitals_in_each_role_without_changing_filters",
     "test_league_vitals_handle_cups_without_standings_or_badges",
