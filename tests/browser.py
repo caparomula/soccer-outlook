@@ -2097,8 +2097,9 @@ class BrowserChecks(unittest.TestCase):
                 expect(lead.locator('.story-headline__title')).to_have_text(story['league_blurbs'][0]['headline'])
                 expect(lead.locator('.story-headline__title .lg')).to_have_count(1)
                 expect(lead.locator('.story-headline__lede')).to_be_visible()
-                expect(page.locator('#headline-position')).to_have_text('1 of 3')
-                expect(page.locator('#headline-position')).to_be_visible()
+                expect(page.locator('#headline-dots button')).to_have_count(3)
+                expect(page.locator('#headline-dots button').first).to_have_attribute('aria-current', 'true')
+                expect(page.locator('#headline-dots button').first).to_be_visible()
                 expect(lead.locator('.story-headline__lede')).to_have_text(story['league_blurbs'][0]['text'])
                 expect(page.locator('li.row[data-id="upcoming"] .row__story')).to_contain_text(story['notes']['upcoming']['note'])
                 expect(self.card_story(page, '#nextup')).to_contain_text(story['notes']['upcoming']['note'])
@@ -4311,12 +4312,34 @@ class BrowserChecks(unittest.TestCase):
                 expect(lead).to_have_attribute("data-league", "eng.1")
                 expect(lead.locator(".story-headline__title")).to_have_text(reply["headlines"][0]["headline"])
                 expect(page.locator('#story-headlines article[data-league="fra.1"]')).to_have_count(0)
-                expect(page.locator('#headline-position')).to_have_text('1 of 3')
-                expect(page.locator('#headline-prev')).to_be_disabled()
+                dots = page.locator('#headline-dots button')
+                expect(dots).to_have_count(3)
+                for index, item in enumerate(reply['headlines'][:3]):
+                    expect(dots.nth(index)).to_have_accessible_name(f"Show headline {index + 1} of 3: {item['headline']}")
+                    expect(dots.nth(index)).to_be_visible()
                 expect(page.locator('#story-headlines details')).to_have_count(0)
                 expect(lead.locator(".story-headline__lede")).to_have_text(reply["headlines"][0]["lede"])
                 expect(lead.locator(".story-headline__lede")).to_be_visible()
                 track = page.locator('#story-headlines')
+
+                def assert_selected_dot(index):
+                    expect(page.locator('#headline-dots button[aria-current=true]')).to_have_count(1)
+                    expect(dots.nth(index)).to_have_attribute('aria-current', 'true')
+
+                def select_dot(index):
+                    if width > 600:
+                        dots.nth(index).click()
+                    else:
+                        dots.nth(index).tap()
+                    assert_selected_dot(index)
+
+                def assert_carousel_alignment():
+                    track_box = track.bounding_box()
+                    match_box = page.locator('#nextup').bounding_box()
+                    self.assertAlmostEqual(track_box['x'], match_box['x'], delta=1)
+                    self.assertAlmostEqual(track_box['width'], match_box['width'], delta=1)
+                    self.assertGreaterEqual(page.locator('#headline-dots').bounding_box()['y'],
+                                            track_box['y'] + track_box['height'])
 
                 def carousel_shot(name):
                     if width > 600:
@@ -4366,20 +4389,9 @@ class BrowserChecks(unittest.TestCase):
                                                msg='Changing the selected headline must not move the matches below')
                     return layout
 
-                if width > 600:
-                    expect(page.locator('#headline-prev')).to_be_visible()
-                    expect(page.locator('#headline-next')).to_be_visible()
-                    previous = page.locator('#headline-prev').bounding_box()
-                    following = page.locator('#headline-next').bounding_box()
-                    track_box = track.bounding_box()
-                    self.assertLessEqual(previous['x'] + previous['width'], track_box['x'])
-                    self.assertGreaterEqual(following['x'], track_box['x'] + track_box['width'])
-                    self.assertAlmostEqual(previous['y'] + previous['height'] / 2,
-                                           following['y'] + following['height'] / 2, delta=1)
-                else:
-                    expect(page.locator('#headline-prev')).to_be_hidden()
-                    expect(page.locator('#headline-next')).to_be_hidden()
-                    self.assertEqual(track.evaluate("el => getComputedStyle(el).overflowX"), 'auto')
+                assert_selected_dot(0)
+                assert_carousel_alignment()
+                self.assertEqual(track.evaluate("el => getComputedStyle(el).overflowX"), 'auto')
                 sizes = track.evaluate("el => ({track:el.clientWidth, cards:Array.from(el.children, card=>({width:card.getBoundingClientRect().width, height:card.getBoundingClientRect().height}))})")
                 self.assertLessEqual(sizes['cards'][0]['width'], sizes['track'])
                 if width > 600:
@@ -4389,40 +4401,44 @@ class BrowserChecks(unittest.TestCase):
                 initial_layout = assert_equal_cards_and_stable_layout()
                 if width > 600:
                     neighbor = page.locator('#story-headlines article[data-league="esp.1"]')
-                    # Side controls reduce the reading width, so this longer neighbor
-                    # is clipped until selected and must not offer offscreen links.
-                    expect(neighbor).to_have_attribute('aria-hidden', 'true')
-                    self.assertTrue(neighbor.evaluate('el => el.inert'))
+                    # Without side gutters, this neighboring card fits in full and its
+                    # source links remain usable even while the first card is selected.
+                    expect(neighbor).to_have_attribute('aria-hidden', 'false')
+                    neighbor.locator('.story-headline__sources a').first.focus()
+                    expect(neighbor.locator('.story-headline__sources a').first).to_be_focused()
                 self.assertEqual(page.locator('#story-headlines > article').evaluate_all("els => els.map(el => el.dataset.league)"), ['eng.1', 'esp.1', 'usa.1'])
                 carousel_shot(f'headline-carousel-first-{width}.png')
-                if width > 600:
-                    page.get_by_role('button', name='Next headline', exact=True).click()
-                else:
-                    scroll_to_headline(1)
+                # Each dot selects its own story directly, including a jump over a card.
+                select_dot(2)
+                expect(lead).to_have_attribute('data-league', 'usa.1')
+                assert_equal_cards_and_stable_layout(initial_layout)
+                select_dot(1)
                 expect(lead).to_have_attribute('data-league', 'esp.1')
-                expect(page.locator('#headline-position')).to_have_text('2 of 3')
                 expect(lead).to_have_attribute('aria-hidden', 'false')
                 lead.locator('.story-headline__sources a').first.focus()
                 expect(lead.locator('.story-headline__sources a').first).to_be_focused()
                 assert_equal_cards_and_stable_layout(initial_layout)
                 carousel_shot(f'headline-carousel-next-{width}.png')
-                if width > 600:
-                    page.get_by_role('button', name='Previous headline', exact=True).click()
-                    expect(lead).to_have_attribute('data-league', 'eng.1')
-                    assert_equal_cards_and_stable_layout(initial_layout)
-                    page.get_by_role('button', name='Next headline', exact=True).click()
-                    page.locator('#headline-next').focus()
-                    page.keyboard.press('Enter')
-                    expect(page.locator('#headline-next')).to_be_focused()
-                    expect(page.locator('#headline-next')).to_be_disabled()
-                    page.keyboard.press('Enter')
-                else:
-                    scroll_to_headline(2)
-                expect(page.locator('#headline-position')).to_have_text('3 of 3')
+                dots.first.focus()
+                page.keyboard.press('Enter')
+                expect(lead).to_have_attribute('data-league', 'eng.1')
+                assert_selected_dot(0)
+                expect(dots.first).to_be_focused()
+                assert_equal_cards_and_stable_layout(initial_layout)
+                page.clock.run_for(61000)
+                expect(dots.first).to_be_focused()
+                assert_selected_dot(0)
+                dots.nth(2).focus()
+                page.keyboard.press('Space')
+                expect(lead).to_have_attribute('data-league', 'usa.1')
+                expect(dots.nth(2)).to_be_focused()
+                assert_selected_dot(2)
+                page.keyboard.press('Space')
+                assert_selected_dot(2)
                 track.focus()
                 page.keyboard.press('End')
                 expect(lead).to_have_attribute('data-league', 'usa.1')
-                expect(page.locator('#headline-next')).to_be_disabled()
+                assert_selected_dot(2)
                 page.clock.run_for(50)
                 expect(lead).to_have_attribute('data-league', 'usa.1')
                 self.assertAlmostEqual(lead.bounding_box()['x'], track.bounding_box()['x'], delta=1)
@@ -4440,27 +4456,31 @@ class BrowserChecks(unittest.TestCase):
                     assert_equal_cards_and_stable_layout(initial_layout)
                 page.keyboard.press('ArrowLeft')
                 expect(lead).to_have_attribute('data-league', 'esp.1')
+                assert_selected_dot(1)
                 assert_equal_cards_and_stable_layout(initial_layout)
                 page.keyboard.press('Home')
                 expect(lead).to_have_attribute('data-league', 'eng.1')
+                assert_selected_dot(0)
                 assert_equal_cards_and_stable_layout(initial_layout)
                 # Native horizontal scrolling (touch/trackpad) selects the nearest card too.
                 scroll_to_headline(1)
                 expect(lead).to_have_attribute('data-league', 'esp.1')
+                assert_selected_dot(1)
                 page.clock.run_for(61000)
                 expect(lead).to_have_attribute('data-league', 'esp.1')
                 assert_equal_cards_and_stable_layout(initial_layout)
                 if width < 600:
-                    # A rotated touch screen still browses by swiping, without desktop arrows.
+                    # A rotated touch screen can use dots or swipe, with no side gutters.
                     resize_carousel(844, 390)
-                    expect(page.locator('#headline-prev')).to_be_hidden()
-                    expect(page.locator('#headline-next')).to_be_hidden()
+                    expect(dots.first).to_be_visible()
+                    assert_carousel_alignment()
                     landscape_layout = assert_equal_cards_and_stable_layout()
-                    scroll_to_headline(2)
+                    select_dot(2)
                     expect(lead).to_have_attribute('data-league', 'usa.1')
                     assert_equal_cards_and_stable_layout(landscape_layout)
                     scroll_to_headline(0)
                     expect(lead).to_have_attribute('data-league', 'eng.1')
+                    assert_selected_dot(0)
                     assert_equal_cards_and_stable_layout(landscape_layout)
                     self.assertLessEqual(page.evaluate("document.documentElement.scrollWidth"), 844)
                     carousel_shot('headline-carousel-landscape-844.png')
@@ -4477,9 +4497,8 @@ class BrowserChecks(unittest.TestCase):
                 self.open_settings(page, "leagues")
                 page.locator('#comp-pills [data-key="usa.1"]').click()
                 expect(page.locator('#headline-nav')).to_be_hidden()
-                expect(page.locator('#headline-position')).to_be_hidden()
-                expect(page.locator('#headline-prev')).to_be_hidden()
-                expect(page.locator('#headline-next')).to_be_hidden()
+                expect(dots).to_have_count(1)
+                expect(dots.first).to_be_hidden()
                 page.locator("#btn-filters-close").click()
                 expect(lead.locator(".story-headline__title")).to_have_text("The Spanish title contenders meet")
                 self.assertLessEqual(lead.bounding_box()['width'], min(640, track.bounding_box()['width']))

@@ -1811,11 +1811,10 @@
     var card = cards[headlineIndex];
     if (card) document.getElementById('story').setAttribute('data-league', card.dataset.league);
     document.getElementById('headline-nav').hidden = count < 2;
-    document.getElementById('headline-position').textContent = count ? (headlineIndex + 1) + ' of ' + count : '';
     setText(document.getElementById('headline-announcement'), count > 1 ? (headlineIndex + 1) + ' of ' + count + ': ' + card.querySelector('.story-headline__title').textContent : '');
-    // Keep a keyboard user's place when a navigation button reaches the first/last card.
-    document.getElementById('headline-prev').setAttribute('aria-disabled', String(headlineIndex === 0));
-    document.getElementById('headline-next').setAttribute('aria-disabled', String(headlineIndex >= count - 1));
+    Array.from(document.getElementById('headline-dots').children).forEach(function (dot, index) {
+      if (index === headlineIndex) dot.setAttribute('aria-current', 'true'); else dot.removeAttribute('aria-current');
+    });
     if (count > 1) headlineTrack.tabIndex = 0; else headlineTrack.removeAttribute('tabindex');
   }
   function showHeadline(index) {
@@ -1827,8 +1826,6 @@
     // Button/key navigation is immediate; touch and trackpad scrolling remain native. No autoplay.
     headlineTrack.scrollTo({ left: left, behavior: 'auto' }); syncHeadlineCarousel();
   }
-  document.getElementById('headline-prev').addEventListener('click', function () { if (this.getAttribute('aria-disabled') !== 'true') showHeadline(headlineIndex - 1); });
-  document.getElementById('headline-next').addEventListener('click', function () { if (this.getAttribute('aria-disabled') !== 'true') showHeadline(headlineIndex + 1); });
   headlineTrack.addEventListener('keydown', function (event) {
     if (event.target !== headlineTrack || event.altKey || event.ctrlKey || event.metaKey) return;
     var index = event.key === 'ArrowLeft' ? headlineIndex - 1 : event.key === 'ArrowRight' ? headlineIndex + 1 :
@@ -1895,16 +1892,16 @@
     storyEl._signature = signature;
     keepFocus(function () {
       headlineMode(true);
-      document.getElementById('story-carousel').classList.toggle('story-carousel--multiple', chosen.length > 1);
       storyEl.hidden = !chosen.length;
       setText(document.getElementById('story-h'), 'League headlines');
       if (chosen.length) storyEl.setAttribute('data-league', chosen[0].league_id);
       else storyEl.removeAttribute('data-league');
-      var host = document.getElementById('story-headlines');
+      var host = document.getElementById('story-headlines'), dots = document.getElementById('headline-dots');
       if (headlineResize) headlineResize.disconnect();
-      host.replaceChildren(); headlineIndex = 0;
+      host.replaceChildren(); dots.replaceChildren(); headlineIndex = 0;
       function article(item, index) {
         var el = document.createElement('article'); el.className = 'story-headline';
+        el.id = 'headline-slide-' + index;
         el.setAttribute('data-league', item.league_id);
         if (typeof item.interest === 'number') el.setAttribute('data-interest', item.interest);
         el.setAttribute('role', 'group'); el.setAttribute('aria-roledescription', 'slide'); el.setAttribute('aria-label', (index + 1) + ' of ' + chosen.length);
@@ -1926,9 +1923,18 @@
         }
         return el;
       }
-      chosen.forEach(function (item, index) { var card = article(item, index); host.appendChild(card); if (headlineResize) {
-        headlineWidths.set(card, card.getBoundingClientRect().width); headlineResize.observe(card);
-      } });
+      chosen.forEach(function (item, index) {
+        var card = article(item, index); host.appendChild(card);
+        var dot = document.createElement('button'); dot.type = 'button'; dot.className = 'story-carousel__dot';
+        dot.setAttribute('aria-label', 'Show headline ' + (index + 1) + ' of ' + chosen.length + ': ' + item.headline);
+        dot.setAttribute('aria-controls', card.id);
+        // The hidden title also lets keepFocus find this same headline after a redraw.
+        var label = document.createElement('span'); label.className = 'vh'; label.textContent = item.headline; dot.appendChild(label);
+        dot.addEventListener('click', function () { showHeadline(index); }); dots.appendChild(dot);
+        if (headlineResize) {
+          headlineWidths.set(card, card.getBoundingClientRect().width); headlineResize.observe(card);
+        }
+      });
       showHeadline(0); syncHeadlineCarousel();
     });
     watchIcons();
