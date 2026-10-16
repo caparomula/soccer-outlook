@@ -93,21 +93,23 @@ All other tracked competitions start disabled, including national-team competiti
 
 ## Read the schedule
 
-The page shows **today plus three later days**, rather than a rolling 72-hour period. On Thursday, that means Thursday through Sunday. Upcoming day sections are open; today's earlier matches and yesterday's results are folded below them. Empty day sections are omitted.
+The page shows **today plus three later days**, rather than a rolling 72-hour period, and keeps the **three previous days** for recent matches and results. On Thursday, that means upcoming matches through Sunday and results back through Monday. Upcoming day sections are open; today's earlier matches and the three previous days are folded below them. Empty day sections are omitted.
 
 A day starts at **4 am in your device's time zone**. A 12:30 am Saturday kickoff therefore belongs to Friday's evening. Until 4 am Saturday, the page still calls that period **Today** and labels it with Friday's date.
 
 Kickoff times use your device's time zone and clock format. When your time zone differs from Eastern, the page also shows Eastern time underneath. **TBD** means ESPN has not confirmed a kickoff time. If kickoff passes without a score update, the page says it is awaiting the score; it does not assume the match has started.
 
-The header count and **Your lineup** totals cover the displayed days. **Elsewhere** and the factual summary in the footer use the next 24 hours.
+The header count and **Your lineup** totals cover live and upcoming matches through the three later days; past matches do not increase these counts. **Elsewhere** and the factual summary in the footer use the next 24 hours.
 
 ### Featured matches
 
-**Live now** contains every match that passes your filters and that ESPN confirms is in progress, ordered by pick score. When none is live, **Next up** contains all matches at the earliest confirmed kickoff within the displayed days, also ordered by pick score, with countdowns. Choose a dot underneath to select a match, or swipe horizontally on a touch screen. With the carousel focused, use the left and right arrow keys, Home or End. The selected match stays in place during updates while it remains eligible.
+The opening carousel lets you browse the filtered match schedule. It opens at **Live now** when a match is in progress, or at the earliest confirmed kickoff otherwise. Earlier matches and results are to the left, going back three sports days; later fixtures are to the right. Matches are grouped under headings such as **This afternoon**, **Tonight** and **Tomorrow**. Past days are labelled **Yesterday**, then their weekday names. Each heading stays with its group as you scroll into the next one. Unconfirmed kickoff times are included with a **time TBD** label; an earlier match without a confirmed result still says **Awaiting score**.
 
-**Top picks** chooses up to three of the highest-scoring remaining matches across the displayed days, then presents them in kickoff order. Its heading shows the days those picks cover, and each card shows its day above the kickoff time. It excludes every match in **Live now / Next up**, including cards you have not selected. It can show one or two matches, or disappear when none qualify. With automatic recommendations, a current AI rating on any remaining candidate limits this section to rated matches; otherwise it uses the Outlook score and league priority. While a personal or shared AI response is active, all eligible matches can compete, including newly enabled matches outside that response, which use the site's normal scores.
+Use **Previous** and **Next** to browse matches, or swipe horizontally on a touch screen. **Back to live now** or **Back to next up** returns to the opening match. With the carousel focused, use the left and right arrow keys, Home or End. The opening card follows the current live or earliest match as the schedule or your filters change. After you browse elsewhere, your selected match stays in place during updates while it remains eligible; returning to the opening card resumes following the schedule. A newly completed live match, or a result that ages out of the three-day history, advances to the opening group. If only completed matches are available, the carousel opens at the latest result and offers **Back to latest result** when you browse elsewhere.
 
-The page shows **Live now / Next up** first, **Top picks** second, league news third, and the schedule underneath. The site's automatic AI generation supplies ratings, researched headlines and match blurbs. A maintainer can publish a chat response as the shared default, and you can override those recommendations with a personal response through **Settings → AI**, described below. AI text appears only when you enable its display. Match blurbs are available through **Details**, leaving the cards compact. [How recommendations work](scoring.md) explains the scores and configurable alternatives.
+**Top picks** chooses up to three of the highest-scoring remaining matches across the displayed days, then presents them in kickoff order. Its heading shows the days those picks cover, and each card shows its day above the kickoff time. It excludes the opening live group, or the earliest simultaneous kickoffs when no match is live. Browsing other cards does not change the picks. It can show one or two matches, or disappear when none qualify. With automatic recommendations, a current AI rating on any remaining candidate limits this section to rated matches; otherwise it uses the Outlook score and league priority. While a personal or shared AI response is active, all eligible matches can compete, including newly enabled matches outside that response, which use the site's normal scores.
+
+The page shows the match carousel first, **Top picks** second, league news third, and the schedule rows underneath. The site's automatic AI generation supplies ratings, researched headlines and match blurbs. A maintainer can publish a chat response as the shared default, and you can override those recommendations with a personal response through **Settings → AI**, described below. AI text appears only when you enable its display. Match blurbs are available through **Details**, leaving the cards compact. [How recommendations work](scoring.md) explains the scores and configurable alternatives.
 
 ### Use your own AI for blurbs
 
@@ -179,7 +181,7 @@ Network pills stack on the right when a match card has enough width. In narrower
 
 ### Team vitals
 
-Tap or click a team's name or badge in a schedule row, **Live now / Next up**, or **Top picks** to open its team sheet. With a keyboard, focus the team and press Enter. Close the sheet with **Close**, Escape, or a tap outside it.
+Tap or click a team's name or badge in a schedule row, the match carousel, or **Top picks** to open its team sheet. With a keyboard, focus the team and press Enter. Close the sheet with **Close**, Escape, or a tap outside it.
 
 The sheet shows available records and recent form immediately, then loads the team's home league, nickname, home ground and its city from ESPN. National teams are not assigned a permanent home ground. Domestic and cup records are labelled separately. **Leading contributors** lists up to three players with the most combined goals and assists in the displayed season and competition; it is a statistical selection, not an AI assessment of star quality. Links open the full squad, team statistics and ESPN team page.
 
@@ -187,7 +189,7 @@ Only available facts are shown. Coach names are omitted because ESPN's roster fe
 
 ### League vitals
 
-Click or tap a league emblem on a schedule row, **Live now / Next up**, or **Top picks** to open a league sheet. With a keyboard, focus the emblem and press Enter or Space. The sheet describes the competition, shows up to three live or upcoming matches on your selected services, and lists the top five teams in each published standings group. A **Full league table** link opens the complete standings on the page; **Competition on ESPN** opens ESPN's league page.
+Click or tap a league emblem on a schedule row, the match carousel, or **Top picks** to open a league sheet. With a keyboard, focus the emblem and press Enter or Space. The sheet describes the competition, shows up to three live or upcoming matches on your selected services, and lists the top five teams in each published standings group. A **Full league table** link opens the complete standings on the page; **Competition on ESPN** opens ESPN's league page.
 
 Fixture counts cover the loaded schedule, not the whole season. Standings come from the page's latest build; live scores update while the sheet is open. Cups and friendlies may have no standings table. Missing information is left out or labelled unavailable. Close with **Close**, Escape, or a tap outside the dialog. The emblems in the filter bar and Settings remain filter controls.
 

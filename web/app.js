@@ -2,6 +2,7 @@
   'use strict';
   var DAY_START = 4;                 // a day changes at 4 am local time, not midnight, so a late game stays with its evening (README)
   var WINDOW_DAYS = 3;               // the page shows today and the three days after it (story.py's WINDOW_DAYS)
+  var HISTORY_DAYS = 3;              // backward browsing stops after the three previous sports days
   var FOCUS_MS = 24 * 60 * 60000;
   var HEADLINE_MIN = 60;            // absolute editorial interest: routine fixture notices stay out
   var HEADLINE_LEAGUE_WEIGHT = 0.2; // headline selection: 80% editorial interest, 20% saved league priority
@@ -33,12 +34,12 @@
   function rankOf(id) { var i = serviceOrder().indexOf(id); return i < 0 ? 99 : i; }
   function escHtml(t) { return String(t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
   // The schedule's sections: matches in progress, one per sports day of the window (WINDOW_DAYS + 1
-  // of them: Today and Tomorrow, then the later days by their dates), and today's and yesterday's
-  // results, folded.
+  // of them: Today and Tomorrow, then the later days by their dates), and recent results, folded.
   var DAYS = ['today', 'tomorrow', 'day2', 'day3'];
-  var ORDER = ['live'].concat(DAYS, ['earlier', 'yesterday']);
+  var PAST = ['yesterday', 'dayminus2', 'dayminus3'];
+  var ORDER = ['live'].concat(DAYS, ['earlier'], PAST);
   var TITLES = { live: 'Live now', today: 'Today', tomorrow: 'Tomorrow', earlier: 'Earlier today', yesterday: 'Yesterday' };
-  var FOLDED = { earlier: true, yesterday: true };
+  var FOLDED = { earlier: true, yesterday: true, dayminus2: true, dayminus3: true };
 
   function initializeRow(r, card) {
     r._card = card || new MatchCard(r);
@@ -789,13 +790,13 @@
        (r._state === 'in' && Date.now() - (r._seen || 0) < 10 * 60000));
   }
   // A row's section, or null when it is outside the page's window: today and the three days after it
-  // (Thursday shows Thursday to Sunday), and yesterday's results.
+  // (Thursday shows Thursday to Sunday), and the previous three sports days.
   function bucketOf(r, now) {
     var idx = dayIndex(r._k, now);
-    if (idx > WINDOW_DAYS) return null;
+    if (idx > WINDOW_DAYS || idx < -HISTORY_DAYS) return null;
     // A live match can cross midnight or the 4 am sports-day boundary.
     if (inFocus(r, now) && r._tv && r._k <= now) return 'live';
-    if (idx < 0) return idx === -1 ? 'yesterday' : null;
+    if (idx < 0) return PAST[-idx - 1];
     if (idx === 0) {
       if (r._state === 'post') return 'earlier';
       if (r._state === 'in' && (now < r._k + LIVE_MS + 30 * 60000 || Date.now() - (r._seen || 0) < 10 * 60000)) return 'live';
@@ -927,7 +928,8 @@
       var h = document.createElement('h3'); h.className = 'bucket__h';
       // Today and Tomorrow give the day's full date in grey; a later day is its weekday, with the rest of
       // its date in grey ("Saturday" and "October 10"), which keeps the heading to one line on a phone.
-      var day = DAYS.indexOf(b), date = day >= 0 ? dayDate(day, now) : null;
+      var day = DAYS.indexOf(b), past = PAST.indexOf(b);
+      var date = day >= 0 ? dayDate(day, now) : past > 0 ? dayDate(-past - 1, now) : null;
       var title = TITLES[b] || fmtLongDay.format(date);
       var when = !date ? '' : TITLES[b] ? fmtDay.format(date) : fmtMonthDay.format(date);
       h.innerHTML = '<span></span><span class="when"></span><span class="bucket__count"></span>';
@@ -963,13 +965,22 @@
     positionDrawer();
   }
 
-  // ---- the lead carousel (live now, or next up) and kickoff countdowns -------------------------
-  var nextupTrack = document.getElementById('nextup-track'), nextupSection = document.getElementById('nextup-section'), nextRows = [];
-  var nextupCarousel = createCarousel('nextup-track', 'nextup-nav', 'nextup-dots', 'nextup-announcement', 'match',
-    function (card) { return matchName(card._row); }, selectNextup);
+  // ---- the schedule carousel and kickoff countdowns -----------------------------------------
+  var nextupTrack = document.getElementById('nextup-track'), nextupSection = document.getElementById('nextup-section'), openingRows = [], nextupBrowsing = false;
+  function nextupCards() { return Array.from(nextupTrack.querySelectorAll('.nextup')); }
+  var nextupCarousel = createCarousel('nextup-track', 'nextup-nav', null, 'nextup-announcement', 'match',
+    function (card) { return card.dataset.timeLabel + ': ' + matchName(card._row); }, selectNextup, '.nextup',
+    function (card) { nextupBrowsing = !!card && (!openingRows.length || card.dataset.matchId !== openingRows[0].dataset.id); },
+    { previous: 'nextup-prev', next: 'nextup-next' });
+  function openingCardIndex(cards) {
+    return openingRows.length ? cards.findIndex(function (card) { return card.dataset.matchId === openingRows[0].dataset.id; }) : cards.length - 1;
+  }
+  document.getElementById('nextup-return').addEventListener('click', function () {
+    nextupBrowsing = false; nextupCarousel.show(openingCardIndex(nextupCards()));
+  });
   function selectNextup(active) {
     // These IDs identify the selected card only; each slide otherwise uses scoped class selectors.
-    Array.from(nextupTrack.children).forEach(function (card) {
+    nextupCards().forEach(function (card) {
       if (card === active) card.id = 'nextup'; else card.removeAttribute('id');
       [['.nextup__rating', 'nextup-rating'], ['.nextup__status', 'nextup-status'],
        ['.nextup__count', 'nextup-count'], ['.match__body', 'nextup-match']].forEach(function (part) {
@@ -977,7 +988,17 @@
         if (el) { if (card === active) el.id = part[1]; else el.removeAttribute('id'); }
       });
     });
-    if (active) setText(document.getElementById('nextup-h'), nextupText(active._row, nowMs()).title);
+    Array.from(nextupTrack.children).forEach(function (group) {
+      var chosen = active && group.contains(active), heading = group.querySelector('h2'), sub = group.querySelector('p');
+      heading.parentElement.setAttribute('aria-hidden', String(!chosen));
+      if (chosen) { heading.id = 'nextup-h'; sub.id = 'nextup-sub'; }
+      else { heading.removeAttribute('id'); sub.removeAttribute('id'); }
+    });
+    var cards = nextupCards(), home = document.getElementById('nextup-return');
+    var atOpening = !active || cards.indexOf(active) === openingCardIndex(cards);
+    var label = !openingRows.length ? 'Latest result' : openingRows[0]._state === 'in' ? 'Live now' : 'Next up';
+    home.disabled = atOpening;
+    setText(home, atOpening ? label : 'Back to ' + label.toLowerCase());
     if (openNetwork && nextupTrack.contains(openNetwork) && !visibleEl(openNetwork)) closeNetwork();
     if (previewState && nextupTrack.contains(previewState.trigger) && !visibleEl(previewState.trigger)) hideDetailPreview();
   }
@@ -1171,43 +1192,83 @@
     return rows.filter(function (r) { return r._b && keep(r) && r._state !== 'post' && (r._k > now || r._b === 'live'); });
   }
   function availableUpcoming(now) { return upcomingIn(now, editorialPasses); }
-  // The lead carousel answers "what can I watch now, or next?" among matches passing the lineup:
-  // all matches ESPN reports in progress, or else all at the soonest confirmed kickoff however
-  // far ahead (a time to be set can't be put in order, as in the summary's "Next kickoff"; such a
-  // match stays in the picks and the schedule). A kickoff that passes without word from ESPN keeps
-  // the card, as its schedule row keeps the Live section, until ESPN reports it or the window closes.
+  function nextupGroup(r, now) {
+    var day = sportsDayStart(new Date(r._k)), idx = dayIndex(r._k, now), label;
+    if (r._state === 'post' || FOLDED[r._b]) {
+      label = idx === 0 ? 'Earlier today' : idx === -1 ? 'Yesterday' : fmtLongDay.format(day);
+      return { key: 'recent-' + day.getTime(), label: label };
+    }
+    if (r._state === 'in') return { key: 'live', label: 'Live now' };
+    if (idx === 0) {
+      var hour = new Date(r._k).getHours();
+      label = !r._tv ? 'Today · time TBD' : hour < 4 || hour >= 21 ? 'Tonight' :
+        hour < 12 ? 'This morning' : hour < 17 ? 'This afternoon' : 'This evening';
+    } else label = idx === 1 ? 'Tomorrow' : fmtLongDay.format(day);
+    return { key: 'upcoming-' + day.getTime() + '-' + label, label: label };
+  }
+  function carouselUpcoming(now) {
+    return rows.filter(function (r) {
+      return r._b && editorialPasses(r) && r._state !== 'post' &&
+        (r._k > now || r._b === 'live' || !r._tv && DAYS.indexOf(r._b) !== -1);
+    });
+  }
+  // Results sit to the left of the opening live/next cohort; every later fixture is to its right.
+  // A group's own sticky heading travels with its cards at the boundary, without changing the
+  // page's height. Selection survives refreshes, while a newly finished opening game moves on.
   function renderNextup(now) {
-    var available = availableUpcoming(now);
+    var available = carouselUpcoming(now);
     var live = available.filter(function (r) { return r._state === 'in' && r._b === 'live'; }).sort(byRating);
-    var next = available.filter(function (r) { return r._state === 'pre' && r._tv; }).sort(function (a, b) { return byTime(a, b) || byRating(a, b); });
-    var active = nextupCarousel.current(), selectedId = active && active.dataset.matchId;
-    nextRows = live.length ? live : next.filter(function (r) { return r._k === next[0]._k; });
+    var next = available.filter(function (r) { return live.indexOf(r) === -1; }).sort(function (a, b) {
+      return dayIndex(a._k, now) - dayIndex(b._k, now) || Number(b._tv) - Number(a._tv) || byTime(a, b) || byRating(a, b);
+    });
+    var timed = next.filter(function (r) { return r._tv; });
+    openingRows = live.length ? live : timed.length ? timed.filter(function (r) { return r._k === timed[0]._k; }) : next.slice(0, 1);
+    var recent = rows.filter(function (r) {
+      return r._b && editorialPasses(r) && (r._state === 'post' || FOLDED[r._b]);
+    }).sort(byTime);
+    var nextRows = recent.concat(live, next);
+    var active = nextupCarousel.current(), selectedId = nextupBrowsing && active && active.dataset.matchId;
+    if (active && ROW_BY_ID[selectedId] && ROW_BY_ID[selectedId]._state === 'post' && active.dataset.finished !== 'true') selectedId = null;
     nextupSection.hidden = !nextRows.length;
     var previous = Object.create(null);
-    Array.from(nextupTrack.children).forEach(function (card) { previous[card.dataset.matchId] = card; });
-    var cards = nextRows.map(function (r) { return r._card.render('nextup', now, previous[r.dataset.id]); });
-    nextupTrack.replaceChildren.apply(nextupTrack, cards);
+    nextupCards().forEach(function (card) { previous[card.dataset.matchId] = card; });
+    var groups = [], group = null;
+    nextRows.forEach(function (r) {
+      var time = nextupGroup(r, now);
+      if (!group || group.dataset.timeGroup !== time.key) {
+        group = document.createElement('div'); group.className = 'nextup-group'; group.dataset.timeGroup = time.key;
+        var heading = document.createElement('div'); heading.className = 'sec__h nextup-group__heading';
+        var title = document.createElement('h2'); title.textContent = time.label; heading.appendChild(title);
+        heading.appendChild(document.createElement('p')); group.appendChild(heading); groups.push(group);
+      }
+      var card = r._card.render('nextup', now, previous[r.dataset.id]);
+      card.dataset.timeLabel = time.label; card.dataset.finished = String(r._state === 'post'); group.appendChild(card);
+    });
+    groups.forEach(function (g) {
+      var count = g.children.length - 1; g.style.setProperty('--match-count', count);
+      g.querySelector('p').textContent = count + (count === 1 ? ' match' : ' matches');
+    });
+    nextupTrack.replaceChildren.apply(nextupTrack, groups);
     var selectedIndex = nextRows.findIndex(function (r) { return r.dataset.id === selectedId; });
-    nextupCarousel.refresh(Math.max(0, selectedIndex));
-    setText(document.getElementById('nextup-sub'), live.length
-      ? (live.length > 1 ? live.length + ' matches in progress in your lineup' : 'In progress in your lineup')
-      : (nextRows.length > 1 ? nextRows.length + ' matches at the soonest kickoff in your lineup' : 'The soonest kickoff in your lineup'));
+    var openingIndex = openingRows.length ? nextRows.indexOf(openingRows[0]) : nextRows.length - 1;
+    if (selectedIndex < 0) nextupBrowsing = false;
+    nextupCarousel.refresh(selectedIndex >= 0 ? selectedIndex : Math.max(0, openingIndex));
     tickNextup();
   }
-  // The card's heading, status and count. "Live now" only once ESPN reports the match under way,
-  // over its clock and score; before that "Next up", over the kickoff and a countdown, and once the
-  // kickoff time has passed without word from ESPN, the words its schedule row and pick card use.
+  // Scores for live/results cards; a countdown or explicit TBD for upcoming fixtures. A kickoff
+  // that passes without word from ESPN says "Awaiting score", as the schedule row does.
   // The live poll updates each competition as its answer comes and redraws once all have answered,
   // so a tick in between can find the card's match just finished: it reads as its row does ("FT"
   // over the score) until that redraw moves the card on. A status in two parts ("Kickoff 1:10 pm",
   // "status pending") is stacked by a phone's narrow column.
   function nextupText(r, now) {
-    var clk = clockOf(r), title = r._state === 'pre' ? 'Next up' : 'Live now';
-    if (r._state === 'in') return { title: title, what: clk, when: '', count: scoreOf(r) || 'In progress' };
-    if (r._state === 'post') return { title: title, what: clk || 'FT', when: '', count: scoreOf(r) };
+    var clk = clockOf(r);
+    if (r._state === 'in') return { what: clk, when: '', count: scoreOf(r) || 'In progress' };
+    if (r._state === 'post') return { what: clk || 'FT', when: '', count: scoreOf(r) || 'Final' };
+    if (!r._tv) return { what: 'Kickoff time to be confirmed', when: '', count: 'TBD' };
     var kickoff = 'Kickoff ' + timeLabel(r) + dayTag(r, now);
-    return r._k > now ? { title: title, what: kickoff, when: '', count: fmtCount(r._k - now) }
-      : { title: title, what: kickoff, when: 'status pending', count: 'Awaiting score' };
+    return r._k > now ? { what: kickoff, when: '', count: fmtCount(r._k - now) }
+      : { what: kickoff, when: 'status pending', count: 'Awaiting score' };
   }
   function setText(el, text) { if (el && el.textContent !== text) el.textContent = text; }
   // "A · B" in three spans; the separator is empty when there is no B.
@@ -1223,12 +1284,10 @@
   }
   function tickNextup() {
     var now = nowMs();
-    Array.from(nextupTrack.children).forEach(function (card) {
+    nextupCards().forEach(function (card) {
       card.classList.toggle('nextup--live', card._row._state === 'in');
       showNextupText(card.querySelector('.nextup__status'), card.querySelector('.nextup__count'), nextupText(card._row, now));
     });
-    var active = nextupCarousel.current();
-    if (active) setText(document.getElementById('nextup-h'), nextupText(active._row, now).title);
     rows.forEach(function (r) { r._card.tick(r, now); });
     picksEl.querySelectorAll('.pick').forEach(function (card) { card._matchCard.tick(card, now); });
   }
@@ -1413,7 +1472,8 @@
   }
   // The top picks are the best matches the viewer can watch: from the same matches as the top card and
   // the schedule (their services, their enabled leagues, none hidden from the strip), excluding every
-  // match in the lead carousel. Until 9 October 2026 they came from every service and competition, for the AI-written
+  // match in the opening live/earliest-kickoff cohort, independently of which slide is selected.
+  // Until 9 October 2026 they came from every service and competition, for the AI-written
   // blurbs every visitor would read; with no blurbs, a pick the viewer can't watch was only a tease.
   // They are the best-scored of the page's window, today and the three days after it, which the AI
   // rates each morning; not of the next 24 hours, where on a quiet day (an international break) the few
@@ -1423,7 +1483,7 @@
   // original lineup, so while it is active newly enabled matches may compete using their normal scores.
   // Fewer than three in the window make fewer cards.
   function renderPicks(now) {
-    var available = availableUpcoming(now).filter(function (r) { return nextRows.indexOf(r) === -1; });
+    var available = availableUpcoming(now).filter(function (r) { return openingRows.indexOf(r) === -1; });
     if (!(PERSONAL && PERSONAL.active()) && !(SHARED && SHARED.active()) && available.some(function (r) { return ratingOf(r); })) {
       available = available.filter(function (r) { return ratingOf(r); });
     }
@@ -1806,14 +1866,17 @@
     // preserving an opened disclosure and the reader's focus on its source links.
     detail.open = false;
   }
-  // Both carousels use native scrolling, direct-selection dots and one shared height.
+  // Both carousels use native scrolling and one shared height. News has a few selection dots;
+  // the full match schedule uses previous/next controls and a return to live/next button.
   // Keep selection independent of the render cycle so live updates do not advance a card.
-  function createCarousel(trackId, navId, dotsId, announcementId, noun, labelFor, selected) {
-    var track = document.getElementById(trackId), nav = document.getElementById(navId), dots = document.getElementById(dotsId);
+  function createCarousel(trackId, navId, dotsId, announcementId, noun, labelFor, selected, cardSelector, navigated, navigation) {
+    var track = document.getElementById(trackId), nav = document.getElementById(navId), dots = dotsId && document.getElementById(dotsId);
+    var previous = navigation && document.getElementById(navigation.previous), nextButton = navigation && document.getElementById(navigation.next);
     var index = 0, scrollFrame = null, trackWidth = 0, dotSignature = '', widths = new WeakMap();
-    function current() { return track.children[index] || null; }
+    function cardsInTrack() { return Array.from(cardSelector ? track.querySelectorAll(cardSelector) : track.children); }
+    function current() { return cardsInTrack()[index] || null; }
     function sync() {
-      var cards = Array.from(track.children), count = cards.length, bounds = track.getBoundingClientRect();
+      var cards = cardsInTrack(), count = cards.length, bounds = track.getBoundingClientRect();
       index = Math.max(0, Math.min(index, count - 1));
       cards.forEach(function (card, i) {
         var active = i === index, box = card.getBoundingClientRect();
@@ -1825,15 +1888,26 @@
         if (heldFocus) track.focus({ preventScroll: true });
       });
       nav.hidden = count < 2;
-      Array.from(dots.children).forEach(function (dot, i) {
+      if (dots) Array.from(dots.children).forEach(function (dot, i) {
         if (i === index) dot.setAttribute('aria-current', 'true'); else dot.removeAttribute('aria-current');
+        dot.tabIndex = i === index ? 0 : -1;
       });
+      // Keep an active pagination dot visible without moving the page vertically.
+      var activeDot = dots && dots.children[index];
+      if (activeDot && dots.scrollWidth > dots.clientWidth) {
+        var dotBox = activeDot.getBoundingClientRect(), dotBounds = dots.getBoundingClientRect();
+        if (dotBox.left < dotBounds.left) dots.scrollLeft += dotBox.left - dotBounds.left;
+        else if (dotBox.right > dotBounds.right) dots.scrollLeft += dotBox.right - dotBounds.right;
+      }
+      if (navigation) {
+        previous.disabled = !count || index === 0; nextButton.disabled = !count || index === count - 1;
+      }
       setText(document.getElementById(announcementId), count > 1 ? (index + 1) + ' of ' + count + ': ' + labelFor(current()) : '');
       if (count > 1) track.tabIndex = 0; else track.removeAttribute('tabindex');
       selected(current());
     }
-    function show(i) {
-      var cards = track.children;
+    function show(i, userNavigation) {
+      var cards = cardsInTrack();
       if (!cards.length) { sync(); return; }
       index = Math.max(0, Math.min(i, cards.length - 1));
       trackWidth = track.clientWidth;
@@ -1842,6 +1916,7 @@
       track.style.setProperty('--carousel-tail', Math.ceil(space) + 'px');
       var left = track.scrollLeft + cards[index].getBoundingClientRect().left - track.getBoundingClientRect().left;
       track.scrollTo({ left: left, behavior: 'auto' }); sync();
+      if (userNavigation && navigated) navigated(current());
     }
     var resize = window.ResizeObserver ? new ResizeObserver(function (entries) {
       var changed = false;
@@ -1856,34 +1931,45 @@
     track.addEventListener('keydown', function (event) {
       if (event.target !== track || event.altKey || event.ctrlKey || event.metaKey) return;
       var next = event.key === 'ArrowLeft' ? index - 1 : event.key === 'ArrowRight' ? index + 1 :
-        event.key === 'Home' ? 0 : event.key === 'End' ? track.children.length - 1 : null;
-      if (next !== null) { event.preventDefault(); show(next); }
+        event.key === 'Home' ? 0 : event.key === 'End' ? cardsInTrack().length - 1 : null;
+      if (next !== null) { event.preventDefault(); show(next, true); }
     });
+    if (dots) dots.addEventListener('keydown', function (event) {
+      if (event.altKey || event.ctrlKey || event.metaKey || event.target.parentElement !== dots) return;
+      var next = event.key === 'ArrowLeft' ? index - 1 : event.key === 'ArrowRight' ? index + 1 :
+        event.key === 'Home' ? 0 : event.key === 'End' ? cardsInTrack().length - 1 : null;
+      if (next !== null) { event.preventDefault(); show(next, true); dots.children[index].focus({ preventScroll: true }); }
+    });
+    if (navigation) {
+      previous.addEventListener('click', function () { show(index - 1, true); });
+      nextButton.addEventListener('click', function () { show(index + 1, true); });
+    }
     track.addEventListener('scroll', function () {
       if (scrollFrame !== null) return;
       scrollFrame = requestAnimationFrame(function () {
         scrollFrame = null;
-        var left = track.getBoundingClientRect().left, distance = Infinity;
-        Array.from(track.children).forEach(function (card, i) {
+        var before = index, left = track.getBoundingClientRect().left, distance = Infinity;
+        cardsInTrack().forEach(function (card, i) {
           var currentDistance = Math.abs(card.getBoundingClientRect().left - left);
           if (currentDistance < distance) { distance = currentDistance; index = i; }
         });
         sync();
+        if (index !== before && navigated) navigated(current());
       });
     }, { passive: true });
     window.addEventListener('resize', function () { if (track.clientWidth && track.clientWidth !== trackWidth) show(index); });
-    return { current: current, sync: sync, refresh: function (selectedIndex) {
+    return { current: current, sync: sync, show: show, refresh: function (selectedIndex) {
       if (resize) resize.disconnect();
-      var cards = Array.from(track.children), labels = cards.map(labelFor), signature = JSON.stringify(labels);
+      var cards = cardsInTrack(), labels = cards.map(labelFor), signature = JSON.stringify(labels);
       // Retain the focused dot during score, clock and unchanged news updates.
-      if (signature !== dotSignature) {
+      if (dots && signature !== dotSignature) {
         dotSignature = signature; dots.replaceChildren();
         labels.forEach(function (label, i) {
           var dot = document.createElement('button'); dot.type = 'button'; dot.className = 'carousel__dot';
           dot.setAttribute('aria-label', 'Show ' + noun + ' ' + (i + 1) + ' of ' + cards.length + ': ' + label);
           dot.setAttribute('aria-controls', track.id);
           var text = document.createElement('span'); text.className = 'vh'; text.textContent = label; dot.appendChild(text);
-          dot.addEventListener('click', function () { show(i); }); dots.appendChild(dot);
+          dot.addEventListener('click', function () { show(i, true); }); dots.appendChild(dot);
         });
       }
       cards.forEach(function (card, i) {
@@ -2221,7 +2307,7 @@
     var now = nowMs();
     keepPlace(function () {
       keepFocus(function () {
-        Array.from(nextupTrack.children).forEach(function (card) { card._row._card.render('nextup', now, card); });
+        nextupCards().forEach(function (card) { card._row._card.render('nextup', now, card); });
         nextupCarousel.sync();
         picksEl.querySelectorAll('.pick').forEach(function (a) { if (a._row) a._row._card.render('pick', now, a); });
       });
@@ -2328,7 +2414,7 @@
     var r = ROW_BY_ID[id]; if (!r) return null;
     var now = nowMs(), bucket = bucketOf(r, now);
     return { id: id, kickoff: new Date(r._k).toISOString(), state: r._state,
-      eligible: passes(r) && r._state !== 'post' && !!bucket && bucket !== 'earlier' && bucket !== 'yesterday' };
+      eligible: passes(r) && r._state !== 'post' && DAYS.concat(['live']).indexOf(bucket) !== -1 };
   }
   function personalLeagueEligible(id) {
     return Object.prototype.hasOwnProperty.call(SERVICES.leagues || {}, id) &&

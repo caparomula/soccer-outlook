@@ -211,7 +211,11 @@ def compare(matches, dates, fetch, *, observed_at=None):
     now = now.astimezone(timezone.utc)
     matches = list(matches)
     days = sorted({_day(value) for value in dates})
-    chosen, skipped = days[:MAX_DATES], days[MAX_DATES:]
+    # Extra history supports browsing results; it must not use the request budget at the
+    # expense of upcoming fixture discovery. Fill spare slots with the most recent past dates.
+    today = now.astimezone(ET).date()
+    priority = sorted(days, key=lambda day: (day < today, abs((day - today).days)))
+    chosen, skipped = sorted(priority[:MAX_DATES]), sorted(priority[MAX_DATES:])
     report = dict(version=1, observed_at=now.isoformat(), mode="observation_only",
                   scope={LEAGUE: SOURCE}, requested=0, failed=0, sources=[], matched=[],
                   missing_from_espn=[], missing_from_secondary=[], kickoff_conflicts=[],

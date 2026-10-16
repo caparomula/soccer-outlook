@@ -37,6 +37,12 @@ def enrich(builder, matches, fetch, built_at):
     """
     matches = list(matches)
     valid = [match for match in matches if eligible(builder, match)]
+    # A larger history window can contain stale pre/in fixtures. Give imminent
+    # matches the first requests in bounded adapters, without dropping older
+    # candidates or changing the evidence required to confirm their broadcasts.
+    recent = built_at - timedelta(hours=4)
+    valid = (sorted((match for match in valid if match.utc >= recent), key=lambda match: match.utc)
+             + sorted((match for match in valid if match.utc < recent), key=lambda match: match.utc, reverse=True))
     for match in valid:
         if not hasattr(match, "broadcast_checks"):
             match.broadcast_checks = []

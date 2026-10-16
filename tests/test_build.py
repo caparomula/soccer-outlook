@@ -1,7 +1,7 @@
 """Publication depends on usable ESPN sources, not on how busy the soccer calendar is."""
 from copy import deepcopy
 from dataclasses import replace
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 import io
 import json
 from pathlib import Path
@@ -9,6 +9,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 from urllib.parse import parse_qs, urlparse
+from zoneinfo import ZoneInfo
 
 import build
 from tests.page_fixture import BUILT_AT, TODAY
@@ -20,42 +21,62 @@ SAMPLES = json.loads((FIXTURES / "espn-scoreboards.json").read_text())["scoreboa
 
 
 class FetchDates(unittest.TestCase):
-    def dates(self, timestamp, days_back=1, days_ahead=4, fixed_date=None):
+    def dates(self, timestamp, days_back=3, days_ahead=4, fixed_date=None):
         built_at = datetime.fromisoformat(timestamp)
         today = fixed_date or built_at.astimezone(build.ET).date()
         return build.scoreboard_dates(today, built_at, days_back, days_ahead, fixed_date=fixed_date is not None)
 
-    def test_pre_dawn_build_keeps_yesterday_results_and_forward_buffer(self):
+    def test_pre_dawn_build_keeps_three_previous_sports_days_and_forward_buffer(self):
         days = self.dates("2026-10-12T05:14:22+00:00")
-        self.assertEqual(days, [date(2026, 10, 10) + timedelta(days=i) for i in range(7)])
-        # At 4 am Eastern, October 10 is outside Yesterday and can fall out of the fetch.
-        self.assertEqual(self.dates("2026-10-12T08:00:00+00:00"), days[1:])
+        self.assertEqual(days, [date(2026, 10, 8) + timedelta(days=i) for i in range(9)])
+        # The buffer remains after 4 am Eastern: Pacific viewers are still on the prior sports day.
+        self.assertEqual(self.dates("2026-10-12T08:00:00+00:00"), days)
         self.assertEqual(self.dates("2026-10-12T07:59:59+00:00"), days)
 
     def test_before_midnight_eastern_does_not_use_the_utc_date(self):
         days = self.dates("2026-10-12T02:00:00+00:00")
-        self.assertEqual((days[0], days[-1], len(days)), (date(2026, 10, 10), date(2026, 10, 15), 6))
+        self.assertEqual((days[0], days[-1], len(days)), (date(2026, 10, 7), date(2026, 10, 15), 9))
 
     def test_lookback_crosses_month_and_year_boundaries(self):
-        for timestamp, first in (("2027-01-01T05:30:00+00:00", date(2026, 12, 30)),
-                                 ("2026-03-01T05:30:00+00:00", date(2026, 2, 27))):
+        for timestamp, first in (("2027-01-01T05:30:00+00:00", date(2026, 12, 28)),
+                                 ("2026-03-01T05:30:00+00:00", date(2026, 2, 25))):
             with self.subTest(timestamp=timestamp):
                 self.assertEqual(self.dates(timestamp)[0], first)
 
-    def test_dst_changes_preserve_the_four_am_boundary(self):
+    def test_dst_changes_preserve_the_local_sports_day_buffer(self):
         for timestamp, first, count in (
-                ("2026-03-08T06:30:00+00:00", date(2026, 3, 6), 7),  # 1:30 EST
-                ("2026-03-08T07:30:00+00:00", date(2026, 3, 6), 7),  # 3:30 EDT
-                ("2026-03-08T08:00:00+00:00", date(2026, 3, 7), 6),  # 4:00 EDT
-                ("2026-11-01T05:30:00+00:00", date(2026, 10, 30), 7),  # first 1:30
-                ("2026-11-01T06:30:00+00:00", date(2026, 10, 30), 7),  # repeated 1:30
-                ("2026-11-01T09:00:00+00:00", date(2026, 10, 31), 6)):  # 4:00 EST
+                ("2026-03-08T06:30:00+00:00", date(2026, 3, 4), 9),  # 1:30 EST
+                ("2026-03-08T07:30:00+00:00", date(2026, 3, 4), 9),  # 3:30 EDT
+                ("2026-03-08T08:00:00+00:00", date(2026, 3, 4), 9),  # 4:00 EDT
+                ("2026-11-01T05:30:00+00:00", date(2026, 10, 28), 9),  # first 1:30
+                ("2026-11-01T06:30:00+00:00", date(2026, 10, 28), 9),  # repeated 1:30
+                ("2026-11-01T09:00:00+00:00", date(2026, 10, 28), 9)):  # 4:00 EST
             with self.subTest(timestamp=timestamp):
                 days = self.dates(timestamp)
                 self.assertEqual((days[0], len(days)), (first, count))
 
+    def test_three_previous_local_sports_days_fit_even_after_eastern_rollover(self):
+        # Date-line extremes and both DST changes exercise the history boundary independently
+        # of the fetch algorithm. Every instant in the three local sports days must be covered.
+        for calendar_day in (date(2026, 10, 16), date(2026, 3, 8), date(2026, 11, 1)):
+            for hour in (0, 6, 9, 12, 18, 23):
+                built_at = datetime.combine(calendar_day, time(hour), timezone.utc)
+                fetched = self.dates(built_at.isoformat())
+                for zone in ("Etc/GMT+12", "Pacific/Honolulu", "America/Los_Angeles",
+                             "America/New_York", "Europe/London", "Asia/Tokyo", "Pacific/Kiritimati"):
+                    with self.subTest(now=built_at, zone=zone):
+                        local_now = built_at.astimezone(ZoneInfo(zone))
+                        sports_date = local_now.date() - timedelta(days=local_now.hour < 4)
+                        for ago in (1, 2, 3):
+                            day = sports_date - timedelta(days=ago)
+                            first = datetime.combine(day, time(4), ZoneInfo(zone))
+                            last = datetime.combine(day + timedelta(days=1), time(4), ZoneInfo(zone)) - timedelta(seconds=1)
+                            self.assertIn(first.astimezone(build.ET).date(), fetched)
+                            self.assertIn(last.astimezone(build.ET).date(), fetched)
+                        self.assertEqual(fetched[-1], built_at.astimezone(build.ET).date() + timedelta(days=4))
+
     def test_explicit_date_has_the_same_calendar_range_at_every_hour(self):
-        expected = [date(2026, 10, 11) + timedelta(days=i) for i in range(6)]
+        expected = [date(2026, 10, 9) + timedelta(days=i) for i in range(8)]
         for timestamp in ("2027-01-01T06:00:00+00:00", "2027-01-01T16:00:00+00:00"):
             with self.subTest(timestamp=timestamp):
                 self.assertEqual(self.dates(timestamp, fixed_date=date(2026, 10, 12)), expected)

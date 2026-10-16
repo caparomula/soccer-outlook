@@ -217,6 +217,24 @@ class IndependentFixtures(unittest.TestCase):
         self.assertEqual(report["unsupported_leagues"], ["eng.1"])
         self.assertFalse(report["complete"])
 
+    def test_added_history_does_not_displace_upcoming_comparison_dates(self):
+        days = [DAY + timedelta(days=i) for i in range(-4, 5)]
+        fetch = Mock(return_value=SAMPLE)
+        report = comparison.compare([], days, fetch, observed_at=NOW)
+        expected = [DAY + timedelta(days=i) for i in range(-1, 5)]
+        self.assertEqual([call.args[0] for call in fetch.call_args_list],
+                         [comparison.SCORES_URL.format(day=day.isoformat()) for day in expected])
+        self.assertEqual(fetch.call_count, comparison.MAX_DATES)
+        self.assertEqual(report["skipped_dates"], [day.isoformat() for day in days[:3]])
+
+    def test_comparison_date_priority_uses_eastern_date_before_utc_midnight_rollover(self):
+        now = datetime(2026, 10, 17, 2, tzinfo=timezone.utc)  # Still October 16 in Eastern time.
+        days = [DAY + timedelta(days=i) for i in range(-4, 5)]
+        fetch = Mock(return_value=SAMPLE)
+        comparison.compare([], days, fetch, observed_at=now)
+        self.assertEqual(fetch.call_args_list[0].args[0], comparison.SCORES_URL.format(day="2026-10-15"))
+        self.assertEqual(fetch.call_args_list[-1].args[0], comparison.SCORES_URL.format(day="2026-10-20"))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -66,6 +66,7 @@ def snapshot(fixtures=FIXTURES, generated="2026-10-07T17:01:00Z"):
 
 class ScheduleChecks(unittest.TestCase):
     page = BrowserChecks.page
+    select_match = staticmethod(BrowserChecks.select_match)
 
     @contextmanager
     def transport_page(self, module):
@@ -136,7 +137,7 @@ class ScheduleChecks(unittest.TestCase):
                     ('removed', '2026-10-07T16:40:00+00:00', 'in', 'USA Network', 'eng.1')]
         for width in (1280, 390):
             with self.subTest(width=width), self.page('after', width=width, html=render_page(build, fixtures=fixtures)) as (page, _):
-                page.locator('#nextup-dots button').nth(1).click()
+                self.select_match(page, 'selected')
                 expect(page.locator('#nextup')).to_have_attribute('data-match-id', 'selected')
                 updated = fixtures[:2] + [('added', '2026-10-07T16:45:00+00:00', 'in', 'USA Network', 'eng.1')]
                 state = self.serve(page, snapshot(updated))
@@ -144,11 +145,25 @@ class ScheduleChecks(unittest.TestCase):
                 expect(page.locator('#nextup')).to_have_attribute('data-match-id', 'selected')
                 self.assertEqual(page.locator('#nextup-track .nextup').evaluate_all('els => els.map(el => el.dataset.matchId)'),
                                  ['upcoming', 'selected', 'added'])
-                expect(page.locator('#nextup-dots button').nth(1)).to_have_attribute('aria-current', 'true')
-                state['payload'] = snapshot([updated[0], updated[2]], generated='2026-10-07T17:06:00Z')
+                expect(page.locator('#nextup')).to_have_attribute('aria-label', '2 of 3')
+                # A schedule snapshot replaces row elements. A selected game finishing in that new
+                # snapshot still advances to live play, then stays available among earlier results.
+                completed = [updated[0], (*updated[1][:2], 'post', *updated[1][3:]), updated[2]]
+                state['payload'] = snapshot(completed, generated='2026-10-07T17:06:00Z')
                 self.tick(page, state)
                 expect(page.locator('#nextup')).to_have_attribute('data-match-id', 'upcoming')
-                expect(page.locator('#nextup-dots button')).to_have_count(2)
+                self.assertEqual(page.locator('#nextup-track .nextup').evaluate_all('els => els.map(el => el.dataset.matchId)'),
+                                 ['selected', 'upcoming', 'added'])
+                self.select_match(page, 'selected')
+                expect(page.locator('#nextup')).to_have_attribute('data-match-id', 'selected')
+                expect(page.locator('#nextup-status')).to_have_text('FT')
+                state['payload'] = snapshot(completed, generated='2026-10-07T17:11:00Z')
+                self.tick(page, state)
+                expect(page.locator('#nextup')).to_have_attribute('data-match-id', 'selected')
+                state['payload'] = snapshot([updated[0], updated[2]], generated='2026-10-07T17:16:00Z')
+                self.tick(page, state)
+                expect(page.locator('#nextup')).to_have_attribute('data-match-id', 'upcoming')
+                expect(page.locator('#nextup')).to_have_attribute('aria-label', '1 of 2')
                 expect(page.locator('#nextup-track [data-match-id="selected"]')).to_have_count(0)
                 expect(page.locator('#picks-section')).to_be_hidden()
                 self.assertLessEqual(page.evaluate('document.documentElement.scrollWidth'), width)
@@ -174,6 +189,24 @@ class ScheduleChecks(unittest.TestCase):
             expect(page.locator('#ai-response')).to_have_value('My unfinished response')
             page.locator('#match-dialog-close').click()
             expect(page.locator('li.row[data-id="upcoming"] .more')).to_be_focused()
+
+    def test_three_day_result_selection_survives_snapshot_replacement(self):
+        fixtures = [('oldest', '2026-10-04T18:00:00+00:00', 'post', 'USA Network', 'eng.1'),
+                    ('middle', '2026-10-05T18:00:00+00:00', 'post', 'USA Network', 'eng.1'),
+                    ('upcoming', '2026-10-07T18:00:00+00:00', 'pre', 'USA Network', 'eng.1')]
+        for width in (1280, 390):
+            with self.subTest(width=width), self.page('after', width=width, html=render_page(build, fixtures=fixtures)) as (page, _):
+                self.select_match(page, 'oldest')
+                payload = snapshot(fixtures)
+                payload['rows'] = [row.replace('Fixture Stadium', 'Updated Stadium') for row in payload['rows']]
+                state = self.serve(page, payload)
+                self.tick(page, state)
+                expect(page.locator('#nextup')).to_have_attribute('data-match-id', 'oldest')
+                expect(page.locator('#nextup-h')).to_have_text('Sunday')
+                expect(page.locator('#nextup .venue')).to_have_text('Updated Stadium')
+                expect(page.locator('#nextup')).to_have_attribute('aria-label', '1 of 3')
+                expect(page.locator('#nextup-prev')).to_be_disabled()
+                expect(page.locator('#nextup-status')).to_have_text('FT')
 
     def test_a_newer_live_score_survives_an_older_schedule_snapshot(self):
         with self.page("after", html=render_page(build, fixtures=FIXTURES)) as (page, feed):

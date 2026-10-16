@@ -1,6 +1,6 @@
 """Lightweight updates must preserve honest freshness and fail without replacing good data."""
 from contextlib import redirect_stdout, redirect_stderr
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, time, timedelta, timezone
 import io
 import json
 from pathlib import Path
@@ -105,6 +105,56 @@ class SchedulePublication(unittest.TestCase):
             self.assertEqual(story.read_text(), '{"retained":"original AI response"}')
             context = json.loads((Path(directory) / "schedule-context.json").read_text())
             self.assertEqual(context["standings_at"], (now - timedelta(hours=1)).isoformat())
+
+    def test_full_and_lightweight_defaults_publish_history_and_timezone_buffer(self):
+        for lightweight in (False, True):
+            for hour in (5, 9):  # 1 am and 5 am Eastern: Pacific has not rolled over at either time.
+                now = datetime(2026, 10, 16, hour, tzinfo=timezone.utc)
+                today = now.astimezone(build.ET).date()
+                expected_days = [today + timedelta(days=i) for i in range(-4, 5)]
+                matches = [fixture(match_id="history-buffer", state="post", status="FT",
+                                   kickoff=datetime.combine(expected_days[0], time(17), build.ET).isoformat()),
+                           fixture(match_id="third-prior-day", state="post", status="FT",
+                                   kickoff=datetime.combine(today - timedelta(days=3), time(17), build.ET).isoformat()),
+                           fixture(match_id="future-buffer",
+                                   kickoff=datetime.combine(expected_days[-1], time(17), build.ET).isoformat())]
+                def scoreboards(days, workers, quality):
+                    quality.sources += [dict(league="eng.1", date=day.isoformat(), ok=True) for day in days]
+                    return {"eng.1": {}}, {}, []
+                with self.subTest(lightweight=lightweight, now=now), tempfile.TemporaryDirectory() as directory:
+                    output = Path(directory) / "index.html"
+                    if lightweight:
+                        self.publish(directory, now=now - timedelta(hours=1))
+                    argv = ["build.py", "--out", str(output), "--no-logos"]
+                    if lightweight:
+                        argv.append("--lightweight")
+                    with (patch.object(build, "datetime", wraps=datetime) as clock,
+                          patch.object(build, "fetch_scoreboards", side_effect=scoreboards) as fetch,
+                          patch.object(build, "fetch_standings", return_value={}) as standings,
+                          patch.object(build, "interpret_all", return_value=matches),
+                          patch.object(build.broadcast_listings, "enrich", return_value={}),
+                          patch.object(build.fixture_comparison, "compare", return_value={}) as comparison,
+                          patch.object(build, "audit", return_value=[]),
+                          patch.object(build, "TODAY", today),
+                          patch("sys.argv", argv),
+                          patch.dict(build.STANDINGS, {}, clear=True), patch.dict(build.LEAGUE_LOGOS, {}, clear=True),
+                          redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO())):
+                        clock.now.return_value = now
+                        self.assertEqual(build.main(), 0)
+                        self.assertEqual(build.TODAY, today)  # Coverage checks retain the real Eastern date.
+                    self.assertEqual(fetch.call_args.args[0], expected_days)
+                    self.assertEqual(comparison.call_args.args[1], expected_days)
+                    if lightweight:
+                        standings.assert_not_called()
+                    else:
+                        standings.assert_called_once()
+                    snapshot = json.loads((Path(directory) / "schedule.json").read_text())
+                    context = json.loads((Path(directory) / "schedule-context.json").read_text())
+                    for match in matches:
+                        self.assertTrue(any('data-id="' + match.id + '"' in row for row in snapshot["rows"]))
+                    self.assertEqual({match["id"] for match in context["matches"]}, {match.id for match in matches})
+                    self.assertEqual(context["standings_at"],
+                                     (now - timedelta(hours=1) if lightweight else now).isoformat())
 
     def test_failed_lightweight_fetch_keeps_published_page(self):
         now = datetime.now(timezone.utc)

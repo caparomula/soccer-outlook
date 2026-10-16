@@ -5,8 +5,8 @@ Fetch fixtures and standings from ESPN, map US broadcasters through rights.toml,
 HTML file with web/page.html, web/styles.css, web/live.js, web/personal-ai.js,
 web/github-publish.js, web/schedule.js and web/app.js embedded. Full builds also write three public schedule pages,
 a sitemap, a PNG favicon, an IndexNow ownership file and any fresh shared AI defaults. The default
-fetch covers yesterday, today and four days ahead in Eastern time. Before 4 am Eastern, it also
-fetches the preceding date so the previous evening's results are retained. The browser displays
+fetch covers three prior dates, today and four days ahead in Eastern time, plus one earlier
+buffer date so visitors in other time zones retain all three previous sports days. The browser displays
 today and three later days, with each day starting at 4 am in the viewer's time zone, plus recent results.
 
 rights.toml supplies listed-channel mappings and established usual coverage when ESPN has not
@@ -25,7 +25,7 @@ it does not make live scores, fonts or story loading work offline. --facts write
 publication status. --metrics records scoring inputs and observed outcomes for the historical
 archive. See docs/development.md for the full workflow.
 
-Usage: python3 build.py --out site/index.html [--days-ahead 4] [--days-back 1] [--warnings FILE] [--report FILE]
+Usage: python3 build.py --out site/index.html [--days-ahead 4] [--days-back 3] [--warnings FILE] [--report FILE]
                         [--date YYYY-MM-DD] [--embed-images --logos logos.json] [--fragment] [--workers 6]
 
 The build fails if no usable scoreboards arrive, more than half fail, or an empty schedule has
@@ -888,14 +888,15 @@ def write_build_report(path, report):
 
 
 def scoreboard_dates(today, built_at, days_back, days_ahead, *, fixed_date=False):
-    """Fetch calendar dates covering the previous sports day and the forward buffer.
+    """Fetch calendar dates covering the configured sports-day history and forward buffer.
 
-    Before 4 am Eastern, the browser still calls the previous calendar date today. Fetch one
-    extra earlier date to retain its yesterday results, without shifting rights checks or the
-    forward buffer away from the actual calendar date. An explicit --date keeps the configured
-    calendar range regardless of when the command runs.
+    A visitor's local 4 am boundary can put the oldest historical sports day's start on the
+    preceding Eastern calendar date. Always fetch that buffer date, including after 4 am Eastern
+    when Pacific visitors still use the previous sports day. Do not shift rights checks or the
+    forward buffer away from the actual calendar date. An explicit --date keeps the exact
+    configured calendar range for reproducible builds.
     """
-    extra_back = int(not fixed_date and built_at.astimezone(ET).hour < story_state.DAY_START_HOUR)
+    extra_back = int(not fixed_date)
     return [today + timedelta(days=i) for i in range(-days_back - extra_back, days_ahead + 1)]
 
 
@@ -2359,8 +2360,9 @@ def main():
     ap.add_argument("--fragment", action="store_true", help="write the page body only, for hosts that add the document wrapper")
     ap.add_argument("--days-ahead", type=int, default=4, help="days of fixtures to fetch: the page shows today and the "
                     "three days after it (story_state.WINDOW_DAYS), and one more covers a page read after midnight before the next build")
-    ap.add_argument("--days-back", type=int, default=1,
-                    help="prior calendar dates to fetch; before 4 am Eastern, one more is fetched unless --date is set")
+    ap.add_argument("--days-back", type=int, default=3,
+                    help="prior calendar dates to fetch (default: three); one more is fetched to cover "
+                    "visitors' local 4 am sports-day boundaries unless --date is set")
     ap.add_argument("--date", help="treat this Eastern date as today (testing)")
     ap.add_argument("--no-logos", action="store_true", help="no team or league images at all")
     ap.add_argument("--workers", type=int, default=6)

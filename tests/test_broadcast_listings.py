@@ -81,6 +81,43 @@ class BroadcastChecks(unittest.TestCase):
         self.assertNotIn("Coverage shown is the usual arrangement", build.detail_html(match, {}))
         self.assertEqual(report["TUDN"]["unmatched"], 1)
 
+    def test_history_cannot_exhaust_tudn_budget_before_live_or_upcoming_fixture(self):
+        import tudn_listings as tudn
+        from tests.test_tudn_listings import game, RESULTS, MATCH, URL
+
+        for state in ("pre", "in"):
+            with self.subTest(state=state):
+                target = game(id="current", state=state)
+                now = target.utc + timedelta(hours=1 if state == "in" else -1)
+                old_pre = game(id="old-pre", utc=target.utc - timedelta(days=3))
+                old_in = game(id="old-in", state="in", utc=target.utc - timedelta(days=2))
+                finished = game(id="finished", state="post", utc=target.utc - timedelta(days=1))
+                fetched = []
+
+                def fetch(url):
+                    fetched.append(url)
+                    if url == tudn.LANDING_URL:
+                        return b""
+                    return RESULTS if url == tudn.SCHEDULE_URL else MATCH
+
+                def module(name):
+                    if name == "tudn_listings":
+                        return tudn
+                    return SimpleNamespace(enrich=lambda builder, matches, fetch:
+                        provider_utils.report(matches, "https://example.com/schedule"))
+
+                with patch.object(broadcast_listings, "import_module", side_effect=module), \
+                        patch.object(tudn, "MAX_MATCH_REQUESTS", 1):
+                    reports = broadcast_listings.enrich(build, [old_pre, old_in, finished, target], fetch, now)
+                outcomes = reports["TUDN"]["per_match"]
+                self.assertEqual(fetched, [tudn.SCHEDULE_URL, tudn.LANDING_URL, URL])
+                self.assertEqual(outcomes[target.id]["status"], "confirmed")
+                self.assertEqual(build.evaluate(target.outlets, target.rule, {"yttv"})[:2], ("yttv", "listed"))
+                for old in (old_pre, old_in):
+                    self.assertEqual(outcomes[old.id]["reason"], "request_budget_exhausted")
+                    self.assertFalse(old.outlets)
+                self.assertNotIn(finished.id, outcomes)
+
     def test_unavailable_tudn_still_checks_vix_without_granting_youtube_access(self):
         match = fixture(league="mex.1", channel=None, rule=build.map_outlet("ViX", "mex.1"))
         def adapter(name, status):
