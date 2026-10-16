@@ -95,6 +95,8 @@ All other tracked competitions start disabled, including national-team competiti
 
 The page shows **today plus three later days**, rather than a rolling 72-hour period, and keeps the **three previous days** for recent matches and results. On Thursday, that means upcoming matches through Sunday and results back through Monday. Upcoming day sections are open; today's earlier matches and the three previous days are folded below them. Empty day sections are omitted.
 
+As you scroll the schedule, the current day's heading stays below the settings and filter bar until the next day pushes it out of the way. This also works for past days when you open their sections.
+
 A day starts at **4 am in your device's time zone**. A 12:30 am Saturday kickoff therefore belongs to Friday's evening. Until 4 am Saturday, the page still calls that period **Today** and labels it with Friday's date.
 
 Kickoff times use your device's time zone and clock format. When your time zone differs from Eastern, the page also shows Eastern time underneath. **TBD** means ESPN has not confirmed a kickoff time. If kickoff passes without a score update, the page says it is awaiting the score; it does not assume the match has started.

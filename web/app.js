@@ -545,6 +545,8 @@
     }
     probe.remove();
     bar.classList.toggle('bar--tight', tight); bar.classList.toggle('bar--strip-below', below);
+    // Schedule headings stick below the bar, including when its league strip wraps.
+    app.style.setProperty('--bar-height', bar.getBoundingClientRect().height + 'px');
     fadeStrip();
   }
 
@@ -723,6 +725,8 @@
     requestAnimationFrame(function () {
       if (document.activeElement !== el) return;
       var below = bar.getBoundingClientRect().bottom, rect = el.getBoundingClientRect();
+      var bucket = el.closest('#outlook-body > .bucket'), heading = bucket && bucket.firstElementChild;
+      if (heading && !heading.contains(el)) below = Math.max(below, heading.getBoundingClientRect().bottom);
       if (rect.height && rect.top < below + 4 && rect.bottom > 0) window.scrollBy(0, rect.top - below - 8);
     });
   });

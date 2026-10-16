@@ -338,6 +338,15 @@ a { color: inherit; }
 /* Outlook buckets and rows */
 .bucket { margin-top: 22px; }
 .bucket__h { font-size: 21px; text-transform: uppercase; letter-spacing: 0.06em; display: flex; align-items: baseline; gap: 12px; padding-bottom: 6px; border-bottom: 1px solid var(--line-strong); }
+/* Keep each day below the filter bar until the next day pushes it away. The gap belongs
+   to the preceding group so its heading stays pinned right up to that handoff. */
+#outlook-body > .bucket { margin-top: 0; }
+#outlook-body > .bucket:first-child, #outlook-body > .empty + .bucket { margin-top: 22px; }
+#outlook-body > .bucket:not(:last-child) > .rows,
+#outlook-body > details.bucket:not([open]):not(:last-child) { padding-bottom: 22px; }
+#outlook-body > .bucket > .bucket__h, #outlook-body > .bucket[open] > summary {
+  position: sticky; top: var(--bar-height, 0px); z-index: 10; background: var(--bg);
+}
 .bucket__h .when { font-family: var(--body); font-weight: 400; font-size: 14px; color: var(--muted); letter-spacing: 0; text-transform: none; }
 .bucket__count { margin-left: auto; font-family: var(--body); font-weight: 400; font-size: 13px; color: var(--muted); letter-spacing: 0; text-transform: none; white-space: nowrap; }
 .bucket--live .bucket__h { color: var(--amber); border-color: var(--amber); }
