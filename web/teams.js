@@ -187,7 +187,7 @@
       if (active) { document.getElementById('team-dialog-close').focus(); retrieve(active); }
     });
     document.getElementById('team-dialog-close').addEventListener('click', function () { dialog.close(); });
-    function visible(el) { return el && el.isConnected && el.getClientRects().length && !el.closest('details:not([open])'); }
+    function visible(el) { return el && el.isConnected && el.getClientRects().length && !el.closest('details:not([open]), [inert]'); }
     dialog.addEventListener('close', function () {
       var previous = active; active = null; backdrop = false; document.documentElement.classList.remove('has-team-dialog');
       if (!previous) return;

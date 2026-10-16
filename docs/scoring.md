@@ -6,15 +6,17 @@ Soccer Outlook combines a match's appeal with your league preferences to recomme
 
 All recommendations follow the same lineup rules as the schedule. Temporarily hiding a league from the strip also removes its recommendations. A match needs coverage on a selected service; a recognized usual home can qualify even before ESPN lists its channel.
 
-- **Live now:** when ESPN reports eligible matches in progress, the top card shows the one with the highest pick score. A scheduled kickoff passing is not enough to call a match live.
-- **Next up:** if none is live, the top card shows the soonest eligible kickoff with a confirmed time. Pick score breaks a tie between simultaneous kickoffs. A match can remain here as “Awaiting score” after its kickoff passes.
-- **Top three:** choose up to three remaining matches by pick score, then display them in kickoff order. The top card's match is excluded. There is no minimum score and no extra preference for the next 24 hours.
+- **Live now:** when ESPN reports eligible matches in progress, the first carousel contains all of them, ordered by pick score. A scheduled kickoff passing is not enough to call a match live.
+- **Next up:** if none is live, the first carousel contains every eligible match at the soonest confirmed kickoff, ordered by pick score. A match can remain here as “Awaiting score” after its kickoff passes.
+- **Top picks:** choose up to three remaining matches by pick score, then display them in kickoff order. Every match in Live now or Next up is excluded, including cards you have not scrolled to. The heading names the days covered by those picks, and each card shows its match day. There is no minimum score and no extra preference for the next 24 hours.
 
-The candidate window is today and the three following days, with each day starting at 4 am in the visitor's time zone. Finished matches are excluded. The daily AI ratings use the equivalent window in Eastern time, so the edges can differ for visitors elsewhere. A match with a time still to be confirmed can enter the top three, but not Next up.
+The live or next-kickoff carousel comes first, followed by Top picks, league headlines and the schedule. Pagination dots and swiping change which card is in view without changing the selection rules. Match stories and sources remain in **Details**; the gold rating dots open the rating breakdown separately.
 
-With automatic recommendations, if any remaining candidate has a valid AI rating, the top three use only rated candidates. This keeps a match scored by Outlook alone from gaining an advantage simply because its AI rating is missing. If no candidate has an AI rating, the Outlook score and league priority supply the ranking instead.
+The candidate window is today and the three following days, with each day starting at 4 am in the visitor's time zone. Finished matches are excluded. The daily AI ratings use the equivalent window in Eastern time, so the edges can differ for visitors elsewhere. A match with a time still to be confirmed can enter Top picks, but not Next up.
 
-While a personal or shared AI response is active for at least one eligible match, all eligible candidates can compete. Matches outside those responses use their automatic AI rating when available, or the Outlook score otherwise, with league priority still applied. This lets newly enabled matches enter the top three without requiring another import first. Fewer than three eligible candidates produce fewer cards; no candidates hide the section.
+With automatic recommendations, if any remaining candidate has a valid AI rating, the Top picks section uses only rated candidates. This keeps a match scored by Outlook alone from gaining an advantage simply because its AI rating is missing. If no candidate has an AI rating, the Outlook score and league priority supply the ranking instead.
+
+While a personal or shared AI response is active for at least one eligible match, all eligible candidates can compete. Matches outside those responses use their automatic AI rating when available, or the Outlook score otherwise, with league priority still applied. This lets newly enabled matches enter Top picks without requiring another import first. Fewer than three eligible candidates produce fewer cards; no candidates hide the section.
 
 ## The pick score
 

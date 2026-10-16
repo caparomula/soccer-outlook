@@ -130,6 +130,29 @@ class ScheduleChecks(unittest.TestCase):
                 expect(page.locator('[data-kind="comp"][data-key="ita.1"] .fpill__n')).to_have_text('1')
                 self.assertLessEqual(page.evaluate('document.documentElement.scrollWidth'), width)
 
+    def test_lead_selection_survives_schedule_refresh_and_recovers_when_removed(self):
+        fixtures = [('upcoming', '2026-10-07T16:30:00+00:00', 'in', 'USA Network', 'eng.1'),
+                    ('selected', '2026-10-07T16:35:00+00:00', 'in', 'USA Network', 'eng.1'),
+                    ('removed', '2026-10-07T16:40:00+00:00', 'in', 'USA Network', 'eng.1')]
+        for width in (1280, 390):
+            with self.subTest(width=width), self.page('after', width=width, html=render_page(build, fixtures=fixtures)) as (page, _):
+                page.locator('#nextup-dots button').nth(1).click()
+                expect(page.locator('#nextup')).to_have_attribute('data-match-id', 'selected')
+                updated = fixtures[:2] + [('added', '2026-10-07T16:45:00+00:00', 'in', 'USA Network', 'eng.1')]
+                state = self.serve(page, snapshot(updated))
+                self.tick(page, state)
+                expect(page.locator('#nextup')).to_have_attribute('data-match-id', 'selected')
+                self.assertEqual(page.locator('#nextup-track .nextup').evaluate_all('els => els.map(el => el.dataset.matchId)'),
+                                 ['upcoming', 'selected', 'added'])
+                expect(page.locator('#nextup-dots button').nth(1)).to_have_attribute('aria-current', 'true')
+                state['payload'] = snapshot([updated[0], updated[2]], generated='2026-10-07T17:06:00Z')
+                self.tick(page, state)
+                expect(page.locator('#nextup')).to_have_attribute('data-match-id', 'upcoming')
+                expect(page.locator('#nextup-dots button')).to_have_count(2)
+                expect(page.locator('#nextup-track [data-match-id="selected"]')).to_have_count(0)
+                expect(page.locator('#picks-section')).to_be_hidden()
+                self.assertLessEqual(page.evaluate('document.documentElement.scrollWidth'), width)
+
     def test_preferences_ai_draft_and_open_dialog_survive(self):
         with self.page("after", html=render_page(build, fixtures=FIXTURES)) as (page, _):
             page.locator('#btn-menu').click()
