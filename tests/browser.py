@@ -2474,8 +2474,14 @@ class BrowserChecks(unittest.TestCase):
                 self.assertGreater(evening.bounding_box()['x'], track.bounding_box()['x'] + 40)
                 self.assertLess(evening.bounding_box()['x'], track.bounding_box()['x'] + track.bounding_box()['width'])
                 self.assertAlmostEqual(page.locator('#picks-section').evaluate('el => el.getBoundingClientRect().top + window.scrollY'), baseline, delta=1)
-                track.evaluate("el => el.style.removeProperty('scroll-snap-type')")
+                # End the artificial half-slide probe at a real snap point before restoring
+                # mandatory snapping. Restoring it halfway can start WebKit's own snap-back
+                # while the next native scroll is still being processed under the paused clock.
                 select('evening')
+                self.assertAlmostEqual(page.locator('#nextup').bounding_box()['x'], track.bounding_box()['x'], delta=1)
+                track.evaluate("el => el.style.removeProperty('scroll-snap-type')")
+                page.clock.run_for(50)
+                expect(page.locator('#nextup')).to_have_attribute('data-match-id', 'evening')
                 expect(page.locator('#nextup-h')).to_have_text('This evening')
                 select('tonight')
                 expect(page.locator('#nextup-h')).to_have_text('Tonight')
