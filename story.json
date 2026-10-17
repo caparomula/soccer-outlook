@@ -1,0 +1,3886 @@
+{
+ "headline": "",
+ "headline_segments": [],
+ "later_reason": "",
+ "notes": {
+  "401882846": {
+   "note": "Betis are without injured Junior Firpo. Barcelona are missing Roony Bardghji and Andreas Christensen, while Raphinha and Frenkie de Jong are back in training but not confirmed in the squad.",
+   "sources": [
+    {
+     "url": "https://khelnow.com/football/real-betis-vs-barcelona-preview-laliga-202610",
+     "title": "Real Betis vs Barcelona Preview, prediction, injury news & lineups"
+    }
+   ]
+  },
+  "401884772": {
+   "note": "Manuel Neuer is a doubt with a foot injury, so Jonas Urbig could stay in goal for Bayern. Leipzig are without Christoph Baumgartner, Assan Ouedraogo and striker Marc Guiu.",
+   "sources": [
+    {
+     "url": "https://www.sportsmole.co.uk/football/bayern-munich/bundesliga-title-race/preview/bayern-vs-rb-leipzig-prediction-team-news-lineups_606996.html",
+     "title": "Preview: Bayern Munich vs RB Leipzig - prediction, team news, lineups - Sports Mole"
+    }
+   ]
+  },
+  "401874953": {
+   "note": "Bologna have taken only 11 points from 17 league games at the Dall'Ara since last December, and Inter come in after a 4-3 home Champions League loss to Club Brugge.",
+   "sources": [
+    {
+     "url": "https://www.sportsmole.co.uk/football/bologna/preview/bologna-vs-inter-milan-prediction-team-news-lineups_606975.html",
+     "title": "Preview: Bologna vs Inter Milan - prediction, team news, lineups - Sports Mole"
+    },
+    {
+     "url": "https://www.dazn.com/en-US/news/soccer/bologna-vs-inter-preview-team-news-prediction-date-serie-a-2026-27/uc5gry2iy3df1n7ei9ri6ey5s",
+     "title": "Bologna vs. Inter preview: Team news, prediction, date, and how to watch Serie A on DAZN"
+    },
+    {
+     "url": "https://www.cbssports.com/soccer/news/footy-fix-dont-miss-nwsl-rivalry-match-on-saturday-between-gotham-and-spirit/",
+     "title": "Footy Fix: Don't miss NWSL rivalry match Saturday on CBS when Gotham face Spirit as they chase the Shield - CBS Sports"
+    }
+   ]
+  },
+  "401879259": {
+   "note": "Erling Haaland could be rested after the midweek PSG loss. Ipswich have not won a top-flight match at Manchester City since November 2000.",
+   "sources": [
+    {
+     "url": "https://sports.yahoo.com/articles/man-city-xi-vs-ipswich-192316462.html",
+     "title": "Man City XI vs Ipswich: Predicted lineup, confirmed team news, injury latest for Premier League today - Yahoo Sports"
+    },
+    {
+     "url": "https://sports.yahoo.com/articles/manchester-city-vs-ipswich-town-050000259.html",
+     "title": "Manchester City vs Ipswich Town"
+    }
+   ]
+  },
+  "401879258": {
+   "note": "Newcastle are without Anthony Elanga, Tino Livramento, Jacob Ramsey and Ewen Jaouen; Villa, fresh off a 6-0 win over Fenerbahce, are missing Ian Maatsen, Amadou Onana and Matteo Ruggeri.",
+   "sources": [
+    {
+     "url": "https://www.sportsmole.co.uk/football/newcastle-united/injury-news/team-news/newcastle-vs-aston-villa-injury-suspension-list-predicted-xis_606928.html",
+     "title": "Team News: Newcastle vs. Aston Villa injury, suspension list, predicted XIs - Sports Mole"
+    },
+    {
+     "url": "https://sports.yahoo.com/articles/newcastle-united-vs-aston-villa-050000133.html",
+     "title": "Newcastle United vs Aston Villa"
+    }
+   ]
+  },
+  "401854021": {
+   "note": "Gotham are without Jordyn Dudley (foot fracture) and Bruninha (torn ACL) for the rest of the season, leaving more on Jaedyn Shaw, who has 10 goals and five assists.",
+   "sources": [
+    {
+     "url": "https://www.cbssports.com/soccer/news/footy-fix-dont-miss-nwsl-rivalry-match-on-saturday-between-gotham-and-spirit/",
+     "title": "Footy Fix: Don't miss NWSL rivalry match Saturday on CBS when Gotham face Spirit as they chase the Shield - CBS Sports"
+    }
+   ]
+  },
+  "401854023": {
+   "note": "This result matters to Gotham: a Gotham win at Washington plus a Courage win over the Wave clinches the Shield for Gotham this weekend.",
+   "sources": [
+    {
+     "url": "https://www.cbssports.com/soccer/news/footy-fix-dont-miss-nwsl-rivalry-match-on-saturday-between-gotham-and-spirit/",
+     "title": "Footy Fix: Don't miss NWSL rivalry match Saturday on CBS when Gotham face Spirit as they chase the Shield - CBS Sports"
+    }
+   ]
+  },
+  "761880": {
+   "note": "Messi has been involved in a goal in every game he has played since the Leagues Cup, and Miami arrive on two straight wins with two clean sheets.",
+   "sources": [
+    {
+     "url": "https://www.101greatgoals.com/match-previews/mls-matches/atlanta-united-fc-v-inter-miami-preview-expected-line-ups-stats-stream-where-to-watch/",
+     "title": "Atlanta United FC v Inter Miami: Preview, expected line-ups, stats and where to watch as Messi looks to add to goal tally"
+    }
+   ]
+  }
+ },
+ "lede_items": [
+  {
+   "text": "Barcelona put an 8-0 La Liga start on the line at Real Betis, while Manchester City chase a seventh straight Premier League win against Ipswich days after a 4-2 home loss to PSG.",
+   "match_ids": [
+    "401882846",
+    "401879259"
+   ],
+   "segments": [
+    {
+     "text": "Barcelona",
+     "match_ids": [
+      "401882846"
+     ]
+    },
+    {
+     "text": " put an 8-0 La Liga start on the line at Real Betis",
+     "match_ids": [
+      "401882846"
+     ]
+    },
+    {
+     "text": ", while ",
+     "match_ids": []
+    },
+    {
+     "text": "Manchester City",
+     "match_ids": [
+      "401879259"
+     ]
+    },
+    {
+     "text": " chase a seventh straight Premier League win against Ipswich days after a 4-2 home loss to PSG.",
+     "match_ids": [
+      "401879259"
+     ]
+    }
+   ],
+   "sources": [
+    {
+     "url": "https://khelnow.com/football/real-betis-vs-barcelona-preview-laliga-202610",
+     "title": "Real Betis vs Barcelona Preview, prediction, injury news & lineups"
+    },
+    {
+     "url": "https://sports.yahoo.com/articles/manchester-city-vs-ipswich-town-050000259.html",
+     "title": "Manchester City vs Ipswich Town"
+    }
+   ]
+  },
+  {
+   "text": "Gotham need a win at Washington plus a North Carolina win over San Diego to clinch the NWSL Shield, and Inter Miami visit Atlanta with their MLS playoff place already secured.",
+   "match_ids": [
+    "401854021",
+    "401854023",
+    "761880"
+   ],
+   "segments": [
+    {
+     "text": "Gotham",
+     "match_ids": [
+      "401854021"
+     ]
+    },
+    {
+     "text": " need a win at Washington plus a North Carolina win over San Diego to clinch the NWSL Shield",
+     "match_ids": [
+      "401854021",
+      "401854023"
+     ]
+    },
+    {
+     "text": ", and ",
+     "match_ids": []
+    },
+    {
+     "text": "Inter Miami",
+     "match_ids": [
+      "761880"
+     ]
+    },
+    {
+     "text": " visit Atlanta with their MLS playoff place already secured.",
+     "match_ids": [
+      "761880"
+     ]
+    }
+   ],
+   "sources": [
+    {
+     "url": "https://www.cbssports.com/soccer/news/footy-fix-dont-miss-nwsl-rivalry-match-on-saturday-between-gotham-and-spirit/",
+     "title": "Footy Fix: Don't miss NWSL rivalry match Saturday on CBS when Gotham face Spirit as they chase the Shield - CBS Sports"
+    },
+    {
+     "url": "https://www.101greatgoals.com/match-previews/mls-matches/atlanta-united-fc-v-inter-miami-preview-expected-line-ups-stats-stream-where-to-watch/",
+     "title": "Atlanta United FC v Inter Miami: Preview, expected line-ups, stats and where to watch as Messi looks to add to goal tally"
+    }
+   ]
+  }
+ ],
+ "lede": "Barcelona put an 8-0 La Liga start on the line at Real Betis, while Manchester City chase a seventh straight Premier League win against Ipswich days after a 4-2 home loss to PSG. Gotham need a win at Washington plus a North Carolina win over San Diego to clinch the NWSL Shield, and Inter Miami visit Atlanta with their MLS playoff place already secured.",
+ "sources": [
+  {
+   "url": "https://khelnow.com/football/real-betis-vs-barcelona-preview-laliga-202610",
+   "title": "Real Betis vs Barcelona Preview, prediction, injury news & lineups"
+  },
+  {
+   "url": "https://sports.yahoo.com/articles/manchester-city-vs-ipswich-town-050000259.html",
+   "title": "Manchester City vs Ipswich Town"
+  },
+  {
+   "url": "https://www.cbssports.com/soccer/news/footy-fix-dont-miss-nwsl-rivalry-match-on-saturday-between-gotham-and-spirit/",
+   "title": "Footy Fix: Don't miss NWSL rivalry match Saturday on CBS when Gotham face Spirit as they chase the Shield - CBS Sports"
+  },
+  {
+   "url": "https://www.101greatgoals.com/match-previews/mls-matches/atlanta-united-fc-v-inter-miami-preview-expected-line-ups-stats-stream-where-to-watch/",
+   "title": "Atlanta United FC v Inter Miami: Preview, expected line-ups, stats and where to watch as Messi looks to add to goal tally"
+  }
+ ],
+ "league_blurbs": [
+  {
+   "text": "Barcelona bring an 8-0 La Liga record to Real Betis and are chasing a 13th straight win in all competitions, while Betis try to stretch their own unbeaten run to eight games.",
+   "match_ids": [
+    "401882846"
+   ],
+   "segments": [
+    {
+     "text": "Barcelona",
+     "match_ids": [
+      "401882846"
+     ]
+    },
+    {
+     "text": " bring an 8-0 La Liga record to Real Betis and are chasing a 13th straight win in all competitions",
+     "match_ids": [
+      "401882846"
+     ]
+    },
+    {
+     "text": ", while ",
+     "match_ids": []
+    },
+    {
+     "text": "Betis",
+     "match_ids": [
+      "401882846"
+     ]
+    },
+    {
+     "text": " try to stretch their own unbeaten run to eight games.",
+     "match_ids": [
+      "401882846"
+     ]
+    }
+   ],
+   "sources": [
+    {
+     "url": "https://footballwhispers.com/blog/real-betis-vs-barcelona-prediction-17-10-2026/",
+     "title": "Real Betis vs Barcelona - prediction, preview & betting tips - 17/10/2026"
+    },
+    {
+     "url": "https://khelnow.com/football/real-betis-vs-barcelona-preview-laliga-202610",
+     "title": "Real Betis vs Barcelona Preview, prediction, injury news & lineups"
+    }
+   ],
+   "league_id": "esp.1",
+   "interest": 82,
+   "headline": "Perfect Barcelona face La Liga's third-place Betis"
+  },
+  {
+   "text": "Manchester City host Ipswich looking to make it seven league wins from seven, days after a 4-2 home loss to PSG ended an eight-game winning run. At St James' Park, Unai Emery is chasing his 100th Premier League win as Aston Villa visit a Newcastle side coming off a 4-1 loss at Coventry.",
+   "match_ids": [
+    "401879259",
+    "401879258"
+   ],
+   "segments": [
+    {
+     "text": "Manchester City",
+     "match_ids": [
+      "401879259"
+     ]
+    },
+    {
+     "text": " host Ipswich looking to make it seven league wins from seven",
+     "match_ids": [
+      "401879259"
+     ]
+    },
+    {
+     "text": ", days after a 4-2 home loss to PSG ended an eight-game winning run. ",
+     "match_ids": [
+      "401879259"
+     ]
+    },
+    {
+     "text": "At St James' Park, ",
+     "match_ids": [
+      "401879258"
+     ]
+    },
+    {
+     "text": "Unai Emery is chasing his 100th Premier League win as Aston Villa visit a Newcastle side coming off a 4-1 loss at Coventry.",
+     "match_ids": [
+      "401879258"
+     ]
+    }
+   ],
+   "sources": [
+    {
+     "url": "https://sports.yahoo.com/articles/manchester-city-vs-ipswich-town-050000259.html",
+     "title": "Manchester City vs Ipswich Town"
+    },
+    {
+     "url": "https://sports.yahoo.com/articles/newcastle-united-vs-aston-villa-050000133.html",
+     "title": "Newcastle United vs Aston Villa"
+    }
+   ],
+   "league_id": "eng.1",
+   "interest": 70,
+   "headline": "Premier League leaders Man City chase seventh straight"
+  },
+  {
+   "text": "Gotham clinch the NWSL Shield this weekend if they win at the Washington Spirit and North Carolina beat San Diego later Saturday. The Spirit lock up a playoff place with a win or a draw.",
+   "match_ids": [
+    "401854021",
+    "401854023"
+   ],
+   "segments": [
+    {
+     "text": "Gotham",
+     "match_ids": [
+      "401854021"
+     ]
+    },
+    {
+     "text": " clinch the NWSL Shield this weekend if they win at the Washington Spirit and North Carolina beat San Diego later Saturday",
+     "match_ids": [
+      "401854021",
+      "401854023"
+     ]
+    },
+    {
+     "text": ". ",
+     "match_ids": []
+    },
+    {
+     "text": "The Spirit",
+     "match_ids": [
+      "401854021"
+     ]
+    },
+    {
+     "text": " lock up a playoff place with a win or a draw.",
+     "match_ids": [
+      "401854021"
+     ]
+    }
+   ],
+   "sources": [
+    {
+     "url": "https://www.cbssports.com/soccer/news/footy-fix-dont-miss-nwsl-rivalry-match-on-saturday-between-gotham-and-spirit/",
+     "title": "Footy Fix: Don't miss NWSL rivalry match Saturday on CBS when Gotham face Spirit as they chase the Shield - CBS Sports"
+    }
+   ],
+   "league_id": "usa.nwsl",
+   "interest": 80,
+   "headline": "NWSL Shield could be decided in Washington"
+  },
+  {
+   "text": "Bayern Munich host RB Leipzig in a meeting of the Bundesliga's two highest-scoring teams, with Jamal Musiala still out with a thigh injury. Bayern return to league play after a 3-3 Champions League draw with Viking.",
+   "match_ids": [
+    "401884772"
+   ],
+   "segments": [
+    {
+     "text": "Bayern Munich",
+     "match_ids": [
+      "401884772"
+     ]
+    },
+    {
+     "text": " host RB Leipzig in a meeting of the Bundesliga's two highest-scoring teams",
+     "match_ids": [
+      "401884772"
+     ]
+    },
+    {
+     "text": ", with ",
+     "match_ids": []
+    },
+    {
+     "text": "Jamal Musiala still out with a thigh injury",
+     "match_ids": [
+      "401884772"
+     ]
+    },
+    {
+     "text": ". ",
+     "match_ids": []
+    },
+    {
+     "text": "Bayern",
+     "match_ids": [
+      "401884772"
+     ]
+    },
+    {
+     "text": " return to league play after a 3-3 Champions League draw with Viking.",
+     "match_ids": [
+      "401884772"
+     ]
+    }
+   ],
+   "sources": [
+    {
+     "url": "https://www.sportsmole.co.uk/football/bayern-munich/bundesliga-title-race/preview/bayern-vs-rb-leipzig-prediction-team-news-lineups_606996.html",
+     "title": "Preview: Bayern Munich vs RB Leipzig - prediction, team news, lineups - Sports Mole"
+    },
+    {
+     "url": "https://sports.yahoo.com/articles/bundesliga-matchday-preview-bayern-munich-160000131.html",
+     "title": "Bundesliga Matchday Preview: Bayern Munich vs. RB Leipzig - Yahoo Sports"
+    }
+   ],
+   "league_id": "ger.1",
+   "interest": 68,
+   "headline": "Bundesliga's highest scorers meet as Bayern host Leipzig"
+  },
+  {
+   "text": "Inter go to Bologna without captain Lautaro Martínez, who has a hamstring strain, or Benjamin Pavard, with Francesco Pio Esposito set to partner Marcus Thuram. Bologna are missing Riccardo Orsolini, Emil Holm and Samuel Mbangula.",
+   "match_ids": [
+    "401874953"
+   ],
+   "segments": [
+    {
+     "text": "Inter",
+     "match_ids": [
+      "401874953"
+     ]
+    },
+    {
+     "text": " go to Bologna without captain Lautaro Martínez, who has a hamstring strain, or Benjamin Pavard",
+     "match_ids": [
+      "401874953"
+     ]
+    },
+    {
+     "text": ", with ",
+     "match_ids": []
+    },
+    {
+     "text": "Francesco Pio Esposito set to partner Marcus Thuram",
+     "match_ids": [
+      "401874953"
+     ]
+    },
+    {
+     "text": ". ",
+     "match_ids": []
+    },
+    {
+     "text": "Bologna",
+     "match_ids": [
+      "401874953"
+     ]
+    },
+    {
+     "text": " are missing Riccardo Orsolini, Emil Holm and Samuel Mbangula.",
+     "match_ids": [
+      "401874953"
+     ]
+    }
+   ],
+   "sources": [
+    {
+     "url": "https://sports.yahoo.com/articles/serie-bologna-vs-inter-probable-090500019.html",
+     "title": "Serie A"
+    }
+   ],
+   "league_id": "ita.1",
+   "interest": 62,
+   "headline": "Serie A leaders Inter visit Bologna without Lautaro"
+  },
+  {
+   "text": "With the top nine in each conference reaching the MLS playoffs, eighth-place Red Bull New York (36 points) host Toronto FC (33) and LA Galaxy, eighth in the West on 39, host San Diego FC (33). Ninth-place Colorado (38) visit Portland (33).",
+   "match_ids": [
+    "761878",
+    "761887",
+    "761888"
+   ],
+   "segments": [
+    {
+     "text": "With the top nine in each conference reaching the MLS playoffs, ",
+     "match_ids": []
+    },
+    {
+     "text": "eighth-place Red Bull New York (36 points) host Toronto FC (33)",
+     "match_ids": [
+      "761878"
+     ]
+    },
+    {
+     "text": " and ",
+     "match_ids": []
+    },
+    {
+     "text": "LA Galaxy, eighth in the West on 39, host San Diego FC (33)",
+     "match_ids": [
+      "761887"
+     ]
+    },
+    {
+     "text": ". ",
+     "match_ids": []
+    },
+    {
+     "text": "Ninth-place Colorado (38) visit Portland (33).",
+     "match_ids": [
+      "761888"
+     ]
+    }
+   ],
+   "sources": [
+    {
+     "url": "https://www.squawka.com/us/mls/",
+     "title": "MLS Standings 2026: Live Tables, Playoff Race & Cup Odds"
+    }
+   ],
+   "league_id": "usa.1",
+   "interest": 64,
+   "headline": "MLS playoff cut line in play Saturday night"
+  },
+  {
+   "text": "Paris Saint-Germain host Barcelona on Tuesday, Oct. 20 with both clubs on six points from two league-phase games; Squawka flags no fresh fitness concerns for either squad, and Barcelona put five past Feyenoord last time out in Europe.",
+   "match_ids": [
+    "401915399"
+   ],
+   "segments": [
+    {
+     "text": "Paris Saint-Germain",
+     "match_ids": [
+      "401915399"
+     ]
+    },
+    {
+     "text": " host ",
+     "match_ids": []
+    },
+    {
+     "text": "Barcelona",
+     "match_ids": [
+      "401915399"
+     ]
+    },
+    {
+     "text": " on Tuesday, Oct. 20 with both clubs on six points from two league-phase games",
+     "match_ids": [
+      "401915399"
+     ]
+    },
+    {
+     "text": "; ",
+     "match_ids": []
+    },
+    {
+     "text": "Squawka flags no fresh fitness concerns for either squad, and Barcelona put five past Feyenoord last time out in Europe.",
+     "match_ids": [
+      "401915399"
+     ]
+    }
+   ],
+   "sources": [
+    {
+     "url": "https://www.squawka.com/us/news/champions-league/match-preview-psg-vs-barcelona-20-10-26-champions-league/",
+     "title": "Paris Saint-Germain vs Barcelona: Predictions, Picks, Odds & Lineups"
+    }
+   ],
+   "league_id": "uefa.champions",
+   "interest": 86,
+   "headline": "Unbeaten PSG and Barcelona clash in Champions League"
+  },
+  {
+   "text": "América lead Liga MX despite having played a game fewer, and visit León in Jornada 12 of the Apertura. Cruz Azul host last-place FC Juárez, who have one win in 11 games.",
+   "match_ids": [
+    "401876941",
+    "401876939"
+   ],
+   "segments": [
+    {
+     "text": "América",
+     "match_ids": [
+      "401876941"
+     ]
+    },
+    {
+     "text": " lead Liga MX despite having played a game fewer, and visit León in Jornada 12 of the Apertura",
+     "match_ids": [
+      "401876941"
+     ]
+    },
+    {
+     "text": ". ",
+     "match_ids": []
+    },
+    {
+     "text": "Cruz Azul",
+     "match_ids": [
+      "401876939"
+     ]
+    },
+    {
+     "text": " host last-place FC Juárez, who have one win in 11 games.",
+     "match_ids": [
+      "401876939"
+     ]
+    }
+   ],
+   "sources": [
+    {
+     "url": "https://www.si.com/es-us/leon-vs-america-previa-predicciones-y-alineaciones-17-10-2026",
+     "title": "León vs América: previa, predicciones y alineaciones"
+    }
+   ],
+   "league_id": "mex.1",
+   "interest": 55,
+   "headline": "Liga MX leaders América visit León"
+  },
+  {
+   "text": "Luis Enrique is likely to rotate after PSG's 4-2 Champions League win at Manchester City, with Paris riding three straight Ligue 1 wins. Strasbourg are without defender Ismaël Doukouré.",
+   "match_ids": [
+    "401876432"
+   ],
+   "segments": [
+    {
+     "text": "Luis Enrique is likely to rotate",
+     "match_ids": [
+      "401876432"
+     ]
+    },
+    {
+     "text": " after ",
+     "match_ids": []
+    },
+    {
+     "text": "PSG",
+     "match_ids": [
+      "401876432"
+     ]
+    },
+    {
+     "text": "'s 4-2 Champions League win at Manchester City, with Paris riding three straight Ligue 1 wins",
+     "match_ids": [
+      "401876432"
+     ]
+    },
+    {
+     "text": ". ",
+     "match_ids": []
+    },
+    {
+     "text": "Strasbourg",
+     "match_ids": [
+      "401876432"
+     ]
+    },
+    {
+     "text": " are without defender Ismaël Doukouré.",
+     "match_ids": [
+      "401876432"
+     ]
+    }
+   ],
+   "sources": [
+    {
+     "url": "https://psgpost.com/rc-strasbourg-vs-psg-ligue-1-mcdonald-s-preview-predictions-team-news-and-tv-info-01m53e7100xs",
+     "title": "RC Strasbourg vs PSG: Ligue 1 McDonald's preview, predictions, team news and TV info"
+    },
+    {
+     "url": "https://www.psg.fr/en/content/rc-strasbourg-alsace-paris-saint-germain-la-preview-ligue-1-20262027",
+     "title": "Strasbourg-Paris: The Preview"
+    }
+   ],
+   "league_id": "fra.1",
+   "interest": 50,
+   "headline": "Ligue 1: PSG likely to rotate at Strasbourg"
+  },
+  {
+   "text": "Columbus Crew host St. Louis CITY SC for the 111th U.S. Open Cup title on Wednesday, Oct. 21, St. Louis's first Open Cup final and Columbus's first since 2010.",
+   "match_ids": [
+    "401916449"
+   ],
+   "segments": [
+    {
+     "text": "Columbus Crew",
+     "match_ids": [
+      "401916449"
+     ]
+    },
+    {
+     "text": " host ",
+     "match_ids": []
+    },
+    {
+     "text": "St. Louis CITY SC",
+     "match_ids": [
+      "401916449"
+     ]
+    },
+    {
+     "text": " for the 111th U.S. Open Cup title on Wednesday, Oct. 21",
+     "match_ids": [
+      "401916449"
+     ]
+    },
+    {
+     "text": ", ",
+     "match_ids": []
+    },
+    {
+     "text": "St. Louis's first Open Cup final and Columbus's first since 2010.",
+     "match_ids": [
+      "401916449"
+     ]
+    }
+   ],
+   "sources": [
+    {
+     "url": "https://www.ussoccer.com/stories/2026/09/usoc/st-louis-city-sc-aims-to-write-history-first-open-cup-final",
+     "title": "St. Louis CITY SC Aims to ‘Write History’ in U.S. Open Cup Final Debut"
+    }
+   ],
+   "league_id": "usa.open",
+   "interest": 55,
+   "headline": "Columbus host St. Louis in Open Cup final"
+  },
+  {
+   "text": "Leaders Swansea City (23 points) host third-place West Ham (19), while second-place Middlesbrough face 19th-place Cardiff City.",
+   "match_ids": [
+    "401880212",
+    "401880216"
+   ],
+   "segments": [
+    {
+     "text": "Leaders Swansea City",
+     "match_ids": [
+      "401880212"
+     ]
+    },
+    {
+     "text": " (23 points) host third-place ",
+     "match_ids": []
+    },
+    {
+     "text": "West Ham",
+     "match_ids": [
+      "401880212"
+     ]
+    },
+    {
+     "text": " (19)",
+     "match_ids": [
+      "401880212"
+     ]
+    },
+    {
+     "text": ", while ",
+     "match_ids": []
+    },
+    {
+     "text": "second-place Middlesbrough",
+     "match_ids": [
+      "401880216"
+     ]
+    },
+    {
+     "text": " face 19th-place Cardiff City.",
+     "match_ids": [
+      "401880216"
+     ]
+    }
+   ],
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401880212",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    },
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401880216",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ],
+   "league_id": "eng.2",
+   "interest": 40,
+   "headline": "Championship leaders Swansea host West Ham"
+  },
+  {
+   "text": "Unbeaten Chelsea, second on 13 points, host fourth-place Tottenham at Stamford Bridge, while third-place London City Lionesses (4-0-1) welcome fifth-place Everton.",
+   "match_ids": [
+    "401902890",
+    "401902888"
+   ],
+   "segments": [
+    {
+     "text": "Unbeaten Chelsea",
+     "match_ids": [
+      "401902890"
+     ]
+    },
+    {
+     "text": ", second on 13 points, host fourth-place ",
+     "match_ids": []
+    },
+    {
+     "text": "Tottenham",
+     "match_ids": [
+      "401902890"
+     ]
+    },
+    {
+     "text": " at Stamford Bridge",
+     "match_ids": [
+      "401902890"
+     ]
+    },
+    {
+     "text": ", while ",
+     "match_ids": []
+    },
+    {
+     "text": "third-place London City Lionesses",
+     "match_ids": [
+      "401902888"
+     ]
+    },
+    {
+     "text": " (4-0-1) welcome fifth-place Everton.",
+     "match_ids": [
+      "401902888"
+     ]
+    }
+   ],
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401902890",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    },
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401902888",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ],
+   "league_id": "eng.w.1",
+   "interest": 45,
+   "headline": "WSL's Chelsea host Spurs in top-four meeting"
+  },
+  {
+   "text": "Second-place Rangers (6-1-1, 19 points) visit Dundee, who sit fourth on 13, while St Johnstone and Dundee United meet level on 11 points.",
+   "match_ids": [
+    "401878366",
+    "401878363"
+   ],
+   "segments": [
+    {
+     "text": "Second-place Rangers",
+     "match_ids": [
+      "401878366"
+     ]
+    },
+    {
+     "text": " (6-1-1, 19 points) visit ",
+     "match_ids": []
+    },
+    {
+     "text": "Dundee",
+     "match_ids": [
+      "401878366"
+     ]
+    },
+    {
+     "text": ", who sit fourth on 13",
+     "match_ids": [
+      "401878366"
+     ]
+    },
+    {
+     "text": ", while ",
+     "match_ids": []
+    },
+    {
+     "text": "St Johnstone and Dundee United",
+     "match_ids": [
+      "401878363"
+     ]
+    },
+    {
+     "text": " meet level on 11 points.",
+     "match_ids": [
+      "401878363"
+     ]
+    }
+   ],
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401878366",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    },
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401878363",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ],
+   "league_id": "sco.1",
+   "interest": 35,
+   "headline": "Rangers visit fourth-place Dundee in Scottish Premiership"
+  },
+  {
+   "text": "Leaders Feyenoord (20 points) visit 15th-place Telstar, and second-place PSV (19) go to ADO Den Haag, who have three points from eight games.",
+   "match_ids": [
+    "401875580",
+    "401875582"
+   ],
+   "segments": [
+    {
+     "text": "Leaders Feyenoord",
+     "match_ids": [
+      "401875580"
+     ]
+    },
+    {
+     "text": " (20 points) visit 15th-place Telstar",
+     "match_ids": [
+      "401875580"
+     ]
+    },
+    {
+     "text": ", and ",
+     "match_ids": []
+    },
+    {
+     "text": "second-place PSV",
+     "match_ids": [
+      "401875582"
+     ]
+    },
+    {
+     "text": " (19) go to ADO Den Haag, who have three points from eight games.",
+     "match_ids": [
+      "401875582"
+     ]
+    }
+   ],
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401875580",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    },
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401875582",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ],
+   "league_id": "ned.1",
+   "interest": 35,
+   "headline": "Eredivisie leaders Feyenoord and PSV face strugglers"
+  },
+  {
+   "text": "East leaders Tampa Bay Rowdies (55 points) host second-place Detroit City FC (50), and West leaders El Paso Locomotive (50) host third-place Sacramento Republic.",
+   "match_ids": [
+    "401842293",
+    "401842288"
+   ],
+   "segments": [
+    {
+     "text": "East leaders Tampa Bay Rowdies",
+     "match_ids": [
+      "401842293"
+     ]
+    },
+    {
+     "text": " (55 points) host second-place ",
+     "match_ids": []
+    },
+    {
+     "text": "Detroit City FC",
+     "match_ids": [
+      "401842293"
+     ]
+    },
+    {
+     "text": " (50)",
+     "match_ids": [
+      "401842293"
+     ]
+    },
+    {
+     "text": ", and ",
+     "match_ids": []
+    },
+    {
+     "text": "West leaders El Paso Locomotive",
+     "match_ids": [
+      "401842288"
+     ]
+    },
+    {
+     "text": " (50) host third-place Sacramento Republic.",
+     "match_ids": [
+      "401842288"
+     ]
+    }
+   ],
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401842293",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    },
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401842288",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ],
+   "league_id": "usa.usl.1",
+   "interest": 30,
+   "headline": "USL Championship's top two meet in Tampa"
+  },
+  {
+   "text": "Leaders Charlotte Independence (63 points) visit 15th-place Greenville Triumph, while second-place Union Omaha (61) go to Westchester SC.",
+   "match_ids": [
+    "401842215",
+    "401842227"
+   ],
+   "segments": [
+    {
+     "text": "Leaders Charlotte Independence",
+     "match_ids": [
+      "401842215"
+     ]
+    },
+    {
+     "text": " (63 points) visit 15th-place Greenville Triumph",
+     "match_ids": [
+      "401842215"
+     ]
+    },
+    {
+     "text": ", while ",
+     "match_ids": []
+    },
+    {
+     "text": "second-place Union Omaha",
+     "match_ids": [
+      "401842227"
+     ]
+    },
+    {
+     "text": " (61) go to Westchester SC.",
+     "match_ids": [
+      "401842227"
+     ]
+    }
+   ],
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401842215",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    },
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401842227",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ],
+   "league_id": "usa.usl.l1",
+   "interest": 25,
+   "headline": "USL League One's top two hit the road"
+  },
+  {
+   "text": "Braga and Gil Vicente meet on Monday, Oct. 19 level on 11 points with identical 3-2-2 records, seventh and ninth in the table.",
+   "match_ids": [
+    "401885480"
+   ],
+   "segments": [
+    {
+     "text": "Braga",
+     "match_ids": [
+      "401885480"
+     ]
+    },
+    {
+     "text": " and ",
+     "match_ids": []
+    },
+    {
+     "text": "Gil Vicente",
+     "match_ids": [
+      "401885480"
+     ]
+    },
+    {
+     "text": " meet on Monday, Oct. 19 level on 11 points with identical 3-2-2 records, seventh and ninth in the table.",
+     "match_ids": [
+      "401885480"
+     ]
+    }
+   ],
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401885480",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ],
+   "league_id": "por.1",
+   "interest": 20,
+   "headline": "Primeira Liga's Braga and Gil Vicente meet level"
+  }
+ ],
+ "league_order": [
+  "eng.1",
+  "mex.1",
+  "uefa.champions",
+  "usa.1",
+  "esp.1",
+  "usa.nwsl",
+  "ita.1",
+  "ger.1",
+  "uefa.europa",
+  "concacaf.champions",
+  "eng.fa",
+  "fra.1",
+  "esp.copa_del_rey",
+  "eng.2",
+  "usa.usl.1",
+  "fifa.friendly",
+  "concacaf.nations.league",
+  "fifa.friendly.w",
+  "uefa.nations",
+  "eng.league_cup",
+  "uefa.europa.conf",
+  "usa.open",
+  "uefa.wchampions",
+  "eng.w.1",
+  "ita.coppa_italia",
+  "ger.dfb_pokal",
+  "sco.1",
+  "ned.1",
+  "ksa.1",
+  "caf.nations",
+  "por.1",
+  "arg.1",
+  "bra.1",
+  "usa.usl.l1"
+ ],
+ "blurb_coverage": {
+  "written": 17,
+  "total": 17
+ },
+ "rankings": {
+  "401878771": {
+   "popularity": 62,
+   "gameplay": 58,
+   "impact": 50,
+   "score": 55.8,
+   "blurb": "Fifth hosts sixth with both on 10 points. Everton are unbeaten in the league at 2-4-0 but draw-heavy, while Chelsea's DLDWL form shows a side still searching for consistency. The winner pulls clear of the other in the early race for Europe.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401878771",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401880216": {
+   "popularity": 25,
+   "gameplay": 45,
+   "impact": 45,
+   "score": 40.0,
+   "blurb": "Second-placed Middlesbrough have lost just once in 10 and carry their promotion push into a home date with 19th-place Cardiff, who have won only twice and sit uncomfortably close to the bottom three.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401880216",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401880215": {
+   "popularity": 18,
+   "gameplay": 38,
+   "impact": 32,
+   "score": 30.6,
+   "blurb": "Mid-table Millwall have one win in their last five, and Lincoln arrive in 18th but on back-to-back wins after a rough start. Three points could lift the visitors toward the middle of the table.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401880215",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401880211": {
+   "popularity": 20,
+   "gameplay": 35,
+   "impact": 40,
+   "score": 33.2,
+   "blurb": "Watford sit 22nd with eight points and six defeats, so a home game against Charlton matters for their effort to escape the relegation places. Charlton have drawn four of their last five and have lost only twice all season.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401880211",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401902892": {
+   "popularity": 40,
+   "gameplay": 40,
+   "impact": 42,
+   "score": 40.8,
+   "blurb": "Arsenal are an unfamiliar 10th with one win from five games and host 13th-place Birmingham, who are still winless. This is a chance for the Gunners to steady a stuttering start against one of the league's strugglers.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401902892",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401882843": {
+   "popularity": 45,
+   "gameplay": 50,
+   "impact": 48,
+   "score": 48.0,
+   "blurb": "Second-placed Atlético have won four straight and taken 19 points from eight games. They visit a 12th-place Espanyol side with only two wins, and they need to keep pace at the top of La Liga.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401882843",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401874760": {
+   "popularity": 42,
+   "gameplay": 38,
+   "impact": 42,
+   "score": 40.6,
+   "blurb": "Venezia are bottom of Serie A without a point from six games, while Napoli sit an underwhelming ninth on 10 points. For Napoli, this is a test of whether they can take care of business and climb toward the European places.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401874760",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401884769": {
+   "popularity": 45,
+   "gameplay": 45,
+   "impact": 45,
+   "score": 45.0,
+   "blurb": "Dortmund are unbeaten and second after three straight wins. They visit Union Berlin, who are 16th with one win and on a five-game run without one. The game has a lopsided form gap, but the trip still tests Dortmund's title pace.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401884769",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401884767": {
+   "popularity": 28,
+   "gameplay": 45,
+   "impact": 38,
+   "score": 38.0,
+   "blurb": "These two are level on six points with identical 2-0-3 records. Hamburg have lost three straight, while Stuttgart won last time out. The winner moves into the top half, and the loser starts looking nervously down the table.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401884767",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401884764": {
+   "popularity": 15,
+   "gameplay": 40,
+   "impact": 35,
+   "score": 31.8,
+   "blurb": "Both teams arrive on two straight wins. Elversberg, in 10th, host sixth-place Augsburg with a single point separating them, which makes this an early chance to settle who belongs in the Bundesliga's upper half.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401884764",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401884765": {
+   "popularity": 34,
+   "gameplay": 41,
+   "impact": 36,
+   "score": 37.2,
+   "blurb": "Two points separate 14th-placed Schalke from mid-table Mainz. Schalke's scoring is spread thin, with no player beyond one league goal, while Mainz lean on Phillipp Tietz's four. That makes chance creation the home side's central problem.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401884765",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401884766": {
+   "popularity": 28,
+   "gameplay": 38,
+   "impact": 35,
+   "score": 34.3,
+   "blurb": "Seventh-placed Werder Bremen host a Paderborn side sitting 15th with three losses in five league games. Niclas Füllkrug's four goals give Bremen a clear focal point that Paderborn, with no player past one goal, have yet to find.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401884766",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401879262": {
+   "popularity": 72,
+   "gameplay": 66,
+   "impact": 55,
+   "score": 63.1,
+   "blurb": "Brentford sit fourth and are still unbeaten after six league games, one point ahead of ninth-placed Liverpool. With the top half this tight, Alexander Isak's four goals against a Brentford side that hasn't lost yet make this an early test for both.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401879262",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401879259": {
+   "popularity": 72,
+   "gameplay": 52,
+   "impact": 50,
+   "score": 56.2,
+   "blurb": "City chase a seventh straight league win days after a 4-2 home loss to PSG, and Erling Haaland could be rested. Ipswich haven't won a top-flight match at City since November 2000.",
+   "sources": [
+    {
+     "url": "https://sports.yahoo.com/articles/manchester-city-vs-ipswich-town-050000259.html",
+     "title": "Manchester City vs Ipswich Town"
+    },
+    {
+     "url": "https://sports.yahoo.com/articles/man-city-xi-vs-ipswich-192316462.html",
+     "title": "Man City XI vs Ipswich: Predicted lineup, confirmed team news, injury latest for Premier League today - Yahoo Sports"
+    }
+   ]
+  },
+  "401878770": {
+   "popularity": 40,
+   "gameplay": 41,
+   "impact": 52,
+   "score": 45.1,
+   "blurb": "Bottom-of-the-table Fulham are still looking for a first league win after six games, with just two points. Eighth-placed Hull arrive having won only two of their own six, so this home date looks like a real chance for Fulham to get off the mark.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401878770",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401880220": {
+   "popularity": 25,
+   "gameplay": 48,
+   "impact": 50,
+   "score": 43.0,
+   "blurb": "Fourth hosts fifth with identical records: Birmingham and QPR are both 4-5-1 on 17 points. Each has lost only once, so whoever edges this one steps clear in a crowded promotion chase.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401880220",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401880219": {
+   "popularity": 22,
+   "gameplay": 40,
+   "impact": 35,
+   "score": 33.5,
+   "blurb": "Mid-table Bristol City meet a Sheffield United side in 15th, two points and three places behind them. Patrick Bamford leads the Blades with four goals as they try to turn an even 3-3-4 start into upward movement.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401880219",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401880217": {
+   "popularity": 22,
+   "gameplay": 37,
+   "impact": 43,
+   "score": 35.6,
+   "blurb": "Derby sit 23rd with one win from 10 league games and face a Stoke side in ninth on 16 points. Every point matters for a home team already well adrift of mid-table.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401880217",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401880214": {
+   "popularity": 22,
+   "gameplay": 37,
+   "impact": 42,
+   "score": 35.2,
+   "blurb": "Norwich have lost seven of 10 league games and sit 20th, two points behind 16th-placed Portsmouth. That gives this lower-table meeting real weight, with Norwich relying on Matéo Toure's five goals to lift them.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401880214",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401880213": {
+   "popularity": 27,
+   "gameplay": 42,
+   "impact": 38,
+   "score": 36.6,
+   "blurb": "Eighth-placed Southampton, powered by Cyle Larin's seven league goals, host 14th-placed Bolton. A home result would keep Saints near the playoff places, while Bolton look to steady an uneven 4-1-5 start.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401880213",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401880212": {
+   "popularity": 48,
+   "gameplay": 58,
+   "impact": 56,
+   "score": 54.7,
+   "blurb": "Leaders host third place in a Championship top-of-table test. Swansea are 7-2-1 but lost their last outing. West Ham have just one defeat all season and lean on Jarrod Bowen's six goals.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401880212",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401880210": {
+   "popularity": 25,
+   "gameplay": 45,
+   "impact": 38,
+   "score": 37.2,
+   "blurb": "Two points separate seventh and 10th. West Brom have won two of their last five, and Blackburn have lost just once in five. The winner gets a step closer to the playoff places.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401880210",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401880209": {
+   "popularity": 50,
+   "gameplay": 34,
+   "impact": 45,
+   "score": 42.4,
+   "blurb": "Bottom-placed Preston have four points and eight defeats from 10 games and lost their last two. Wrexham sit 17th after five draws and are unbeaten in four of five. They will want to put clear distance between themselves and the foot of the table.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401880209",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401878368": {
+   "popularity": 18,
+   "gameplay": 38,
+   "impact": 33,
+   "score": 31.0,
+   "blurb": "Aberdeen are unbeaten in five but have drawn three of those. They host a St Mirren side that ended a four-game losing run last time out. Two points split seventh and eighth.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401878368",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401878365": {
+   "popularity": 20,
+   "gameplay": 35,
+   "impact": 40,
+   "score": 33.2,
+   "blurb": "A lower-table meeting between 10th and 11th, one point apart. Hibernian have won once in five, and Falkirk have one league win all season. The loser risks being dragged toward the bottom spot.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401878365",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401878364": {
+   "popularity": 15,
+   "gameplay": 32,
+   "impact": 40,
+   "score": 30.9,
+   "blurb": "Last-place Kilmarnock, with one league win and one goal from their top scorer, host ninth-place Motherwell. The visitors snapped a three-game losing streak in their last match. Three points separate the sides.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401878364",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401878363": {
+   "popularity": 15,
+   "gameplay": 40,
+   "impact": 38,
+   "score": 33.0,
+   "blurb": "Fifth hosts sixth with both sides level on 11 points and identical 3-2-3 records. St Johnstone's Fowler has five goals, while Dundee United won two of their last five.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401878363",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401882837": {
+   "popularity": 35,
+   "gameplay": 45,
+   "impact": 42,
+   "score": 41.3,
+   "blurb": "Villarreal sit 11th with four losses in eight games. Elche are 18th and in the drop zone with a single win, but Niño has five goals for them. Both teams need points to steady their starts.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401882837",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401875582": {
+   "popularity": 30,
+   "gameplay": 38,
+   "impact": 40,
+   "score": 36.8,
+   "blurb": "Second-place PSV visit winless ADO Den Haag, who have three points from eight games. PSV are only 2-1-2 across their last five, and the visitors need points to stay in the title chase.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401875582",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401876432": {
+   "popularity": 62,
+   "gameplay": 55,
+   "impact": 45,
+   "score": 52.8,
+   "blurb": "PSG come off a 4-2 Champions League win at Manchester City and have won three straight in Ligue 1, so Luis Enrique is likely to rotate. Strasbourg are without defender Ismaël Doukouré.",
+   "sources": [
+    {
+     "url": "https://psgpost.com/rc-strasbourg-vs-psg-ligue-1-mcdonald-s-preview-predictions-team-news-and-tv-info-01m53e7100xs",
+     "title": "RC Strasbourg vs PSG: Ligue 1 McDonald's preview, predictions, team news and TV info"
+    },
+    {
+     "url": "https://www.psg.fr/en/content/rc-strasbourg-alsace-paris-saint-germain-la-preview-ligue-1-20262027",
+     "title": "Strasbourg-Paris: The Preview"
+    }
+   ]
+  },
+  "401900899": {
+   "popularity": 30,
+   "gameplay": 45,
+   "impact": 35,
+   "score": 37.2,
+   "blurb": "Fifth-place Neom, led by Alexandre Lacazette's five goals, have won three of their last five. Al Ettifaq trail by four points and have drawn three of their last five, with Moussa Dembélé their top scorer.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401900899",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401882846": {
+   "popularity": 82,
+   "gameplay": 78,
+   "impact": 68,
+   "score": 75.0,
+   "blurb": "Barcelona put an 8-0 La Liga start on the line at third-place Betis. They are missing Andreas Christensen and Roony Bardghji, and Raphinha and Frenkie de Jong are back in training but not confirmed. Betis are without Junior Firpo.",
+   "sources": [
+    {
+     "url": "https://khelnow.com/football/real-betis-vs-barcelona-preview-laliga-202610",
+     "title": "Real Betis vs Barcelona Preview, prediction, injury news & lineups"
+    }
+   ]
+  },
+  "401874953": {
+   "popularity": 62,
+   "gameplay": 58,
+   "impact": 55,
+   "score": 57.8,
+   "blurb": "Leaders Inter arrive without Lautaro Martínez or Benjamin Pavard after a 4-3 Champions League home loss to Club Brugge. Bologna have taken just 11 points from 17 home league games since last December.",
+   "sources": [
+    {
+     "url": "https://sports.yahoo.com/articles/serie-bologna-vs-inter-probable-090500019.html",
+     "title": "Serie A"
+    },
+    {
+     "url": "https://www.sportsmole.co.uk/football/bologna/preview/bologna-vs-inter-milan-prediction-team-news-lineups_606975.html",
+     "title": "Preview: Bologna vs Inter Milan - prediction, team news, lineups - Sports Mole"
+    }
+   ]
+  },
+  "401884772": {
+   "popularity": 75,
+   "gameplay": 76,
+   "impact": 62,
+   "score": 70.2,
+   "blurb": "This meets the Bundesliga's two highest-scoring sides. Bayern are without Jamal Musiala, and Manuel Neuer is a doubt, so Jonas Urbig could stay in goal. Leipzig lack Baumgartner, Ouedraogo and striker Marc Guiu.",
+   "sources": [
+    {
+     "url": "https://www.sportsmole.co.uk/football/bayern-munich/bundesliga-title-race/preview/bayern-vs-rb-leipzig-prediction-team-news-lineups_606996.html",
+     "title": "Preview: Bayern Munich vs RB Leipzig - prediction, team news, lineups - Sports Mole"
+    },
+    {
+     "url": "https://sports.yahoo.com/articles/bundesliga-matchday-preview-bayern-munich-160000131.html",
+     "title": "Bundesliga Matchday Preview: Bayern Munich vs. RB Leipzig - Yahoo Sports"
+    }
+   ]
+  },
+  "401879258": {
+   "popularity": 64,
+   "gameplay": 62,
+   "impact": 48,
+   "score": 56.9,
+   "blurb": "Unai Emery chases his 100th Premier League win as 16th-place Villa, fresh off a 6-0 rout of Fenerbahce, visit a Newcastle side beaten 4-1 at Coventry. Both are short-handed: Elanga and Livramento are out for Newcastle, and Onana and Maatsen for Villa.",
+   "sources": [
+    {
+     "url": "https://sports.yahoo.com/articles/newcastle-united-vs-aston-villa-050000133.html",
+     "title": "Newcastle United vs Aston Villa"
+    },
+    {
+     "url": "https://www.sportsmole.co.uk/football/newcastle-united/injury-news/team-news/newcastle-vs-aston-villa-injury-suspension-list-predicted-xis_606928.html",
+     "title": "Team News: Newcastle vs. Aston Villa injury, suspension list, predicted XIs - Sports Mole"
+    }
+   ]
+  },
+  "401854021": {
+   "popularity": 55,
+   "gameplay": 70,
+   "impact": 75,
+   "score": 68.2,
+   "blurb": "Gotham can clinch the NWSL Shield with a win here plus a Courage win over the Wave, and the Spirit lock up a playoff place with a draw. Gotham are without Jordyn Dudley and Bruninha, which leaves more on Jaedyn Shaw.",
+   "sources": [
+    {
+     "url": "https://www.cbssports.com/soccer/news/footy-fix-dont-miss-nwsl-rivalry-match-on-saturday-between-gotham-and-spirit/",
+     "title": "Footy Fix: Don't miss NWSL rivalry match Saturday on CBS when Gotham face Spirit as they chase the Shield - CBS Sports"
+    }
+   ]
+  },
+  "401875580": {
+   "popularity": 30,
+   "gameplay": 38,
+   "impact": 38,
+   "score": 36.0,
+   "blurb": "Unbeaten leaders Feyenoord, with Gjivai Zechiël on five goals, visit 15th-place Telstar. The hosts have one league win, and their last five read draw, loss, draw, loss, draw.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401875580",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401841615": {
+   "popularity": 25,
+   "gameplay": 42,
+   "impact": 42,
+   "score": 37.8,
+   "blurb": "Third-place Argentinos Juniors, nine points clear of their hosts, look to hold their Group A position. Banfield sit 11th and finally won after four straight draws.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401841615",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401900449": {
+   "popularity": 18,
+   "gameplay": 35,
+   "impact": 35,
+   "score": 30.8,
+   "blurb": "Al Taawoun are still winless and sit 17th on three points. Mid-table Al Diriyah, with Darwin Núñez on three goals, have won two of their last three.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401900449",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "761875": {
+   "popularity": 45,
+   "gameplay": 60,
+   "impact": 58,
+   "score": 55.5,
+   "blurb": "Fifth meets sixth in the East with a single point between them late in the season. Philadelphia have won four of their last five behind Milan Iloski's 18 goals, and Charlotte lean on Pep Biel's 12.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/761875",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401874935": {
+   "popularity": 50,
+   "gameplay": 48,
+   "impact": 45,
+   "score": 47.3,
+   "blurb": "Roma sit third and are still unbeaten, but four draws in their last five have slowed them. Visiting Genoa are 17th with one win in six and only four points. Roma's Malen has six goals; Genoa's top scorer Osmajic has three.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401874935",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401876436": {
+   "popularity": 32,
+   "gameplay": 50,
+   "impact": 45,
+   "score": 43.5,
+   "blurb": "Second-placed Lille have alternated results lately with two losses in their last five, so the chasing pack is close. Mid-table Brest have one win in five, but Doumbia's four goals give them a threat Lille's spread-out scoring lacks.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401876436",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401876431": {
+   "popularity": 22,
+   "gameplay": 38,
+   "impact": 35,
+   "score": 32.8,
+   "blurb": "Troyes are 17th and have scored sparingly, with no player above one league goal, though they won their latest outing after three straight losses. Lens arrive 11th with two wins in five, led by Thauvin's three goals.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401876431",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401882838": {
+   "popularity": 40,
+   "gameplay": 45,
+   "impact": 45,
+   "score": 43.8,
+   "blurb": "Valencia are 19th with one win in eight and no player beyond a single league goal, making home points urgent. Athletic Club sit 10th on a 2-2-2 record and have one loss in their last five.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401882838",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401875579": {
+   "popularity": 15,
+   "gameplay": 30,
+   "impact": 38,
+   "score": 29.5,
+   "blurb": "A relegation-zone meeting: winless Willem II prop up the table on two points, while 14th-placed Sparta have one win all season and none in their last five. Sparta's Zonneveld has five goals, more than Willem II's top scorer Haen's three.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401875579",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401878366": {
+   "popularity": 35,
+   "gameplay": 45,
+   "impact": 45,
+   "score": 42.5,
+   "blurb": "Second-placed Rangers have won four of their last five and arrive six points clear of fourth-placed Dundee. The hosts have been uneven, with two losses in five, and need a result to stay attached to the top group.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401878366",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401842217": {
+   "popularity": 12,
+   "gameplay": 28,
+   "impact": 22,
+   "score": 21.6,
+   "blurb": "The Cosmos are 16th of 17 with 18 losses, though Spengler's 11 goals remain a bright spot. Fifth-placed One Knoxville are well clear of them on 51 points but have only one win in their last five.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401842217",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "761876": {
+   "popularity": 35,
+   "gameplay": 45,
+   "impact": 48,
+   "score": 43.7,
+   "blurb": "West runners-up St. Louis have won four straight before Wednesday's U.S. Open Cup final at Columbus. Minnesota, 13th and winless in five, trail the West's ninth-and-last playoff place, held by Colorado on 38, despite Yeboah's 16 goals.",
+   "sources": [
+    {
+     "url": "https://www.ussoccer.com/stories/2026/09/usoc/st-louis-city-sc-aims-to-write-history-first-open-cup-final",
+     "title": "St. Louis CITY SC Aims to ‘Write History’ in U.S. Open Cup Final Debut"
+    },
+    {
+     "url": "https://www.squawka.com/us/mls/",
+     "title": "MLS Standings 2026: Live Tables, Playoff Race & Cup Odds"
+    }
+   ]
+  },
+  "401841621": {
+   "popularity": 18,
+   "gameplay": 38,
+   "impact": 38,
+   "score": 33.0,
+   "blurb": "Independiente Rivadavia sit eighth in Group A with two wins in their last three. Tigre are 12th and have lost four straight, so the visitors need to stop a slide before their group position slips further.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401841621",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401841619": {
+   "popularity": 20,
+   "gameplay": 40,
+   "impact": 40,
+   "score": 35.0,
+   "blurb": "Lanús are fifth in Group B and unbeaten in five, with three straight wins. Platense are 13th but have won two of their last three; they have drawn five times, and no Platense player has more than two goals.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401841619",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401841268": {
+   "popularity": 34,
+   "gameplay": 34,
+   "impact": 40,
+   "score": 36.4,
+   "blurb": "Bottom-placed Chapecoense have just three wins in 29 league games and sit on 18 points. Botafogo, 13th, lean on D. Santos's 10 goals but have one win in their last five.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401841268",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401841270": {
+   "popularity": 38,
+   "gameplay": 44,
+   "impact": 45,
+   "score": 42.9,
+   "blurb": "Seventh-place Atlético-MG are unbeaten in five (DWDWD) and eight points clear of Coritiba. Coritiba are winless in five, three of them losses, and P. Rocha's eight goals carry their attack.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401841270",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401842213": {
+   "popularity": 15,
+   "gameplay": 30,
+   "impact": 36,
+   "score": 28.6,
+   "blurb": "Third-place Forward Madison have won one of their last five but still sit 21 points above 14th-place Portland. R. Carmichael has 12 goals, and Portland enter off their first win in five.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401842213",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401842219": {
+   "popularity": 12,
+   "gameplay": 25,
+   "impact": 24,
+   "score": 21.4,
+   "blurb": "Last-place Richmond have lost 19 of 30 games and enter on back-to-back defeats. Corpus Christi, 12th, have won their last two, with B. Bowen's eight goals leading the way.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401842219",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401854022": {
+   "popularity": 54,
+   "gameplay": 62,
+   "impact": 62,
+   "score": 60.0,
+   "blurb": "Fourth-place Utah (46 pts) host fifth-place Kansas City (44) in a direct battle in the upper table. Temwa Chawinga has 12 goals, and KC have three wins in their last five.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401854022",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401841271": {
+   "popularity": 55,
+   "gameplay": 65,
+   "impact": 65,
+   "score": 62.5,
+   "blurb": "Second-place Palmeiras have lost just three of 30 league games and hold a 10-point edge over third-place Athletico-PR. Athletico's K. Viveros has 21 league goals.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401841271",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401876942": {
+   "popularity": 37,
+   "gameplay": 45,
+   "impact": 46,
+   "score": 43.4,
+   "blurb": "Querétaro sit fourth and have lost just two of 10 games, unbeaten in five. Santos are 14th but won three straight before their last result.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401876942",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401854023": {
+   "popularity": 58,
+   "gameplay": 62,
+   "impact": 72,
+   "score": 65.0,
+   "blurb": "Gotham's Shield hopes hinge on this one: a Gotham win at Washington plus a Courage win over the Wave clinches the Shield this weekend. Eighth-place NC have Ashley Sanchez's 20 goals.",
+   "sources": [
+    {
+     "url": "https://www.cbssports.com/soccer/news/footy-fix-dont-miss-nwsl-rivalry-match-on-saturday-between-gotham-and-spirit/",
+     "title": "Footy Fix: Don't miss NWSL rivalry match Saturday on CBS when Gotham face Spirit as they chase the Shield - CBS Sports"
+    }
+   ]
+  },
+  "401841614": {
+   "popularity": 34,
+   "gameplay": 44,
+   "impact": 50,
+   "score": 43.9,
+   "blurb": "Group B leaders Rosario Central are unbeaten in five with three straight wins. Tenth-place Atlético Tucumán have lost three of their last four and trail by eight points.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401841614",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401841616": {
+   "popularity": 33,
+   "gameplay": 44,
+   "impact": 52,
+   "score": 44.5,
+   "blurb": "Fourth-place Vélez (21 pts) have lost only once in 12 but have drawn six times. Sixth-place Gimnasia Mendoza are a point behind but winless in five.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401841616",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401842290": {
+   "popularity": 15,
+   "gameplay": 26,
+   "impact": 30,
+   "score": 24.9,
+   "blurb": "Sixth-place Hartford are winless in five (three draws, two defeats) but host a Brooklyn side second from bottom with just four wins all season and one point from their last five matches.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401842290",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401842292": {
+   "popularity": 22,
+   "gameplay": 40,
+   "impact": 45,
+   "score": 37.5,
+   "blurb": "Seventh-place Louisville sit six points clear of ninth-place Indy in this regional rivalry. Indy arrive on three straight losses, and Bryam Rendón's 10 goals carry their attack.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401842292",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401842298": {
+   "popularity": 18,
+   "gameplay": 42,
+   "impact": 45,
+   "score": 37.2,
+   "blurb": "Miami FC have won four straight to climb to eighth and now face a real test against third-place Charleston. Both sides' top scorers, Rocha and Foster, have nine goals.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401842298",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401842215": {
+   "popularity": 10,
+   "gameplay": 28,
+   "impact": 45,
+   "score": 30.3,
+   "blurb": "League One leaders Charlotte Independence are just two points ahead of Union Omaha and visit a Greenville side that has lost three straight. Sounou Marou's 15 goals lead the table-toppers.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401842215",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401842227": {
+   "popularity": 10,
+   "gameplay": 38,
+   "impact": 45,
+   "score": 33.8,
+   "blurb": "Second-place Omaha have won four straight and trail the leaders by two points. Westchester are unbeaten in five, with three wins, and Charlie McGlynn has 15 goals.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401842227",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401876943": {
+   "popularity": 62,
+   "gameplay": 55,
+   "impact": 45,
+   "score": 52.8,
+   "blurb": "Two of Mexico's biggest brands meet with Chivas fifth after back-to-back wins and Tigres down in 13th, six points back, with one win in their last five. Juan Brunetta's six goals lead Tigres.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401876943",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "761880": {
+   "popularity": 78,
+   "gameplay": 50,
+   "impact": 30,
+   "score": 49.0,
+   "blurb": "Miami's playoff place is already secured, but Messi has a goal involvement in every game he has played since the Leagues Cup and has 23 league goals. Atlanta sit 14th in the East.",
+   "sources": [
+    {
+     "url": "https://www.101greatgoals.com/match-previews/mls-matches/atlanta-united-fc-v-inter-miami-preview-expected-line-ups-stats-stream-where-to-watch/",
+     "title": "Atlanta United FC v Inter Miami: Preview, expected line-ups, stats and where to watch as Messi looks to add to goal tally"
+    }
+   ]
+  },
+  "761877": {
+   "popularity": 45,
+   "gameplay": 48,
+   "impact": 50,
+   "score": 48.0,
+   "blurb": "With the top nine in each conference reaching the playoffs, 10th-place NYCFC host an LAFC side winless in five. The matchup also pits two strikers in form: Bouanga with 17 goals and Fernández with 15.",
+   "sources": [
+    {
+     "url": "https://www.squawka.com/us/mls/",
+     "title": "MLS Standings 2026: Live Tables, Playoff Race & Cup Odds"
+    }
+   ]
+  },
+  "761879": {
+   "popularity": 40,
+   "gameplay": 58,
+   "impact": 55,
+   "score": 52.3,
+   "blurb": "Third hosts fourth with one point between them. New England have won their last two, while Chicago won three straight before their most recent loss. Carles Gil's 12 goals face Haile-Selassie's 11.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/761879",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "761881": {
+   "popularity": 32,
+   "gameplay": 44,
+   "impact": 50,
+   "score": 43.4,
+   "blurb": "Seventh-place Orlando have lost three straight and are five points clear of 12th-place D.C., who are winless in five. The top nine qualify for the playoffs, and Ojeda (14) and Baribo (15) lead the scoring.",
+   "sources": [
+    {
+     "url": "https://www.squawka.com/us/mls/",
+     "title": "MLS Standings 2026: Live Tables, Playoff Race & Cup Odds"
+    }
+   ]
+  },
+  "761878": {
+   "popularity": 45,
+   "gameplay": 45,
+   "impact": 62,
+   "score": 51.8,
+   "blurb": "With the top nine in each conference reaching the playoffs, eighth-place Red Bull New York (36 pts) host 11th-place Toronto (33). A Red Bulls win would open a six-point gap; Toronto have lost three of their last five.",
+   "sources": [
+    {
+     "url": "https://www.squawka.com/us/mls/",
+     "title": "MLS Standings 2026: Live Tables, Playoff Race & Cup Odds"
+    }
+   ]
+  },
+  "401842296": {
+   "popularity": 20,
+   "gameplay": 42,
+   "impact": 50,
+   "score": 39.7,
+   "blurb": "Fourth and fifth in the East are level on 41 points with identical 12-5-11 records, so this directly separates them in the table. Pittsburgh have one win in their last five; Rhode Island have two.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401842296",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401842293": {
+   "popularity": 25,
+   "gameplay": 52,
+   "impact": 58,
+   "score": 47.7,
+   "blurb": "The USL Championship East's top two meet: leaders Tampa Bay (55 pts) host Detroit (50), unbeaten in five, while the Rowdies have one win in five. D. Smith (14 goals) and M. Myers (13) headline.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401842293",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401842223": {
+   "popularity": 10,
+   "gameplay": 30,
+   "impact": 30,
+   "score": 25.0,
+   "blurb": "Fort Wayne (8th, 45 pts) have drawn four of their last five; Sarasota sit 11th, nine points back. T. Healy's 11 goals lead the hosts against A. Rosa's seven.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401842223",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401841273": {
+   "popularity": 45,
+   "gameplay": 50,
+   "impact": 42,
+   "score": 45.5,
+   "blurb": "Vasco arrive unbeaten in five with three wins, though still 15th on 35 points. Mid-table São Paulo, four points better, have won one of their last five and lean on J. Calleri's 10 goals.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401841273",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401842289": {
+   "popularity": 15,
+   "gameplay": 35,
+   "impact": 35,
+   "score": 30.0,
+   "blurb": "Oakland sit 11th of 12 in the West but carry P. Wilson's 13 goals; Tulsa (5th, 43 pts) are unbeaten in five, though four of those were draws.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401842289",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "761882": {
+   "popularity": 40,
+   "gameplay": 48,
+   "impact": 50,
+   "score": 46.8,
+   "blurb": "West leaders Vancouver (52 pts) visit 14th-place Austin, 21 points worse. B. White's 17 goals headline, but the Whitecaps have one win in five, and Austin have lost only one of theirs.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/761882",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "761883": {
+   "popularity": 45,
+   "gameplay": 55,
+   "impact": 55,
+   "score": 52.5,
+   "blurb": "A Texas derby between third and fifth in the West: Dallas (50 pts) lead Houston by four. P. Musa (19) and Guilherme Augusto (16) both carry big goal tallies; Houston are winless in five.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/761883",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "761884": {
+   "popularity": 30,
+   "gameplay": 35,
+   "impact": 30,
+   "score": 31.8,
+   "blurb": "Last-place Sporting KC (22 pts, 19 losses) host an 11th-place Real Salt Lake side that has lost three of its last five. S. Solans' 11 goals are the sharpest threat on show.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/761884",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401842297": {
+   "popularity": 15,
+   "gameplay": 40,
+   "impact": 42,
+   "score": 34.5,
+   "blurb": "Second-place New Mexico (49 pts) visit San Antonio, 10 points back in eighth and winless in five. G. Hurst's 12 goals dwarf the hosts' top-scorer mark of five.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401842297",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401854092": {
+   "popularity": 45,
+   "gameplay": 52,
+   "impact": 50,
+   "score": 49.5,
+   "blurb": "Tenth-place Denver trail sixth-place Angel City by five points. Angel City are unbeaten in five (three wins, two draws), while Denver lean on J. Sonis, whose 12 league goals top either side's scoring charts.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401854092",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401876941": {
+   "popularity": 60,
+   "gameplay": 58,
+   "impact": 56,
+   "score": 57.7,
+   "blurb": "Liga MX leaders América visit sixth-place León in Jornada 12 of the Apertura, still top despite having played a game fewer. América have two losses in their last five, and León sit just three points back.",
+   "sources": [
+    {
+     "url": "https://www.si.com/es-us/leon-vs-america-previa-predicciones-y-alineaciones-17-10-2026",
+     "title": "León vs América: previa, predicciones y alineaciones"
+    }
+   ]
+  },
+  "401876940": {
+   "popularity": 42,
+   "gameplay": 45,
+   "impact": 42,
+   "score": 43.0,
+   "blurb": "Third-place Toluca, eight points clear of 15th-place San Luis, host a side with three losses in 11 games. F. Viñas leads Toluca with five goals as the hosts try to hold their place near the top of the Apertura table.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401876940",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401842288": {
+   "popularity": 25,
+   "gameplay": 50,
+   "impact": 50,
+   "score": 43.8,
+   "blurb": "A top-three Western Conference meeting: leaders El Paso hold a five-point edge on third-place Sacramento. R. Rubín's 16 goals power El Paso, while Sacramento are unbeaten in five, though 12 draws mark their season.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401842288",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401842225": {
+   "popularity": 15,
+   "gameplay": 34,
+   "impact": 30,
+   "score": 27.6,
+   "blurb": "Fourth-place Boise, with draws in three of their last five, face an AV Alta side 19 points behind in 13th that have lost four of their last five league games.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401842225",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401842221": {
+   "popularity": 15,
+   "gameplay": 42,
+   "impact": 40,
+   "score": 34.5,
+   "blurb": "Neighbors in the League One table: sixth-place Spokane hold a four-point edge on seventh-place Chattanooga. Spokane are unbeaten in five, while O. Hernandez has 13 goals for the Red Wolves.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401842221",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401842294": {
+   "popularity": 18,
+   "gameplay": 33,
+   "impact": 30,
+   "score": 28.0,
+   "blurb": "Bottom-placed Monterey Bay, with 17 losses, host sixth-place Colorado Springs. The Switchbacks are unbeaten in five, though four of those were draws, and K. Bennett carries their attack with 13 goals.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401842294",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401842295": {
+   "popularity": 20,
+   "gameplay": 40,
+   "impact": 42,
+   "score": 35.8,
+   "blurb": "Seventh-place Orange County sit three points above ninth-place Phoenix in a tight West midtable. Both have struggled lately, with three losses in their last five apiece; I. Sacko's 14 goals lead Phoenix.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401842295",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "761887": {
+   "popularity": 52,
+   "gameplay": 50,
+   "impact": 62,
+   "score": 55.3,
+   "blurb": "With the top nine in each conference reaching the MLS playoffs, eighth-place LA Galaxy (39 points) host San Diego FC (33). San Diego are winless in five, and A. Dreyer's 12 goals lead their attack.",
+   "sources": [
+    {
+     "url": "https://www.squawka.com/us/mls/",
+     "title": "MLS Standings 2026: Live Tables, Playoff Race & Cup Odds"
+    }
+   ]
+  },
+  "761888": {
+   "popularity": 40,
+   "gameplay": 44,
+   "impact": 62,
+   "score": 50.2,
+   "blurb": "Ninth-place Colorado (38 points) visit Portland (33) on the playoff line, with the top nine in the West advancing. Both arrive winless in five, and the Timbers have lost their last three.",
+   "sources": [
+    {
+     "url": "https://www.squawka.com/us/mls/",
+     "title": "MLS Standings 2026: Live Tables, Playoff Race & Cup Odds"
+    }
+   ]
+  },
+  "761886": {
+   "popularity": 42,
+   "gameplay": 62,
+   "impact": 50,
+   "score": 52.2,
+   "blurb": "Western leader Nashville (66 pts) are unbeaten in five and visit a fourth-place San Jose side also unbeaten in five. Strikers headline it: Sam Surridge has 17 goals, Preston Judd 15. San Jose trail Nashville by 19 points.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/761886",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "761885": {
+   "popularity": 35,
+   "gameplay": 42,
+   "impact": 38,
+   "score": 38.6,
+   "blurb": "Seventh-place Seattle have won four of their last five and are unbeaten in that stretch. They host a CF Montréal side that sits 15th of 15 with 17 losses, though Prince Owusu's 15 goals give the visitors a real threat.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/761885",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401842291": {
+   "popularity": 15,
+   "gameplay": 38,
+   "impact": 40,
+   "score": 33.0,
+   "blurb": "Lexington arrive fourth in the West with four wins in their last five. Las Vegas sit 10th, eight points back. Both sides' top scorers, J. Rodriguez and P. Goodrum, have 12 goals apiece.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401842291",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401876939": {
+   "popularity": 45,
+   "gameplay": 38,
+   "impact": 40,
+   "score": 40.5,
+   "blurb": "Cruz Azul sit seventh with one win in their last five and host last-place FC Juárez, who have one win in 11 games. Óscar Estupiñán's six goals account for much of Juárez's attack.",
+   "sources": [
+    {
+     "url": "https://www.si.com/es-us/leon-vs-america-previa-predicciones-y-alineaciones-17-10-2026",
+     "title": "León vs América: previa, predicciones y alineaciones"
+    }
+   ]
+  },
+  "401875578": {
+   "popularity": 15,
+   "gameplay": 35,
+   "impact": 36,
+   "score": 30.4,
+   "blurb": "PEC Zwolle are 16th with one win from eight and no wins in their last five. Go Ahead Eagles have drawn five of eight, and Sebastian Tengstedt's six goals are double Zwolle's top tally.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401875578",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401874771": {
+   "popularity": 20,
+   "gameplay": 35,
+   "impact": 38,
+   "score": 32.5,
+   "blurb": "Udinese (15th, 4 pts) and Lecce (13th, 6 pts) meet in an early lower-table matchup. Both have lost four of six, and neither attack has produced more than three goals from one player.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401874771",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401902890": {
+   "popularity": 40,
+   "gameplay": 60,
+   "impact": 52,
+   "score": 51.8,
+   "blurb": "Chelsea are second and unbeaten at 4-1-0, and they host a fourth-place Tottenham side three points behind. Spurs' Viktoria Pelova has five goals, more than any Chelsea player so far.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401902890",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401902889": {
+   "popularity": 15,
+   "gameplay": 35,
+   "impact": 32,
+   "score": 28.8,
+   "blurb": "West Ham are 11th with three points and have lost four of five league games. They visit eighth-place Crystal Palace, whose 1-3-1 record has kept them steady if unspectacular.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401902889",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401882840": {
+   "popularity": 22,
+   "gameplay": 40,
+   "impact": 42,
+   "score": 36.3,
+   "blurb": "Osasuna and Racing Santander have identical 2-2-4 records and eight points each. Osasuna have no wins in five. Ante Budimir (6) and Yassin Zabiri (7) lead the scoring for two sides trying to climb away from the bottom.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401882840",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401875576": {
+   "popularity": 20,
+   "gameplay": 42,
+   "impact": 38,
+   "score": 34.9,
+   "blurb": "AZ are third with 19 points but have just one win in their last five. They visit 12th-place Cambuur, who have lost only once in five themselves.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401875576",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401879260": {
+   "popularity": 70,
+   "gameplay": 50,
+   "impact": 45,
+   "score": 53.0,
+   "blurb": "A historic rivalry with the table flipped: Leeds sit 7th on 9 points while Manchester United are 13th on 6 with one league win. United's last five read DDDLL, with Bruno Fernandes their top scorer on three goals.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401879260",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401879263": {
+   "popularity": 30,
+   "gameplay": 40,
+   "impact": 50,
+   "score": 41.5,
+   "blurb": "An early relegation-zone meeting. Bournemouth are 18th and still winless after six games (0-3-3), and Sunderland sit one point above them in 17th. Marcos Tavernier and Brian Brobbey have three goals apiece.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401879263",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401879261": {
+   "popularity": 45,
+   "gameplay": 55,
+   "impact": 50,
+   "score": 50.5,
+   "blurb": "Brighton arrive 3rd on 13 points with four straight wins after a draw (DWWWW). Crystal Palace, 12th, have alternated results (LWDWL), so this south-coast rivalry tests whether the Seagulls can keep pace near the top.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401879261",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401874774": {
+   "popularity": 35,
+   "gameplay": 50,
+   "impact": 45,
+   "score": 44.2,
+   "blurb": "Fiorentina are 19th with four points and one win from six, needing points against a Como side 8th on 11 that has won its last two. Franco Mastantuono leads the Viola with three goals.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401874774",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401876439": {
+   "popularity": 40,
+   "gameplay": 42,
+   "impact": 40,
+   "score": 40.7,
+   "blurb": "Marseille are a surprising 14th with six points and three straight losses (DWLLL), one spot and one point behind Angers. Amine Gouiri's four goals carry an OM attack that needs a result away from home.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401876439",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401902893": {
+   "popularity": 25,
+   "gameplay": 42,
+   "impact": 35,
+   "score": 35.0,
+   "blurb": "Aston Villa are still searching for a first WSL win, sitting 12th on 3 points (0-3-2). Liverpool, 6th on 7, enter after a loss that snapped a run of three wins in their last five.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401902893",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401902891": {
+   "popularity": 25,
+   "gameplay": 30,
+   "impact": 30,
+   "score": 28.8,
+   "blurb": "Bottom side Charlton have lost all five WSL games and have scored little, with J. Hutton the only listed scorer on one. Manchester United bring a WWWWD run of form despite a 2-1-2 league record that leaves them 7th.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401902891",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401902888": {
+   "popularity": 25,
+   "gameplay": 50,
+   "impact": 48,
+   "score": 43.0,
+   "blurb": "Third-placed London City Lionesses have won five straight, led by Danielle van de Donk's three goals. Everton, 5th on 9 points with four wins in five, can climb above their hosts with a victory.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401902888",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401884771": {
+   "popularity": 45,
+   "gameplay": 62,
+   "impact": 60,
+   "score": 57.0,
+   "blurb": "Unbeaten Freiburg lead the Bundesliga on 13 points and visit 4th-placed Leverkusen, three points back. Patrik Schick (5) and Yuito Suzuki (4) headline a top-four meeting that could reshape the early table.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401884771",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401902887": {
+   "popularity": 35,
+   "gameplay": 45,
+   "impact": 42,
+   "score": 41.3,
+   "blurb": "Manchester City have a perfect 5-0-0 WSL record and a 15-point lead position, with Khadija Shaw on five goals. Brighton sit 9th on five points and arrive with an uneven WLLWD run.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401902887",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401878367": {
+   "popularity": 45,
+   "gameplay": 55,
+   "impact": 60,
+   "score": 54.5,
+   "blurb": "Leaders Celtic (7-0-1) hold a five-point edge over third-place Hearts, but their last five read DWLLL. Hearts (DWDLW) can cut the gap at the top and test whether Celtic's slide is real.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401878367",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401882845": {
+   "popularity": 25,
+   "gameplay": 42,
+   "impact": 35,
+   "score": 35.0,
+   "blurb": "Mid-table neighbors three points apart: Celta have drawn five of eight and won just once, while seventh-place Alavés lean on Luis Boyé's five goals after a mixed DDLLW run.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401882845",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401875575": {
+   "popularity": 45,
+   "gameplay": 52,
+   "impact": 48,
+   "score": 48.7,
+   "blurb": "Only a point separates fifth-place Ajax from sixth-place Groningen. Ajax arrive unbeaten in five with two straight wins, while Groningen have won once in their last five and lean on Van Bergen's five goals.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401875575",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401876438": {
+   "popularity": 15,
+   "gameplay": 30,
+   "impact": 45,
+   "score": 32.2,
+   "blurb": "An early relegation scrap: winless, last-place Le Havre have two points from six games and host 16th-place Auxerre, who sit four points clear and have dropped their last two.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401876438",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401876435": {
+   "popularity": 33,
+   "gameplay": 45,
+   "impact": 45,
+   "score": 42.0,
+   "blurb": "Unbeaten leaders Monaco (4-2-0) travel to ninth-place Lorient, who have only two goals from their top scorer spread thin. Monaco's draw-heavy form (DDWDW) leaves room for Lorient to frustrate them.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401876435",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401876433": {
+   "popularity": 28,
+   "gameplay": 50,
+   "impact": 47,
+   "score": 43.3,
+   "blurb": "A top-five meeting: Paris FC are unbeaten in five (DWDWW) and two points behind third-place Rennes. Sinayoko and Lepaul each have four goals, and the winner strengthens its place near the top.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401876433",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401878769": {
+   "popularity": 72,
+   "gameplay": 55,
+   "impact": 55,
+   "score": 59.2,
+   "blurb": "Second-place Arsenal (5-0-1) visit a Forest side 15th with one win in six. Arsenal have won two straight, while Forest have drawn three of their last five and need points to climb away from trouble.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401878769",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401884768": {
+   "popularity": 25,
+   "gameplay": 33,
+   "impact": 50,
+   "score": 37.8,
+   "blurb": "Bottom two collide: Gladbach have lost all five league games and sit on zero points, while 17th-place Hoffenheim snapped a skid with their last result. Defeat would leave Gladbach further adrift.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401884768",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401874978": {
+   "popularity": 60,
+   "gameplay": 60,
+   "impact": 48,
+   "score": 55.2,
+   "blurb": "Unbeaten Milan (3-3-0), sixth with Rabiot leading their scoring, host an Atalanta side that has lost three straight and slipped to 10th. A win would move Milan six points clear of Atalanta.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401874978",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401882841": {
+   "popularity": 25,
+   "gameplay": 38,
+   "impact": 40,
+   "score": 35.5,
+   "blurb": "Winless Málaga sit last with four points from eight games and host sixth-place Real Sociedad, who have dropped their last two after a pair of wins. Málaga's four draws show they can be hard to beat.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401882841",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401854024": {
+   "popularity": 35,
+   "gameplay": 40,
+   "impact": 32,
+   "score": 35.5,
+   "blurb": "Two sides in the bottom half meet late in the season, three points apart. Orlando's Barbra Banda has 17 goals, the main threat Houston must contain. The Dash have lost four of their last five, including the last two.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401854024",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401841618": {
+   "popularity": 55,
+   "gameplay": 48,
+   "impact": 45,
+   "score": 48.5,
+   "blurb": "The Avellaneda derby finds Racing 13th of 15 in Group A with just three wins from 12. Independiente sit seventh on 18 points and have lost only once in their last five, so Racing face a rival in better form.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401841618",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401875577": {
+   "popularity": 25,
+   "gameplay": 45,
+   "impact": 36,
+   "score": 36.4,
+   "blurb": "Fourth-place Twente come in on three straight wins and have lost once all season, with Wout Weghorst leading their scoring. Utrecht sit 13th on eight points and have won just one of their last five.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401875577",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401875581": {
+   "popularity": 18,
+   "gameplay": 38,
+   "impact": 28,
+   "score": 29.0,
+   "blurb": "NEC have gone five without a win, three draws and then two losses, and slipped to 11th. Fortuna Sittard arrive seventh after winning their last two, with Mohamed Ihattaren their top scorer on three.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401875581",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401900447": {
+   "popularity": 15,
+   "gameplay": 30,
+   "impact": 30,
+   "score": 26.2,
+   "blurb": "Al Fateh are 16th with one win in nine and have not won in their last five. Al Khaleej have drawn six of nine, including four of their last five, and sit 11th, three points clear of their hosts.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401900447",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401874765": {
+   "popularity": 66,
+   "gameplay": 62,
+   "impact": 55,
+   "score": 60.2,
+   "blurb": "Unbeaten Lazio arrive second on 16 points after five wins and a draw, with Davide Frattesi leading their scoring. Juventus are seventh, five points back, and lost their most recent match. A Juve win would close the gap.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401874765",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401876434": {
+   "popularity": 35,
+   "gameplay": 48,
+   "impact": 40,
+   "score": 41.5,
+   "blurb": "Fourth-place Lyon have lost only once this season and host a Nice side in 10th that have won just one of their last five. Ernest Nuamah leads Lyon on three goals, while Nice have yet to have anyone score more than once.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401876434",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401882839": {
+   "popularity": 78,
+   "gameplay": 60,
+   "impact": 50,
+   "score": 60.5,
+   "blurb": "A fourth-versus-fifth meeting at the Bernabéu: Real Madrid have won six of eight, and Kylian Mbappé already has seven league goals. Sevilla sit four points behind and have lost only once in their last five.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401882839",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401841277": {
+   "popularity": 45,
+   "gameplay": 52,
+   "impact": 50,
+   "score": 49.5,
+   "blurb": "Fourth-place Fluminense, on 51 points, host an eighth-place Santos side nine points back. Guilherme Barbosa's 14 goals lead Santos's attack, and both teams lost their most recent match.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401841277",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401841276": {
+   "popularity": 40,
+   "gameplay": 45,
+   "impact": 60,
+   "score": 49.8,
+   "blurb": "Grêmio are 18th with 31 points and winless in five, three draws then two losses, so the pressure is on at home. Sixth-place Cruzeiro have won three of their last four and sit 17 points above their hosts.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401841276",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "761889": {
+   "popularity": 50,
+   "gameplay": 50,
+   "impact": 60,
+   "score": 54.0,
+   "blurb": "Ohio derby with playoff weight: Cincinnati sit ninth, the last MLS playoff place, four points clear of Columbus. The Crew have won three straight but host St. Louis in the U.S. Open Cup final on Wednesday.",
+   "sources": [
+    {
+     "url": "https://www.squawka.com/us/mls/",
+     "title": "MLS Standings 2026: Live Tables, Playoff Race & Cup Odds"
+    },
+    {
+     "url": "https://www.ussoccer.com/stories/2026/09/usoc/st-louis-city-sc-aims-to-write-history-first-open-cup-final",
+     "title": "St. Louis CITY SC Aims to ‘Write History’ in U.S. Open Cup Final Debut"
+    }
+   ]
+  },
+  "401854025": {
+   "popularity": 40,
+   "gameplay": 45,
+   "impact": 50,
+   "score": 45.8,
+   "blurb": "Seventh-place Portland, with one win in five, visit a Bay side 17 points behind in 14th. Sophia Wilson's 13 goals give the Thorns a clear edge in firepower over a Bay team led by Kiki Lema's eight.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401854025",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401841623": {
+   "popularity": 35,
+   "gameplay": 42,
+   "impact": 45,
+   "score": 41.5,
+   "blurb": "Two traditional clubs are level on 14 points and identical 4-2-6 records in the middle of Group A. Neither has scored freely, with Fernando Pérez on three goals for Estudiantes and Alexis Cuello on four for San Lorenzo.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401841623",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401841624": {
+   "popularity": 12,
+   "gameplay": 22,
+   "impact": 30,
+   "score": 22.7,
+   "blurb": "The bottom two in Group A meet. Last-place Estudiantes de Río Cuarto have one win and have lost four straight, and no player has more than one goal. Aldosivi, two points ahead, have won two of their last five.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401841624",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401842299": {
+   "popularity": 12,
+   "gameplay": 28,
+   "impact": 22,
+   "score": 21.6,
+   "blurb": "Lower Eastern Conference sides separated by a point: Birmingham are 11th and Loudoun 10th. Both have been draw-heavy, with 11 and 12 ties. Loudoun come in slightly better, with two wins in their last five.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401842299",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401841269": {
+   "popularity": 60,
+   "gameplay": 62,
+   "impact": 62,
+   "score": 61.5,
+   "blurb": "Leaders Flamengo, 15 points clear of fifth-place Bahia, take on one of the stronger sides in the table. Pedro's 16 goals lead the visitors, while Bahia have won their last two behind Luciano Juba's 10 goals.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401841269",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401841274": {
+   "popularity": 25,
+   "gameplay": 35,
+   "impact": 50,
+   "score": 38.5,
+   "blurb": "Second-from-bottom Remo have lost three straight and need home points. Bragantino, ninth, are winless in five, with four draws and three losses across that stretch, so neither side arrives in form.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401841274",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401854026": {
+   "popularity": 35,
+   "gameplay": 35,
+   "impact": 48,
+   "score": 40.2,
+   "blurb": "Ninth-place Seattle have alternated results lately and face the league's bottom team. Chicago have five wins in 27 games and none in their last five, while Maddie Mercado's eight goals lead the Reign.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401854026",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401841628": {
+   "popularity": 60,
+   "gameplay": 55,
+   "impact": 52,
+   "score": 55.0,
+   "blurb": "Second-place Belgrano, unbeaten in five, host River Plate in a Group A test. River are ninth but have won three of their last five, and they trail Belgrano by five points.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401841628",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401876938": {
+   "popularity": 48,
+   "gameplay": 52,
+   "impact": 50,
+   "score": 50.2,
+   "blurb": "Mid-table neighbors separated by a point: Monterrey are 11th and Pachuca 12th. Salomón Rondón's 12 goals in 11 games lead Pachuca, who have won their last two. Lucas Ocampos has five for a Monterrey side that has wavered lately.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401876938",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401900897": {
+   "popularity": 35,
+   "gameplay": 42,
+   "impact": 38,
+   "score": 38.6,
+   "blurb": "Ivan Toney has 11 league goals for sixth-place Al Ahli, already more than many squads. Al Fayha have drawn four of their last five, with one win all season, so a stubborn low block against Toney is the likely shape.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401900897",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401900898": {
+   "popularity": 12,
+   "gameplay": 28,
+   "impact": 32,
+   "score": 25.6,
+   "blurb": "Bottom-placed Abha are still winless after eight games with just two points, and no player has more than two goals. Mid-table Al Kholood have won once in their last five, so this is a chance for either side to change its trend.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401900898",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401874762": {
+   "popularity": 25,
+   "gameplay": 42,
+   "impact": 40,
+   "score": 37.0,
+   "blurb": "Surprise fourth-place Cagliari, with D. Maldini on four goals, try to stay in the top four. Monza sit 16th on four points but have won two of their last five, and G. Varela has matched Maldini's tally.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401874762",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401900896": {
+   "popularity": 42,
+   "gameplay": 40,
+   "impact": 40,
+   "score": 40.5,
+   "blurb": "Second-place Al Hilal have won seven of eight league games and need home points to stay on the leaders' pace. Al Hazem sit 10th and have won once in their last five, so the question is whether they can frustrate Milinkovic-Savic and company.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401900896",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401900895": {
+   "popularity": 20,
+   "gameplay": 32,
+   "impact": 38,
+   "score": 31.4,
+   "blurb": "A lower-table meeting between two struggling sides with one league win each. Al Shabab (13th) have not won in five, and Al Faisaly (15th) sit a point behind them, so the loser could drift toward the drop zone.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401900895",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401874784": {
+   "popularity": 22,
+   "gameplay": 36,
+   "impact": 38,
+   "score": 33.3,
+   "blurb": "Parma sit 18th on four points and need home results to climb out of the relegation zone early. Torino are only three points better off, and neither side has a scorer above two goals, so chances may be scarce.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401874784",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401879257": {
+   "popularity": 60,
+   "gameplay": 45,
+   "impact": 55,
+   "score": 52.8,
+   "blurb": "Tottenham are 19th and still winless after six league games, with a defender, J. van Hecke, as their top scorer on one goal. Coventry have lost three of their last five, so a home win would be overdue for Spurs.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401879257",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401882842": {
+   "popularity": 20,
+   "gameplay": 35,
+   "impact": 32,
+   "score": 30.1,
+   "blurb": "Two mid-table sides on eight points meet, with Rayo just ahead on games played. S. Camello's seven goals make up most of Rayo's threat, while Getafe's top scorer has one, which points to a tight, low-scoring contest.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401882842",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401885480": {
+   "popularity": 20,
+   "gameplay": 42,
+   "impact": 38,
+   "score": 34.9,
+   "blurb": "Braga and Gil Vicente are level on 11 points with identical 3-2-2 records. Braga have one win in their last five and need to restore their usual place near the top of the table.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401885480",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401841620": {
+   "popularity": 22,
+   "gameplay": 33,
+   "impact": 35,
+   "score": 31.0,
+   "blurb": "Newell's sit eighth in Group A with draws in four of their last five. Central Córdoba are 14th of 15 on 10 points and have not won in five, so this is a home game Newell's will be expected to win.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401841620",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401841617": {
+   "popularity": 22,
+   "gameplay": 44,
+   "impact": 42,
+   "score": 37.7,
+   "blurb": "Two points separate fifth-place Sarmiento (20 pts) and seventh-place Barracas Central (18) in Group B. J. Marabel's six goals give Junín a clear focal point, while Barracas have spread the scoring and drawn three of their last five.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401841617",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401841272": {
+   "popularity": 45,
+   "gameplay": 38,
+   "impact": 58,
+   "score": 47.8,
+   "blurb": "Corinthians are 16th on 32 points and have lost five straight, a slide that leaves them uncomfortably close to the bottom of the Brasileirão table. Vitória sit four points better off in 12th, with Renê's nine goals leading their attack.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401841272",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401841625": {
+   "popularity": 15,
+   "gameplay": 32,
+   "impact": 36,
+   "score": 29.4,
+   "blurb": "Lower-half Group B sides meet: Riestra (11 pts) are on a five-game winless run and have just two league wins, while Unión (13 pts) snapped a losing streak last time out. C. Tarragona's seven goals are the standout threat here.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401841625",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401900893": {
+   "popularity": 15,
+   "gameplay": 36,
+   "impact": 32,
+   "score": 29.1,
+   "blurb": "Mid-table Saudi Pro League sides separated by two points: Al Diriyah (9th, 11 pts) host Al Riyadh (12th, 9 pts). Both won their most recent match, and D. Núñez and T. Okou share the team scoring lead on three goals apiece.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401900893",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401900894": {
+   "popularity": 28,
+   "gameplay": 38,
+   "impact": 45,
+   "score": 38.3,
+   "blurb": "League leaders Al Qadsiah (7-1-1, 22 pts) visit an Al Taawoun side still searching for its first win, 17th on three points. Mateo Retegui has six league goals, though Qadsiah have drawn three of their last five.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401900894",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401915404": {
+   "popularity": 50,
+   "gameplay": 42,
+   "impact": 48,
+   "score": 46.4,
+   "blurb": "Both clubs have three points from two Champions League league-phase games. Dortmund arrive on three straight wins with Serhou Guirassy leading their scoring, while Sabah aim to add to a win already banked in their league-phase campaign.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401915404",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401915403": {
+   "popularity": 40,
+   "gameplay": 44,
+   "impact": 52,
+   "score": 46.2,
+   "blurb": "An early must-win feel in the league phase: Fenerbahce have one point and Slavia Prague none after two games. Slavia have lost four of their last five overall, while Fenerbahce are unbeaten in four since their last defeat.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401915403",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401900448": {
+   "popularity": 38,
+   "gameplay": 48,
+   "impact": 45,
+   "score": 44.3,
+   "blurb": "Fourth-place Al Ittihad (17 pts) bring Steven Bergwijn's five goals and two straight wins to Al Ettifaq, who sit 7th on 12 points with only one win in their last five and Moussa Dembélé leading their scoring.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401900448",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401900446": {
+   "popularity": 60,
+   "gameplay": 52,
+   "impact": 50,
+   "score": 53.2,
+   "blurb": "Third-place Al Nassr (19 pts) host fifth-place Neom (16) with three points between them near the top. Cristiano Ronaldo has four league goals, but Neom's Alexandre Lacazette has five, and the visitors won three straight before their last game.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401900446",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401880277": {
+   "popularity": 32,
+   "gameplay": 45,
+   "impact": 42,
+   "score": 40.5,
+   "blurb": "Wolves sit sixth on 17 points but have lost three of their last five, with F. López's five goals carrying the attack. Portsmouth, 16th on 11 points, have lost just one of their last five and won the most recent.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401880277",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401915398": {
+   "popularity": 50,
+   "gameplay": 62,
+   "impact": 56,
+   "score": 56.6,
+   "blurb": "Two traditional European names are both off to slow starts. Porto are 30th without a point and PSV are 26th with one, so neither side can afford another dropped result in a meeting of near-equals.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401915398",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401915399": {
+   "popularity": 92,
+   "gameplay": 89,
+   "impact": 66,
+   "score": 80.5,
+   "blurb": "A heavyweight clash between the only two clubs on six points atop the league phase. Squawka flags no fresh fitness concerns for either side, and Barcelona arrive after putting five past Feyenoord in their last European outing.",
+   "sources": [
+    {
+     "url": "https://www.squawka.com/us/news/champions-league/match-preview-psg-vs-barcelona-20-10-26-champions-league/",
+     "title": "Paris Saint-Germain vs Barcelona: Predictions, Picks, Odds & Lineups"
+    }
+   ]
+  },
+  "401915402": {
+   "popularity": 48,
+   "gameplay": 42,
+   "impact": 45,
+   "score": 44.7,
+   "blurb": "Roma have one point from two games, with Donyell Malen scoring both of their goals. They host bottom-placed Slovan Bratislava, who are still without a point and offer a clear chance for the Giallorossi to get their campaign moving.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401915402",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401915397": {
+   "popularity": 72,
+   "gameplay": 70,
+   "impact": 50,
+   "score": 62.5,
+   "blurb": "Liverpool are perfect through two league-phase games, with Bradley Barcola leading their scoring on three. Villarreal sit 14th on three points after a split start, and a road result would keep them in the race for a top-eight finish.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401915397",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401915401": {
+   "popularity": 70,
+   "gameplay": 55,
+   "impact": 45,
+   "score": 54.8,
+   "blurb": "Both sides are 1-0-1 and level on three points, with City 17th and AEK 20th. Erling Haaland already has four goals in the competition, while AEK's scoring has been spread thin, with Rares Marin their leading scorer on one.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401915401",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401915400": {
+   "popularity": 52,
+   "gameplay": 58,
+   "impact": 55,
+   "score": 55.3,
+   "blurb": "Napoli are 32nd and still pointless after two league-phase defeats, with defender Amir Rrahmani their only scorer. They host a Bodo/Glimt side sitting 24th on three points that could pull clear of the Italians with a win.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401915400",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401915392": {
+   "popularity": 55,
+   "gameplay": 68,
+   "impact": 50,
+   "score": 57.5,
+   "blurb": "Stuttgart are fourth with two wins from two, led by Ermedin Demirovic's four goals. They face an Atlético side 15th on three points, for whom Marcos Llorente leads the scoring on one.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401915392",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401876934": {
+   "popularity": 55,
+   "gameplay": 45,
+   "impact": 42,
+   "score": 46.3,
+   "blurb": "Fifth-placed Chivas host a Necaxa side 17th on nine points and without a win in their last three results. Necaxa's Carranza has seven goals, outscoring anyone on the Guadalajara roster.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401876934",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401876937": {
+   "popularity": 25,
+   "gameplay": 45,
+   "impact": 40,
+   "score": 38.0,
+   "blurb": "Querétaro sit fourth on 20 points and are unbeaten in their last five, with Homenchenko scoring five. They visit an Atlético de San Luis side 15th on 12 points that has lost its last two.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401876937",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401876936": {
+   "popularity": 20,
+   "gameplay": 30,
+   "impact": 32,
+   "score": 28.3,
+   "blurb": "A meeting near the foot of the table: last-place Juárez have one win in 11 games, while Atlante are 16th on 11 points. Óscar Estupiñán's six goals account for much of Juárez's limited attack.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401876936",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401876935": {
+   "popularity": 38,
+   "gameplay": 50,
+   "impact": 40,
+   "score": 43.0,
+   "blurb": "Tigres sit 13th with 13 points and only one win in their last five (DWLDD), so they need home points to climb. Sixth-place León come in five points better off, with Diego Arcila leading their scoring on four.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401876935",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401915395": {
+   "popularity": 70,
+   "gameplay": 56,
+   "impact": 48,
+   "score": 56.3,
+   "blurb": "Both sides have three points after two league-phase games, separated only in 12th and 13th. Como arrive on two straight wins behind Assane Diao's two goals, while Manchester United are winless in five (DDDLL).",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401915395",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401915396": {
+   "popularity": 40,
+   "gameplay": 50,
+   "impact": 54,
+   "score": 49.1,
+   "blurb": "A meeting of two pointless sides, 34th and 35th of 36. Lille and Galatasaray have identical form (DWLWL), and the winner gets its first points of the league phase while the loser stays in serious trouble.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401915396",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401882870": {
+   "popularity": 26,
+   "gameplay": 42,
+   "impact": 38,
+   "score": 36.4,
+   "blurb": "Levante are 17th on seven points with one win from eight, and four draws show they are hard to put away. Athletic, 10th on eight points, could take Levante's place in the table with a win. Levante are winless in five (DDLLD).",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401882870",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401915312": {
+   "popularity": 86,
+   "gameplay": 82,
+   "impact": 62,
+   "score": 75.0,
+   "blurb": "The marquee clash of the matchday. Bayern, unbeaten on four points with Harry Kane scoring three goals, host an Arsenal side that has won both league-phase games. A win would put either club among the leaders.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401915312",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401915390": {
+   "popularity": 55,
+   "gameplay": 55,
+   "impact": 58,
+   "score": 56.2,
+   "blurb": "Inter are 29th with no points from two games, so a home win against Shakhtar is close to essential to stay in the knockout picture. Shakhtar sit 11th on four points despite going winless in five overall (DDLLD).",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401915390",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401915389": {
+   "popularity": 45,
+   "gameplay": 55,
+   "impact": 50,
+   "score": 50.5,
+   "blurb": "Betis have won both Europe games and are unbeaten in five, with defender Marc Bartra somehow their top scorer on two. Feyenoord, 23rd on three points, have won three of their last five games in all competitions.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401915389",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401915313": {
+   "popularity": 80,
+   "gameplay": 70,
+   "impact": 55,
+   "score": 66.5,
+   "blurb": "Real Madrid are perfect on six points with Kylian Mbappé scoring twice. They host a Leipzig side in 21st on three points whose recent form alternates between wins and losses (DWLWL). Leipzig need a result to stay on track.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401915313",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401915391": {
+   "popularity": 34,
+   "gameplay": 42,
+   "impact": 44,
+   "score": 40.8,
+   "blurb": "Sixth-place Sporting are perfect after two games and unbeaten in five, with Luis Suárez on two goals. They face a LASK side that has no points and no wins in its last five (DLDLL).",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401915391",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401915394": {
+   "popularity": 50,
+   "gameplay": 45,
+   "impact": 45,
+   "score": 46.2,
+   "blurb": "Aston Villa sit third after a 6-0 rout of Fenerbahce. Viking earned their only point in a 3-3 draw with Bayern Munich, so the Norwegians have already troubled one giant in this competition.",
+   "sources": [
+    {
+     "url": "https://sports.yahoo.com/articles/newcastle-united-vs-aston-villa-050000133.html",
+     "title": "Newcastle United vs Aston Villa"
+    },
+    {
+     "url": "https://sports.yahoo.com/articles/bundesliga-matchday-preview-bayern-munich-160000131.html",
+     "title": "Bundesliga Matchday Preview: Bayern Munich vs. RB Leipzig - Yahoo Sports"
+    }
+   ]
+  },
+  "401915388": {
+   "popularity": 34,
+   "gameplay": 55,
+   "impact": 50,
+   "score": 47.8,
+   "blurb": "Both sides sit on three points after two league-phase games, so this is a direct swing match for knockout-round positioning. Brugge carry real momentum after a 4-3 win at Inter, with Nicolò Tresoldi already on four goals.",
+   "sources": [
+    {
+     "url": "https://www.sportsmole.co.uk/football/bologna/preview/bologna-vs-inter-milan-prediction-team-news-lineups_606975.html",
+     "title": "Preview: Bologna vs Inter Milan - prediction, team news, lineups - Sports Mole"
+    }
+   ]
+  },
+  "401842067": {
+   "popularity": 10,
+   "gameplay": 22,
+   "impact": 15,
+   "score": 16.2,
+   "blurb": "A meeting near the foot of the East: Brooklyn have lost four of their last five and have just four wins all season. Birmingham, eight points better but with only five wins, have been nearly as hard to separate in a draw-heavy campaign.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401842067",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401841978": {
+   "popularity": 10,
+   "gameplay": 32,
+   "impact": 34,
+   "score": 27.3,
+   "blurb": "Only four points split these mid-table sides. Naples arrive unbeaten in five with three straight wins, while Sarasota have won two of their last three and lean on Rosa's seven goals.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401841978",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "761773": {
+   "popularity": 38,
+   "gameplay": 48,
+   "impact": 62,
+   "score": 51.1,
+   "blurb": "With the top nine in each conference reaching the playoffs, ninth-place Cincinnati hold a three-point cushion over D.C. United. It is also a strikers' duel: Kévin Denkey has 17 goals and Tai Baribo has 15.",
+   "sources": [
+    {
+     "url": "https://www.squawka.com/us/mls/",
+     "title": "MLS Standings 2026: Live Tables, Playoff Race & Cup Odds"
+    }
+   ]
+  },
+  "401842006": {
+   "popularity": 17,
+   "gameplay": 30,
+   "impact": 28,
+   "score": 26.0,
+   "blurb": "Spokane are unbeaten in five, with three wins in that stretch, and sit 25 points clear of the second-from-bottom Cosmos. New York's best hope is Spengler, whose 11 goals are four more than anyone on Spokane.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401842006",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401842274": {
+   "popularity": 12,
+   "gameplay": 27,
+   "impact": 25,
+   "score": 22.4,
+   "blurb": "Last-place Sporting JAX have just three wins and have lost four straight. Louisville City arrive in seventh, though their own form is uneven. Sadlier's 10 goals are the hosts' main threat.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401842274",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401916449": {
+   "popularity": 50,
+   "gameplay": 58,
+   "impact": 86,
+   "score": 67.2,
+   "blurb": "The 111th U.S. Open Cup title is on the line in Columbus. It is St. Louis CITY's first Open Cup final and the Crew's first since 2010. Both clubs come in on winning runs.",
+   "sources": [
+    {
+     "url": "https://www.ussoccer.com/stories/2026/09/usoc/st-louis-city-sc-aims-to-write-history-first-open-cup-final",
+     "title": "St. Louis CITY SC Aims to ‘Write History’ in U.S. Open Cup Final Debut"
+    }
+   ]
+  },
+  "401876932": {
+   "popularity": 62,
+   "gameplay": 60,
+   "impact": 66,
+   "score": 62.9,
+   "blurb": "First visits second with both on 21 points, though América have two games in hand on Atlas. Neither arrives in sharp form: América have lost two of their last three, and Atlas have one win in five.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401876932",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401876933": {
+   "popularity": 38,
+   "gameplay": 44,
+   "impact": 42,
+   "score": 41.7,
+   "blurb": "Two points separate 10th and 11th in a struggling mid-table matchup. Puebla are winless in five with four draws, while Monterrey have won once in five despite five goals from Lucas Ocampos.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401876933",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401876931": {
+   "popularity": 40,
+   "gameplay": 52,
+   "impact": 50,
+   "score": 48.2,
+   "blurb": "Third-place Toluca have won their last two and are a point off the top. Tijuana arrive winless in five. Federico Viñas and Gilberto Mora each have five goals.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401876931",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401876930": {
+   "popularity": 52,
+   "gameplay": 50,
+   "impact": 43,
+   "score": 47.7,
+   "blurb": "Salomón Rondón's 12 goals carry Pachuca, who have won their last two. They face a Cruz Azul side that is 7th but has one win in five, with top scorer N. Ibáñez on just four. A four-point gap separates them in a crowded Apertura table.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401876930",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  },
+  "401876929": {
+   "popularity": 42,
+   "gameplay": 42,
+   "impact": 40,
+   "score": 41.2,
+   "blurb": "Santos sit 14th but have won three of their last five. Pumas are 9th yet winless in five (three draws, two losses) and lean on Juninho's eight goals. Three points separate the clubs in the Apertura standings.",
+   "sources": [
+    {
+     "url": "https://www.espn.com/soccer/match/_/gameId/401876929",
+     "title": "ESPN table and form",
+     "kind": "facts"
+    }
+   ]
+  }
+ },
+ "ranking_coverage": {
+  "rated": 192,
+  "total": 192,
+  "carried": 0
+ },
+ "match_blurb_coverage": {
+  "written": 192,
+  "total": 192
+ },
+ "version": 1,
+ "date": "2026-10-17",
+ "model": "claude-opus-5-5",
+ "requested_model": "claude-opus-5-5",
+ "effort": "high",
+ "kind": "full",
+ "services": [
+  "apple",
+  "yttv",
+  "hbo",
+  "para",
+  "prime",
+  "netflix",
+  "disney"
+ ],
+ "focus_until": "2026-10-18T13:20:21.277949+00:00",
+ "generated_at": "2026-10-17T13:20:58Z",
+ "updated_at": "2026-10-17T13:28:18.143+00:00"
+}
