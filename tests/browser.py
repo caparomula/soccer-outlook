@@ -3916,8 +3916,8 @@ class BrowserChecks(unittest.TestCase):
             self.assertTrue(details.evaluate("el => el === document.activeElement"))
             index = page.locator('#nextup-track .nextup').evaluate_all('els => els.findIndex(el => el.dataset.matchId === "upcoming")')
             self.select_match(page, index)
-            link = page.locator('#nextup-track .nextup[data-match-id="upcoming"] a.detail__table')
-            link.focus()
+            more = page.locator('#nextup-track .nextup[data-match-id="upcoming"] button.more')
+            more.focus()
             page.evaluate("window.__oldButton = document.activeElement")
             clocked = deepcopy(scoreboard("in"))
             clocked["events"][0]["competitions"][0]["status"]["displayClock"] = "64'"
@@ -3925,7 +3925,7 @@ class BrowserChecks(unittest.TestCase):
             page.clock.run_for(60000)       # a clock change rebuilds the selected lead card
             expect(page.locator('li.row[data-id="upcoming"] .row__status')).to_have_text("64'")
             self.assertTrue(page.evaluate("!window.__oldButton.isConnected && document.activeElement.matches("
-                                          "'#nextup-track .nextup[data-match-id=\"upcoming\"] a.detail__table')"))
+                                          "'#nextup-track .nextup[data-match-id=\"upcoming\"] button.more')"))
 
     def test_hover_preview_stays_open_through_a_live_update(self):
         with self.page("after") as (page, feed):
