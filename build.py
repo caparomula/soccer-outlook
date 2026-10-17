@@ -1449,7 +1449,7 @@ def about_ai():
                      "generated AI data. That paragraph is not displayed in the headline area, which requires an "
                      "authored headline.")
         if SETTINGS.blurbs_model:
-            text += (f" For match Details, {who(SETTINGS.blurbs_model)}, searches the web for a blurb on each of the "
+            text += (f" For the More popup, {who(SETTINGS.blurbs_model)}, searches the web for a blurb on each of the "
                      f"{story_candidates()} best-scored matches in the days the page shows.")
         each = "Each is" if SETTINGS.overview_model and SETTINGS.blurbs_model else "It is"
         return text + (f" {each} published only with a page its own search returned as a source; without one, the text "
@@ -1459,7 +1459,7 @@ def about_ai():
             "broadcasters and scores, preserving accepted AI work and finishing an incomplete generation when needed. "
             "When AI text is enabled in Settings, qualifying league headlines appear in a carousel with their "
             "supporting text and sources. They follow your filters, favor the next 24 hours and look further ahead "
-            "when needed. Match-specific news and sources are available through each match's Details. "
+            "when needed. Match-specific news and sources are available through each match's More button. "
             "Text based only on ESPN's table, form and stage is labelled \"ESPN table and form\". "
             "Claude also rates each upcoming match for popularity (25%), expected gameplay (35%) and "
             "competitive impact (40%), without seeing the Outlook score; its ratings are editorial judgments, not "
@@ -1788,7 +1788,7 @@ def row_html(m, cache):
         f'<div class="row__context"><div class="row__meta">{"".join(meta)}</div>{goals_html(m)}{note}'
         f'{detail_html(m, cache)}</div></div>'
         f'<div class="pills">{pills_html(m, destinations)}<button type="button" class="more" aria-haspopup="dialog" aria-controls="match-dialog" '
-        f'aria-label="Details: {esc(m.home.name)} v {esc(m.away.name)}">Details</button></div>'
+        f'aria-label="More: {esc(m.home.name)} v {esc(m.away.name)}">More</button></div>'
         f'</div>'
         f'</li>'
     )

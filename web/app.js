@@ -1570,12 +1570,10 @@
     host.appendChild(head);
     var content = r.querySelector('.row__body').cloneNode(true);
     content.classList.add('match__body');
-    // Match stories stay in the shared Details overlay. Featured cards use that space for each
-    // team's season record, top scorer and useful links; schedule rows keep these facts in Details.
-    var detail = content.querySelector('.row__detail'), links = detail.querySelector('.detail__links');
+    // Stories and action links stay in the shared More popup. Featured cards also show each
+    // team's season record and top scorer; schedule rows keep these extra facts in the popup.
     host.classList.add('match--facts');
-    if (links) { links.className = 'match__links'; content.querySelector('.row__info').appendChild(links); }
-    detail.remove();
+    content.querySelector('.row__detail').remove();
     content.querySelectorAll('.network').forEach(function (network) { network.open = false; });
     host.appendChild(content);
     // A clock-only live update replaces the card body; keep its provider panel and keyboard

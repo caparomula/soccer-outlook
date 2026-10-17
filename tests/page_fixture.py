@@ -69,7 +69,7 @@ class FixedDatetime(datetime):
 
 
 def render_page(builder, *, fragment=False, fixtures=None, failed=(), facts_path=None, team_names=None, league_logos=False,
-                tbd=(), ai=True, stature=None, odds=None, design=None, model=None, team_ids=None):
+                tbd=(), ai=True, stature=None, odds=None, design=None, model=None, team_ids=None, match_links=None):
     """Exercise the real renderer with fixed time, rights, teams, scores, a table and settings.
 
     Fixtures named in `tbd` have a kickoff time to be set (ESPN's timeValid false); their kickoff
@@ -115,6 +115,7 @@ def render_page(builder, *, fragment=False, fixtures=None, failed=(), facts_path
             service, basis, outlet = builder.evaluate(outlets, rule, set(builder.OWNER))
             matches.append(builder.Match(
                 id=match_id, utc=datetime.fromisoformat(kickoff), time_valid=match_id not in tbd,
+                link=(match_links or {}).get(match_id, ""),
                 league=league, comp=builder.LEAGUES[league]["name"], stage="", note="",
                 home=home, away=away, venue="Fixture Stadium", state=state,
                 status="FT" if state == "post" else "30'" if state == "in" else "",

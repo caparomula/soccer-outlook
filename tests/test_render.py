@@ -242,7 +242,7 @@ class Markup(unittest.TestCase):
         page = render_page(build)
         buttons = [attrs for tag, attrs in Tags(page).tags if tag == "button" and "more" in attrs.get("class", "").split()]
         self.assertEqual(len(buttons), 9)
-        self.assertTrue(all(b["aria-label"] == "Details: Arsenal v Chelsea" for b in buttons))
+        self.assertTrue(all(b["aria-label"] == "More: Arsenal v Chelsea" for b in buttons))
         team = build.Team("Arsenal", "ARS", "k1", "")
         logo = build.logo_html(team, {"k1": "data:image/png;base64,"})
         self.assertIn('aria-hidden="true"', logo)
