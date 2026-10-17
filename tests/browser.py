@@ -759,14 +759,39 @@ class BrowserChecks(unittest.TestCase):
         fixtures = [("a", "2026-10-07T16:30:00+00:00", "in", "ESPN+"),
                     ("b", "2026-10-07T16:30:00+00:00", "in", "CBS Sports Network"),
                     ("c", "2026-10-07T18:00:00+00:00", "pre", "Apple TV"),
-                    ("d", "2026-10-07T18:00:00+00:00", "pre", "beIN Sports")]
+                    ("d", "2026-10-07T18:00:00+00:00", "pre", "beIN Sports"),
+                    ("tijuana", "2026-10-07T18:00:00+00:00", "pre", "TUDN", "mex.1"),
+                    ("everton", "2026-10-07T19:00:00+00:00", "pre", "USA Network", "eng.1"),
+                    ("espanyol", "2026-10-07T20:00:00+00:00", "pre", "ESPN+", "esp.1")]
         names = {"a": ("FC", "Borussia Mönchengladbach"),
                  "b": ("Brighton & Hove Albion", "Paris Saint-Germain"),
                  "c": ("Wolverhampton Wanderers", "New York Red Bulls"),
-                 "d": ("Club Atlético Independiente", "Deportivo Riestra")}
-        html = render_page(build, fixtures=fixtures, team_names=names, league_logos=True)
+                 "d": ("Club Atlético Independiente", "Deportivo Riestra"),
+                 "tijuana": ("Tijuana", "Puebla"),
+                 "everton": ("Everton", "Chelsea"),
+                 "espanyol": ("Espanyol", "Atlético Madrid")}
+        original_build_page = build.build_page
+
+        def with_alternatives(matches, cache, built_at, failed, today):
+            for match in matches:
+                if match.id in ('tijuana', 'everton', 'espanyol'):
+                    match.home.size = match.away.size = 20
+                alternative = {"everton": "Universo", "espanyol": "ESPN Deportes"}.get(match.id)
+                if alternative:
+                    match.outlets.append(build.map_outlet(alternative, match.league))
+            return original_build_page(matches, cache, built_at, failed, today)
+
+        with patch.object(build, "build_page", side_effect=with_alternatives):
+            html = render_page(build, fixtures=fixtures, team_names=names, league_logos=True)
+
+        def networks_reach_right_edge(row):
+            body = row.locator('.row__body').bounding_box()
+            chips = [chip.bounding_box() for chip in row.locator('.network summary').all()]
+            self.assertAlmostEqual(max(chip['x'] + chip['width'] for chip in chips),
+                                   body['x'] + body['width'], delta=1)
+
         for width in (1280, 820, 600, 390, 320):
-            with self.subTest(width=width), self.page("after", width=width, html=html) as (page, _):
+            with self.subTest(width=width), self.page("after", width=width, html=html, touch=width < 600) as (page, _):
                 self.open_settings(page)
                 page.locator('#btn-select-services').click()      # every match on a service, whichever carries it
                 page.locator('#btn-filters-close').click()
@@ -787,7 +812,7 @@ class BrowserChecks(unittest.TestCase):
                 self.assertLessEqual(panel['x'] + panel['width'], width)
                 self.assertLessEqual(panel['y'] + panel['height'], page.viewport_size['height'])
                 page.locator('#btn-filters-close').click()
-                expect(page.locator('li.row:visible')).to_have_count(4)
+                expect(page.locator('li.row:visible')).to_have_count(len(fixtures))
                 for row in page.locator('li.row:visible').all():
                     expect(row.locator('.row__teams')).to_have_css('display', 'flex')
                     expect(row.locator('.team').first).to_have_css('display', 'flex')
@@ -821,7 +846,7 @@ class BrowserChecks(unittest.TestCase):
                     else:
                         self.assertGreaterEqual(context['y'], teams['y'] + teams['height'])
                         self.assertAlmostEqual(context['x'], teams['x'], delta=1)
-                    self.assertLessEqual(row.locator('.row__info').evaluate('el => el.scrollWidth - el.clientWidth'), 1)
+                    self.assertLessEqual(row.locator('.row__body').evaluate('el => el.scrollWidth - el.clientWidth'), 1)
                     self.assertAlmostEqual(emblem['x'], clock['x'], delta=1)
                     rail = row.locator('.row__kickoff').bounding_box()
                     self.assertAlmostEqual(emblem['y'], clock['y'] + 2, delta=1)
@@ -832,8 +857,51 @@ class BrowserChecks(unittest.TestCase):
                     self.assertGreaterEqual(teams['x'], clock['x'] + clock['width'])
                     expect(row.locator('.row__time .row__league')).to_have_count(1)
                     expect(row.locator('.row__meta .lg')).to_have_count(0)
+                    networks_reach_right_edge(row)
                 self.assertLessEqual(page.evaluate('document.documentElement.scrollWidth'), width)
                 page.locator('#outlook').screenshot(path=str(self.artifacts / f"compact-rows-{width}.png"))
+                if width == 390:
+                    # A phone has room beside these stacked teams. Do not send every network
+                    # below the match merely because the viewport is narrow.
+                    for mid in ('tijuana', 'everton'):
+                        row = page.locator(f'li.row[data-id="{mid}"]')
+                        teams, pills, context = (row.locator(selector).bounding_box()
+                                                  for selector in ('.row__teams', '.pills', '.row__context'))
+                        self.assertGreaterEqual(pills['x'], teams['x'] + teams['width'], mid)
+                        self.assertAlmostEqual(pills['y'], teams['y'], delta=1)
+                        self.assertGreaterEqual(context['y'], pills['y'] + pills['height'])
+                    # Long team names plus live scores instead need the available line.
+                    long_row = page.locator('li.row[data-id="b"]')
+                    teams, pills = (long_row.locator(selector).bounding_box() for selector in ('.row__teams', '.pills'))
+                    self.assertGreaterEqual(pills['y'], teams['y'] + teams['height'])
+                    self.assertAlmostEqual(pills['x'], teams['x'], delta=1)
+                    # The same row must change shape on resize, without a reload or a script
+                    # deciding which phone it is. An unusually long outlet must also fit.
+                    for resized in (320, 430, 600, 390):
+                        page.set_viewport_size({'width': resized, 'height': 844})
+                        for mid in ('everton', 'espanyol'):
+                            row = page.locator(f'li.row[data-id="{mid}"]')
+                            teams, pills = (row.locator(selector).bounding_box() for selector in ('.row__teams', '.pills'))
+                            if resized == 320:
+                                self.assertGreaterEqual(pills['y'], teams['y'] + teams['height'])
+                                first, second = (pill.bounding_box() for pill in row.locator('.network summary').all())
+                                self.assertAlmostEqual(first['y'], second['y'], delta=1)
+                            elif resized > 390 or mid == 'everton':
+                                self.assertGreaterEqual(pills['x'], teams['x'] + teams['width'])
+                                self.assertAlmostEqual(pills['y'], teams['y'], delta=1)
+                            else:
+                                # At the fit boundary, fallback-font metrics and scrollbars
+                                # differ between engines. Either shape must avoid overlap.
+                                self.assertTrue(pills['x'] >= teams['x'] + teams['width'] or
+                                                pills['y'] >= teams['y'] + teams['height'])
+                            networks_reach_right_edge(row)
+                        self.assertLessEqual(page.evaluate('document.documentElement.scrollWidth'), resized)
+                    row = page.locator('li.row[data-id="everton"]')
+                    row.locator('.network summary').first.evaluate("el => el.append(' A very long international sports network label')")
+                    for resized in (320, 390, 1280):
+                        page.set_viewport_size({'width': resized, 'height': 844})
+                        self.assertLessEqual(row.locator('.row__body').evaluate('el => el.scrollWidth - el.clientWidth'), 1)
+                        self.assertLessEqual(page.evaluate('document.documentElement.scrollWidth'), resized)
 
     def test_lineup_persists_and_resets(self):
         for target in self.targets:
@@ -1182,6 +1250,11 @@ class BrowserChecks(unittest.TestCase):
                 row.locator('.network summary').click()
                 expect(row.locator('.network__providers li')).to_have_text(['Paramount+'])
                 expect(row.locator('.network__providers')).to_be_visible()
+                panel = row.locator('.network__providers').bounding_box()
+                self.assertGreaterEqual(panel['x'], 0)
+                self.assertLessEqual(panel['x'] + panel['width'], width)
+                self.assertGreaterEqual(panel['y'], 0)
+                self.assertLessEqual(panel['y'] + panel['height'], 900)
             finally:
                 context.close()
             with self.subTest(width=width), self.page("after", html=html, width=width, theme="dark", touch=width < 600) as (page, _):
@@ -1194,9 +1267,10 @@ class BrowserChecks(unittest.TestCase):
                             index = host.evaluate('el => Array.from(document.querySelectorAll("#nextup-track .nextup")).indexOf(el)')
                             self.select_match(page, index)
                         expect(host.locator('.network summary')).to_have_text(channels)
-                        info, pills = host.locator('.row__info').bounding_box(), host.locator('.pills').bounding_box()
-                        wide = width == 1280 and host.get_attribute('data-match-role') == 'schedule'
-                        if wide:
+                        schedule = host.get_attribute('data-match-role') == 'schedule'
+                        info, pills = host.locator('.row__info' if not schedule or width == 1280 else '.row__teams').bounding_box(), host.locator('.pills').bounding_box()
+                        beside = pills['x'] >= info['x'] + info['width'] - 1
+                        if beside:
                             self.assertGreaterEqual(pills['x'], info['x'] + info['width'])
                             self.assertAlmostEqual(pills['y'], info['y'], delta=1)
                         else:
@@ -1207,7 +1281,7 @@ class BrowserChecks(unittest.TestCase):
                         self.assertAlmostEqual(details['y'] + details['height'], body['y'] + body['height'], delta=1)
                         if len(channels) == 2:
                             first, second = (pill.bounding_box() for pill in host.locator('.network summary').all())
-                            if wide:
+                            if beside:
                                 self.assertGreaterEqual(second['y'], first['y'] + first['height'])
                                 self.assertAlmostEqual(first['x'] + first['width'], second['x'] + second['width'], delta=1)
                             else:

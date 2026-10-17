@@ -509,21 +509,40 @@ html.has-team-dialog, .has-team-dialog body { overflow: hidden; }
 .pill--unk { background: transparent; border: 1px dashed var(--line-strong); }
 .pill__free { font-weight: 400; opacity: 0.8; }
 .pill__free::before { content: "\00b7"; margin-right: 5px; }
-/* Schedule rows put match context beside the stacked teams when both columns have room. */
+/* Compact rows fit networks beside the teams by their content, not the viewport category.
+   Teams take spare width; a network rail that wraps grows to a full line of chips. */
+@container match (max-width: 39.999rem) {
+  .row > .row__body { position: relative; display: flex; flex-flow: row wrap; align-content: flex-start; gap: 10px 12px; padding-bottom: 2em; }
+  .row > .row__body > .row__info { display: contents; }
+  .row .row__teams { flex: 999 1 max-content; }
+  .row .row__context { flex: 1 0 100%; order: 2; margin: 0; }
+  .row > .row__body > .pills { flex: 1 0 min-content; justify-content: flex-end; align-content: flex-start; max-width: 100%; margin: 0; padding: 0; }
+  .row > .row__body > .pills > :not(.more) { width: max-content; max-width: 100%; box-sizing: border-box; }
+  .row > .row__body > .pills .pill { max-width: 100%; box-sizing: border-box; white-space: normal; overflow-wrap: anywhere; }
+  .row > .row__body > .pills > .more { position: absolute; right: 0; bottom: 0; margin: 0; }
+  /* Native disclosures stay on screen too; JavaScript anchors its panels to the chip. */
+  .row .network__providers:not([style]) { position: fixed; left: 12px; right: 12px; top: auto; bottom: 12px; width: auto; max-height: 60vh; }
+}
+/* Wider rows also have room for match context between the teams and network rail. */
 @container match (min-width: 40rem) {
+  .row > .row__body { display: grid; grid-template-columns: minmax(0, 1fr) fit-content(12rem); gap: 18px; }
   .row > .row__body > .row__info { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; align-items: start; }
   .row .row__context, .row .row__meta { margin-top: 0; }
   .row .row__meta { flex-direction: column; gap: 3px; }
   .row .stage::before, .row .venue::before { content: none; }
+  .row > .row__body > .pills { flex-direction: column; align-items: flex-end; align-self: stretch; max-width: 12rem; margin-top: 0; padding-top: 0; gap: 6px; }
+  .row > .row__body > .pills .pill { white-space: normal; overflow-wrap: anywhere; }
+  .row > .row__body > .pills .network__providers:not([style]) { left: auto; right: 0; }
+  .row > .row__body > .pills .more { margin-top: auto; }
 }
 /* Use each card's width: three narrow picks keep their network pills along the bottom. */
 @container match (min-width: 52rem) {
-  .row__body, .pick .match__body { display: grid; grid-template-columns: minmax(0, 1fr) fit-content(12rem); gap: 18px; }
   .row > .row__body { grid-template-columns: minmax(0, 1fr) 12rem; }
-  .row__body > .pills { flex-direction: column; align-items: flex-end; align-self: stretch; max-width: 12rem; margin-top: 0; padding-top: 0; gap: 6px; }
-  .row__body > .pills .pill { white-space: normal; overflow-wrap: anywhere; }
-  .row__body > .pills .network__providers:not([style]) { left: auto; right: 0; }
-  .row__body > .pills .more { margin-top: auto; }
+  .pick .match__body { display: grid; grid-template-columns: minmax(0, 1fr) fit-content(12rem); gap: 18px; }
+  .pick .row__body > .pills { flex-direction: column; align-items: flex-end; align-self: stretch; max-width: 12rem; margin-top: 0; padding-top: 0; gap: 6px; }
+  .pick .row__body > .pills .pill { white-space: normal; overflow-wrap: anywhere; }
+  .pick .row__body > .pills .network__providers:not([style]) { left: auto; right: 0; }
+  .pick .row__body > .pills .more { margin-top: auto; }
 }
 details.fold { margin-top: 22px; }
 details.fold summary { cursor: pointer; list-style: none; }

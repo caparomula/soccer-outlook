@@ -181,7 +181,7 @@ League emblems identify competitions; badges beside team names identify the team
 
 Schedule rows stack the two teams, keeping their names, recent form and standings aligned. On wider screens, the competition, venue and other match information sit to the right; on phones, they follow below the teams.
 
-Network pills stack on the right when a match card has enough width. In narrower cards, they run along the bottom and wrap as needed. For example, **USA Network** can reveal **YouTube TV (main plan)** in its provider list. A service that is also the broadcaster, such as **Paramount+**, has just one pill. Changing your service preferences updates the pill colors, provider lists and viewing links.
+Schedule network pills align to the right and sit beside the teams whenever their names, scores and channel labels leave enough room, including on phones. When they do not fit, the pills wrap onto a line below the teams. Featured cards keep the pills along the bottom unless the card is wide enough for a side column. For example, **USA Network** can reveal **YouTube TV (main plan)** in its provider list. A service that is also the broadcaster, such as **Paramount+**, has just one pill. Changing your service preferences updates the pill colors, provider lists and viewing links.
 
 ### Team vitals
 
