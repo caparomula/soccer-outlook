@@ -1734,11 +1734,12 @@ def detail_html(m, cache):
     return f'<div class="row__detail" hidden><div class="detail__grid">{"".join(cols)}</div>{venue_p}{recap}{broadcast_note}{links_p}</div>'
 
 
-def league_logo_html(league, cache):
+def league_logo_html(league, cache, *, label=""):
     url = LEAGUE_LOGOS.get(league, "")
     key = logo_key(url) if url else ""
     monochrome = " lg--monochrome" if league == "uefa.champions" else ""
-    return f'<i class="lg l-{key}{monochrome}" aria-hidden="true"></i>' if key and key in cache else ""
+    accessibility = f'role="img" aria-label="{esc(label)}"' if label else 'aria-hidden="true"'
+    return f'<i class="lg l-{key}{monochrome}" {accessibility}></i>' if key and key in cache else ""
 
 
 def row_html(m, cache):
@@ -1753,9 +1754,9 @@ def row_html(m, cache):
     score_h, score_a = (f'<b class="score"{"" if played and t.score != "" else " hidden"}>{esc(t.score) if played else ""}</b>'
                         for t in (m.home, m.away))
     status = f'<span class="row__status"{"" if m.status else " hidden"}>{esc(m.status)}</span>'
-    lglogo = league_logo_html(m.league, cache)
+    lglogo = league_logo_html(m.league, cache, label=m.comp)
     league_badge = f'<div class="row__league" title="{esc(m.comp)}">{lglogo}</div>' if lglogo else ""
-    meta = [f'<span class="comp">{esc(m.comp)}</span>']
+    meta = [] if lglogo else [f'<span class="comp">{esc(m.comp)}</span>']
     if m.stage:
         meta.append(f'<span class="stage">{esc(m.stage)}</span>')
     if m.venue:
@@ -1781,7 +1782,7 @@ def row_html(m, cache):
         f' data-ai-facts="{esc(json.dumps(ai_facts, ensure_ascii=False))}"' +
         (f' data-watch="{esc(json.dumps(destinations, ensure_ascii=False))}"' if destinations else "") +
         (f' data-r="{esc(rule_json)}"' if rule_json else "") + '>'
-        f'<div class="row__time">{league_badge}<div class="row__kickoff">{time_html}<span class="row__et" hidden></span><span class="row__until" hidden></span><span class="row__live" hidden>Live</span>{status}</div></div>'
+        f'<div class="row__time"><div class="row__kickoff">{time_html}<span class="row__et" hidden></span><span class="row__until" hidden></span><span class="row__live" hidden>Live</span>{status}</div>{league_badge}</div>'
         f'<div class="row__body"><div class="row__info">'
         f'<div class="row__teams">{team_html(m.home, cache, score_h, m.league)}<span class="vs">v</span>{team_html(m.away, cache, score_a, m.league)}</div>'
         f'<div class="row__context"><div class="row__meta">{"".join(meta)}</div>{goals_html(m)}{note}'

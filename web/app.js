@@ -1116,7 +1116,10 @@
     var button = document.createElement('button'); button.type = 'button'; button.className = 'league-trigger';
     button.setAttribute('aria-label', 'League vitals: ' + (SERVICES.leagues[r._lg] || r.getAttribute('data-comp')));
     button.setAttribute('aria-haspopup', 'dialog'); button.setAttribute('aria-controls', 'match-dialog');
-    if (emblem) button.appendChild(emblem);
+    if (emblem) {
+      emblem.setAttribute('aria-hidden', 'true'); emblem.removeAttribute('role'); emblem.removeAttribute('aria-label');
+      button.appendChild(emblem);
+    }
     return button;
   }
   function leagueRows(r) { return rows.filter(function (match) { return match._lg === r._lg; }); }

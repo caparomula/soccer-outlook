@@ -601,6 +601,8 @@ class BrowserChecks(unittest.TestCase):
                 saved = page.evaluate('JSON.stringify(localStorage)')
                 for selector in ('#nextup', '#picks .pick', 'li.row[data-id="upcoming"]'):
                     card = page.locator(selector).first
+                    expect(card.locator('.row__meta .comp')).to_have_count(0)
+                    self.assertEqual(card.locator('.venue').evaluate("el => getComputedStyle(el, '::before').content"), 'none')
                     button = card.get_by_role('button', name='League vitals: Premier League')
                     button.scroll_into_view_if_needed()
                     before = card.bounding_box()
@@ -658,6 +660,7 @@ class BrowserChecks(unittest.TestCase):
             expect(dialog.get_by_role('link', name='Competition on ESPN')).to_have_attribute('href', 'https://www.espn.com/soccer/league/_/name/eng.fa')
         with self.page('after', html=render_page(build, fixtures=fixtures)) as (page, _):
             expect(page.locator('button.league-trigger')).to_have_count(0)
+            expect(page.locator('li.row .row__meta .comp')).to_have_text('FA Cup')
             expect(page.locator('li.row')).to_be_visible()
 
     def test_rating_breakdown_uses_effective_components_without_fabricating_missing_values(self):
@@ -849,11 +852,11 @@ class BrowserChecks(unittest.TestCase):
                     self.assertLessEqual(row.locator('.row__body').evaluate('el => el.scrollWidth - el.clientWidth'), 1)
                     self.assertAlmostEqual(emblem['x'], clock['x'], delta=1)
                     rail = row.locator('.row__kickoff').bounding_box()
-                    self.assertAlmostEqual(emblem['y'], clock['y'] + 2, delta=1)
-                    self.assertAlmostEqual(rail['y'] + rail['height'], clock['y'] + clock['height'], delta=1)
+                    self.assertAlmostEqual(rail['y'], clock['y'] + 2, delta=1)
+                    self.assertAlmostEqual(emblem['y'] + emblem['height'], clock['y'] + clock['height'], delta=1)
                     content_box = row.bounding_box()
                     self.assertAlmostEqual(clock['y'] + clock['height'], content_box['y'] + content_box['height'] - 13, delta=1)
-                    self.assertLessEqual(emblem['y'] + emblem['height'], kickoff['y'])
+                    self.assertLessEqual(rail['y'] + rail['height'], emblem['y'])
                     self.assertGreaterEqual(teams['x'], clock['x'] + clock['width'])
                     expect(row.locator('.row__time .row__league')).to_have_count(1)
                     expect(row.locator('.row__meta .lg')).to_have_count(0)

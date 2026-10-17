@@ -177,9 +177,9 @@ Links open on the device you are using. Whether they launch an installed app dep
 | Dashed broadcaster pill / **usually** | The competition's established usual coverage, without a confirmed match listing yet. |
 | Two colored strips at the bottom of a featured card | The home and away teams' colors. They are decorative, not another rating. |
 
-League emblems identify competitions; badges beside team names identify the teams. Dark emblems and badges receive a contrast adjustment for the dark theme, while already bright images retain their colors.
+League emblems identify competitions; badges beside team names identify the teams. Match cards show the league name only when an emblem is unavailable. Dark emblems and badges receive a contrast adjustment for the dark theme, while already bright images retain their colors.
 
-Schedule rows stack the two teams, keeping their names, recent form and standings aligned. On wider screens, the competition, venue and other match information sit to the right; on phones, they follow below the teams.
+Schedule rows stack the two teams, keeping their names, recent form and standings aligned. The left column puts the time at the top and the league emblem at the bottom. On wider screens, the venue, competition stage and other match information sit to the right; on phones, they follow below the teams.
 
 Schedule network pills align to the right and sit beside the teams whenever their names, scores and channel labels leave enough room, including on phones. When they do not fit, the pills wrap onto a line below the teams. Featured cards keep the pills along the bottom unless the card is wide enough for a side column. For example, **USA Network** can reveal **YouTube TV (main plan)** in its provider list. A service that is also the broadcaster, such as **Paramount+**, has just one pill. Changing your service preferences updates the pill colors, provider lists and viewing links.
 

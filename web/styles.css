@@ -343,13 +343,13 @@ a { color: inherit; }
 .bucket--now .bucket__h { color: var(--accent); border-color: var(--accent); }
 .rows { list-style: none; margin: 0; padding: 0; }
 .row { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 8px 14px; align-items: start; padding: 12px 0; border-bottom: 1px solid var(--line); }
-.row__league { display: flex; margin-bottom: 6px; }
+.row__league { display: flex; margin-top: auto; padding-top: 6px; }
 .row__league .lg { width: 30px; height: 32px; margin: 0; }
 .row--off { color: var(--muted); }
 .row--off .team__name { color: var(--muted); }
 .row--off .logo { filter: var(--icon-filter, brightness(1)) grayscale(0.6); opacity: 0.75; }
 .row__time { display: flex; flex-direction: column; align-items: flex-start; align-self: stretch; line-height: 1; padding-top: 2px; }
-.row__kickoff { display: flex; flex-direction: column; align-items: flex-start; margin-top: auto; }
+.row__kickoff { display: flex; flex-direction: column; align-items: flex-start; }
 .row__time .t { font-size: 26px; color: var(--fg); }
 .row--off .row__time .t { color: var(--muted); }
 .t--tbd { font-size: 20px; letter-spacing: 0.04em; }
@@ -478,9 +478,11 @@ html.has-team-dialog, .has-team-dialog body { overflow: hidden; }
 .logo--lg { width: 44px; height: 44px; }
 .logo--txt { color: var(--off-fg); font: 700 11px var(--display); display: inline-flex; align-items: center; justify-content: center; letter-spacing: 0.04em; }
 .row__meta { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 14px; color: var(--muted); margin-top: 3px; }
+.row__meta:empty { display: none; }
 .comp { font-weight: 600; color: var(--fg); }
 .row--off .comp { color: var(--muted); }
 .stage::before, .venue::before { content: "\00b7"; margin-right: 10px; }
+.row__meta > :first-child::before { content: none; }
 .row__note { margin-top: 5px; font-size: 14px; max-width: 62ch; color: var(--muted); }
 .pills { display: flex; flex-wrap: wrap; gap: 4px 6px; margin-top: 6px; }
 .pills .more { align-self: flex-end; }
