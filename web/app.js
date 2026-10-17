@@ -2196,7 +2196,7 @@
   function setGoals(r, parts) {
     var el = r.querySelector('.row__goals');
     if (!el) {
-      var before = r.querySelector('.row__info > .row__note, .row__info > .row__detail'); if (!before) return;
+      var before = r.querySelector('.row__context > .row__note, .row__context > .row__detail'); if (!before) return;
       el = document.createElement('div'); el.className = 'row__goals'; before.parentNode.insertBefore(el, before);
     }
     el.textContent = '';

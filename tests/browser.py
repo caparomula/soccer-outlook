@@ -791,11 +791,37 @@ class BrowserChecks(unittest.TestCase):
                 for row in page.locator('li.row:visible').all():
                     expect(row.locator('.row__teams')).to_have_css('display', 'flex')
                     expect(row.locator('.team').first).to_have_css('display', 'flex')
-                    expect(row.locator('.vs')).to_be_visible()
+                    expect(row.locator('.vs')).to_be_hidden()
+                    home, away = (team.bounding_box() for team in row.locator('.row__teams > .team').all())
+                    self.assertGreaterEqual(away['y'], home['y'] + home['height'])
+                    # Team identity and recent form share columns, even when one name wraps.
+                    for selector in ('.logo', '.team__name', '.form'):
+                        first, second = (item.bounding_box() for item in row.locator(f'.team {selector}').all())
+                        self.assertAlmostEqual(first['x'], second['x'], delta=1)
+                    for team in row.locator('.team').all():
+                        self.assertLessEqual(team.evaluate('el => el.scrollWidth - el.clientWidth'), 1)
+                        score = team.locator('.score')
+                        if row.get_attribute('data-state') == 'in':
+                            expect(score).to_be_visible()
+                            expect(score).to_have_text('0')
+                            score_box, text_box = score.bounding_box(), team.locator('.team__txt').bounding_box()
+                            self.assertGreaterEqual(score_box['x'], text_box['x'] + text_box['width'])
+                            self.assertLessEqual(score_box['x'] + score_box['width'], team.bounding_box()['x'] + team.bounding_box()['width'] + 1)
+                        else:
+                            expect(score).to_be_hidden()
                     clock = row.locator('.row__time').bounding_box()
                     kickoff = row.locator('.row__time .t').bounding_box()
                     emblem = row.locator('.row__league .lg').bounding_box()
                     teams = row.locator('.row__teams').bounding_box()
+                    context = row.locator('.row__context').bounding_box()
+                    expect(row.locator('.row__context .venue')).to_have_text('Fixture Stadium')
+                    if row.bounding_box()['width'] >= 640:
+                        self.assertGreaterEqual(context['x'], teams['x'] + teams['width'])
+                        self.assertAlmostEqual(context['y'], teams['y'], delta=1)
+                    else:
+                        self.assertGreaterEqual(context['y'], teams['y'] + teams['height'])
+                        self.assertAlmostEqual(context['x'], teams['x'], delta=1)
+                    self.assertLessEqual(row.locator('.row__info').evaluate('el => el.scrollWidth - el.clientWidth'), 1)
                     self.assertAlmostEqual(emblem['x'], clock['x'], delta=1)
                     rail = row.locator('.row__kickoff').bounding_box()
                     self.assertAlmostEqual(emblem['y'], clock['y'] + 2, delta=1)
@@ -1724,7 +1750,7 @@ class BrowserChecks(unittest.TestCase):
                 page.clock.run_for(60000)
                 expect(row).to_have_attribute("data-state", "in")
                 expect(row.locator(".team .score")).to_have_text(["2", "1"])
-                expect(row.locator(".row__goals")).to_contain_text("A. Player 63'")
+                expect(row.locator(".row__context > .row__goals")).to_contain_text("A. Player 63'")
                 self.assertEqual(self.bucket(page, "upcoming"), "Live now")
                 expect(page.locator("#schedule-summary")).to_contain_text("2 live · 4 upcoming")
                 feed["data"] = scoreboard("post")
