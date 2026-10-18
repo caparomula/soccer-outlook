@@ -1570,6 +1570,11 @@
     host.appendChild(head);
     var content = r.querySelector('.row__body').cloneNode(true);
     content.classList.add('match__body');
+    // Featured cards keep their action beside the networks; schedule rows share a footer with
+    // the match context. Both use the same button and canonical details.
+    var footer = content.querySelector('.row__footer');
+    content.querySelector('.pills').appendChild(footer.querySelector('.more'));
+    footer.replaceWith(footer.querySelector('.row__context'));
     // Stories and action links stay in the shared More popup. Featured cards also show each
     // team's season record and top scorer; schedule rows keep these extra facts in the popup.
     host.classList.add('match--facts');
@@ -1620,6 +1625,7 @@
       var tm = document.createElement('span'); tm.className = 'miss__time'; tm.textContent = missTime(r, now); names.appendChild(tm);
       var where = document.createElement('div'); where.className = 'miss__where';
       var pills = r.querySelector('.pills'); if (pills) where.innerHTML = pills.innerHTML;
+      where.appendChild(r.querySelector('.more').cloneNode(true));
       bodyEl.className = 'miss__body'; bodyEl.appendChild(names);
       bodyEl.appendChild(where);
       d.appendChild(teams); d.appendChild(bodyEl);

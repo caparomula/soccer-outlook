@@ -849,6 +849,19 @@ class BrowserChecks(unittest.TestCase):
                     else:
                         self.assertGreaterEqual(context['y'], teams['y'] + teams['height'])
                         self.assertAlmostEqual(context['x'], teams['x'], delta=1)
+                        # Supplemental facts and More share the footer instead of reserving
+                        # an otherwise empty line beneath the venue for the button.
+                        more = row.locator('button.more').bounding_box()
+                        footer = row.locator('.row__footer').bounding_box()
+                        self.assertLessEqual(context['x'] + context['width'], more['x'])
+                        self.assertAlmostEqual(context['y'] + context['height'],
+                                               more['y'] + more['height'], delta=1)
+                        self.assertAlmostEqual(footer['y'] + footer['height'],
+                                               more['y'] + more['height'], delta=1)
+                    if width < 600:
+                        more = row.locator('button.more').bounding_box()
+                        self.assertGreaterEqual(more['width'], 44)
+                        self.assertGreaterEqual(more['height'], 44)
                     self.assertLessEqual(row.locator('.row__body').evaluate('el => el.scrollWidth - el.clientWidth'), 1)
                     self.assertAlmostEqual(emblem['x'], clock['x'], delta=1)
                     rail = row.locator('.row__kickoff').bounding_box()
@@ -901,10 +914,17 @@ class BrowserChecks(unittest.TestCase):
                         self.assertLessEqual(page.evaluate('document.documentElement.scrollWidth'), resized)
                     row = page.locator('li.row[data-id="everton"]')
                     row.locator('.network summary').first.evaluate("el => el.append(' A very long international sports network label')")
+                    row.locator('.venue').evaluate("el => el.textContent = 'A very long stadium name in a city with a similarly long name'")
                     for resized in (320, 390, 1280):
                         page.set_viewport_size({'width': resized, 'height': 844})
                         self.assertLessEqual(row.locator('.row__body').evaluate('el => el.scrollWidth - el.clientWidth'), 1)
                         self.assertLessEqual(page.evaluate('document.documentElement.scrollWidth'), resized)
+                        if resized < 600:
+                            context, more = (row.locator(selector).bounding_box()
+                                             for selector in ('.row__context', 'button.more'))
+                            self.assertLessEqual(context['x'] + context['width'], more['x'])
+                            self.assertAlmostEqual(context['y'] + context['height'],
+                                                   more['y'] + more['height'], delta=1)
 
     def test_lineup_persists_and_resets(self):
         for target in self.targets:
@@ -1271,7 +1291,7 @@ class BrowserChecks(unittest.TestCase):
                             self.select_match(page, index)
                         expect(host.locator('.network summary')).to_have_text(channels)
                         schedule = host.get_attribute('data-match-role') == 'schedule'
-                        info, pills = host.locator('.row__info' if not schedule or width == 1280 else '.row__teams').bounding_box(), host.locator('.pills').bounding_box()
+                        info, pills = host.locator('.row__teams' if schedule else '.row__info').bounding_box(), host.locator('.pills').bounding_box()
                         beside = pills['x'] >= info['x'] + info['width'] - 1
                         if beside:
                             self.assertGreaterEqual(pills['x'], info['x'] + info['width'])
@@ -2386,7 +2406,7 @@ class BrowserChecks(unittest.TestCase):
                         index = card.evaluate('el => Array.from(document.querySelectorAll("#nextup-track .nextup")).indexOf(el)')
                         self.select_match(page, index)
                     row = page.locator(f'li.row[data-id="{mid}"]')
-                    for selector in ('.row__teams', '.row__meta', '.pills'):
+                    for selector in ('.row__teams', '.row__meta', 'button.more'):
                         self.assertEqual(card.locator(selector).text_content(), row.locator(selector).text_content())
                     self.assertEqual(card.locator('.form').evaluate_all('els => els.map(e => [e.title, e.innerHTML])'),
                                      row.locator('.form').evaluate_all('els => els.map(e => [e.title, e.innerHTML])'))

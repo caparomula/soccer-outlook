@@ -179,7 +179,7 @@ Links open on the device you are using. Whether they launch an installed app dep
 
 League emblems identify competitions; badges beside team names identify the teams. Match cards show the league name only when an emblem is unavailable. Dark emblems and badges receive a contrast adjustment for the dark theme, while already bright images retain their colors.
 
-Schedule rows stack the two teams, keeping their names, recent form and standings aligned. The left column puts the time at the top and the league emblem at the bottom. On wider screens, the venue, competition stage and other match information sit to the right; on phones, they follow below the teams.
+Schedule rows stack the two teams, keeping their names, recent form and standings aligned. The left column puts the time at the top and the league emblem at the bottom. On wider screens, the venue, competition stage and other match information sit to the right; on phones, they share the footer with the **More** button.
 
 Schedule network pills align to the right and sit beside the teams whenever their names, scores and channel labels leave enough room, including on phones. When they do not fit, the pills wrap onto a line below the teams. Featured cards keep the pills along the bottom unless the card is wide enough for a side column. For example, **USA Network** can reveal **YouTube TV (main plan)** in its provider list. A service that is also the broadcaster, such as **Paramount+**, has just one pill. Changing your service preferences updates the pill colors, provider lists and viewing links.
 
@@ -199,7 +199,7 @@ Fixture counts cover the loaded schedule, not the whole season. Standings come f
 
 ### Match details
 
-Hover over **More** for a floating preview. Click, tap or press Enter to open a dialog. Close it with **Close**, Escape, or a click outside it. Neither view expands the schedule row.
+Use the outlined **More** button at the bottom right of a match card to see its details. Hover for a floating preview, or click, tap or press Enter to open a dialog. Close it with **Close**, Escape, or a click outside it. Neither view expands the schedule row.
 
 The preview and dialog can include season records, leading scorers and venue information, depending on what ESPN supplies. When AI text is enabled, the match's available story and sources appear here too. Featured cards also show season records and leading scorers directly.
 

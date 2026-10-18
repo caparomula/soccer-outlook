@@ -37,7 +37,7 @@
           !/^(pre|in|post)$/.test(row.dataset.state || '') || !/^[01]$/.test(row.dataset.tv || '') ||
           !isFinite(Date.parse(row.dataset.utc)) || !row.dataset.home || !row.dataset.away) throw new Error('Invalid fixture facts');
       if (row.querySelectorAll('.row__teams > .team').length !== 2 || !row.querySelector('.row__detail') ||
-          !row.querySelector('.row__kickoff') || !row.querySelector('.pills .more')) throw new Error('Incomplete fixture');
+          !row.querySelector('.row__kickoff') || !row.querySelector('.row__footer .more')) throw new Error('Incomplete fixture');
       function outlet(value) {
         return object(value) && typeof value.l === 'string' && value.l.length > 0 && value.l.length <= 200 &&
           Array.isArray(value.v) && value.v.every(function (service) { return options.services.indexOf(service) >= 0; });
