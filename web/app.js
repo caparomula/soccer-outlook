@@ -1574,7 +1574,8 @@
     // the match context. Both use the same button and canonical details.
     var footer = content.querySelector('.row__footer');
     content.querySelector('.pills').appendChild(footer.querySelector('.more'));
-    footer.replaceWith(footer.querySelector('.row__context'));
+    content.querySelector('.row__info').appendChild(footer.querySelector('.row__context'));
+    footer.remove();
     // Stories and action links stay in the shared More popup. Featured cards also show each
     // team's season record and top scorer; schedule rows keep these extra facts in the popup.
     host.classList.add('match--facts');
