@@ -1802,9 +1802,13 @@ class BrowserChecks(unittest.TestCase):
         mixed = svg('<rect width="48" height="48" fill="#111"/><rect width="16" height="48" fill="white"/>')
         fixtures = [('dark-league', '2026-10-07T18:00:00+00:00', 'pre', 'ESPN+', 'eng.1'),
                     ('bright-league', '2026-10-07T19:00:00+00:00', 'pre', 'ESPN+', 'esp.1')]
-        html = render_page(build, fixtures=fixtures, league_logos=True)
-        keys = iter(['l-dark-team', 'l-bright-team', 'l-mixed-team', 'l-dark-team'])
-        html = re.sub(r'<i class="logo logo--txt"[^>]*>.*?</i>', lambda _: '<i class="logo ' + next(keys) + '"></i>', html)
+        # Match and popup badges share the same artwork regardless of how often it is rendered.
+        def artwork(team, cache, cls='logo'):
+            return f'<i class="{cls} l-{team.id}"></i>'
+        with patch.object(build, 'logo_html', side_effect=artwork):
+            html = render_page(build, fixtures=fixtures, league_logos=True, team_ids={
+                'dark-league': ('dark-team', 'bright-team'),
+                'bright-league': ('mixed-team', 'dark-team')})
         css = ''.join(f'.{key}{{background-image:url("{url}")}}' for key, url in [('l-L0', dark), ('l-L1', bright), ('l-dark-team', dark), ('l-bright-team', bright), ('l-mixed-team', mixed)])
         html = html.replace('<script type="application/json"', '<style>' + css + '</style><script type="application/json"')
         with self.page('after', theme='dark', html=html) as (page, _):
