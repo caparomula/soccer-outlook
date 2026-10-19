@@ -201,7 +201,7 @@ Fixture counts cover the loaded schedule, not the whole season. Standings come f
 
 Use the outlined **More** button at the bottom right of a match card to see its details. Hover for a floating preview, or click, tap or press Enter to open a dialog. Close it with **Close**, Escape, or a click outside it. Neither view expands the schedule row.
 
-The preview and dialog can include season records, leading scorers and venue information, depending on what ESPN supplies. When AI text is enabled, the match's available story and sources appear here too. Featured cards also show season records and leading scorers directly.
+The preview and dialog group each team's badge, season record and leading scorer in its own panel, with venue and broadcast information below. Missing facts are left out or labelled unavailable. When AI text is enabled, the match's available story and sources appear above the team panels. Featured cards also show season records and leading scorers directly.
 
 When available, the **ESPN match page**, **Add to calendar** and **League table** links appear inside **More** for both featured cards and schedule rows. **Add to calendar** opens a Google Calendar event draft for a confirmed kickoff; it is unavailable while the time is TBD. The event names the broadcast outlet rather than assuming which subscription you use. **League table** opens the page's standings. The schedule remains usable when an optional fact or image is missing.
 

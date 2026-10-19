@@ -1654,7 +1654,9 @@ def detail_html(m, cache):
             facts.append(f"Record {t.record}")
         if t.leader and t.leader_goals not in ("", "0"):
             facts.append(f"Top scorer {t.leader}, {t.leader_goals} goal" + ("" if t.leader_goals == "1" else "s"))
-        cols.append(f'<div class="detail__team"><div><div class="detail__name">{esc(t.name)}</div><div class="detail__facts">{esc(" · ".join(facts)) if facts else "No table or scorer data yet."}</div></div></div>')
+        facts_html = "".join(f'<p>{esc(fact)}</p>' for fact in facts) or '<p>No table or scorer data yet.</p>'
+        cols.append(f'<div class="detail__team">{logo_html(t, cache)}<div class="detail__team-body">'
+                    f'<div class="detail__name">{esc(t.name)}</div><div class="detail__facts">{facts_html}</div></div></div>')
     facts = []
     if m.venue:
         facts.append(esc(m.venue))

@@ -427,6 +427,42 @@ html.has-team-dialog, .has-team-dialog body { overflow: hidden; }
 .match-details .detail__links { display: flex; flex-wrap: wrap; gap: 8px 14px; }
 .match-details .detail__links a { margin: 0; }
 .match-details .fbtn { flex: none; }
+/* Match sheets separate the story, team facts and actions without repeating the card's rating. */
+.match-details[data-kind="details"] { padding: 24px; border-radius: 16px;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--accent) 6%, var(--card)), var(--card) 45%);
+  box-shadow: 0 24px 70px rgb(0 0 0 / 0.3), 0 4px 16px rgb(0 0 0 / 0.15); }
+.match-details--dialog[data-kind="details"] { width: min(660px, calc(100vw - 24px)); }
+.match-details--dialog[data-kind="details"]::backdrop { background: rgb(0 0 0 / 0.65); backdrop-filter: blur(4px); }
+.match-details[data-kind="details"] .match-details__title { font: 700 30px/1.15 var(--display); text-wrap: balance; }
+.match-details[data-kind="details"] .match-details__head { align-items: center; padding-bottom: 18px; border-bottom: 1px solid var(--line-strong); }
+.match-details--preview[data-kind="details"] > .match-details__title { padding-bottom: 16px; border-bottom: 1px solid var(--line-strong); }
+.match-details[data-kind="details"] .match-details__head .fbtn { min-height: 44px; padding: 8px 14px; border-radius: 8px; color: var(--fg); }
+.match-details[data-kind="details"] .row__detail { margin-top: 20px; font-size: 14px; }
+.match-details[data-kind="details"] .row__story { margin-bottom: 20px; font-size: 16px; line-height: 1.6; }
+.match-details[data-kind="details"] .story-tag { display: block; margin: 0 0 6px; font-size: 12px; }
+.match-details[data-kind="details"] .story-src { display: block; margin: 8px 0 0; line-height: 1.5; }
+.match-details[data-kind="details"] .detail__grid { gap: 12px; }
+.match-details[data-kind="details"] .detail__team { align-items: flex-start; gap: 12px; padding: 14px;
+  border: 1px solid var(--line); border-radius: 10px; background: color-mix(in srgb, var(--bg) 55%, transparent); }
+.match-details[data-kind="details"] .detail__team > .logo { width: 36px; height: 36px; margin-top: 2px; }
+.detail__team-body { min-width: 0; overflow-wrap: anywhere; }
+.detail__facts p { margin: 5px 0 0; }
+.match-details[data-kind="details"] .detail__name { font-size: 18px; line-height: 1.25; }
+.match-details[data-kind="details"] .detail__facts { font-size: 13px; line-height: 1.5; }
+.match-details[data-kind="details"] .detail__venue { margin-top: 18px; color: var(--fg); line-height: 1.6; }
+.match-details[data-kind="details"] .detail__recap { margin-top: 14px; font-size: 15px; line-height: 1.6; }
+.match-details[data-kind="details"] .detail__broadcast { margin: 14px 0 0; padding-left: 12px; border-left: 2px solid var(--line-strong);
+  color: var(--muted); font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.match-details[data-kind="details"] .detail__links { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr));
+  gap: 10px; margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--line-strong); }
+.match-details[data-kind="details"] .detail__links a { display: flex; align-items: center; justify-content: center; min-height: 44px; padding: 9px 12px;
+  border: 1px solid var(--line-strong); border-radius: 8px; color: var(--fg); font-weight: 600; text-align: center; text-decoration: none; }
+.match-details[data-kind="details"] .detail__links a:hover { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.match-details[data-kind="details"] .detail__links a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+@media (max-width: 480px) {
+  .match-details[data-kind="details"] { padding: 18px; }
+  .match-details[data-kind="details"] .match-details__title { font-size: 26px; }
+}
 .team-sheet__identity { display: flex; align-items: center; gap: 14px; min-width: 0; }
 .team-sheet__identity .logo { width: 56px; height: 56px; }
 .team-sheet section { margin-top: 20px; }
