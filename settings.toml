@@ -43,26 +43,21 @@ league_priority = 5
 
 # The Outlook score uses ESPN data and no AI. Each component ranges from 0 to 1:
 # stature: competition tier and prominent teams, divided by stature_full and capped at 1.
-# close: implied draw probability, scaled from draw_from (0) to draw_to (1).
+# close: 1 - abs(home_win - away_win) / (home_win + away_win), using implied win probabilities.
+#        Equal chances score 1; a one-sided matchup approaches 0, independently of draw chance.
 # stakes: table positions, including bottom-of-table meetings scaled by bottom; known knockout
 #         stages use the longest matching keyword in knockout instead.
-# tv: a listed broadcast network (1), cable channel (0.5), or neither (0).
 # goals: the total-goals line, scaled from goals_from (0) to goals_to (1).
 #
 # Missing inputs use missing (0.5 by default) and keep their component's weight. They are not
 # dropped from the calculation. Odds come from the first odds entry in ESPN's scoreboard;
-# they influence the score but are not displayed. Channel names must match rights.toml.
+# they influence the score but are not displayed. Broadcast type does not affect match appeal.
 
 [outlook]
-weights = { stature = 40, close = 25, stakes = 15, tv = 10, goals = 10 }
+weights = { stature = 50, close = 25, stakes = 10, goals = 15 }
 missing = 0.5
 stature_full = 150
-draw_from = 0.10
-draw_to = 0.30
 bottom = 0.6
 goals_from = 2.0
 goals_to = 4.0
 knockout = { "final" = 1.0, "semifinal" = 0.9, "quarterfinal" = 0.8, "round of 16" = 0.7, "playoff" = 0.7 }
-network = ["ABC", "CBS", "FOX", "NBC", "Telemundo", "Univision", "UniMás"]
-cable = ["ESPN", "ESPN2", "ESPN Deportes", "FS1", "FS2", "Fox Deportes", "USA Network", "CBS Sports Network",
-         "TNT", "TBS", "truTV", "TUDN", "Universo", "beIN Sports", "beIN Sports en Español"]

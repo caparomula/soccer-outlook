@@ -672,7 +672,7 @@ class BrowserChecks(unittest.TestCase):
             story['rankings']['upcoming']['popularity'] = 95
             story['generated_at'] = '2026-10-07T16:00:00Z'
             with self.subTest(width=width, theme=theme), self.page("after", width=width, theme=theme,
-                    html=render_page(build, fixtures=fixtures, odds={"later": (0.25, 3.0)}), story=story) as (page, feed):
+                    html=render_page(build, fixtures=fixtures, odds={"later": (0.75, 3.0)}), story=story) as (page, feed):
                 # Ratings stay available while AI headlines and blurbs remain switched off.
                 expect(page.locator('#story')).to_be_hidden()
                 for selector in ('#nextup', '#picks .pick', 'li.row[data-id="upcoming"]'):
@@ -690,8 +690,10 @@ class BrowserChecks(unittest.TestCase):
                     expect(panel.locator('[data-metric="impact"]').first.locator('i')).to_have_count(0)
                     expect(panel.locator('[data-metric="stature"]')).to_have_text('100/100')
                     expect(panel.locator('[data-metric="stature"] i')).to_have_count(6)
+                    self.assertNotIn('TV reach', panel.inner_text())
+                    expect(panel.locator('[data-metric="popularity"]')).to_have_count(1)
                     if dialog.get_attribute('data-match-id') == 'later':
-                        # DOM inputs already use percentages: draw odds 0.25 normalize to 75, not 0.75 or 7500.
+                        # DOM inputs already use percentages: win balance 0.75 becomes 75, not 0.75 or 7500.
                         expect(panel.locator('[data-metric="gameplay"]').last).to_have_text('75/100')
                         expect(panel.locator('[data-metric="gameplay"]').last.locator('i')).to_have_count(5)
                         expect(panel.locator('[data-metric="goals"]')).to_have_text('50/100')
@@ -726,8 +728,8 @@ class BrowserChecks(unittest.TestCase):
                 panel = page.locator('#match-dialog .rating-breakdown')
                 expect(panel).to_contain_text('Component ratings are not available for this imported score.')
                 self.assertNotIn('81/100', panel.inner_text())
-                # Only the Outlook input with the corresponding color remains; no invented AI dimensions.
-                expect(panel.locator('[data-metric="popularity"]')).to_have_count(1)
+                # Only the Outlook evenness input remains; no invented popularity or TV metric.
+                expect(panel.locator('[data-metric="popularity"]')).to_have_count(0)
                 expect(panel.locator('[data-metric="gameplay"]')).to_have_count(1)
 
     def test_elsewhere_details_use_the_hidden_schedule_match(self):
@@ -2340,7 +2342,7 @@ class BrowserChecks(unittest.TestCase):
         picks = lambda page: page.locator("#picks .pick").evaluate_all("els => els.map(e => e.dataset.matchId)")
         with self.page("after", html=render_page(build, fixtures=fixtures), story=story) as (page, _):
             expect(page.locator("#nextup")).to_have_attribute("data-match-id", "a")     # the soonest still leads the top card
-            # d, e and f, though u's Outlook score alone (57.5) beats their blended interest (53.75 to 55.75):
+            # d, e and f, though u's Outlook score alone (70) beats their blended interest (60 to 62):
             # an unrated match can't be compared fairly. g, rated 99, is out of the window to the minute.
             self.assertEqual(picks(page), ["d", "e", "f"])
         # With no AI ratings at all, every match competes on the Outlook score: here they tie, so the soonest win.
@@ -2394,10 +2396,10 @@ class BrowserChecks(unittest.TestCase):
                 expect(page.locator('#nextup-h')).to_have_text('Live now')
                 expect(page.locator('#nextup-sub')).to_have_text('2 matches')
                 expect(page.locator('#nextup-status')).to_have_text("live 30'")
-                # Interest (80 + Outlook 57.5) / 2 = 68.75; 80% of that and 20% of the league priority.
-                pick = round(0.8 * 68.75 + 0.2 * self.default_priority("eng.1"), 1)
-                expect(page.locator('#nextup-rating')).to_have_attribute('aria-label', f'Pick score {pick:g} out of 100, 4 dots of 6')
-                expect(page.locator('#nextup-rating i')).to_have_count(4)
+                # Interest (80 + Outlook 70) / 2 = 75; 80% of that and 20% of the league priority.
+                pick = round(0.8 * 75 + 0.2 * self.default_priority("eng.1"), 1)
+                expect(page.locator('#nextup-rating')).to_have_attribute('aria-label', f'Pick score {pick:g} out of 100, 5 dots of 6')
+                expect(page.locator('#nextup-rating i')).to_have_count(5)
                 expect(page.locator('#nextup-rating')).to_have_text('')
                 self.assertEqual(page.locator('#picks .pick').evaluate_all('els => els.map(e => e.dataset.matchId)'), ['mls', 'future', 'fourth'])
                 expect(page.locator('#nextup .row__story, #picks .row__story, li.row .row__info > .row__story')).to_have_count(0)
@@ -3190,7 +3192,7 @@ class BrowserChecks(unittest.TestCase):
                     # Rated 1, moved to the last priority below: the score stays low.
                     ("low", "2026-10-07T20:00:00+00:00", "pre", "ESPN+",
                      next(lg for lg in reversed(list(build.LEAGUES)) if not build.LEAGUES[lg].get("default_off"))),
-                    # Rated 30 in the first league: the blended pick score is 55.0, which rounds to three dots.
+                    # Rated 30 in the first league: the blended pick score is 60, which rounds to four dots.
                     ("edge", "2026-10-07T21:00:00+00:00", "pre", "ESPN+", "eng.1")]
         story = self.tagged_story()
         low_league = fixtures[4][4]
@@ -3225,10 +3227,10 @@ class BrowserChecks(unittest.TestCase):
                     self.assertEqual(row(mid).text_content(), '')                # dots, not words
                     dot = row(mid).locator('i').first.bounding_box()
                     self.assertTrue(4 <= dot['width'] <= 6 and 4 <= dot['height'] <= 6)
-                expect(row('low').locator('i')).to_have_count(1)                   # this low blended score rounds to one
-                self.assertEqual(row('edge').get_attribute('aria-label'), 'Pick score 55 out of 100, 3 dots of 6')
-                # 80% of (AI 92.5 + Outlook 57.5) / 2 plus 20% of priority 100 gives 80: five dots.
-                self.assertEqual(row('eng').get_attribute('aria-label'), 'Pick score 80 out of 100, 5 dots of 6')
+                expect(row('low').locator('i')).to_have_count(2)                   # this low blended score rounds to two
+                self.assertEqual(row('edge').get_attribute('aria-label'), 'Pick score 60 out of 100, 4 dots of 6')
+                # 80% of (AI 92.5 + Outlook 70) / 2 plus 20% of priority 100 gives 85: five dots.
+                self.assertEqual(row('eng').get_attribute('aria-label'), 'Pick score 85 out of 100, 5 dots of 6')
                 expect(row('eng').locator('i')).to_have_count(5)
                 # The same dots, label and breakdown on the match's card, which shows no words for the score either.
                 for mid in ('eng', 'esp'):
@@ -4192,8 +4194,8 @@ class BrowserChecks(unittest.TestCase):
                 page.locator('#match-dialog-close').click()
 
     # Five matches in the next 24 hours, one league, statures chosen so the Outlook scores differ:
-    # 100 x (0.40 x stature / 150 + 0.25 x 0.5 + 0 + 0 + 0.10 x 0.5) gives a 25.5, b 57.5, c 33.5,
-    # d 49.5 and e 41.5. The soonest, a, takes the top card; the picks come from the other four.
+    # 100 x (0.50 x stature / 150 + 0.25 x 0.5 + 0 + 0.15 x 0.5) gives a 30, b 70, c 40,
+    # d 60 and e 50. The soonest, a, takes the top card; the picks come from the other four.
     SCORED = [(mid, f"2026-10-07T{hour}:00:00+00:00", "pre", "ESPN+") for mid, hour in zip("abcde", (18, 19, 20, 21, 22))]
     STATURE = {"a": 30, "b": 150, "c": 60, "d": 120, "e": 90}
 
@@ -4209,19 +4211,19 @@ class BrowserChecks(unittest.TestCase):
             self.assertEqual(page.locator("#picks .pick").evaluate_all("els => els.map(e => e.dataset.matchId)"), ["b", "d", "e"])
             expect(page.locator("#picks-sub")).to_have_text("The best of the next three days on your services by Outlook score + league priority · in kickoff order")
             label = page.locator('#picks .pick[data-match-id="b"] .pick__rating')
-            pick = round(0.8 * 57.5 + 0.2 * self.default_priority("eng.1"), 1)      # 80% of 57.5, 20% of league priority
+            pick = round(0.8 * 70 + 0.2 * self.default_priority("eng.1"), 1)      # 80% of 70, 20% of league priority
             expect(label).to_have_attribute("aria-label", f"Pick score {pick:g} out of 100, 4 dots of 6")
             expect(label).to_have_text("")
             label.click()
             expect(page.locator('#match-dialog .rating-breakdown__blend')).to_have_text(
-                f"80% Outlook score (57.5) + 20% league priority ({round(self.default_priority('eng.1')):g}).")
+                f"80% Outlook score (70) + 20% league priority ({round(self.default_priority('eng.1')):g}).")
             expect(page.locator('#match-dialog [data-metric="gameplay"]')).to_have_text('Not available')
             expect(page.locator("footer")).to_contain_text("Site-generated AI is turned off")
             expect(page.locator("#priority-hint")).to_contain_text("80% the Outlook score and 20% this order")
 
     def test_the_ai_rating_and_the_outlook_score_share_the_interest(self):
         # The AI rating alone would drop d (its lowest), the Outlook score alone c (its lowest). Their
-        # mean, b 58.75, c 51.75, d 49.75, e 46.75, drops e.
+        # mean, b 65, c 55, d 55, e 51, drops e.
         story = dict(self.overview_story(), model="gpt-6.1-sol-2026-09-01", requested_model="gpt-6.1-sol")
         story["rankings"] = {mid: {"score": score, "popularity": score, "gameplay": score, "impact": score}
                              for mid, score in (("a", 50), ("b", 60), ("c", 70), ("d", 50), ("e", 52))}
@@ -4231,13 +4233,13 @@ class BrowserChecks(unittest.TestCase):
             self.assertEqual(page.locator("#picks .pick").evaluate_all("els => els.map(e => e.dataset.matchId)"), ["b", "c", "d"])
             expect(page.locator("#picks-sub")).to_have_text("The best of the next three days on your services by AI rating + Outlook score + league priority · in kickoff order")
             label = page.locator('#picks .pick[data-match-id="b"] .pick__rating')
-            pick = round(0.8 * 58.75 + 0.2 * self.default_priority("eng.1"), 1)
+            pick = round(0.8 * 65 + 0.2 * self.default_priority("eng.1"), 1)
             expect(label).to_have_attribute("aria-label", f"Pick score {pick:g} out of 100, 4 dots of 6")
             # The model settings.toml asked for, not the dated snapshot that answered.
             label.click()
             expect(page.locator('#match-dialog .rating-breakdown__blend')).to_have_text(
-                f"80% interest (58.8) + 20% league priority ({round(self.default_priority('eng.1')):g}). "
-                "Interest: 50% AI rating (60) + 50% Outlook score (57.5).")
+                f"80% interest (65) + 20% league priority ({round(self.default_priority('eng.1')):g}). "
+                "Interest: 50% AI rating (60) + 50% Outlook score (70).")
             expect(page.locator('#match-dialog .rating-breakdown')).to_contain_text('AI estimates by gpt-6.1-sol')
             expect(page.locator("footer")).to_contain_text("50% the AI rating and 50% the Outlook score")
             expect(page.locator("footer")).to_contain_text("gpt-6.1-sol, an OpenAI AI model, is asked to rate the matches")
@@ -4295,6 +4297,7 @@ class BrowserChecks(unittest.TestCase):
                 story['updated_at'] = updated
 
         revision('2026-10-07T16:00:00Z', None, 'Initial team news', 40)
+        story['rankings']['upcoming']['score'] = 51  # original 25/35/40 component blend
         with self.page('after', html=render_page(build, fixtures=fixtures), story=story) as (page, feed):
             self.enable_ai_text(page)
             headline = page.locator('#story-headlines > article[aria-current=true] .story-headline__title')
@@ -4310,6 +4313,19 @@ class BrowserChecks(unittest.TestCase):
             expect(headline).to_have_text('Premier League: Initial team news')
             page.locator('#nextup button.rating-trigger').click()
             expect(dialog.locator('[data-metric="popularity"]').first).to_have_text('40/100')
+            # A calibration revision reuses the authored components and text. It must refresh the
+            # cached overall score without pretending the reporting was generated again.
+            old_pick = dialog.locator('[data-metric="overall"]').inner_text()
+            story['rankings']['upcoming']['score'] = 48.5  # 50/35/15 applied to the same 40/60/50
+            story['updated_at'] = '2026-10-07T16:10:00Z'
+            story['score_calibration'] = 'watch-appeal-v2'
+            story['rating_weights'] = {'popularity': 0.50, 'gameplay': 0.35, 'impact': 0.15}
+            poll()
+            expect(dialog.locator('[data-metric="overall"]')).not_to_have_text(old_pick)
+            expect(dialog.locator('.rating-breakdown__blend')).to_contain_text('AI rating (48.5)')
+            expect(dialog.locator('[data-metric="popularity"]').first).to_have_text('40/100')
+            expect(headline).to_have_text('Premier League: Initial team news')
+            expect(self.card_story(page, '#nextup')).to_contain_text('Match update: Initial team news.')
             # A completed checkpoint has the same generation time; its later revision must be read.
             revision('2026-10-07T16:00:00Z', '2026-10-07T16:20:00Z', 'The returning captain starts', 81)
             poll()

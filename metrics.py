@@ -104,6 +104,8 @@ def snapshot(api, matches, raw_events, observed_at, *, build_started_at=None, so
                 "inputs": {
                     "stature": match.score, "competition_tier": api.LEAGUES[match.league]["tier"],
                     "draw_probability": match.draw, "goal_line": match.goal_line,
+                    "home_win_probability": match.home_win, "away_win_probability": match.away_win,
+                    "win_balance": match.win_balance,
                     "odds": (api.dicts(comp.get("odds")) or [None])[0],
                 },
             },
@@ -127,6 +129,7 @@ def snapshot(api, matches, raw_events, observed_at, *, build_started_at=None, so
         "source_report": source_report,
         "settings": {
             "blend": config["blend"], "outlook": config["outlook"],
+            "outlook_calibration": api.OUTLOOK_CALIBRATION,
             "dots": {"scale": 6, "score_max": 100, "rounding": "nearest_half_up"},
             "ai": {"enabled": config["ai"], **{name: config[name] for name in ("design", "model", "effort", "overview_model",
                                                     "overview_effort", "blurbs_model", "blurbs_effort")}},

@@ -14,7 +14,7 @@ from unittest.mock import patch
 
 import providers
 import story
-from tests.test_story import RATINGS, RATINGS_BLURBS, RATINGS_OVERVIEW, RUN_FACTS, openai_ratings
+from tests.test_story import FULL, RATINGS, RATINGS_BLURBS, RATINGS_OVERVIEW, RUN_FACTS, openai_ratings
 
 
 class Recovery(unittest.TestCase):
@@ -52,6 +52,74 @@ class Recovery(unittest.TestCase):
     def previous(self, facts=None):
         output, _, _, _ = self.run_main(facts=facts, post=openai_ratings([]))
         return output
+
+    def old_calibration(self):
+        previous = self.previous()
+        previous.pop("rating_weights", None)
+        previous.pop("score_calibration", None)
+        for rating in previous["rankings"].values():
+            rating.update(score=61.5, blurb="An accepted preview.", sources=[{"url": "https://news.example/a"}],
+                          provenance={"model": previous["model"], "effort": previous["effort"],
+                                      "generated_at": previous["generated_at"], "timestamp_scope": "rating_response"})
+        return previous
+
+    def recalibrated(self, previous):
+        expected = copy.deepcopy(previous)
+        for rating in expected["rankings"].values():
+            rating["score"] = 56.5  # 50% popularity 50 + 35% gameplay 60 + 15% impact 70.
+        expected.update(rating_weights={"popularity": .50, "gameplay": .35, "impact": .15},
+                        score_calibration="watch-appeal-v2")
+        return expected
+
+    def assert_recalibrated(self, output, previous):
+        expected = self.recalibrated(previous)
+        self.assertGreater(datetime.fromisoformat(output["updated_at"]), datetime.fromisoformat(previous["updated_at"]))
+        expected["updated_at"] = output["updated_at"]
+        self.assertEqual(output, expected)
+
+    def test_reuse_recalibrates_totals_without_calls_or_rewriting_authored_work(self):
+        for settings in (RATINGS, FULL):
+            previous = self.old_calibration()
+            if settings == FULL:
+                previous.update(kind="full", model="claude-opus-5-5", requested_model="claude-opus-5-5", effort="medium")
+            for mode, flags, keys in (("keep", (), {}), ("daily", (), {}), ("auto", (), {}),
+                                      ("daily", ("--fallback-only",), {}),
+                                      ("refresh", (), {"OPENAI_API_KEY": ""})):
+                with self.subTest(settings=settings, mode=mode, flags=flags):
+                    output, usage, _, count = self.run_main(previous=previous, settings=settings, mode=mode,
+                                                            flags=flags, keys=keys)
+                    self.assert_recalibrated(output, previous)
+                    self.assertEqual(count, 0)
+                    self.assertIsNone(usage)
+                    self.assertEqual(previous["rankings"]["1"]["score"], 61.5)
+                    # Reusing the migrated bundle again is not another publication revision.
+                    repeated, _, _, count = self.run_main(previous=output, settings=settings, mode="keep")
+                    self.assertEqual((repeated, count), (output, 0))
+
+    def test_failed_refresh_keeps_recalibrated_totals_and_original_freshness(self):
+        previous = self.old_calibration()
+        output, usage, _, count = self.run_main(previous=previous, mode="refresh", post=providers.AmbiguousRequestError("connection dropped"))
+        self.assert_recalibrated(output, previous)
+        self.assertEqual(count, 1)
+        self.assertFalse(usage["published"])
+
+    def test_transition_fallback_recalibrates_only_totals_and_preserves_its_source(self):
+        previous = self.old_calibration()
+        previous.update(kind="full", model="claude-opus-5-5", requested_model="claude-opus-5-5", effort="max",
+                        generation={"status": "partial", "research_complete": True})
+        with tempfile.TemporaryDirectory() as folder:
+            source, target = Path(folder) / "previous.json", Path(folder) / "story.json"
+            source.write_text(json.dumps(previous, indent=4))
+            before = source.read_bytes()
+            story.copy_fallback(source, target)
+            self.assert_recalibrated(json.loads(target.read_text()), previous)
+            self.assertEqual(source.read_bytes(), before)
+            # A local checkpoint can be both the source and output path.
+            story.copy_fallback(source, source)
+            self.assert_recalibrated(json.loads(source.read_text()), previous)
+            accepted = source.read_bytes()
+            story.copy_fallback(source, target)
+            self.assertEqual(target.read_bytes(), accepted)
 
     def test_daily_keeps_accepted_ratings_and_requests_only_new_or_missing_ids(self):
         previous = self.previous()

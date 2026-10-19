@@ -62,12 +62,55 @@ class History(unittest.TestCase):
         self.assertEqual(match["ai"]["automatic"]["gameplay"], 60)
         self.assertEqual(match["ai"]["automatic"]["impact"], 50)
         self.assertTrue(match["ai"]["automatic"]["eligible_at_capture"])
-        self.assertEqual(value["settings"]["ai_rating_weights"], {"popularity": 0.25, "gameplay": 0.35, "impact": 0.4})
+        self.assertEqual(value["settings"]["ai_rating_weights"], {"popularity": 0.5, "gameplay": 0.35, "impact": 0.15})
+        self.assertEqual(value["settings"]["ai_score_calibration"], "watch-appeal-v2")
+        self.assertEqual(value["ai_sources"]["automatic"]["rating_weights"], history.LEGACY_AI_WEIGHTS)
+        self.assertEqual(value["ai_sources"]["automatic"]["score_calibration"], "legacy-v1")
+        self.assertTrue(match["ai"]["automatic"]["score_matches_components"])
         self.assertEqual(value["ai_sources"]["automatic"]["model"], "gpt-6.1-sol-2026")
         self.assertEqual(value["ai_sources"]["automatic"]["requested_model"], "gpt-6.1-sol")
         self.assertEqual(value["ai_sources"]["automatic"]["timestamp_scope"], "story_bundle")
         self.assertIsNone(value["ai_sources"]["automatic"]["rating_generated_at"])
         self.assertNotIn("viewership", supplied["matches"][0]["observed"], "Do not mutate the caller's source")
+
+    def test_current_calibration_preserves_new_inputs_and_published_score(self):
+        supplied, ai = metrics(), story()
+        supplied["settings"]["outlook_calibration"] = "watch-appeal-v2"
+        supplied["settings"]["outlook"]["weights"] = {"stature": 50, "close": 25, "stakes": 10, "goals": 15}
+        outlook = supplied["matches"][0]["outlook"]
+        del outlook["parts"]["tv"]
+        outlook["inputs"].update(home_win_probability=0.4, away_win_probability=0.4, win_balance=1.0)
+        ai.update(rating_weights=dict(history.WEIGHTS), score_calibration="watch-appeal-v2")
+        ai["rankings"]["123456"]["score"] = 68.5
+        original = deepcopy((supplied, ai))
+        value = history.snapshot(supplied, ai, captured_at=NOW)
+        self.assertEqual(value["matches"][0]["outlook"], outlook)
+        self.assertEqual(value["ai_sources"]["automatic"]["rating_weights"], dict(history.WEIGHTS))
+        self.assertEqual(value["ai_sources"]["automatic"]["score_calibration"], "watch-appeal-v2")
+        self.assertEqual(value["matches"][0]["ai"]["automatic"]["score"], 68.5)
+        self.assertTrue(value["matches"][0]["ai"]["automatic"]["score_matches_components"])
+        self.assertEqual((supplied, ai), original)
+        # A mismatched published total is recorded, never silently repaired.
+        ai["rankings"]["123456"]["score"] = 61
+        value = history.snapshot(supplied, ai, captured_at=NOW)
+        self.assertEqual(value["matches"][0]["ai"]["automatic"]["score"], 61)
+        self.assertFalse(value["matches"][0]["ai"]["automatic"]["score_matches_components"])
+
+    def test_incomplete_calibration_weights_are_rejected_without_reweighting_old_data(self):
+        supplied = metrics()
+        supplied["matches"][0]["outlook"]["parts"].pop("tv")
+        with self.assertRaisesRegex(ValueError, "recorded weights"):
+            history.validate_metrics(supplied)
+        for weights in ({"popularity": 1}, {"popularity": True, "gameplay": 0, "impact": 0},
+                        {"popularity": 0.5, "gameplay": 0.35, "impact": 0.4}):
+            with self.subTest(weights=weights):
+                ai = dict(story(), rating_weights=weights, score_calibration="watch-appeal-v2")
+                value = history.snapshot(metrics(), ai, captured_at=NOW)
+                self.assertEqual(value["ai_sources"]["automatic"]["status"], "invalid")
+                self.assertIsNone(value["matches"][0]["ai"]["automatic"])
+        for metadata in ({"rating_weights": dict(history.WEIGHTS)}, {"score_calibration": "watch-appeal-v2"}):
+            value = history.snapshot(metrics(), dict(story(), **metadata), captured_at=NOW)
+            self.assertEqual(value["ai_sources"]["automatic"]["status"], "invalid")
 
     def test_mixed_effort_archive_preserves_each_rating_and_research_generation(self):
         supplied, ai = metrics(), story()

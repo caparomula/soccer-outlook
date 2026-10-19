@@ -351,7 +351,7 @@ class Requests(unittest.TestCase):
             self.assertNotIn("cache_control", call)
             self.assertNotIn("ESPN", json.dumps(FakeSDK.fixtures(call)))   # no URLs to copy
         self.assertEqual(sorted(result["rankings"]), ["1", "2", "3", "4", "5"])
-        self.assertEqual(result["rankings"]["3"], {"popularity": 50, "gameplay": 60, "impact": 70, "score": 61.5,
+        self.assertEqual(result["rankings"]["3"], {"popularity": 50, "gameplay": 60, "impact": 70, "score": 56.5,
                                                    "blurb": "Blurb 3.", "sources": [story.facts_source(LINK("3"))]})
         self.assertEqual(result["ranking_coverage"], {"rated": 5, "total": 5, "carried": 0})
         self.assertEqual(result["notes"]["1"]["sources"], [{"url": READ, "title": "T"}])
@@ -465,7 +465,7 @@ class Requests(unittest.TestCase):
         self.assertNotIn("blurb", ranks["3"])           # a page nobody read
         self.assertEqual(ranks["4"]["sources"], [{"url": READ, "title": "T"}])
         self.assertEqual(ranks["5"]["sources"], [story.facts_source(LINK("5"))])
-        self.assertEqual(ranks["2"]["score"], 61.5)     # the rating itself stands
+        self.assertEqual(ranks["2"]["score"], 56.5)     # the rating itself stands
         # The two blurbs were asked for again, once, with nothing else.
         self.assertEqual([sorted(f["id"] for f in FakeSDK.fixtures(c)) for c in sdk.rating_calls()][-1], ["2", "3"])
         self.assertEqual(result["match_blurb_coverage"], {"written": 3, "total": 5})
@@ -541,7 +541,7 @@ class Requests(unittest.TestCase):
 
     def test_refresh_rerates_the_next_day_and_keeps_earlier_ratings(self):
         def rated(blurb_text, sources):
-            return {"popularity": 40, "gameplay": 40, "impact": 40, "score": 99, "blurb": blurb_text, "sources": sources}
+            return {"popularity": 80, "gameplay": 70, "impact": 90, "score": 80.5, "blurb": blurb_text, "sources": sources}
         previous = {"generated_at": "2026-10-07T09:00:00Z", "date": "2026-10-07", "lede_items": [], "notes": {},
                     "rankings": {"1": rated("Earlier blurb 1.", [story.facts_source(LINK("1"))]),
                                  "2": {"popularity": 40, "gameplay": 40, "impact": 40, "score": 40},
@@ -552,7 +552,7 @@ class Requests(unittest.TestCase):
         result, _ = run(sdk, mode="refresh", previous=previous)
         rerated = sorted(f["id"] for c in sdk.rating_calls() for f in FakeSDK.fixtures(c))
         self.assertEqual(rerated, ["1", "2", "5"])       # due within 24 hours, without a blurb, unrated
-        self.assertEqual(result["rankings"]["3"], {"popularity": 40, "gameplay": 40, "impact": 40, "score": 40.0,
+        self.assertEqual(result["rankings"]["3"], {"popularity": 80, "gameplay": 70, "impact": 90, "score": 78.0,
                                                    "blurb": "Earlier blurb 3.", "sources": [story.facts_source(LINK("3"))]})
         self.assertEqual(result["rankings"]["4"]["sources"], [{"url": READ, "title": "R"}])
         self.assertEqual(result["rankings"]["1"]["blurb"], "Blurb 1.")
@@ -1094,7 +1094,7 @@ class Switch(unittest.TestCase):
         self.assertEqual({k: result[k] for k in ("kind", "model", "requested_model", "effort")},
                          {"kind": "ratings", "model": "gpt-6.1-sol", "requested_model": "gpt-6.1-sol", "effort": "low"})
         # 25% of 50, 35% of 60 and 40% of 70: 12.5 + 21 + 28.
-        self.assertEqual(result["rankings"]["1"], {"popularity": 50, "gameplay": 60, "impact": 70, "score": 61.5})
+        self.assertEqual(result["rankings"]["1"], {"popularity": 50, "gameplay": 60, "impact": 70, "score": 56.5})
         self.assertEqual((result["lede_items"], result["notes"], result["league_blurbs"]), ([], {}, []))
 
     def test_a_fixture_left_out_is_asked_for_once_more_and_the_cost_is_openais(self):
@@ -1445,8 +1445,8 @@ class TopPickBlurbs(unittest.TestCase):
         ratings_call, (b_url, b_body, _) = calls
         self.assertNotIn("tools", ratings_call[1])                      # the ratings first, then the research
         self.assertEqual((b_body["instructions"], b_body["reasoning"], b_body["tools"]), (story.RESEARCH_SYSTEM, {"effort": "medium"}, [{"type": "web_search"}]))
-        # Both rated 61.5; 2 has the better Outlook score (90 v 40) and 1 the better league (eng.1 100 v esp.1 50):
-        # 1 is 0.8 x 50.75 + 20 = 60.6, 2 is 0.8 x 75.75 + 10 = 70.6.
+        # Both rated 56.5; 2 has the better Outlook score (90 v 40) and 1 the better league (eng.1 100 v esp.1 50):
+        # 1 is 0.8 x 48.25 + 20 = 58.6, 2 is 0.8 x 73.25 + 10 = 68.6.
         self.assertEqual(b_body["input"], story.research_prompt(story.overview_header(dict(facts, date="2026-10-07")),
                                                                 [story.rating_fixture(fixture("2", 30, "esp.1")), story.rating_fixture(fixture("1", 3))]))
         for mid in ("1", "2"):
@@ -1572,8 +1572,21 @@ class Rankings(unittest.TestCase):
     def test_fixed_weighted_score_is_independent_of_the_other_candidates(self):
         raw = [self.rating(), self.rating("2")]
         ratings = story.clean_rankings(raw, {"1", "2"}, {}, NO_LINKS)
-        self.assertEqual(ratings["1"]["score"], 80.5)
+        self.assertEqual(ratings["1"]["score"], 78.0)
         self.assertEqual(story.clean_rankings(raw[:1], {"1", "2"}, {}, NO_LINKS)["1"], ratings["1"])
+
+    def test_recalibration_does_not_invent_missing_or_invalid_components(self):
+        rankings = {"legacy": {"score": 70}, "bad": {"popularity": True, "gameplay": 90, "impact": 50, "score": 60},
+                    "valid": {"popularity": 92, "gameplay": 90, "impact": 72, "score": 83.3}}
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "story.json"
+            path.write_text(json.dumps({"version": 1, "rankings": rankings}))
+            before = path.read_bytes()
+            result = story.load_previous(path)
+            self.assertEqual(path.read_bytes(), before)
+        self.assertEqual(result["rankings"]["legacy"], rankings["legacy"])
+        self.assertEqual(result["rankings"]["bad"], rankings["bad"])
+        self.assertEqual(result["rankings"]["valid"], dict(rankings["valid"], score=88.3))
 
     def test_unknown_duplicate_and_invalid_ratings_cannot_change_valid_scores(self):
         good = self.rating()
@@ -1582,7 +1595,7 @@ class Rankings(unittest.TestCase):
                     dict(good, impact=-1), dict(good, impact="90"), dict(good, popularity=80.0)):
             with self.subTest(bad=bad):
                 result = story.clean_rankings([bad, good, dict(good, popularity=1)], {"1"}, {}, NO_LINKS)
-                self.assertEqual(result, {"1": {"popularity": 80, "gameplay": 70, "impact": 90, "score": 80.5}})
+                self.assertEqual(result, {"1": {"popularity": 80, "gameplay": 70, "impact": 90, "score": 78.0}})
 
     def test_match_blurbs_fit_the_card_and_rest_on_their_own_fixture(self):
         links = {"1": LINK("1"), "2": LINK("2")}
@@ -1597,7 +1610,7 @@ class Rankings(unittest.TestCase):
             with self.subTest(bad=bad):
                 saved = story.clean_rankings([bad], {"1"}, {}, links)["1"]
                 self.assertNotIn("blurb", saved)
-                self.assertEqual(saved["score"], 80.5)
+                self.assertEqual(saved["score"], 78.0)
 
     def test_league_order_preserves_only_known_unique_ids(self):
         result = story.clean_story(raw_story(league_order=['esp.1', 'fake', None, 'eng.1', 'esp.1']),
@@ -1688,7 +1701,7 @@ class RatingsMode(unittest.TestCase):
         self.assertNotIn("Reporting from this run's research", call["messages"][0]["content"])
         self.assertEqual([f["id"] for f in FakeSDK.fixtures(call)], ["m0", "m1"])     # 100 hours out is beyond the window
         # 25% of 50, 35% of 60 and 40% of 70: 12.5 + 21 + 28.
-        self.assertEqual(result["rankings"]["m0"], {"popularity": 50, "gameplay": 60, "impact": 70, "score": 61.5})
+        self.assertEqual(result["rankings"]["m0"], {"popularity": 50, "gameplay": 60, "impact": 70, "score": 56.5})
         self.assertEqual((result["lede_items"], result["league_blurbs"], result["notes"]), ([], [], {}))
         self.assertEqual((result["ranking_coverage"], result["window_hours"]), ({"rated": 2, "total": 2, "carried": 0}, 92.0))
 

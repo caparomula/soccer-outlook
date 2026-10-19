@@ -20,14 +20,14 @@ SETTINGS = fixture_settings(build)
 CHANNELS = {o["label"] for o in build.OUTLETS.values()}
 
 
-def match(score=100, draw=None, goal_line=None, stage="", ranks=None, channels=(), league="eng.1"):
+def match(score=100, draw=None, goal_line=None, stage="", ranks=None, channels=(), league="eng.1", win_balance=None):
     home, away = build.Team("Home", "HOM", "", "", id="1"), build.Team("Away", "AWY", "", "", id="2")
     if ranks:
         (home.rank, home.size), (away.rank, away.size) = ranks
     return build.Match(id="m", utc=datetime(2026, 10, 10, 14, tzinfo=timezone.utc), time_valid=True, league=league,
                        comp="Premier League", stage=stage, note="", home=home, away=away, venue="", state="pre",
                        status="", outlets=[build.map_outlet(c, league) for c in channels], rule=None, hint="",
-                       service="", basis="none", outlet="", score=score, draw=draw, goal_line=goal_line)
+                       service="", basis="none", outlet="", score=score, draw=draw, goal_line=goal_line, win_balance=win_balance)
 
 
 def parts(m):
@@ -63,17 +63,13 @@ outlook = 0
 interest = -5
 leage_priority = 20
 [outlook]
-weights = { stature = 40, close = 25, stakes = 15, tv = 10 }
+weights = { stature = 50, close = 25, stakes = 10, tv = 10 }
 missing = 2
 stature_full = 150
-draw_from = 0.3
-draw_to = 0.1
 bottom = 0.6
-goals_from = 2.0
-goals_to = 4.0
+goals_from = 4.0
+goals_to = 2.0
 knockout = { "final" = 1.5 }
-network = ["NBC", "Channel Nine"]
-cable = ["NBC"]
 """
         with self.assertRaises(build.SettingsError) as raised:
             load(bad)
@@ -86,11 +82,10 @@ cable = ["NBC"]
                          "[blend] ai and outlook: at least one must be above 0",
                          "[blend] interest: must be at least 0",
                          "[outlook] weights: missing goals",
+                         "[outlook] weights: unknown key tv",
                          "[outlook] missing: must be from 0 to 1",
-                         "[outlook] draw_from, draw_to: the first must be below the second",
-                         "[outlook] knockout.final: must be from 0 to 1",
-                         "[outlook] network: Channel Nine not a channel in rights.toml",
-                         "[outlook] network and cable both list NBC"):
+                         "[outlook] goals_from, goals_to: the first must be below the second",
+                         "[outlook] knockout.final: must be from 0 to 1"):
             self.assertIn(expected, message)
 
     def test_not_toml(self):
@@ -108,10 +103,10 @@ cable = ["NBC"]
             self.assertTrue(any(fnmatchcase(name, pattern) or (pattern.startswith("**/") and fnmatchcase(name, pattern[3:]))
                                 for pattern in patterns), name)
 
-    def test_fixture_settings_match_the_documented_first_values(self):
+    def test_fixture_settings_use_a_fixed_blend_and_current_components(self):
         self.assertEqual(SETTINGS.blend, {"ai": 50, "outlook": 50, "interest": 80, "league_priority": 20})
         self.assertEqual((SETTINGS.design, SETTINGS.model, SETTINGS.effort, SETTINGS.provider), ("ratings", "gpt-6.1-sol", "low", "openai"))
-        self.assertEqual(SETTINGS.outlook["weights"], {"stature": 40, "close": 25, "stakes": 15, "tv": 10, "goals": 10})
+        self.assertEqual(SETTINGS.outlook["weights"], {"stature": 50, "close": 25, "stakes": 10, "goals": 15})
 
 
 class Odds(unittest.TestCase):
@@ -144,6 +139,41 @@ class Odds(unittest.TestCase):
             m = build.interpret("eng.1", self.event(odds))
             self.assertEqual((m.draw, m.goal_line), (None, None), odds)
 
+    def test_current_paired_moneylines_are_used_in_both_espn_formats(self):
+        for odds in (
+                {"homeTeamOdds": {"moneyLine": 140}, "awayTeamOdds": {"moneyLine": "+140"}},
+                {"moneyline": {"home": {"close": {"odds": "+140"}, "open": {"odds": "-200"}},
+                               "away": {"close": {"odds": "+140"}, "open": {"odds": "+300"}}}}):
+            with self.subTest(odds=odds):
+                m = build.interpret("eng.1", self.event([odds]))
+                self.assertAlmostEqual(m.home_win, 100 / 240)
+                self.assertEqual(m.home_win, m.away_win)
+                self.assertEqual(m.win_balance, 1)
+
+    def test_moneylines_use_complete_pairs_without_mixing_markets_or_snapshots(self):
+        odds = {"moneyline": {"home": {"close": {"odds": "-200"}, "open": {"odds": "+150"}},
+                              "away": {"open": {"odds": "+150"}}}}
+        self.assertEqual(build.win_chances(odds), (.4, .4))
+        for bad in (
+                {"homeTeamOdds": {"moneyLine": 140}, "awayTeamOdds": {"moneyLine": True}},
+                {"moneyline": {"home": {"close": {"odds": 140}}, "away": {"open": {"odds": 140}}}},
+                {"moneyline": "bad", "pointSpread": {"home": {"close": {"odds": 140}},
+                                                        "away": {"close": {"odds": 140}}}},
+                {"drawOdds": {"moneyLine": 240}}, {}):
+            with self.subTest(odds=bad):
+                m = build.interpret("eng.1", self.event([bad]))
+                self.assertEqual((m.home_win, m.away_win, m.win_balance), (None, None, None))
+
+    def test_win_balance_is_symmetric_monotonic_and_ignores_common_margin(self):
+        self.assertEqual(build.win_balance(.4, .4), 1)
+        self.assertAlmostEqual(build.win_balance(.6, .2), .5)
+        self.assertEqual(build.win_balance(.6, .2), build.win_balance(.2, .6))
+        self.assertAlmostEqual(build.win_balance(.66, .22), .5)
+        self.assertLess(build.win_balance(.8, .1), build.win_balance(.6, .2))
+        for invalid in (None, True, 0, -1, 1.1, float("nan"), float("inf")):
+            self.assertIsNone(build.win_balance(invalid, .4))
+            self.assertIsNone(build.win_balance(.4, invalid))
+
 
 class OutlookParts(unittest.TestCase):
     def test_stature_is_the_build_score_over_the_full_mark_capped_at_1(self):
@@ -152,9 +182,11 @@ class OutlookParts(unittest.TestCase):
         self.assertEqual(parts(match(score=0))["stature"], 0.0)
 
     def test_close_and_goals_follow_the_market(self):
-        self.assertAlmostEqual(parts(match(draw=100 / 340))["close"], (100 / 340 - 0.10) / 0.20)
-        self.assertEqual(parts(match(draw=0.05))["close"], 0.0)
-        self.assertEqual(parts(match(draw=0.35))["close"], 1.0)
+        self.assertEqual(parts(match(win_balance=.8))["close"], .8)
+        # Draws become less likely as goals increase, without making equal teams less balanced.
+        for draw, goals in ((.35, 2.5), (.15, 4.5)):
+            self.assertEqual(parts(match(win_balance=1, draw=draw, goal_line=goals))["close"], 1)
+        self.assertIsNone(parts(match(draw=.35))["close"])  # Draw-only legacy data stays missing.
         for line, expected in ((2.5, 0.25), (3.5, 0.75), (4.5, 1.0), (1.5, 0.0)):
             self.assertAlmostEqual(parts(match(goal_line=line))["goals"], expected)
         p = parts(match())
@@ -177,28 +209,27 @@ class OutlookParts(unittest.TestCase):
             self.assertEqual(parts(match(stage=stage, ranks=((1, 20), (20, 20))))["stakes"], expected, stage)
         self.assertAlmostEqual(parts(match(stage="Group A", ranks=((1, 4), (2, 4))))["stakes"], 2 / 3)
 
-    def test_tv_from_the_channel_lists(self):
-        self.assertEqual(parts(match(channels=["NBC"]))["tv"], 1.0)
-        self.assertEqual(parts(match(channels=["USA Net"]))["tv"], 0.5)        # ESPN's name for USA Network
-        self.assertEqual(parts(match(channels=["Peacock"]))["tv"], 0.0)
-        self.assertEqual(parts(match(channels=["Peacock", "NBC"]))["tv"], 1.0)
-        self.assertIsNone(parts(match())["tv"])                                # nothing listed yet
+    def test_coverage_never_changes_match_appeal(self):
+        expected = parts(match())
+        self.assertNotIn("tv", expected)
+        for channels in (["NBC"], ["USA Net"], ["Paramount+"], ["Peacock", "NBC"], []):
+            self.assertEqual(parts(match(channels=channels)), expected)
 
 
 class OutlookScore(unittest.TestCase):
     def test_the_weighted_mean_of_the_parts(self):
-        p = dict(stature=2 / 3, close=0.9706, stakes=18 / 19, tv=1.0, goals=0.25)
-        # 0.40 x 0.66667 + 0.25 x 0.9706 + 0.15 x 0.94737 + 0.10 x 1 + 0.10 x 0.25 = 0.77642
-        self.assertEqual(build.outlook_score(p, SETTINGS), 77.6)
+        p = dict(stature=2 / 3, close=0.8, stakes=18 / 19, goals=0.25)
+        # 0.50 x 0.66667 + 0.25 x 0.8 + 0.10 x 0.94737 + 0.15 x 0.25 = 0.66557
+        self.assertEqual(build.outlook_score(p, SETTINGS), 66.6)
 
     def test_a_missing_part_neither_helps_nor_hurts(self):
-        p = dict(stature=1.0, close=None, stakes=None, tv=None, goals=None)
-        self.assertEqual(build.outlook_score(p, SETTINGS), 70.0)               # 0.40 + 0.60 x 0.5
+        p = dict(stature=1.0, close=None, stakes=None, goals=None)
+        self.assertEqual(build.outlook_score(p, SETTINGS), 75.0)               # 0.50 + 0.50 x 0.5
         self.assertEqual(build.outlook_score(dict.fromkeys(build.OUTLOOK_PARTS, 0.5), SETTINGS), 50.0)
 
     def test_weights_count_in_proportion(self):
         doubled = replace(SETTINGS, outlook=dict(SETTINGS.outlook, weights={k: 2 * v for k, v in SETTINGS.outlook["weights"].items()}))
-        p = dict(stature=0.3, close=0.8, stakes=None, tv=0.5, goals=0.1)
+        p = dict(stature=0.3, close=0.8, stakes=None, goals=0.1)
         self.assertEqual(build.outlook_score(p, doubled), build.outlook_score(p, SETTINGS))
 
     def test_shares_are_whole_percentages_summing_to_100(self):
@@ -216,13 +247,13 @@ class PageScoring(unittest.TestCase):
         page = render_page(build)
         row = re.search(r'<li class="row [^>]*data-id="upcoming"[^>]*>', page).group(0)
         # The fixture: stature 150 (1.0), no odds (0.5 each), first against last of a two-team table
-        # (stakes 0), ESPN+ (streaming: tv 0). 0.40 + 0.25 x 0.5 + 0 + 0 + 0.10 x 0.5 = 0.575.
-        self.assertIn('data-outlook="57.5"', row)
+        # (stakes 0). Coverage does not affect it: 0.50 + 0.25 x 0.5 + 0 + 0.15 x 0.5 = 0.70.
+        self.assertIn('data-outlook="70"', row)
         listed = json.loads(re.search(r'data-outlook-parts="([^"]*)"', row).group(1).replace("&quot;", '"'))
-        self.assertEqual(listed, {"stature": 100, "close": None, "stakes": 0, "tv": 0, "goals": None})
-        odds = render_page(build, odds={"upcoming": (0.26, 3.0)})
-        # close (0.26 - 0.10) / 0.20 = 0.8, goals (3.0 - 2.0) / 2.0 = 0.5: 0.40 + 0.25 x 0.8 + 0.10 x 0.5 = 0.65.
-        self.assertIn('data-outlook="65"', re.search(r'<li class="row [^>]*data-id="upcoming"[^>]*>', odds).group(0))
+        self.assertEqual(listed, {"stature": 100, "close": None, "stakes": 0, "goals": None})
+        odds = render_page(build, odds={"upcoming": (0.8, 3.0)})
+        # close .8, goals .5: 0.50 + 0.25 x 0.8 + 0.15 x 0.5 = 0.775.
+        self.assertIn('data-outlook="77.5"', re.search(r'<li class="row [^>]*data-id="upcoming"[^>]*>', odds).group(0))
 
     def test_the_switch_reaches_the_page_and_its_explanations(self):
         on, off = render_page(build), render_page(build, ai=False)

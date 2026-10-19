@@ -730,8 +730,8 @@ class RatingsRequests(unittest.TestCase):
                                       [{"match_id": "2", "popularity": 40, "gameplay": 40, "impact": 40}])
         self.assertEqual(calls, [["1", "2"], ["2"]])
         self.assertEqual((result["status"], result["rated"], result["requests"]), ("ok", 2, 2))
-        # 25% popularity, 35% gameplay, 40% impact: 12.5 + 21 + 28 for the first.
-        self.assertEqual(result["scores"], {"1": 61.5, "2": 40.0})
+        # 50% popularity, 35% gameplay, 15% impact: 25 + 21 + 10.5 for the first.
+        self.assertEqual(result["scores"], {"1": 56.5, "2": 40.0})
         self.assertAlmostEqual(result["cost_usd"], 2 * (1000 * 0.10e-6 + 100 * 0.50e-6))
 
     def test_a_failed_second_request_keeps_the_first_requests_ratings(self):

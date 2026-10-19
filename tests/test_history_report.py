@@ -90,6 +90,32 @@ class HistoryReport(unittest.TestCase):
         self.assertIsNone(only_late["ai_score"])
         self.assertIsNone(only_late["automatic_pick"])
 
+    def test_new_calibration_exports_its_inputs_without_rewriting_legacy_rows(self):
+        legacy = snapshot("old", kickoff=KICKOFF - timedelta(days=1))
+        current = snapshot()
+        current["settings"].update(outlook_calibration="watch-appeal-v2",
+                                   outlook={"weights": {"stature": 50, "close": 25, "stakes": 10, "goals": 15}})
+        outlook = current["matches"][0]["outlook"]
+        del outlook["parts"]["tv"]
+        outlook["inputs"].update(home_win_probability=0.4, away_win_probability=0.4, win_balance=1.0)
+        current["ai_sources"]["automatic"].update(score_calibration="watch-appeal-v2",
+                                                  rating_weights={"popularity": 0.5, "gameplay": 0.35, "impact": 0.15})
+        original = deepcopy([legacy, current])
+        row = self.row([legacy, current])
+        self.assertEqual(row["outlook_calibration"], "watch-appeal-v2")
+        self.assertEqual(json.loads(row["outlook_weights"]), current["settings"]["outlook"]["weights"])
+        self.assertEqual(row["home_win_probability"], 0.4)
+        self.assertEqual(row["away_win_probability"], 0.4)
+        self.assertEqual(row["win_balance"], 1.0)
+        self.assertIsNone(row["outlook_tv"])
+        self.assertEqual(row["ai_score_calibration"], "watch-appeal-v2")
+        self.assertEqual(json.loads(row["ai_rating_weights"]), current["ai_sources"]["automatic"]["rating_weights"])
+        old = self.row([legacy, current], mid="old")
+        self.assertEqual(old["outlook_tv"], 0.5)
+        self.assertIsNone(old["win_balance"])
+        self.assertIsNone(old["outlook_calibration"])
+        self.assertEqual([legacy, current], original)
+
     def test_rescheduled_match_requires_a_forecast_for_the_new_kickoff(self):
         early = snapshot(rating=40)
         moved = KICKOFF + timedelta(days=2)

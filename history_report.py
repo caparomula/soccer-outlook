@@ -22,10 +22,11 @@ DIMENSIONS = ("popularity", "gameplay", "impact")
 FIELDS = (
     "league_id", "competition", "match_id", "kickoff_utc", "home_id", "home", "away_id", "away", "venue",
     "latest_observed_at", "state", "status", "forecast_observed_at", "forecast_captured_at", "forecast_snapshot",
-    "source_revision", "outlook_score", *("outlook_" + key for key in PARTS),
-    "raw_stature", "draw_probability", "goal_line", "missing_components",
+    "source_revision", "outlook_calibration", "outlook_weights", "outlook_score", *("outlook_" + key for key in PARTS),
+    "raw_stature", "draw_probability", "home_win_probability", "away_win_probability", "win_balance", "goal_line", "missing_components",
     *("ai_" + key for key in DIMENSIONS), "ai_score", "ai_model", "ai_requested_model", "ai_effort",
     "ai_bundle_generated_at", "ai_forecast_observed_at", "ai_forecast_captured_at", "ai_source_revision",
+    "ai_score_calibration", "ai_rating_weights",
     "automatic_interest", "automatic_pick", "default_league_priority", "blend_outlook_score", "blend_ai_score",
     "blend_forecast_observed_at", "blend_forecast_captured_at", "blend_source_revision",
     "result_observed_at", "home_score", "away_score", "total_goals", "attendance", "attendance_observed_at",
@@ -232,10 +233,15 @@ def report_rows(snapshots):
             prediction, source = forecast["match"], forecast["snapshot"]
             row.update(forecast_observed_at=iso(forecast["observed"]), forecast_captured_at=iso(forecast["captured"]),
                        forecast_snapshot=source.get("_archive_file"), source_revision=source.get("source_revision"),
+                       outlook_calibration=source["settings"].get("outlook_calibration"),
+                       outlook_weights=json.dumps(source["settings"]["outlook"]["weights"], sort_keys=True)
+                       if source["settings"]["outlook"].get("weights") else None,
                        outlook_score=prediction["outlook"]["score"])
             row.update({"outlook_" + part: prediction["outlook"]["parts"].get(part) for part in PARTS})
             inputs = prediction["outlook"].get("inputs") or {}
             row.update(raw_stature=inputs.get("stature"), draw_probability=inputs.get("draw_probability"),
+                       home_win_probability=inputs.get("home_win_probability"), away_win_probability=inputs.get("away_win_probability"),
+                       win_balance=inputs.get("win_balance"),
                        goal_line=inputs.get("goal_line"), missing_components=";".join(prediction["outlook"].get("missing_components", [])))
             safe_ai_entries = [entry for entry in candidates if entry["captured"] < kickoff
                                and automatic(entry).get("eligible_at_capture") is True]
@@ -246,6 +252,8 @@ def report_rows(snapshots):
                 meta = (ai_entry["snapshot"].get("ai_sources") or {}).get("automatic") or {}
                 row.update(ai_score=ai.get("score"), ai_model=meta.get("model"), ai_requested_model=meta.get("requested_model"),
                            ai_effort=meta.get("effort"), ai_bundle_generated_at=meta.get("generated_at"),
+                           ai_score_calibration=meta.get("score_calibration"),
+                           ai_rating_weights=json.dumps(meta["rating_weights"], sort_keys=True) if meta.get("rating_weights") else None,
                            ai_forecast_observed_at=iso(ai_entry["observed"]), ai_forecast_captured_at=iso(ai_entry["captured"]),
                            ai_source_revision=ai_entry["snapshot"].get("source_revision"))
             safe_blends = [entry for entry in candidates if (entry["match"].get("automatic_default") or {}).get("forecast_eligible") is True

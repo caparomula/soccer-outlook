@@ -11,7 +11,7 @@ BUILT_AT = datetime(2026, 10, 7, 17, tzinfo=timezone.utc)
 TODAY = date(2026, 10, 7)
 
 
-# settings.toml's first values, fixed here: the tests render with these, so that tuning the real file
+# Fixed scoring settings for these tests, so that tuning the real file
 # or switching AI off never fails a test, and so never holds up a publish. A test of the switch says
 # which way it wants it.
 FIXTURE_SETTINGS = """
@@ -28,17 +28,13 @@ interest = 80
 league_priority = 20
 
 [outlook]
-weights = { stature = 40, close = 25, stakes = 15, tv = 10, goals = 10 }
+weights = { stature = 50, close = 25, stakes = 10, goals = 15 }
 missing = 0.5
 stature_full = 150
-draw_from = 0.10
-draw_to = 0.30
 bottom = 0.6
 goals_from = 2.0
 goals_to = 4.0
 knockout = { "final" = 1.0, "semifinal" = 0.9, "quarterfinal" = 0.8, "round of 16" = 0.7, "playoff" = 0.7 }
-network = ["ABC", "CBS", "FOX", "NBC", "Telemundo", "Univision", "UniMás"]
-cable = ["ESPN", "ESPN2", "FS1", "FS2", "USA Network"]
 
 """
 
@@ -75,7 +71,8 @@ def render_page(builder, *, fragment=False, fixtures=None, failed=(), facts_path
     Fixtures named in `tbd` have a kickoff time to be set (ESPN's timeValid false); their kickoff
     is then only a placeholder on the right day. `ai` is the settings' switch, `design` and `model`
     replace the fixture settings' ratings by gpt-6.1-sol; `stature` maps a
-    fixture to its stature score (150 otherwise), `odds` to its (draw chance, goal line). A baseline
+    fixture to its stature score (150 otherwise), `odds` to its (win balance, goal line). Win balance
+    is the already normalized 0–1 competitiveness input. A baseline
     build from before the settings existed renders without them.
     """
     scored = hasattr(builder, "load_settings")
@@ -121,7 +118,7 @@ def render_page(builder, *, fragment=False, fixtures=None, failed=(), facts_path
                 status="FT" if state == "post" else "30'" if state == "in" else "",
                 outlets=outlets, rule=rule, hint="", service=service, basis=basis,
                 outlet=outlet, score=(stature or {}).get(match_id, 150),
-                **(dict(zip(("draw", "goal_line"), (odds or {}).get(match_id, (None, None)))) if scored else {})))
+                **(dict(zip(("win_balance", "goal_line"), (odds or {}).get(match_id, (None, None)))) if scored else {})))
         table = [dict(id=t.id, name=t.name, rank=t.rank, pts=t.pts, logo="",
                       gp="8", rec="6-0-2", gd="+10") for t in (matches[-1].home, matches[-1].away)] if matches else []
         builder.STANDINGS["eng.1"] = {"tables": [("", table)]}

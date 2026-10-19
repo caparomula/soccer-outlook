@@ -27,11 +27,13 @@ import sys
 import tempfile
 from zoneinfo import ZoneInfo
 
-from story import WEIGHTS
+from story import RATING_CALIBRATION, WEIGHTS
 from story_state import valid_rating
 
 MAX_INPUT_BYTES = 32 * 1024 * 1024
 ET = ZoneInfo("America/New_York")
+LEGACY_AI_WEIGHTS = {"popularity": 0.25, "gameplay": 0.35, "impact": 0.4}
+OUTLOOK_SCHEMAS = ({"stature", "close", "stakes", "tv", "goals"}, {"stature", "close", "stakes", "goals"})
 
 
 def timestamp(value):
@@ -126,8 +128,11 @@ def validate_metrics(value):
         outlook = match["outlook"]
         if outlook.get("score") is not None and not score(outlook["score"]):
             raise ValueError("invalid Outlook score")
-        if not isinstance(outlook.get("parts"), dict) or set(outlook["parts"]) != {"stature", "close", "stakes", "tv", "goals"}:
-            raise ValueError("all five Outlook parts must be recorded")
+        if not isinstance(outlook.get("parts"), dict) or set(outlook["parts"]) not in OUTLOOK_SCHEMAS:
+            raise ValueError("all Outlook parts for a supported calibration must be recorded")
+        weights = settings["outlook"].get("weights")
+        if isinstance(weights, dict) and weights and set(outlook["parts"]) != set(weights):
+            raise ValueError("Outlook parts do not match the recorded weights")
         if any(v is not None and (not number(v) or not 0 <= v <= 1) for v in outlook["parts"].values()):
             raise ValueError("invalid Outlook part")
         if not isinstance(outlook.get("inputs"), dict) or not isinstance(outlook.get("missing_components"), list):
@@ -162,6 +167,17 @@ def automatic_source(story, captured):
         return meta, {}
     if not isinstance(story, dict) or type(story.get("version")) is not int or story["version"] != 1 or not isinstance(story.get("rankings"), dict):
         return dict(meta, status="invalid"), {}
+    # The score is archived as published. An old bundle's total must not be
+    # checked against today's weights, or silently presented as a new forecast.
+    weights = story.get("rating_weights", LEGACY_AI_WEIGHTS)
+    calibration = story.get("score_calibration", "legacy-v1")
+    if (("rating_weights" in story) != ("score_calibration" in story)
+            or not isinstance(weights, dict) or set(weights) != set(LEGACY_AI_WEIGHTS)
+            or any(not number(value) or not 0 <= value <= 1 for value in weights.values())
+            or not math.isclose(sum(weights.values()), 1.0, abs_tol=0.000001)
+            or not isinstance(calibration, str) or not calibration.strip() or len(calibration) > 100):
+        return dict(meta, status="invalid"), {}
+    meta.update(rating_weights=dict(weights), score_calibration=calibration)
     for key in ("generated_at", "date", "focus_until", "model", "requested_model", "effort", "requested_effort", "kind"):
         if isinstance(story.get(key), str):
             meta[key] = story[key]
@@ -187,7 +203,7 @@ def automatic_source(story, captured):
         if provenance is not None:
             ratings[mid]["provenance"] = provenance
         # Store rather than silently repair a published score; the raw dimensions remain usable.
-        expected = round(sum(rating[key] * weight for key, weight in WEIGHTS), 1)
+        expected = round(sum(rating[key] * weight for key, weight in weights.items()), 1)
         ratings[mid]["score_matches_components"] = math.isclose(rating["score"], expected, abs_tol=0.000001)
     meta["valid_ratings"] = len(ratings)
     meta["rejected_ratings"] = len(story["rankings"]) - len(ratings)
@@ -237,6 +253,7 @@ def snapshot(metrics, story=None, shared=None, *, captured_at=None, source_error
     out["captured_at"] = iso(captured)
     out["external_observations"] = deepcopy(external_observations or [])
     out["settings"]["ai_rating_weights"] = dict(WEIGHTS)
+    out["settings"]["ai_score_calibration"] = RATING_CALIBRATION
     auto_meta, automatic = automatic_source(story, captured)
     shared_meta, imported = shared_source(shared, captured)
     out["ai_sources"] = {"automatic": auto_meta, "shared": shared_meta}

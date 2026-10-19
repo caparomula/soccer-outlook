@@ -11,17 +11,21 @@ Each snapshot includes every match processed for the schedule, including disable
 | Data | Contents |
 | --- | --- |
 | Fixture identity | ESPN match and league IDs, teams, kickoff, status, stage and venue. |
-| Outlook score | The total, all five component values, which components were missing, and their inputs: competition tier, occasion score, team/table facts, first-listed odds, implied draw chance, goal line and broadcast coverage. |
+| Outlook score | The total, each component value, which components were missing, and their inputs: competition tier, occasion score, team/table facts, first-listed odds, implied home/away win chances, their normalized balance and goal line. The implied draw chance and broadcast coverage are retained as evidence, although they no longer contribute to the score. |
 | Automatic AI rating | Popularity, expected gameplay, competitive impact and their weighted total, when supplied, with the model and generation metadata. |
 | Shared AI rating | An available published rating, its original prompt time and its blend weight. Shared imports supply a total score; their format does not provide the three automatic AI dimensions. |
-| Ranking context | Scoring settings, source revision and file fingerprints, default services, league order and default league selection. Derived scores use this default order, not visitors' saved preferences. |
+| Ranking context | Scoring settings, calibration identifiers and weights, source revision and file fingerprints, default services, league order and default league selection. Derived scores use this default order, not visitors' saved preferences. |
 | Observed outcome | Match status, score, available goal events, reported attendance and venue capacity when supplied. Occupancy is attendance divided by positive capacity when both are present; the original attendance field and venue details are also retained. |
 | Provenance | Observation time, build start time, source URLs, source-health report and broadcaster verification details. |
 | Sourced measurements | Optional attendance, capacity, audience, video-view, search-interest or news-count observations supplied separately with their definitions and sources. |
 
 New snapshots describe the proportional dot display in `settings.dots` as a six-point scale with nearest-integer rounding and halves rounded up. Older snapshots retain their threshold arrays. This display change does not alter the numeric ratings or rewrite past observations.
 
-The AI popularity rating is an assessment of audience appeal, not a numerical attendance or viewership forecast. Likewise, the Outlook TV component measures the type of listed outlet, not how many people watched. Those distinctions matter when evaluating the score.
+The AI popularity rating is an assessment of audience appeal, not a numerical attendance or viewership forecast. Older snapshots' Outlook TV component describes the type of listed US outlet, not how many people watched. The current score does not reward or penalize a match for its broadcaster. Those distinctions matter when evaluating the score.
+
+The `watch-appeal-v2` calibration records four Outlook components: stature (50%), evenness (25%), stakes (10%) and expected goals (15%). Evenness is `1 - abs(home_win - away_win) / (home_win + away_win)`, using valid implied win probabilities from the same odds market. This separates the two teams' relative chances from the draw price. Missing win odds stay missing; a draw price alone does not fill them. Automatic AI totals use audience appeal (50%), expected gameplay (35%) and competitive impact (15%). The normal AI/Outlook blend and league-priority adjustment then apply.
+
+New snapshots identify these formulas in `settings.outlook_calibration` and `settings.ai_score_calibration`. The automatic source also records `score_calibration` and `rating_weights`, so its published total can be checked against the weights actually used. Reweighting an existing AI response preserves its component estimates and original generation metadata; it does not imply a new model assessment. Untagged older AI bundles are checked using their original 25%/35%/40% weights. Old snapshots retain their five-component Outlook values, weights and totals and remain readable without migration. Compare calibration groups separately when evaluating changes.
 
 An absent or zero-placeholder attendance value becomes `null`, with `attendance_status: "not_reported"`; it does not mean an empty stadium. The regular television and streaming audience fields remain `null` because the current feeds do not provide those figures. Separately sourced observations can be attached as described below; this archive does not infer an audience count from a popularity rating.
 
@@ -112,7 +116,7 @@ After cloning the history branch as above, run:
 python3 history_report.py --archive ../soccer-outlook-history --out work/match-history.csv
 ```
 
-The report reads `.json` and `.json.gz` files under `snapshots/` recursively and writes one row per league and fixture. It freezes the latest eligible pre-kickoff observations for the latest known kickoff, keeping the AI dimensions, Outlook components, totals and provenance separate from subsequent results. A rescheduled fixture without a forecast for its new kickoff has blank prediction fields. Post-match recalculations never fill those fields.
+The report reads `.json` and `.json.gz` files under `snapshots/` recursively and writes one row per league and fixture. It freezes the latest eligible pre-kickoff observations for the latest known kickoff, keeping the AI dimensions, Outlook components, totals and provenance separate from subsequent results. Calibration identifiers, weights and the raw win probabilities are included when recorded. The historical `outlook_tv` column remains available for old snapshots and is blank for the current calibration. A rescheduled fixture without a forecast for its new kickoff has blank prediction fields. Post-match recalculations never fill those fields.
 
 Outcome columns include the reported score, attendance, capacity and occupancy where available. To put attendance in context, the report also looks for earlier matches with the same home-team ESPN ID, league and venue whose completed attendance was already observed before the target kickoff. It records how many qualify and their median attendance. An attendance-to-baseline ratio requires at least three such matches; a smaller sample's median is descriptive only. Current and future matches cannot enter that baseline.
 

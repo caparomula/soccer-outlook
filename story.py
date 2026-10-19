@@ -83,7 +83,8 @@ RERATE_HOURS = 24                     # a refresh re-rates fixtures kicking off 
 SCORES_CHUNK = 200                    # ratings mode: about 25 output tokens a fixture, so one request covers a window
 LIMITS = {"blurb": 260, "league": 450, "item": 520, "lede": 450, "note": 320}
 FACTS_TITLE = "ESPN table and form"
-WEIGHTS = (("popularity", .25), ("gameplay", .35), ("impact", .40))
+WEIGHTS = (("popularity", .50), ("gameplay", .35), ("impact", .15))
+RATING_CALIBRATION = "watch-appeal-v2"
 # List prices and capabilities are in providers.py. Fable 5.1, Opus and Sonnet 5.5 support
 # dynamic-filtering web tools, effort and structured output. Keep the explicitly selected
 # Fable or Opus model throughout a run; their requests never opt into a different-model fallback.
@@ -215,7 +216,11 @@ FACTS_GUIDE = ("'fixtures' holds each fixture's facts once, keyed by its ID; nex
                "page switches off unless the visitor turns it on. 'played_today', when present, gives the day's "
                "notable results so far, for context.")
 
-RATING_SCALE = """Give separate integer scores from 0 to 100 for popularity (audience appeal), gameplay (expected football quality and competitiveness, without predicting a result) and impact (the competitive stakes of this particular fixture, supported by stage or table context). Use one absolute scale across all competitions and days: 20 = limited appeal, quality or stakes; 40 = routine; 60 = notably appealing, competitive or meaningful; 80 = exceptional; 95 = a rare global event or decisive final. Judge each dimension independently: a famous club does not automatically mean compelling play or high stakes, and missing evidence must not inflate a score. Do not normalize scores to this group, force any fixture above 80, or change scores for where the match can be watched. The combined score is 25% popularity, 35% gameplay and 40% impact."""
+RATING_SCALE = """Give separate integer scores from 0 to 100 for popularity, gameplay and impact. Use stable, absolute anchors across all competitions and days, judging each dimension independently:
+- Popularity is audience appeal: 20 = limited following; 40 = routine interest; 60 = substantial interest among soccer viewers; 80 = a major draw; 90-100 = a globally anticipated elite matchup. A league-phase or regular-season match can reach the top range; a final is not required. Judge this fixture's appeal, not just the fame of one club.
+- Gameplay is expected football quality and competitive balance, without predicting a result: 20 = limited expected quality; 40 = ordinary; 60 = a promising contest; 80 = excellent football with credible competition; 90-100 = an exceptional meeting of high-quality, closely matched teams. Judge available team quality, form and supported lineup context independently of tournament stage or audience size.
+- Impact is the competitive stakes supported by stage or table context: 20 = little immediate consequence; 40 = routine points; 60 = meaningful qualification or table consequences; 80 = major title, survival or knockout consequences; 90-100 = a decisive title or elimination fixture. Do not invent decisive stakes for an early round.
+A famous club does not automatically mean compelling play or high stakes. Missing evidence must not inflate a score. Do not normalize scores to this group, force any fixture into a high range, give named teams or matches a fixed bonus, or change scores for where the match can be watched. The combined score is 50% popularity, 35% gameplay and 15% impact."""
 RATING_SYSTEM = """You rate upcoming soccer fixtures for Soccer Outlook, a schedule for viewers in the United States. Rate every fixture you are given, exactly once, as an editorial assessment from the supplied facts (teams, table, form, stage), established audience appeal and the reporting supplied with the request. Do not invent injuries, lineups, stakes or predicted scores.
 
 """ + RATING_SCALE + """
@@ -1024,6 +1029,41 @@ def weighted(parts):
     return round(sum(value * weight for value, (_, weight) in zip(parts, WEIGHTS)), 1)
 
 
+def rescore_rankings(story):
+    """Update derived totals without renewing authored estimates or their freshness.
+
+    This also covers keep, missing-key and failure fallbacks, which do not pass through
+    earlier_ratings(). Legacy scalar-only ratings have no components to recompute.
+    A changed calculation advances updated_at so open pages accept the revision, while
+    generated_at, focus_until and the original model provenance stay untouched.
+    Return whether the bundle changed so an otherwise unchanged transition fallback can
+    retain its original bytes. Archives are read and recorded separately by history.py.
+    """
+    rankings = story.get("rankings")
+    if not isinstance(rankings, dict):
+        return False
+    changed, rated = False, False
+    for rating in rankings.values():
+        if not isinstance(rating, dict):
+            continue
+        parts = [rating.get(key) for key, _ in WEIGHTS]
+        if any(type(value) is not int or not 0 <= value <= 100 for value in parts):
+            continue
+        rated = True
+        score = weighted(parts)
+        if rating.get("score") != score:
+            rating["score"] = score
+            changed = True
+    if rated:
+        for key, value in (("rating_weights", dict(WEIGHTS)), ("score_calibration", RATING_CALIBRATION)):
+            if story.get(key) != value:
+                story[key] = value
+                changed = True
+    if changed:
+        stamp_update(story)
+    return changed
+
+
 def clean_rankings(raw, ids, seen, links):
     """Validate ratings and calculate the fixed score without renormalizing against this slate. A
     blurb is trimmed to whole sentences; it keeps the reporting it cites, rests on the fixture's
@@ -1731,7 +1771,10 @@ def load_previous(path):
     try:
         with open(path, encoding="utf-8") as f:
             prev = normalize_editorial(json.load(f))
-        return prev if isinstance(prev, dict) and prev.get("version") == 1 else None
+        if not isinstance(prev, dict) or prev.get("version") != 1:
+            return None
+        rescore_rankings(prev)
+        return prev
     except (OSError, ValueError, TypeError):
         return None
 
@@ -1769,11 +1812,15 @@ def stamp_update(value, previous=None, advance=True):
 
 
 def copy_fallback(source, target):
-    """Preserve a validated transition fallback byte for byte, without changing its provenance."""
-    if os.path.abspath(source) == os.path.abspath(target):
-        return
+    """Keep a transition fallback's provenance; only recalculate outdated derived totals."""
     with open(source, "rb") as f:
         contents = f.read()
+    value = json.loads(contents)
+    if rescore_rankings(value):
+        save(target, value)
+        return
+    if os.path.abspath(source) == os.path.abspath(target):
+        return
     folder = os.path.dirname(os.path.abspath(target))
     os.makedirs(folder, exist_ok=True)
     temporary = None
@@ -1927,6 +1974,7 @@ def main():
     def metadata(value, by):
         value.update(version=1, date=facts["date"], model=by, requested_model=model, effort=effort, kind=mode,
                      services=facts.get("owner_service_ids") or [], focus_until=focus_until, generated_at=generated_at)
+        rescore_rankings(value)
         if transitioning or (resuming and todays.get("requested_effort")):
             value["requested_effort"] = effort
             origins = [value.get("research_provenance")]

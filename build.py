@@ -390,7 +390,8 @@ SERVICE_RANK = OWNER + [sid for sid in SERVICES if sid not in OWNER]
 # load_rights() checks rights.toml, so a typo stops the build instead of quietly changing every pick.
 # The [ai] table is checked by providers.check_ai, the same check story.py makes before it spends.
 SETTINGS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "settings.toml")
-OUTLOOK_PARTS = ("stature", "close", "stakes", "tv", "goals")
+OUTLOOK_PARTS = ("stature", "close", "stakes", "goals")
+OUTLOOK_CALIBRATION = "watch-appeal-v2"
 
 
 class SettingsError(ValueError):
@@ -408,7 +409,7 @@ class Settings:
     blurbs_model: str | None       # the ratings design's blurbs for the top picks, likewise
     blurbs_effort: str | None
     blend: dict          # ai, outlook, interest, league_priority: weights, at least one of each pair above 0
-    outlook: dict        # the [outlook] table as checked; knockout words in lower case, channel lists as sets
+    outlook: dict        # the [outlook] table as checked; knockout words in lower case
 
     @property
     def provider(self):
@@ -416,8 +417,8 @@ class Settings:
 
 
 def load_settings(path, channels):
-    """Reads settings.toml and checks every value against `channels`, the channel names rights.toml
-    defines. Every problem is collected before raising, so one run lists them all."""
+    """Read settings.toml, collecting every problem before raising. `channels` is retained for
+    callers of the former broadcast-weighted scoring configuration; coverage no longer sets appeal."""
     with open(path, "rb") as f:
         try:
             data = tomllib.load(f)
@@ -453,15 +454,6 @@ def load_settings(path, channels):
         if low is not None and high is not None and low >= high:
             problems.append(f"{where}: the first must be below the second")
 
-    def names(where, value):
-        if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
-            problems.append(f"{where}: must be a list of channel names")
-            return frozenset()
-        unknown = [v for v in value if v not in channels]
-        if unknown:
-            problems.append(f"{where}: {', '.join(unknown)} not a channel in rights.toml")
-        return frozenset(value)
-
     top = table(os.path.basename(path), data, ("ai", "blend", "outlook"))
     ai, ai_problems = providers.check_ai(top.get("ai", {}))
     problems += ai_problems
@@ -472,8 +464,8 @@ def load_settings(path, channels):
         if all(blend[k] is not None for k in pair) and sum(blend[k] for k in pair) <= 0:
             problems.append(f"[blend] {' and '.join(pair)}: at least one must be above 0")
 
-    o = table("[outlook]", top.get("outlook", {}), ("weights", "missing", "stature_full", "draw_from", "draw_to", "bottom",
-                                                    "goals_from", "goals_to", "knockout", "network", "cable"))
+    o = table("[outlook]", top.get("outlook", {}), ("weights", "missing", "stature_full", "bottom",
+                                                    "goals_from", "goals_to", "knockout"))
     w = table("[outlook] weights", o.get("weights", {}), OUTLOOK_PARTS)
     weights = {k: number(f"[outlook] weights.{k}", w.get(k), 0) for k in OUTLOOK_PARTS}
     if all(v is not None for v in weights.values()) and sum(weights.values()) <= 0:
@@ -481,12 +473,9 @@ def load_settings(path, channels):
     outlook = dict(weights=weights,
                    missing=number("[outlook] missing", o.get("missing"), 0, 1),
                    stature_full=number("[outlook] stature_full", o.get("stature_full"), 1),
-                   draw_from=number("[outlook] draw_from", o.get("draw_from"), 0, 1),
-                   draw_to=number("[outlook] draw_to", o.get("draw_to"), 0, 1),
                    bottom=number("[outlook] bottom", o.get("bottom"), 0, 1),
                    goals_from=number("[outlook] goals_from", o.get("goals_from"), 0, 20),
                    goals_to=number("[outlook] goals_to", o.get("goals_to"), 0, 20))
-    rising("[outlook] draw_from, draw_to", outlook["draw_from"], outlook["draw_to"])
     rising("[outlook] goals_from, goals_to", outlook["goals_from"], outlook["goals_to"])
     knockout = o.get("knockout", {})
     if not isinstance(knockout, dict):
@@ -499,11 +488,6 @@ def load_settings(path, channels):
             problems.append("[outlook] knockout: a stage word can't be empty")
         elif v is not None:
             outlook["knockout"][word.strip().lower()] = v
-    outlook["network"] = names("[outlook] network", o.get("network", []))
-    outlook["cable"] = names("[outlook] cable", o.get("cable", []))
-    both = sorted(outlook["network"] & outlook["cable"])
-    if both:
-        problems.append(f"[outlook] network and cable both list {', '.join(both)}")
     if problems:
         raise SettingsError(f"{os.path.basename(path)}:\n  " + "\n  ".join(problems))
     return Settings(ai=ai["enabled"], design=ai["design"], model=ai["model"], effort=ai["effort"],
@@ -688,6 +672,9 @@ class Match:
     link: str = ""          # ESPN's match page
     draw: object = None     # the betting market's implied chance of a draw, 0-1, when ESPN carries odds
     goal_line: object = None  # the market's over/under goal line, when ESPN carries odds
+    home_win: object = None   # implied home/away win chances from the same moneyline market
+    away_win: object = None
+    win_balance: object = None  # 1 for equal win chances, approaching 0 for a one-sided matchup
     broadcast_source: str = ""  # supplemental listing provider; ESPN is the default
     broadcast_url: str = ""     # the provider's public match listing, when supplemented
     broadcast_check: str = ""   # confirmed | unlisted | unavailable | not_checked
@@ -731,13 +718,46 @@ def clamp01(x):
     return max(0.0, min(1.0, x))
 
 
+def win_chances(odds):
+    """Read a complete pair of home/away moneylines, never spread prices or mixed snapshots.
+    ESPN supplies either nested close/open prices or legacy homeTeamOdds/awayTeamOdds fields.
+    Prefer current prices; use a complete opening pair only when no current pair is available."""
+    market = odds.get("moneyline")
+    market = market if isinstance(market, dict) else {}
+
+    def nested(side, when):
+        team = market.get(side)
+        price = team.get(when) if isinstance(team, dict) else None
+        return implied_chance(price.get("odds")) if isinstance(price, dict) else None
+
+    def legacy(side):
+        price = odds.get(side + "TeamOdds")
+        return implied_chance(price.get("moneyLine")) if isinstance(price, dict) else None
+
+    for home, away in ((nested("home", "close"), nested("away", "close")),
+                       (legacy("home"), legacy("away")),
+                       (nested("home", "open"), nested("away", "open"))):
+        if home is not None and away is not None:
+            return home, away
+    return None, None
+
+
+def win_balance(home, away):
+    """Balance conditional on a decisive result, independent of draw chance and goal total.
+    Normalizing the pair removes a common proportional bookmaker margin, not all pricing bias."""
+    home, away = finite_number(home), finite_number(away)
+    if home is None or away is None or not (0 < home <= 1 and 0 < away <= 1):
+        return None
+    return clamp01(1 - abs(home - away) / (home + away))
+
+
 def outlook_parts(m, settings=None):
     """The Outlook score's parts for a match, each from 0 to 1, or None where the data says nothing:
-    no odds, no table and no knockout round, no broadcaster listed yet. settings.toml says what each
+    no odds, no table and no knockout round. settings.toml says what each
     part measures and why."""
     o = (settings or SETTINGS).outlook
     parts = {"stature": clamp01(m.score / o["stature_full"])}
-    parts["close"] = None if m.draw is None else clamp01((m.draw - o["draw_from"]) / (o["draw_to"] - o["draw_from"]))
+    parts["close"] = m.win_balance
     stage = (m.stage or "").lower()
     word = next((w for w in sorted(o["knockout"], key=len, reverse=True) if w in stage), None)   # "semifinal" before "final"
     if word is not None:
@@ -747,9 +767,6 @@ def outlook_parts(m, settings=None):
         parts["stakes"] = max(min(place), o["bottom"] * (1 - max(place)))
     else:
         parts["stakes"] = None
-    labels = {out.label for out in m.outlets}
-    # Nothing listed is normal more than a few days out, and says nothing about the match.
-    parts["tv"] = None if not labels else 1.0 if labels & o["network"] else 0.5 if labels & o["cable"] else 0.0
     parts["goals"] = None if m.goal_line is None else clamp01((m.goal_line - o["goals_from"]) / (o["goals_to"] - o["goals_from"]))
     return parts
 
@@ -1234,14 +1251,14 @@ def interpret(league, ev):
                       who.get("shortName") or who.get("displayName") or "", kind))
     heads = dicts(comp.get("headlines"))
     recap = (heads[0].get("description") or "") if heads else ""
-    # The first odds entry in ESPN's scoreboard: the draw price says
-    # how evenly matched the market sees the teams, the total how many goals it expects. They feed
-    # the Outlook score only; the page never shows a price.
-    draw = goal_line = None
+    # The first odds entry supplies the win balance and expected goal total. Keep the draw chance
+    # for historical analysis, but it does not measure balance: high-scoring games draw less often.
+    draw = goal_line = home_win = away_win = None
     for odds in dicts(comp.get("odds")):
         price = odds.get("drawOdds")
         draw = implied_chance(price.get("moneyLine")) if isinstance(price, dict) else None
         goal_line = finite_number(odds.get("overUnder"))
+        home_win, away_win = win_chances(odds)
         break
     try:
         attendance = int(comp.get("attendance") or 0)
@@ -1275,7 +1292,8 @@ def interpret(league, ev):
                  time_valid=bool(comp.get("timeValid", True)), league=league, comp=info["name"], stage=stage,
                  note=note, home=home, away=away, venue=venue, state=state, status=status, outlets=outlets,
                  rule=rule, hint=hint, service=service, basis=basis, outlet=outlet, score=score,
-                 goals=goals, recap=recap, attendance=attendance, link=link, draw=draw, goal_line=goal_line)
+                 goals=goals, recap=recap, attendance=attendance, link=link, draw=draw, goal_line=goal_line,
+                 home_win=home_win, away_win=away_win, win_balance=win_balance(home_win, away_win))
 
 
 # ----------------------------------------------------------------------------------------------
@@ -1416,7 +1434,6 @@ def shares(weights):
 OUTLOOK_WORDS = {"stature": "the occasion's stature from the competition and any marquee clubs or nations",
                  "close": "how evenly matched the betting market sees the teams",
                  "stakes": "what the table or the knockout round puts at stake",
-                 "tv": "whether a broadcast network or a cable channel carries it",
                  "goals": "how many goals the market expects"}
 
 
@@ -1437,8 +1454,8 @@ def about_ai():
             maker = providers.PROVIDER_NAMES[providers.MODELS[model]]
             return f"{model}, {'an' if maker[0] in 'AEIOU' else 'a'} {maker} AI model"
         ratings = (f"Each morning, {who(SETTINGS.model)}, is asked to rate the matches the page shows, from "
-                   "today through the third day after it, for popularity (25%), expected gameplay (35%) and competitive "
-                   "impact (40%), from ESPN's table, form and stage and without seeing the Outlook score. Later rebuilds "
+                   "today through the third day after it, for popularity (50%), expected gameplay (35%) and competitive "
+                   "impact (15%), from ESPN's table, form and stage and without seeing the Outlook score. Later rebuilds "
                    "fill missing or newly listed ratings while keeping the day's accepted ratings. Its ratings are "
                    "editorial judgments, not predicted results")
         if not SETTINGS.overview_model and not SETTINGS.blurbs_model:
@@ -1461,8 +1478,8 @@ def about_ai():
             "supporting text and sources. They follow your filters, favor the next 24 hours and look further ahead "
             "when needed. Match-specific news and sources are available through each match's More button. "
             "Text based only on ESPN's table, form and stage is labelled \"ESPN table and form\". "
-            "Claude also rates each upcoming match for popularity (25%), expected gameplay (35%) and "
-            "competitive impact (40%), without seeing the Outlook score; its ratings are editorial judgments, not "
+            "Claude also rates each upcoming match for popularity (50%), expected gameplay (35%) and "
+            "competitive impact (15%), without seeing the Outlook score; its ratings are editorial judgments, not "
             "predicted results.")
 
 
@@ -1478,8 +1495,9 @@ def about_scores():
     listed = parts[0] if len(parts) == 1 else ", ".join(parts[:-1]) + " and " + parts[-1]
     b = SETTINGS.blend
     pick = shares({"interest": b["interest"], "league_priority": b["league_priority"]})
-    text = ("The page's own Outlook score rates every match from fixture and broadcast data, by the same arithmetic for each: "
-            f"{listed}. Betting-market inputs come from the odds in ESPN's feed; the page shows no prices. ")
+    text = ("The page's own Outlook score rates every match from fixture data, by the same arithmetic for each: "
+            f"{listed}. Broadcast type does not affect the score. Betting-market inputs come from the odds in ESPN's feed; "
+            "the page shows no prices. ")
     dots = (" Each match shows its pick score on a six-dot scale: multiply the score out of 100 by six and round "
             "to the nearest whole number (halves round up). For example, 80.5 out of 100 gives five dots. "
             "A score that rounds to zero dots is labelled 0/6. Hover over the dots for the rating breakdown, "

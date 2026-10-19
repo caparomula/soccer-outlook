@@ -24,6 +24,7 @@ class MetricCapture(unittest.TestCase):
     def test_all_parts_raw_inputs_and_missing_values_survive_json(self):
         comp = self.event["competitions"][0]
         comp["odds"] = [{"provider": {"id": "1", "name": "Test bookmaker"},
+                         "homeTeamOdds": {"moneyLine": 100}, "awayTeamOdds": {"moneyLine": 200},
                          "drawOdds": {"moneyLine": 300}, "overUnder": 3.5}]
         comp["geoBroadcasts"] = [{"media": {"shortName": "ABC"}, "region": "us"}]
         self.match = build.interpret("eng.1", self.event)
@@ -32,13 +33,17 @@ class MetricCapture(unittest.TestCase):
         row = snapshot["matches"][0]
         self.assertEqual(row["outlook"]["inputs"]["odds"], comp["odds"][0])
         self.assertEqual(row["outlook"]["inputs"]["draw_probability"], 0.25)
-        self.assertAlmostEqual(row["outlook"]["parts"]["close"], 0.75)
-        self.assertEqual(row["outlook"]["parts"]["tv"], 1)
+        self.assertEqual(row["outlook"]["inputs"]["home_win_probability"], 0.5)
+        self.assertAlmostEqual(row["outlook"]["inputs"]["away_win_probability"], 1 / 3)
+        self.assertAlmostEqual(row["outlook"]["inputs"]["win_balance"], 0.8)
+        self.assertAlmostEqual(row["outlook"]["parts"]["close"], 0.8)
+        self.assertNotIn("tv", row["outlook"]["parts"])
         self.assertEqual(row["outlook"]["parts"]["goals"], 0.75)
         self.assertEqual(set(row["outlook"]["parts"]), set(build.OUTLOOK_PARTS))
         self.assertEqual(row["outlook"]["score"], build.outlook_score(build.outlook_parts(self.match)))
         self.assertEqual(row["coverage"]["espn_listings"], comp["geoBroadcasts"])
         self.assertEqual(snapshot["settings"]["outlook"]["weights"], build.SETTINGS.outlook["weights"])
+        self.assertEqual(snapshot["settings"]["outlook_calibration"], "watch-appeal-v2")
         self.assertEqual(snapshot["settings"]["dots"], {"scale": 6, "score_max": 100, "rounding": "nearest_half_up"})
         self.assertEqual(snapshot["league_order"], list(build.LEAGUES))
         self.assertEqual(self.event, before)
@@ -79,8 +84,19 @@ class MetricCapture(unittest.TestCase):
         self.assertEqual(set(rows), {self.match.id, "post", "disabled"})
         self.assertFalse(rows["post"]["forecast_eligible"])
         self.assertFalse(rows["disabled"]["coverage"]["default_competition"])
-        self.assertIsNone(rows["disabled"]["outlook"]["parts"]["tv"])
-        self.assertIn("tv", rows["disabled"]["outlook"]["missing_components"])
+        self.assertEqual(rows["disabled"]["coverage"]["listed"], [])
+        self.assertNotIn("tv", rows["disabled"]["outlook"]["parts"])
+        self.assertNotIn("tv", rows["disabled"]["outlook"]["missing_components"])
+
+    def test_draw_only_odds_are_retained_without_inventing_win_balance(self):
+        self.event["competitions"][0]["odds"] = [{"drawOdds": {"moneyLine": 250}}]
+        self.match = build.interpret("eng.1", self.event)
+        row = self.capture()["matches"][0]["outlook"]
+        self.assertAlmostEqual(row["inputs"]["draw_probability"], 1 / 3.5)
+        for key in ("home_win_probability", "away_win_probability", "win_balance"):
+            self.assertIsNone(row["inputs"][key])
+        self.assertIsNone(row["parts"]["close"])
+        self.assertIn("close", row["missing_components"])
 
     def test_final_zero_score_survives_and_void_placeholder_does_not(self):
         comp = self.event["competitions"][0]

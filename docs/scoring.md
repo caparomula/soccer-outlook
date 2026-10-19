@@ -59,35 +59,40 @@ Automatic league headlines carry their own authored title and editorial interest
 
 | Dimension | Weight | What it asks the model to judge |
 | --- | ---: | --- |
-| Popularity | 25% | Audience appeal |
+| Popularity | 50% | Audience appeal, including worldwide anticipation |
 | Expected gameplay | 35% | Football quality and competitiveness, without predicting a result |
-| Competitive impact | 40% | Stakes supported by the table or competition stage |
+| Competitive impact | 15% | Stakes supported by the table or competition stage |
 
-Popularity is a judgment of audience appeal, not a forecast of attendance or a measured television or streaming audience. The Outlook score's occasion and TV components below are also proxies for appeal and reach. The project does not currently predict a number of spectators or viewers.
+Popularity is a judgment of audience appeal, not a forecast of attendance or a measured television or streaming audience. The Outlook score's occasion component below is another estimate of appeal. The project does not currently predict a number of spectators or viewers.
 
-The prompt uses a common scale across days and competitions: 40 is routine, 60 notably appealing, 80 exceptional, and 95 a rare global event or decisive final. A quiet slate is not a reason to inflate ratings. Invalid or missing components cause that rating to be rejected. These weights are fixed in `story.py`, separate from the adjustable blend in `settings.toml`.
+The prompt rates each dimension independently on an absolute scale. Popularity of 80 means a major draw; 90–100 means a globally anticipated elite matchup, at any stage. Gameplay of 80 means excellent expected quality with credible competition; 90–100 means exceptional quality between closely matched teams. Impact of 80 means major title, survival or knockout consequences; 90–100 means a decisive title or elimination match. An early tournament stage can limit impact without capping popularity or gameplay. A quiet slate is not a reason to inflate ratings, and no named match receives a special bonus.
+
+Invalid or missing components cause that rating to be rejected. These weights are fixed in `story.py`, separate from the adjustable blend in `settings.toml`. Personal and shared imports supply a single score, so their totals are not recalculated using these component weights.
+
+When the formula changes, a refresh can recalculate existing automatic totals from their saved component ratings without another AI request. The publication revision advances so open browsers receive the new totals; the original text, component judgments, generation time and expiry stay the same. Updated prompt guidance applies when the AI next generates ratings.
 
 The automatic AI rating request does not include the Outlook score or its betting inputs. The two assessments contribute different information; agreement between them is not a guarantee of a good match.
 
 ## Outlook score
 
-This is a calculation from fixture and broadcast data in [build.py](../build.py). ESPN supplies the fixture data; confirmed broadcaster listings can supplement its coverage information. Each component runs from 0 to 1; their weighted mean is multiplied by 100 and rounded to one decimal.
+This is a calculation from fixture data in [build.py](../build.py). ESPN supplies the team, table and market inputs. Each component runs from 0 to 1; their weighted mean is multiplied by 100 and rounded to one decimal. Broadcast coverage determines whether a match passes your service filters, but does not increase or reduce its rating.
 
 | Component | Default weight | Calculation with the current settings |
 | --- | ---: | --- |
-| Occasion (`stature`) | 40% | Competition tier and named marquee teams, divided by 150 and capped at 1. |
-| Evenly matched (`close`) | 25% | The market's implied draw chance: 0 at 10% or below, 1 at 30% or above, proportional between. |
-| Stakes | 15% | A recognized knockout stage's value; otherwise a calculation from both teams' table positions. |
-| TV | 10% | 1 for a listed broadcast network, 0.5 for a listed cable channel, 0 for other listed outlets. |
-| Goals expected | 10% | The market's over/under line: 0 at 2 goals or below, 1 at 4 or above, proportional between. |
+| Occasion (`stature`) | 50% | Competition tier and named marquee teams, divided by 150 and capped at 1. |
+| Evenly matched (`close`) | 25% | Balance between the teams' implied win chances: `1 − abs(home − away) / (home + away)`. Equal chances give 1; a larger gap lowers the value. |
+| Stakes | 10% | A recognized knockout stage's value; otherwise a calculation from both teams' table positions. |
+| Goals expected | 15% | The market's over/under line: 0 at 2 goals or below, 1 at 4 or above, proportional between. |
 
-Missing data uses `[outlook] missing`, currently **0.5**, while retaining that component's weight. It is a midpoint assumption, not an omitted component: it can raise or lower the total compared with the available evidence alone. A match with no broadcaster listed has missing TV data; one listed only on a streaming service has TV value 0. Usual coverage does not replace that missing TV input.
+Missing data uses `[outlook] missing`, currently **0.5**, while retaining that component's weight. It is a midpoint assumption, not an omitted component: it can raise or lower the total compared with the available evidence alone. Evenness requires valid win odds for both teams; a draw price alone cannot supply it. Older saved schedules without those win odds have missing evenness until refreshed.
 
 The occasion calculation starts at 100, 60 or 30 for competition tiers 1, 2 or 3. It adds 25 per marquee club, or 30 per marquee national team and another 45 for the United States in the configured national-team competitions. UEFA Nations League groups use their own base values. The lists and exceptions live in `build.py`; they are editorial choices. Teams are identified by ESPN IDs, with readable names beside them, so a spelling or display-name change does not silently change a score. A team without a recognized ID receives no team-specific bonus.
 
 For league-table stakes, convert each team's position to a value from 1 (first) to 0 (last), within its own table. Use the larger of the lower team's value and `0.6 × (1 − the higher team's value)`. This rewards meetings near the top and, more modestly, near the bottom. A recognized knockout stage takes precedence: final 1, semifinal 0.9, quarterfinal 0.8, round of 16 or playoff 0.7. The longest matching stage name wins, so “semifinal” is not mistaken for “final.”
 
-Odds come from the first entry in ESPN's scoreboard odds list; the code does not check the provider's name. The draw chance includes the bookmaker's margin. It is a rough indicator of competitiveness, not a calibrated estimate of match quality. Odds are used for scoring and are not displayed.
+Odds come from the first entry in ESPN's scoreboard odds list; the code does not check the provider's name. American moneylines are converted to implied probabilities: a positive price `x` gives `100 / (x + 100)`, and a negative price gives `abs(x) / (abs(x) + 100)`. Evenness compares the two win probabilities proportionally, so a common proportional bookmaker margin cancels out; other pricing biases can remain. It does not use the draw price: high-scoring teams can be evenly matched even when a draw is unlikely. Market prices are still only a proxy for competitiveness, not a calibrated estimate of match quality. Odds are used for scoring and are not displayed.
+
+The parser first looks for a complete pair of current prices in `moneyline.home.close.odds` and `moneyline.away.close.odds`, then ESPN's older `homeTeamOdds.moneyLine` and `awayTeamOdds.moneyLine` fields. If neither pair is complete, it can use both teams' opening prices from `moneyline.home.open.odds` and `moneyline.away.open.odds`. It never combines a current price with an opening price, or substitutes a spread price for a win price.
 
 ## League priority
 
@@ -136,7 +141,7 @@ Lower positions rely more on editorial judgment about access and the teams invol
 
 ## Retaining the evidence behind scores
 
-Production refreshes save all three automatic AI dimensions, all five Outlook components, their raw inputs and the configuration used to combine them. Repeated snapshots preserve what was known before kickoff and what the feed reported later, including results and attendance when available. They cover all parsed schedule matches, independent of visitor filters. The saved default pick calculation uses the site's league order, not an individual's browser preferences.
+Production refreshes save all three automatic AI dimensions, all four Outlook components, their raw inputs and the configuration used to combine them. Historical snapshots retain the formula used when they were recorded, including the former TV component and draw-based evenness; they are not rewritten to look like current predictions. Repeated snapshots preserve what was known before kickoff and what the feed reported later, including results and attendance when available. They cover all parsed schedule matches, independent of visitor filters. The saved default pick calculation uses the site's league order, not an individual's browser preferences.
 
 This gives future analysis separate quantities to test: for example, whether popularity scores rank reported attendance sensibly, or whether the expected-gameplay rating relates to match outcomes. Attendance is not viewership, and a high-scoring game does not by itself demonstrate entertaining football. The feed does not supply television or streaming audience measurements; missing values stay missing. See [Match history and retrospective analysis](history.md) for the stored data, timestamps and comparison limits.
 
@@ -156,6 +161,6 @@ Golden dots show the pick score on a proportional six-dot scale: **round(score �
 
 Changing league priority can change a match's dots. Hover over them for the rating breakdown, or click or tap to open it in a dialog. Keyboard users can focus the dots and press Enter or Space; screen readers receive the score and dot count. They are separate from the colored squares showing each team's recent results.
 
-The **Rating breakdown** opened from the golden dots shows the numeric pick score, blend weights, the three automatic AI dimensions when available, and the five Outlook inputs. Components use a 0–100 display scale and the same proportional rounding, with distinct colors and text labels. Missing Outlook inputs show **Not available** rather than the midpoint assumption used in the total. Personal and shared imports have no component dimensions in their response format; the breakdown says they are unavailable and does not borrow automatic AI components. Match stories and their sources are available separately through **More**.
+The **Rating breakdown** opened from the golden dots shows the numeric pick score, blend weights, the three automatic AI dimensions when available, and the four Outlook inputs. Components use a 0–100 display scale and the same proportional rounding, with distinct colors and text labels. Missing Outlook inputs show **Not available** rather than the midpoint assumption used in the total. Personal and shared imports have no component dimensions in their response format; the breakdown says they are unavailable and does not borrow automatic AI components. Match stories and their sources are available separately through **More**.
 
 See the [development guide](development.md) for changing settings and running the checks, or return to the [project overview](../README.md).

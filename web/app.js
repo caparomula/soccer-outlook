@@ -1108,7 +1108,7 @@
     var parts = {};
     try { parts = JSON.parse(r.getAttribute('data-outlook-parts') || '{}') || {}; } catch (e) {}
     scores([['Match stature', parts.stature, 'stature'], ['Evenness', parts.close, 'gameplay'], ['Competitive stakes', parts.stakes, 'impact'],
-      ['TV reach', parts.tv, 'popularity'], ['Expected goals', parts.goals, 'goals']]);
+      ['Expected goals', parts.goals, 'goals']]);
     text('p', 'Inputs are scaled to 100; missing inputs are shown without dots. The pick score also includes your league priority.');
     return panel;
   }
