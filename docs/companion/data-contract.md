@@ -10,6 +10,8 @@ Keep the existing website and its refresh mechanism working while adding a separ
 
 The new feed publishes source facts, normalized broadcast routes, canonical component scores, policy parameters, and editorial content. It never publishes a particular visitor's filtered schedule or final personalized picks. Those decisions belong to the shared domain implementation described in [Architecture](architecture.md).
 
+This public-feed design requires permission to distribute the included data in machine-readable form. A license for display inside a website/app may be narrower. Resolve the [licensing requirements](../data-licensing.md) in P0 before publishing; otherwise revise delivery, credentials and retention rather than treating the schema as authorization. A paid replacement may also change source namespaces and reference mappings.
+
 The existing owners remain authoritative during this work:
 
 | Information | Current owner | Feed responsibility |
@@ -212,7 +214,7 @@ An HTTP 200 or 304 may validate cached content without making the underlying mat
 
 The current GitHub publication cadence is approximately twice hourly, subject to job delays. The browser also polls ESPN directly for live scores. A native application that reads only the aggregate feed cannot offer equivalent live freshness.
 
-The first implementation phase therefore validates a foreground, read-only ESPN live adapter on the target platforms. It emits typed deltas for known fixture IDs only:
+The first implementation phase therefore validates an approved foreground live adapter on the target platforms. ESPN is the current-source candidate, conditional on permission; a licensed replacement may require a protected backend. The selected adapter emits typed deltas for known fixture IDs only:
 
 ```text
 LiveDelta {

@@ -26,6 +26,7 @@ ESPN supplies fixtures and live scores. The builder also checks supported broadc
 | Compare past ratings and their inputs with recorded match outcomes | [Match history and retrospective analysis](docs/history.md) |
 | Run locally, change settings, maintain coverage, or deploy | [Development and maintenance](docs/development.md) |
 | Understand schedule sources, coverage gaps and refreshes | [Schedule data and coverage](docs/schedule-data.md) |
+| Compare licensed data suppliers or request source permission | [Data licensing options and inquiry drafts](docs/data-licensing.md) |
 | Register with search engines or help people find the app | [Search and discovery](docs/discovery.md) |
 | Review the proposed mobile companion and its development stages | [Companion app plan and specifications](docs/companion/README.md) |
 

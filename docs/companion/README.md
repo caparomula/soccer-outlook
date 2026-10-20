@@ -13,18 +13,19 @@ This is a proposed development baseline; the companion app and its new data feed
 | [Data contract](data-contract.md) | What does the publisher supply, and how can clients safely accept updates? |
 | [Engineering practices](engineering.md) | How do we test, document, review and maintain the implementation? |
 | [Implementation plan](implementation-plan.md) | In what order do we build it, and what evidence completes each stage? |
+| [Data licensing research](../data-licensing.md) | Which permission routes and paid suppliers could support the required uses? |
 
 The [current user guide](../user-guide.md), [scoring guide](../scoring.md) and [schedule guide](../schedule-data.md) still describe the working website. Where this plan proposes a change, it identifies it explicitly.
 
 ## Recommended direction
 
-Use Flutter for iOS and Android, with separate data, domain, application and presentation responsibilities. Keep source collection and daily AI generation in the existing Python/GitHub pipeline. Publish a documented JSON feed on GitHub Pages; do not make the app parse website markup or depend on the internal build cache.
+Use Flutter for iOS and Android, with separate data, domain, application and presentation responsibilities. Keep source collection and daily AI generation in the existing Python/GitHub pipeline where the chosen license permits it. Publish a documented JSON feed on GitHub Pages only if the data agreement permits public machine-readable distribution; otherwise evaluate approved backend delivery. Do not make the app parse website markup or depend on the internal build cache.
 
 Give the app and website one owner for preference-dependent rules. The proposed owner is a pure Dart core used directly by Flutter and compiled behind a small JavaScript interface for the existing website. First prove that interface works within acceptable browser size, startup and compatibility limits. This is a feasibility gate, not a claim that compiling Dart automatically makes the integration straightforward.
 
 Keep Python's existing ownership of source reconciliation, broadcast evidence, rights configuration and the base Outlook score. The shared core consumes those facts and owns eligibility, personalized ranking, AI selection and expiry, and time grouping. It must not recalculate the base score independently.
 
-Start with a complete viewing experience: saved preferences, live and upcoming matches, top picks, optional AI content, details and useful offline behavior. Account connections, reminders, home-screen widgets and cross-device synchronization can follow separately. No new hosting or AI subscription is required for the first release.
+Start with a complete viewing experience: saved preferences, live and upcoming matches, top picks, optional AI content, details and useful offline behavior. Account connections, reminders, home-screen widgets and cross-device synchronization can follow separately. The first release needs no new AI subscription; whether existing hosting is sufficient depends on the approved data-delivery model.
 
 ## What we are taking from Pit Dash
 

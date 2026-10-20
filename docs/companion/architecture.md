@@ -10,6 +10,8 @@ The website is a Python-generated static site with JavaScript for preferences, r
 
 Neither format is the companion API. Add a versioned publication containing normalized facts and policy, leaving both existing formats in place during migration. Keep the static website, its indexable pages and its URLs. Flutter is the native presentation technology, not a replacement for the public site.
 
+Publication, live transport, caching and archival choices depend on the selected data license. [Data licensing research](../data-licensing.md) is a P0 input: public JSON on Pages and direct ESPN access are proposed paths, not established permissions. A supplier that allows app display but requires protected delivery may require a backend. The layer boundaries remain useful with either delivery model.
+
 ## Layers and dependency direction
 
 | Layer | Responsibility | Must not do |
@@ -145,7 +147,7 @@ Preference changes follow the same write-before-success rule, coalesce into one 
 
 The published schedule changes on the existing full and lightweight workflow cadence. Foreground clients check the publication manifest conditionally, with bounded concurrency, timeouts and backoff. HTTP success, payload publication time and source observation time are separate fields.
 
-A half-hour publication cannot provide the existing website's approximately minute-level live updates. The first release therefore needs a read-only foreground ESPN live adapter, validated on both mobile platforms in P0. Share its parser and status reconciliation with the browser; keep HTTP and lifecycle platform-specific. It updates only identified fixtures' score/status/clock events. It cannot add broadcast rights, derive provider access or turn a replay into a live fixture.
+A half-hour publication cannot provide the existing website's approximately minute-level live updates. The first release therefore needs an approved foreground live-data path, validated on both mobile platforms in P0. Direct ESPN access requires permission; a licensed alternative can use its own adapter and server-held credentials. Share the selected source parser and status reconciliation with the browser; keep HTTP and lifecycle platform-specific. It updates only identified fixtures' score/status/clock events. It cannot add broadcast rights, derive provider access or turn a replay into a live fixture.
 
 Use the existing poll windows as the initial behavior baseline, then move their policy values to one owner. Include successful final-score catch-up after sleep. Cancel or invalidate obsolete batches with a generation token; a late response for an old fixture identity or kickoff must not overwrite the current snapshot. A newer accepted live observation survives an older aggregate publication. Corrections need explicit ordering/provenance; a “final” result is not immune to a later authoritative correction.
 
@@ -175,7 +177,7 @@ Use stable fixture IDs as widget keys. Keep navigation and scroll state separate
 | --- | --- | --- |
 | Client technology | Flutter iOS/Android, phones/tablets | P0 platform/toolchain and plugin compatibility |
 | Shared rules | Pure Dart, browser adapter and publisher CLI | P0 compiled size/startup, interop, time zones and deployment spike |
-| Live transport | Foreground ESPN adapter | P0 device access, source policy, parser and freshness proof |
+| Live transport | Approved source adapter; ESPN only with permission | P0 data license, device/backend access, parser and freshness proof |
 | Storage | Transactional snapshot cache; separate preferences/imports | P3 crash, migration and persistence tests |
 | Repository | One monorepo initially | Separate-repo needs, if any, reviewed before moving consumers |
 | Distribution | Pilot before public stores | P6 signing, developer accounts, device testing and explicit release authorization |
