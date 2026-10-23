@@ -198,7 +198,9 @@ class StatusConsumers(unittest.TestCase):
         match.home.score = "2"
         self.assertEqual(build.match_status(match)["state"], "cancelled")
         match.status = "23'"
-        self.assertIn('<a class="network__link', build.pills_html(match))
+        # Even confirmed live status cannot keep a no-script destination current;
+        # the browser's receipt-age projection owns activation and expiry.
+        self.assertNotIn('<a class="network__link', build.pills_html(match))
         match.status = "Final"
         row = build.row_html(match, {}, now=NOW)
         self.assertIn('data-state="unknown" data-status-kind="unknown"', row)

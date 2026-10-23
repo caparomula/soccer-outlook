@@ -168,7 +168,13 @@ class ScheduleChecks(unittest.TestCase):
                 expect(page.locator('#nextup')).to_have_attribute('data-match-id', 'upcoming')
                 expect(page.locator('#nextup')).to_have_attribute('aria-label', '1 of 2')
                 expect(page.locator('#nextup-track [data-match-id="selected"]')).to_have_count(0)
-                expect(page.locator('#picks-section')).to_be_hidden()
+                # Every snapshot retains the original source receipt. At twenty
+                # minutes these reports no longer form a current-live cohort;
+                # the later retained match is still available as a qualified pick.
+                expect(page.locator('#nextup-h')).to_have_text('Last reported in progress')
+                expect(page.locator('#picks-section')).to_be_visible()
+                expect(page.locator('#picks .pick')).to_have_attribute('data-match-id', 'added')
+                expect(page.locator('#picks .pick__when .ap')).to_have_text("Last known · 30'")
                 self.assertLessEqual(page.evaluate('document.documentElement.scrollWidth'), width)
 
     def test_preferences_ai_draft_and_open_dialog_survive(self):
@@ -212,6 +218,9 @@ class ScheduleChecks(unittest.TestCase):
 
     def test_a_newer_live_score_survives_an_older_schedule_snapshot(self):
         with self.page("after", html=render_page(build, fixtures=FIXTURES)) as (page, feed):
+            # Complete the empty startup response before advancing the clock;
+            # otherwise it can keep the update poll busy across this jump.
+            expect(page.locator('#livenote')).to_contain_text('last checked')
             feed['data'] = scoreboard('in')
             page.clock.fast_forward(120100)
             expect(page.locator('li.row[data-id="upcoming"] .score').first).to_have_text('2')

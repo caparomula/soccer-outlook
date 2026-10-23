@@ -1,0 +1,143 @@
+{
+  "version": 1,
+  "rule_id": "SOURCE-PROVENANCE-1",
+  "description": "Independent literal lifecycle expectations for accepted response receipts. These are integration scenarios, not bridge request envelopes; source observation and provider update remain unknown throughout.",
+  "cases": [
+    {
+      "id": "publisher-distinct-response-receipts",
+      "scenario": "publisher_collection",
+      "input": {
+        "responses": [
+          {"league": "eng.1", "requested_date": "2026-10-23", "response_id": "first-day", "received_at": "2026-10-23T17:00:00Z", "accepted_fixture_ids": ["101", "102"]},
+          {"league": "eng.1", "requested_date": "2026-10-24", "response_id": "second-day", "received_at": "2026-10-23T17:03:00Z", "accepted_fixture_ids": ["103"]}
+        ],
+        "validated_at": "2026-10-23T17:05:00Z",
+        "published_at": "2026-10-23T17:07:00Z"
+      },
+      "expected": {
+        "fixture_receipts": {"101": "2026-10-23T17:00:00Z", "102": "2026-10-23T17:00:00Z", "103": "2026-10-23T17:03:00Z"},
+        "validated_at": "2026-10-23T17:05:00Z",
+        "observed_at": null,
+        "provider_updated_at": null
+      },
+      "because": "Main-thread validation and publication cannot replace either worker response receipt; fixtures from one body share a receipt."
+    },
+    {
+      "id": "publisher-selected-duplicate-keeps-its-response",
+      "scenario": "publisher_duplicate",
+      "input": {
+        "fixture_id": "201",
+        "admitted_in_merge_order": [
+          {"response_id": "first-in-merge", "received_at": "2026-10-23T17:03:00Z", "score": [1, 0]},
+          {"response_id": "last-in-merge", "received_at": "2026-10-23T17:00:00Z", "score": [2, 0]}
+        ],
+        "selected_response_id": "last-in-merge",
+        "validated_at": "2026-10-23T17:05:00Z"
+      },
+      "expected": {"selected_response_id": "last-in-merge", "score": [2, 0], "source_received_at": "2026-10-23T17:00:00Z", "observed_at": null, "provider_updated_at": null},
+      "because": "Receipt follows the existing selected event, even when receipt order differs from merge order; this rule introduces no latest-response-wins policy."
+    },
+    {
+      "id": "publisher-rejected-duplicate-cannot-renew",
+      "scenario": "publisher_duplicate",
+      "input": {
+        "fixture_id": "202",
+        "accepted": {"response_id": "accepted", "received_at": "2026-10-23T17:00:00Z", "score": [1, 0]},
+        "later_candidate": {"response_id": "wrong-date", "received_at": "2026-10-23T17:03:00Z", "score": [2, 0], "accepted": false}
+      },
+      "expected": {"selected_response_id": "accepted", "score": [1, 0], "source_received_at": "2026-10-23T17:00:00Z"},
+      "because": "Rejected source data cannot replace either the accepted event or its receipt."
+    },
+    {
+      "id": "direct-match-does-not-borrow-scope-validation",
+      "scenario": "publisher_missing_receipt",
+      "input": {"fixture_id": "301", "source_received_at": null, "scope_validated_at": "2026-10-23T17:05:00Z", "published_at": "2026-10-23T17:07:00Z"},
+      "expected": {"match_receipt": null, "status_receipt": null, "home_vitals_receipt": null, "away_vitals_receipt": null, "html_known_receipt": null, "observed_at": null, "provider_updated_at": null},
+      "because": "A valid league scope does not establish when this directly constructed fixture was received."
+    },
+    {
+      "id": "legacy-context-and-markup-stay-unknown",
+      "scenario": "legacy_reload",
+      "input": {"fixture_id": "302", "context_has_receipt_field": false, "html_has_receipt_attribute": false, "context_generated_at": "2026-10-23T17:00:00Z", "reloaded_at": "2026-10-23T18:00:00Z"},
+      "expected": {"match_receipt": null, "browser_receipt": null, "status_receipt": null, "observed_at": null, "provider_updated_at": null},
+      "because": "Neither saved-file age nor reload time can recover an absent source receipt."
+    },
+    {
+      "id": "save-reload-and-republish-preserve-receipt",
+      "scenario": "publisher_round_trip",
+      "input": {"fixture_id": "303", "source_received_at": "2026-10-23T17:00:00.123456Z", "saved_at": "2026-10-23T17:05:00Z", "reloaded_at": "2026-10-23T18:00:00Z", "published_at": "2026-10-23T18:02:00Z"},
+      "expected": {"context_receipt": "2026-10-23T17:00:00.123456Z", "match_receipt": "2026-10-23T17:00:00.123456Z", "html_receipt": "2026-10-23T17:00:00.123456Z", "status_receipt": "2026-10-23T17:00:00.123456Z", "home_vitals_receipt": "2026-10-23T17:00:00.123456Z", "away_vitals_receipt": "2026-10-23T17:00:00.123456Z", "observed_at": null, "provider_updated_at": null},
+      "because": "Serialization and republication retain the original instant and precision; neither is a source fetch."
+    },
+    {
+      "id": "browser-body-receipt-precedes-row-application",
+      "scenario": "browser_response",
+      "input": {"body_parsed_at": "2026-10-23T17:00:00.125Z", "applied_at": "2026-10-23T17:00:03.000Z", "accepted_fixture_ids": ["401", "402"]},
+      "expected": {"fixture_receipts": {"401": "2026-10-23T17:00:00.125Z", "402": "2026-10-23T17:00:00.125Z"}, "observed_at": null, "provider_updated_at": null},
+      "because": "A single parsed response has one receipt even if applying its events is delayed."
+    },
+    {
+      "id": "browser-missing-event-does-not-renew",
+      "scenario": "browser_unaccepted_response",
+      "input": {"fixture_id": "403", "previous_receipt": "2026-10-23T17:00:00Z", "response_received_at": "2026-10-23T17:03:00Z", "response_ok": true, "event_present": false},
+      "expected": {"source_received_at": "2026-10-23T17:00:00Z", "event_replaced": false},
+      "because": "Successful transport without this fixture is not a new receipt of its accepted source facts."
+    },
+    {
+      "id": "browser-failed-response-does-not-renew",
+      "scenario": "browser_unaccepted_response",
+      "input": {"fixture_id": "404", "previous_receipt": "2026-10-23T17:00:00Z", "attempted_at": "2026-10-23T17:03:00Z", "response_ok": false},
+      "expected": {"source_received_at": "2026-10-23T17:00:00Z", "event_replaced": false},
+      "because": "A failed request supplies no accepted response receipt."
+    },
+    {
+      "id": "browser-rejected-event-does-not-renew",
+      "scenario": "browser_unaccepted_response",
+      "input": {"fixture_id": "405", "previous_receipt": "2026-10-23T17:00:00Z", "response_received_at": "2026-10-23T17:03:00Z", "response_ok": true, "event_present": true, "event_accepted": false},
+      "expected": {"source_received_at": "2026-10-23T17:00:00Z", "event_replaced": false},
+      "because": "A response receipt becomes fixture provenance only when that fixture's event is accepted."
+    },
+    {
+      "id": "browser-cancelled-late-response-does-not-renew",
+      "scenario": "browser_unaccepted_response",
+      "input": {"fixture_id": "406", "previous_receipt": "2026-10-23T17:00:00Z", "cancelled_at": "2026-10-23T17:02:00Z", "body_parsed_at": "2026-10-23T17:03:00Z", "event_present": true},
+      "expected": {"source_received_at": "2026-10-23T17:00:00Z", "event_replaced": false},
+      "because": "An obsolete batch cannot acquire accepted provenance merely because its body finishes later."
+    },
+    {
+      "id": "browser-retained-overlay-keeps-original-receipt",
+      "scenario": "browser_overlay_reuse",
+      "input": {"fixture_id": "407", "overlay_receipt": "2026-10-23T17:03:00.250Z", "snapshot_receipt": "2026-10-23T17:00:00Z", "snapshot_generated_at": "2026-10-23T17:01:00Z", "replacement_applied_at": "2026-10-23T17:06:00Z", "existing_reconciliation_retains_overlay": true},
+      "expected": {"source_received_at": "2026-10-23T17:03:00.250Z", "selected_event": "overlay", "observed_at": null, "provider_updated_at": null},
+      "because": "Reapplying an already accepted overlay to replacement markup is not another response."
+    },
+    {
+      "id": "browser-accepted-unchanged-response-has-new-receipt",
+      "scenario": "browser_response",
+      "input": {"fixture_id": "408", "previous_receipt": "2026-10-23T17:00:00Z", "body_parsed_at": "2026-10-23T17:03:00.500Z", "previous_score": [1, 0], "accepted_score": [1, 0]},
+      "expected": {"source_received_at": "2026-10-23T17:03:00.500Z", "score": [1, 0], "observed_at": null, "provider_updated_at": null},
+      "because": "A real new accepted body is newly received even when its values are unchanged; source age remains unknown."
+    },
+    {
+      "id": "invalid-explicit-receipt-cannot-fall-back",
+      "scenario": "receipt_validation",
+      "input": {"invalid_values": ["", "2026-10-23T17:00:00", "2026-10-23T17:00:00+00:00", "2026-02-30T17:00:00Z", "2026-10-23T24:00:00Z", "2026-10-23T17:00:00.1234567Z", 0, false], "scope_validated_at": "2026-10-23T17:05:00Z"},
+      "expected": {"publisher_boundary": "reject_each_non_null_value", "fallback_receipt_used": false},
+      "because": "Explicit malformed internal values cannot acquire plausible timestamps from a scope or publication; null remains the explicit unknown value."
+    },
+    {
+      "id": "future-receipt-remains-unclassified-provenance",
+      "scenario": "publisher_round_trip",
+      "input": {"fixture_id": "501", "source_received_at": "2026-10-23T17:00:00.000001Z", "published_at": "2026-10-23T17:00:00Z"},
+      "expected": {"source_received_at": "2026-10-23T17:00:00.000001Z", "observed_at": null, "provider_updated_at": null, "freshness_decision": "not_evaluated"},
+      "because": "Receipt provenance preserves a syntactically valid supplied instant without importing a future-clock or age policy."
+    },
+    {
+      "id": "unmapped-provider-time-does-not-create-observation",
+      "scenario": "publisher_provider_fields",
+      "input": {"fixture_id": "502", "source_received_at": "2026-10-23T17:00:00Z", "raw_date": "2026-10-23T16:00:00Z", "raw_lastUpdated": "2026-10-23T16:59:00Z", "raw_status_displayClock": "17:00"},
+      "expected": {"source_received_at": "2026-10-23T17:00:00Z", "observed_at": null, "provider_updated_at": null},
+      "because": "No unverified provider timestamp mapping, kickoff field or display clock becomes an observation or update instant in this increment."
+    }
+  ]
+}

@@ -51,7 +51,8 @@ jobs:
           tests.test_companion_collection tests.test_companion_p2 tests.test_outlook_runtime
           tests.test_outlook_asset_retention tests.test_companion_eligibility
           tests.test_route_validity_adapters tests.test_companion_validity
-          tests.test_fixture_window_adapters tests.test_companion_windows -v
+          tests.test_fixture_window_adapters tests.test_companion_windows
+          tests.test_companion_freshness tests.test_source_provenance -v
       - name: Shared source status adapters and proof integrity
         run: python -m unittest tests.test_espn_status_adapters tests.test_companion_status -v
       - name: Offline publication browser initialization
@@ -86,6 +87,7 @@ jobs:
       - run: python tool/companion_validity_verify.py --runtime work/outlook-runtime --dart dart
       - run: python tool/companion_window_verify.py --runtime work/outlook-runtime --dart dart
       - run: python tool/companion_status_verify.py --runtime work/outlook-runtime --dart dart
+      - run: python tool/companion_freshness_verify.py --runtime work/outlook-runtime --dart dart --browser both --out work/companion-freshness
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -98,5 +100,6 @@ jobs:
             work/companion-validity/
             work/companion-window/
             work/companion-status/
+            work/companion-freshness/
           if-no-files-found: ignore
           retention-days: 14

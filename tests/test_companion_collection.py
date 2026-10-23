@@ -41,10 +41,12 @@ class CollectionReconciliation(unittest.TestCase):
         now = datetime(2026, 10, 20, 18, tzinfo=timezone.utc)
         with patch.dict(build.STANDINGS, {}, clear=True):
             match = build.interpret("eng.1", event)
+            match.source_received_at = "2026-10-20T18:00:01.500000Z"
             artifacts = companion_export.export_artifacts(build, [match], now, dict(complete=True, source_scopes=[scope]))
         context = dict(matches=[asdict(match)], generated_at=capture.stamp(now), standings_at=capture.stamp(now))
         rows = capture.unique_rows(capture.PublicationHTML(build.row_html(match, {})).rows)
         quality = dict(sources=[dict(league="eng.1", date="2026-10-20", ok=True)], skipped_events=[],
+                       event_receipts=[dict(league="eng.1", fixture_id=match.id, received_at=match.source_received_at)],
                        source_times=[dict(league="eng.1", date="2026-10-20", attempted_at=scope["attempted_at"], validated_at=scope["validated_at"])])
         return raw, artifacts, context, rows, request_scope, quality, pairs, responses, record
 
@@ -53,6 +55,77 @@ class CollectionReconciliation(unittest.TestCase):
         result = capture.verify_facts(raw, artifacts, context, rows, rows)
         self.assertEqual(result["score_observations"], {"zero": 2})
         self.assertEqual(result["fixtures"], 1)
+
+    def test_fixture_receipt_round_trip_and_transport_bounds_are_checked(self):
+        raw, artifacts, context, rows, *_ = self.sample()
+        received = "2026-10-20T18:00:01.500000Z"
+        context["matches"][0]["source_received_at"] = received
+        rows[next(iter(rows))]["source_received_at"] = received
+        artifacts["schedule"]["fixtures"][0]["status"]["observation"]["received_at"] = received
+        for vital in artifacts["schedule"]["team_vitals"]:
+            vital["observation"]["received_at"] = received
+        self.assertEqual(capture.verify_facts(raw, artifacts, context, rows, rows)["receipt_mode"], "original_fixture_receipt")
+        with self.assertRaisesRegex(ValueError, "Legacy receipt mode"):
+            capture.verify_facts(raw, artifacts, context, rows, rows, legacy_receipts=True)
+        artifacts["schedule"]["fixtures"][0]["status"]["observation"]["received_at"] = "2026-10-20T18:00:02Z"
+        with self.assertRaisesRegex(ValueError, "Fixture source receipt changed"):
+            capture.verify_facts(raw, artifacts, context, rows, rows)
+
+    def test_old_scope_receipt_requires_explicit_legacy_verification(self):
+        raw, artifacts, context, rows, *_ = self.sample()
+        context["matches"][0].pop("source_received_at", None)
+        rows[next(iter(rows))]["source_received_at"] = None
+        legacy = artifacts["schedule"]["source_scopes"][0]["validated_at"]
+        artifacts["schedule"]["fixtures"][0]["status"]["observation"]["received_at"] = legacy
+        for vital in artifacts["schedule"]["team_vitals"]:
+            vital["observation"]["received_at"] = legacy
+        with self.assertRaisesRegex(ValueError, "Missing recorded worker receipt"):
+            capture.verify_facts(raw, artifacts, context, rows, rows)
+        result = capture.verify_facts(raw, artifacts, context, rows, rows, legacy_receipts=True)
+        self.assertEqual(result["receipt_mode"], "legacy_scope_validation")
+
+    def test_nonlegacy_null_receipts_are_not_verified_provenance(self):
+        raw, artifacts, context, rows, *_ = self.sample()
+        context["matches"][0]["source_received_at"] = None
+        rows[next(iter(rows))]["source_received_at"] = None
+        artifacts["schedule"]["fixtures"][0]["status"]["observation"]["received_at"] = None
+        for vital in artifacts["schedule"]["team_vitals"]:
+            vital["observation"]["received_at"] = None
+        with self.assertRaisesRegex(ValueError, "Missing recorded worker receipt"):
+            capture.verify_facts(raw, artifacts, context, rows, rows)
+
+    def test_reconcile_rejects_deleted_worker_receipt_even_when_outputs_are_unknown(self):
+        raw, artifacts, context, rows, requested, quality, _, responses, record = self.sample()
+        # Unknown historical output is legal feed data, but cannot prove that an
+        # acquired fixture has its recorded receipt. Deleting that evidence must fail.
+        context["matches"][0]["source_received_at"] = None
+        artifacts["schedule"]["fixtures"][0]["status"]["observation"]["received_at"] = None
+        for vital in artifacts["schedule"]["team_vitals"]:
+            vital["observation"]["received_at"] = None
+        quality["event_receipts"].pop()
+        quality["excluded_events"] = 0
+        match = build.interpret("eng.1", next(iter(raw.values()))["event"])
+        row = build.row_html(match, {})
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            site = directory / "full"
+            site.mkdir()
+            capture.save(directory / "capture.json", dict(completed=True, sources_unchanged=True,
+                         request_scope=requested))
+            capture.save(directory / "quality.json", quality)
+            (directory / "responses").mkdir()
+            body = responses[1]
+            (directory / "responses/0001.bin").write_bytes(body)
+            capture.save(directory / "requests.json", [dict(record, path="responses/0001.bin",
+                         bytes=len(body), sha256=capture.digest(body))])
+            (site / "schedule-context.json").write_text(json.dumps(context, default=capture.stamp))
+            capture.save(site / "schedule.json", dict(complete=True, generated_at=context["generated_at"], rows=[row]))
+            (site / "index.html").write_text('<main id="app" data-built="' + context["generated_at"] + '">' + row + '</main>')
+            with patch.object(capture, "validate_publication", return_value=({}, artifacts)), \
+                    patch.object(capture, "dart_read", side_effect=AssertionError("Missing receipt escaped reconciliation")) as reader:
+                with self.assertRaisesRegex(ValueError, "Missing recorded worker receipt"):
+                    capture.reconcile(directory, "unused-dart")
+            reader.assert_not_called()
 
     def test_missing_owner_excluded_rendered_fixture_is_rejected(self):
         raw, artifacts, context, rows, *_ = self.sample()

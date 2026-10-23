@@ -8,4 +8,5 @@ export 'src/fixture_window.dart';
 export 'src/outlook.dart';
 export 'src/route_validity.dart';
 export 'src/routes.dart';
+export 'src/source_freshness.dart';
 export 'src/sports_day.dart';

@@ -185,6 +185,15 @@ Preference changes follow the same write-before-success rule, coalesce into one 
 
 The published schedule changes on the existing full and lightweight workflow cadence. Foreground clients check the publication manifest conditionally, with bounded concurrency, timeouts and backoff. HTTP success, payload publication time and source observation time are separate fields.
 
+Preserve each accepted fixture response's original receipt through publication,
+cache and overlay reuse. [LIVE-FRESHNESS-1](rules/live-response-freshness.md)
+allows current-live presentation only while that in-progress response is less
+than three minutes old. Reevaluate at its exact deadline and on resume; an
+expired report retains its score and clock as last known and loses live-only
+destinations. The pure shared owner receives an explicit clock. Browser calendar
+previews do not freeze this safety clock. This response timeout does not infer
+the underlying source observation time or change polling cadence.
+
 A half-hour publication cannot provide the existing website's approximately minute-level live updates. The first release therefore needs an approved foreground live-data path, validated on both mobile platforms in P0. Direct ESPN access requires permission; a licensed alternative can use its own adapter and server-held credentials. Share the selected source parser and status reconciliation with the browser; keep HTTP and lifecycle platform-specific. It updates only identified fixtures' score/status/clock events. It cannot add broadcast rights, derive provider access or turn a replay into a live fixture.
 
 Use the existing poll windows as the initial behavior baseline, then move their policy values to one owner. Include successful final-score catch-up after sleep. Cancel or invalidate obsolete batches with a generation token; a late response for an old fixture identity or kickoff must not overwrite the current snapshot. A newer accepted live observation survives an older aggregate publication. Corrections need explicit ordering/provenance; a “final” result is not immune to a later authoritative correction.

@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 
 BUILT_AT = datetime(2026, 10, 7, 17, tzinfo=timezone.utc)
+SOURCE_RECEIPT = "2026-10-07T17:00:00Z"
 TODAY = date(2026, 10, 7)
 
 
@@ -66,7 +67,7 @@ class FixedDatetime(datetime):
 
 def render_page(builder, *, fragment=False, fixtures=None, failed=(), facts_path=None, team_names=None, league_logos=False,
                 tbd=(), ai=True, stature=None, odds=None, design=None, model=None, team_ids=None, match_links=None,
-                inline_runtime=True):
+                inline_runtime=True, source_receipts=None):
     """Exercise the real renderer with fixed time, rights, teams, scores, a table and settings.
 
     Fixtures named in `tbd` have a kickoff time to be set (ESPN's timeValid false); their kickoff
@@ -75,6 +76,11 @@ def render_page(builder, *, fragment=False, fixtures=None, failed=(), facts_path
     fixture to its stature score (150 otherwise), `odds` to its (win balance, goal line). Win balance
     is the already normalized 0–1 competitiveness input. A baseline
     build from before the settings existed renders without them.
+
+    Each fixture defaults to BUILT_AT (normally SOURCE_RECEIPT), so an in-progress fixture
+    has a 180-second current-live lease from that page-clock instant. At exactly
+    180 seconds it becomes last known unless an accepted response renews it.
+    `source_receipts` overrides individual receipts, including explicit None.
     """
     scored = hasattr(builder, "load_settings")
     choice = {k: v for k, v in (("design", design), ("model", model)) if v is not None}
@@ -114,6 +120,11 @@ def render_page(builder, *, fragment=False, fixtures=None, failed=(), facts_path
             matches.append(builder.Match(
                 id=match_id, utc=datetime.fromisoformat(kickoff), time_valid=match_id not in tbd,
                 link=(match_links or {}).get(match_id, ""),
+                # This synthetic source sample was received at BUILT_AT. Tests
+                # may explicitly supply null or an older receipt per fixture.
+                **({"source_received_at": (source_receipts or {}).get(
+                    match_id, BUILT_AT.isoformat().replace("+00:00", "Z"))}
+                   if "source_received_at" in builder.Match.__dataclass_fields__ else {}),
                 league=league, comp=builder.LEAGUES[league]["name"], stage="", note="",
                 home=home, away=away, venue="Fixture Stadium", state=state,
                 status="FT" if state == "post" else "30'" if state == "in" else "",

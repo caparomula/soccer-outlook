@@ -93,7 +93,7 @@ production compatibility promise and must not become an implicit fallback.
 | `personal-ranking-v1-draft` | Existing AI/Outlook/league-order blend and candidate distinctions; no scoring implementation is supplied here. |
 | `editorial-lifetime-v1-draft` | Original generation/prompt lifetime, focus window, per-record expiry and provenance. |
 | `six-dot-rounding-v1-draft` | Existing six-dot rounding, owned by the eventual shared core. |
-| `source-freshness-v1-draft` | Separate source observation, validation, request and publication ages. Live freshness thresholds remain unresolved. |
+| `source-freshness-v1-draft` | Separate source observation, validation, request and publication ages. The user approved a three-minute response timeout on October 23; [LIVE-FRESHNESS-1](rules/live-response-freshness.md) bounds current-live claims without asserting known source observation age. |
 
 The example blend values come from `settings.toml`, the automatic maximum from
 `story_state.MAX_AGE_HOURS`, and the shared maximum from the existing 24-hour
@@ -161,8 +161,9 @@ not prove those protections.
    lifetime ordering, automatic component/total relationships, fixture bindings,
    and legacy-format conversion. The harness checks kickoff and league bindings;
    the production consumer is still pending. No re-publication may extend life.
-5. Approve live observation freshness, request cadence and supported-zone
-   coverage values rather than copying arbitrary thresholds into the policy.
+5. The three-minute response timeout was approved on October 23; actual source
+   observation freshness, request cadence and supported-zone coverage retain
+   their separate evidence and policy requirements.
 6. Implement the P1 exporter and independent production Dart parser, then
    replace synthetic-only evidence with producer/consumer round trips. Hashes
    alone do not authenticate the configured HTTPS origin.

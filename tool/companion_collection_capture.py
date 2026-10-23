@@ -79,7 +79,19 @@ def quality_record(quality):
                 excluded_events=quality.excluded_events, source_times=[
                     dict(league=league, date=day, **{key: stamp(value) if value else None
                          for key, value in timing.items()})
-                    for (league, day), timing in sorted(quality.source_times.items())])
+                    for (league, day), timing in sorted(quality.source_times.items())],
+                event_receipts=[dict(league=league, fixture_id=identity, received_at=stamp(received))
+                    for (league, identity), received in sorted(quality.event_receipts.items())])
+
+
+def captured_event_receipts(quality):
+    """Absent historical worker receipts remain unknown, never replay-clock facts."""
+    receipts = {}
+    for row in quality.get("event_receipts", []):
+        key = (row["league"], row["fixture_id"])
+        require(key not in receipts, "Duplicate captured fixture receipt")
+        receipts[key] = parse(row["received_at"])
+    return receipts
 
 
 class RecordingTransport:
@@ -261,6 +273,7 @@ def unique_rows(rows):
     for row in rows:
         require(row["data-id"] not in result, "Duplicate rendered fixture identity")
         result[row["data-id"]] = row_fact(row)
+        result[row["data-id"]]["source_received_at"] = row.get("data-source-received-at") or None
     return result
 
 
@@ -306,7 +319,7 @@ def verify_scope(metadata, quality, schedule, requests_by_pair):
     require(schedule["confirmed_horizon"] == horizon, "Feed horizon differs from actual calendar scope")
 
 
-def verify_facts(raw, artifacts, context, html_rows, schedule_rows):
+def verify_facts(raw, artifacts, context, html_rows, schedule_rows, *, legacy_receipts=False):
     """Compare provider/renderer facts directly, not through exporter helpers."""
     feed = {row["id"].removeprefix("espn:fixture:"): row for row in artifacts["schedule"]["fixtures"]}
     cached = {str(row["id"]): row for row in context["matches"]}
@@ -323,6 +336,12 @@ def verify_facts(raw, artifacts, context, html_rows, schedule_rows):
     score_counts = Counter()
     for identity, source in raw.items():
         f, m, rendered = feed[identity], cached[identity], html_rows[identity]
+        if legacy_receipts:
+            require(m.get("source_received_at") is None and rendered["source_received_at"] is None,
+                    "Legacy receipt mode cannot override known fixture receipts")
+        receipt = scopes[source["league"]]["validated_at"] if legacy_receipts else m.get("source_received_at")
+        if not legacy_receipts:
+            require(receipt is not None, f"Missing recorded worker receipt for {source['league']}/{identity}")
         require(rendered == schedule_rows[identity], "Static and refreshed row facts differ")
         require(f["league_id"] == source["league"] == rendered["league"], "Fixture competition changed")
         event, comp = source["event"], source["competition"]
@@ -337,6 +356,8 @@ def verify_facts(raw, artifacts, context, html_rows, schedule_rows):
             require((vital.get("raw_form") or "") == raw_form == rendered["vitals"][side + "_form"], "Source form string changed")
             require(parse(vital["standings_received_at"]) == parse(context["standings_at"]), "Standings age changed")
             require(vital["observation"]["observed_at"] is None, "Unknown provider vital observation time was invented")
+            require(vital["observation"]["provider_updated_at"] is None, "Unknown provider vital update time was invented")
+            require(vital["observation"]["received_at"] == receipt, "Fixture vital receipt changed")
             rank = vital["rank"]
             require((rank["position"] if rank else None) == rendered["vitals"][side + "_rank"], "Rendered rank differs from feed")
         confirmed = bool(comp.get("timeValid", True))
@@ -359,7 +380,11 @@ def verify_facts(raw, artifacts, context, html_rows, schedule_rows):
             score_counts["unknown" if expected is None else "zero" if expected == 0 else "positive"] += 1
         obs = f["status"]["observation"]
         require(obs["observed_at"] is None and obs["provider_updated_at"] is None, "Unknown provider status time was invented")
-        require(obs["received_at"] == scopes[source["league"]]["validated_at"], "Collection validation time changed")
+        require(obs["received_at"] == receipt, "Fixture source receipt changed")
+        if not legacy_receipts:
+            require(rendered["source_received_at"] == receipt, "Rendered source receipt changed")
+            require(parse(source["request"]["received_at"]) <= parse(receipt) <= parse(scopes[source["league"]]["validated_at"]),
+                    "Fixture receipt lies outside original transport/validation bounds")
         require(math.isclose(f["outlook"]["total"], rendered["outlook_total"], abs_tol=.0001), "Rendered canonical Outlook total differs")
         require({key: None if value is None else round(value * 100) for key, value in f["outlook"]["components"].items()} == rendered["outlook_parts_percent"],
                 "Rendered canonical Outlook components differ")
@@ -393,10 +418,11 @@ def verify_facts(raw, artifacts, context, html_rows, schedule_rows):
         require(actual_destinations == rendered_destinations, "Rendered and feed destination/plan associations differ")
     return dict(fixtures=len(feed), without_owner_service=no_service, default_off_competition=disabled,
                 score_observations=dict(score_counts), exceptional_provider_statuses=exceptional,
+                receipt_mode="legacy_scope_validation" if legacy_receipts else "original_fixture_receipt",
                 source_status_scope="Provider state, legacy detail and numeric scores; not proof of the future shared status decoder")
 
 
-def reconcile(output, dart, browsers=()):
+def reconcile(output, dart, browsers=(), *, legacy_receipts=False):
     metadata = json.loads((output / "capture.json").read_text())
     require(metadata["completed"] and metadata["sources_unchanged"], "Capture did not complete against stable sources")
     records, responses = load_requests(output)
@@ -412,7 +438,15 @@ def reconcile(output, dart, browsers=()):
     require(parse(html.app["data-built"]) == parse(context["generated_at"]).replace(microsecond=0), "Static page build time differs")
     require(refreshed["generated_at"] == context["generated_at"], "Browser/context build instants differ")
     verify_scope(metadata, quality, artifacts["schedule"], requests_by_pair)
-    facts = verify_facts(raw, artifacts, context, unique_rows(html.rows), unique_rows(PublicationHTML("".join(refreshed["rows"])).rows))
+    if not legacy_receipts:
+        receipts = captured_event_receipts(quality)
+        for match in context["matches"]:
+            received = receipts.get((match["league"], str(match["id"])))
+            require(received is not None, f"Missing recorded worker receipt for {match['league']}/{match['id']}")
+            require(match.get("source_received_at") == stamp(received),
+                    "Context differs from original captured fixture receipt")
+    facts = verify_facts(raw, artifacts, context, unique_rows(html.rows), unique_rows(PublicationHTML("".join(refreshed["rows"])).rows),
+                         legacy_receipts=legacy_receipts)
     parsed = dart_read(dart, site / "api/v1")
     require(parsed["source_scopes"] == artifacts["schedule"]["source_scopes"], "Dart source scopes differ")
     expected = [dict(id=row["id"], home_team_id=row["home_team_id"], away_team_id=row["away_team_id"],
@@ -470,13 +504,15 @@ def main():
     parser.add_argument("--workers", type=int, default=6)
     parser.add_argument("--dart", default="dart")
     parser.add_argument("--browsers", nargs="*", choices=("chromium", "webkit"), default=[])
+    parser.add_argument("--legacy-receipts", action="store_true",
+                        help="Verify historical captures whose feed used league validation as fixture receipt")
     args = parser.parse_args()
     output = args.out.resolve()
     if args.fetch:
         metadata = capture(output, args.workers)
         print(json.dumps({"capture": str(output), "completed": metadata["completed"], "calls": metadata["request_count"]}))
     else:
-        report = reconcile(output, args.dart, args.browsers)
+        report = reconcile(output, args.dart, args.browsers, legacy_receipts=args.legacy_receipts)
         print(json.dumps({"report": str(output / "reconciliation.json"), "fixtures": report["facts"]["fixtures"],
                           "required_requests": report["required_requests"], "dart_reader_accepted": True,
                           "browser_runs": len(report["browsers"])}))

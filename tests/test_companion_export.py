@@ -80,7 +80,7 @@ class CompanionExport(unittest.TestCase):
         self.assertEqual(schedules[0]["status"]["scores"]["match"], {"home":None,"away":None})
         self.assertEqual(schedules[1]["status"]["scores"]["match"], {"home":0,"away":None})
         self.assertIsNone(schedules[1]["status"]["observation"]["observed_at"])
-        self.assertEqual(schedules[1]["status"]["observation"]["received_at"], "2026-10-20T18:00:00Z")
+        self.assertIsNone(schedules[1]["status"]["observation"]["received_at"])
 
     def test_unknown_kickoff_is_not_midnight_or_a_countdown(self):
         timing = self.artifacts([fixture(time_valid=False)])["schedule"]["fixtures"][0]["timing"]

@@ -66,10 +66,36 @@ class TestDependencyPreparation(unittest.TestCase):
         })
 
     def test_browser_jobs_prepare_their_own_test_environment(self):
-        self.assertEqual(self.assert_prepared(r"tests\.browser(?:_schedule|_publication_capture)?", [
+        self.assertEqual(self.assert_prepared(r"tests\.browser(?:_schedule|_publication_capture|_live_freshness)?", [
             "tests/requirements-browser.txt", "tests/requirements-companion.txt",
         ]), {("browser.yml", "browser"), ("refresh.yml", "refresh"),
              ("companion.yml", "spike")})
+
+    def test_freshness_browser_check_runs_for_every_required_engine(self):
+        jobs = dict(self.jobs(ROOT / ".github/workflows/browser.yml"))
+        for module in ("browser_live_freshness", "browser_live_updates", "browser_freshness_presentation"):
+            with self.subTest(module=module):
+                steps = [step for step in jobs["browser"] if "-m tests." + module in step]
+                self.assertEqual(len(steps), 1)
+                self.assertIn('--browser "${{ matrix.browser }}"', steps[0])
+                self.assertIsNone(self.condition(steps[0]))
+                self.assertNotIn("continue-on-error", steps[0])
+
+    def test_companion_job_runs_receipt_and_freshness_proofs_and_retains_evidence(self):
+        steps = dict(self.jobs(ROOT / ".github/workflows/companion.yml"))["spike"]
+        unit_steps = [step for step in steps if "-m unittest" in step]
+        for module in ("tests.test_source_provenance", "tests.test_companion_freshness"):
+            matching = [step for step in unit_steps if module in step.split()]
+            self.assertEqual(len(matching), 1, module)
+            self.assertIsNone(self.condition(matching[0]))
+        proofs = [step for step in steps if "tool/companion_freshness_verify.py" in step]
+        self.assertEqual(len(proofs), 1)
+        for argument in ("--runtime work/outlook-runtime", "--dart dart", "--browser both", "--out work/companion-freshness"):
+            self.assertIn(argument, proofs[0])
+        self.assertIsNone(self.condition(proofs[0]))
+        self.assertNotIn("continue-on-error", proofs[0])
+        upload = next(step for step in steps if "actions/upload-artifact" in step)
+        self.assertIn("work/companion-freshness/", upload)
 
 
 class Publication(unittest.TestCase):

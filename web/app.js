@@ -78,6 +78,17 @@
       if (goals && !value.played) goals.remove();
     });
   }
+  function sourceReceipt(value) {
+    // Preserve source precision; Date alone accepts impossible dates and offsets.
+    if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z$/.test(value)) return null;
+    var instant = Date.parse(value);
+    return isFinite(instant) && new Date(instant).toISOString().slice(0, 19) === value.slice(0, 19) ? value : null;
+  }
+  function setSourceReceipt(r, value) {
+    r._sourceReceivedAt = sourceReceipt(value);
+    if (r._sourceReceivedAt) r.setAttribute('data-source-received-at', r._sourceReceivedAt);
+    else r.removeAttribute('data-source-received-at');
+  }
   function initializeRow(r, card) {
     r._card = card || new MatchCard(r);
     r._card.row = r;
@@ -91,6 +102,9 @@
     r._outlook = isFinite(outlook) ? outlook : null;   // the page's own score, from fixture and broadcast data
     r._state = r.getAttribute('data-state');
     r._statusKind = r._sourceStatus.state;
+    var goals = r.querySelector('.row__goals');
+    r._sourceGoals = goals ? goals.textContent : '';
+    setSourceReceipt(r, r.getAttribute('data-source-received-at'));
     try { r._o = JSON.parse(r.getAttribute('data-o') || '[]'); } catch (e) { r._o = []; }
     r._unk = r._o.some(function (o) { return o.u; });   // a channel the page doesn't recognize
     try { r._r = r.hasAttribute('data-r') ? JSON.parse(r.getAttribute('data-r')) : null; } catch (e) { r._r = null; }
@@ -229,7 +243,7 @@
       preferences: { choices: choices, paused: ids.filter(function (id) { return !!paused[id]; }), solo_id: soloLeague || null },
       has_selected_services: Object.keys(HAVE).length > 0,
       fixtures: rows.map(function (r) {
-        r._b = r._timeWindow.bucket;
+        r._b = presentationBucket(r);
         return { id: r.getAttribute('data-id'), league_id: r._lg, has_route: onSvc(r), in_window: r._timeWindow.in_window };
       }) };
     var key = JSON.stringify(input);
@@ -407,6 +421,64 @@
   });
 
   var routeEvaluatedAt = null, routeNextAt = Infinity, routeTimer = null, routeSuspended = false;
+  var freshnessTimer = null, freshnessSuspended = false, freshnessEvaluatedAt = null;
+  function liveNow(r) { return !!(r._liveFreshness && r._liveFreshness.live_now); }
+  function lastKnown(r) { return !!(r._liveFreshness && r._liveFreshness.last_known); }
+  function refreshLiveFreshness(fixtureRows) {
+    // The calendar-preview hash does not freeze the safety clock for live claims.
+    var now = Date.now(), nextAt = Infinity, pending = [], changed = false;
+    var backwards = freshnessEvaluatedAt !== null && now < freshnessEvaluatedAt;
+    fixtureRows = fixtureRows || rows;
+    if (backwards && fixtureRows !== rows) {
+      // A schedule overlay can be applying a replacement not installed in rows
+      // yet. Reevaluate both the current rows and that accepted replacement.
+      fixtureRows = rows.concat(fixtureRows.filter(function (r) { return rows.indexOf(r) === -1; }));
+    }
+    fixtureRows.forEach(function (r) {
+      var input = { id: r.dataset.id, source_state: r._state, received_at: r._sourceReceivedAt }, key = JSON.stringify(input);
+      if (backwards || key !== r._liveFreshnessKey || r._liveFreshnessNextAt <= now) {
+        input.now_utc = new Date(now).toISOString();
+        pending.push({ row: r, input: input, key: key });
+      }
+    });
+    for (var start = 0; start < pending.length;) {
+      var batch = [], identities = Object.create(null);
+      // Old and replacement DOM rows may share a fixture ID. The core rejects
+      // duplicate IDs in an envelope, so evaluate those in separate batches.
+      while (start < pending.length && batch.length < 1000 && !identities[pending[start].input.id]) {
+        var entry = pending[start++]; identities[entry.input.id] = true; batch.push(entry);
+      }
+      var values = coreDecision({ version: 1, operation: 'live_freshness', cases: batch.map(function (entry) { return entry.input; }) });
+      if (!Array.isArray(values) || values.length !== batch.length ||
+          values.some(function (value, i) { return value.id !== batch[i].input.id; })) throw new Error('Shared Outlook freshness identity mismatch');
+      values.forEach(function (value, i) { batch[i].decision = value; });
+    }
+    pending.forEach(function (entry) {
+      var r = entry.row, previous = r._liveFreshness, value = entry.decision;
+      var moved = !previous || previous.live_now !== value.live_now || previous.last_known !== value.last_known;
+      r._liveFreshness = value; r._liveFreshnessKey = entry.key;
+      r._liveFreshnessNextAt = routeTransitionMs(value.next_transition_at);
+      if (moved) { changed = true; closeNetwork(); updateNetworks(r); }
+    });
+    fixtureRows.forEach(function (r) {
+      var label = lastKnown(r) ? 'Last known' + (r._sourceStatus.label ? ' · ' + r._sourceStatus.label : '') : r._sourceStatus.label;
+      if (label !== r._liveStatusLabel) {
+        var status = r.querySelector('.row__status');
+        if (status) { setText(status, label); status.hidden = !label; }
+        r._liveStatusLabel = label;
+      }
+    });
+    freshnessEvaluatedAt = now;
+    rows.forEach(function (r) {
+      if (r._liveFreshness) nextAt = Math.min(nextAt, r._liveFreshnessNextAt);
+    });
+    clearTimeout(freshnessTimer); freshnessTimer = null;
+    if (!freshnessSuspended && !document.hidden && isFinite(nextAt)) {
+      freshnessTimer = setTimeout(function () { freshnessTimer = null; render(false); },
+        Math.max(1, Math.min(2147483647, nextAt - now)));
+    }
+    return changed;
+  }
   function routeInput(o) {
     if (!o.t) throw new Error('Missing viewing-route lifetime');
     return { label: o.l, service_ids: o.v, spanish: !!o.e, unknown: !!o.u, validity: o.t };
@@ -428,7 +500,7 @@
     var links = !usual && r._watch[o.l] || {};
     return '<p>' + (usual ? 'Usually available with' : 'Available with') + '</p><ul>' + services.map(function (sid) {
       var name = escHtml(SERVICE_NAMES[sid]), link = links[sid];
-      if (link && (!link.live_only || r._state === 'in')) name = '<a class="network__link" href="' + escHtml(link.url) +
+      if (link && (!link.live_only || liveNow(r))) name = '<a class="network__link" href="' + escHtml(link.url) +
         '" data-kind="' + escHtml(link.kind) + '" target="_blank" rel="noopener noreferrer" title="' + escHtml(link.title) + '">' + name + '</a>';
       return '<li>' + name + '</li>';
     }).join('') + '</ul>' + (usual ? '<p>Usual coverage; this match is not confirmed yet.</p>' : '');
@@ -536,6 +608,7 @@
   }
   function evaluateAll(now) {
     if (now === undefined) now = nowMs();
+    refreshLiveFreshness();
     closeNetwork();
     routeNextAt = Infinity;
     // Publish each complete batch before rendering any consumer. No per-widget rule copies.
@@ -962,7 +1035,12 @@
   }
   function fixtureWindow(r, now) { updateFixtureWindows([r], now); return r._timeWindow; }
   function inFocus(r, now) { return fixtureWindow(r, now).in_focus; }
-  function bucketOf(r, now) { return fixtureWindow(r, now).bucket; }
+  function presentationBucket(r) {
+    var window = r._timeWindow;
+    if (window.bucket !== 'live' || !lastKnown(r)) return window.bucket;
+    return window.day_index < 0 ? PAST[-window.day_index - 1] : DAYS[window.day_index];
+  }
+  function bucketOf(r, now) { fixtureWindow(r, now); return presentationBucket(r); }
   // The start of the sports day `idx` days after now's, for its heading: a 1 am kickoff belongs to the
   // day before its calendar date, so the date comes from the day, not from its first match.
   function dayDate(idx, now) { return new Date(calendarDecision('calendar_shift', now, null, idx).start_utc); }
@@ -1023,7 +1101,8 @@
   }
   function draw(force) {
     var now = nowMs();
-    force = refreshRouteValidity(now) || force;
+    // evaluateAll already refreshes freshness when route facts need evaluation.
+    force = (refreshRouteValidity(now) || refreshLiveFreshness()) || force;
     applyCompChoices(now);
     renderStrip(now);
     renderFilterGroups();
@@ -1043,7 +1122,7 @@
     // "Live" once ESPN says so; a kickoff time that has passed without word is awaiting its score.
     rows.forEach(function (r) {
       var l = r.querySelector('.row__live'); if (!l) return;
-      var pending = r._state !== 'in';
+      var pending = !liveNow(r);
       l.hidden = r._b !== 'live'; l.textContent = pending ? 'Awaiting score' : 'Live'; l.classList.toggle('row__live--pending', pending);
     });
     if (!force && sig === lastSig) { renderSummary(groups, all, now); return false; }
@@ -1295,12 +1374,12 @@
     var about = (SERVICES.league_about || {})[r._lg];
     if (about) text('p', about);
     var now = nowMs(), upcoming = leagueRows(r).filter(function (match) {
-      return match._b && match._state !== 'post' && (match._k > now || match._b === 'live');
+      return match._b && match._state !== 'post' && (match._k > now || match._b === 'live' || lastKnown(match) && !FOLDED[match._b]);
     }).sort(byTime);
     var available = upcoming.filter(editorialPasses);
     var stages = Array.from(new Set(upcoming.map(function (match) { return match._facts.stage; }).filter(Boolean)));
     if (stages.length) text('p', 'In this schedule: ' + stages.join(' · '), 'league-vitals__note');
-    text('h3', 'Live & upcoming');
+    text('h3', 'Matches');
     text('p', upcoming.length + (upcoming.length === 1 ? ' match' : ' matches') + ' in the loaded schedule · ' +
       available.length + ' on your services with current filters', 'league-vitals__note');
     if (!available.length) text('p', 'No live or upcoming matches pass your current filters.');
@@ -1310,7 +1389,7 @@
         var item = document.createElement('li'), name = document.createElement('a'), when = document.createElement('span');
         name.textContent = matchName(match); name.href = 'https://www.espn.com/soccer/match/_/gameId/' + encodeURIComponent(match.dataset.id);
         name.target = '_blank'; name.rel = 'noopener';
-        when.textContent = (match._state === 'in' ? ['Live', scoreOf(match), clockOf(match)].filter(Boolean).join(' · ') :
+        when.textContent = (match._state === 'in' ? [liveNow(match) ? 'Live' : 'Last known', scoreOf(match), clockOf(match)].filter(Boolean).join(' · ') :
           fmtShortDay.format(new Date(match._k)) + ', ' + fmtMonthDay.format(new Date(match._k)) + ' · ' + timeLabel(match)) +
           (match._outlet ? ' · ' + (match._basis === 'rule' ? 'Usually ' : '') + match._outlet : '');
         item.append(name, when); fixtures.appendChild(item);
@@ -1344,7 +1423,7 @@
     return panel;
   }
   function upcomingIn(now, keep) {
-    return rows.filter(function (r) { return r._b && keep(r) && r._state !== 'post' && (r._k > now || r._b === 'live'); });
+    return rows.filter(function (r) { return r._b && keep(r) && r._state !== 'post' && (r._k > now || r._b === 'live' || lastKnown(r) && !FOLDED[r._b]); });
   }
   function availableUpcoming(now) { return upcomingIn(now, editorialPasses); }
   function nextupGroup(r, now) {
@@ -1353,7 +1432,8 @@
       label = idx === 0 ? 'Earlier today' : idx === -1 ? 'Yesterday' : fmtLongDay.format(day);
       return { key: 'recent-' + day.getTime(), label: label };
     }
-    if (r._state === 'in') return { key: 'live', label: 'Live now' };
+    if (liveNow(r)) return { key: 'live', label: 'Live now' };
+    if (lastKnown(r)) return { key: 'last-known-' + day.getTime(), label: 'Last reported in progress' };
     if (idx === 0) {
       var hour = new Date(r._k).getHours();
       label = !r._tv ? 'Today · time TBD' : hour < 4 || hour >= 21 ? 'Tonight' :
@@ -1364,7 +1444,7 @@
   function carouselUpcoming(now) {
     return rows.filter(function (r) {
       return r._b && editorialPasses(r) && r._state !== 'post' &&
-        (r._k > now || r._b === 'live' || !r._tv && DAYS.indexOf(r._b) !== -1);
+        (r._k > now || r._b === 'live' || lastKnown(r) && !FOLDED[r._b] || !r._tv && DAYS.indexOf(r._b) !== -1);
     });
   }
   // Results sit to the left of the opening live/next cohort; every later fixture is to its right.
@@ -1372,7 +1452,7 @@
   // page's height. Selection survives refreshes, while a newly finished opening game moves on.
   function renderNextup(now) {
     var available = carouselUpcoming(now);
-    var live = available.filter(function (r) { return r._state === 'in' && r._b === 'live'; }).sort(byRating);
+    var live = available.filter(function (r) { return liveNow(r) && r._b === 'live'; }).sort(byRating);
     var next = available.filter(function (r) { return live.indexOf(r) === -1; }).sort(function (a, b) {
       return dayIndex(a._k, now) - dayIndex(b._k, now) || Number(b._tv) - Number(a._tv) || byTime(a, b) || byRating(a, b);
     });
@@ -1381,7 +1461,8 @@
     var recent = rows.filter(function (r) {
       return r._b && editorialPasses(r) && (r._state === 'post' || FOLDED[r._b]);
     }).sort(byTime);
-    var nextRows = recent.concat(live, next);
+    // Group retained in-progress reports without changing opening-match or pick exclusions.
+    var nextRows = recent.concat(live, next.filter(lastKnown), next.filter(function (r) { return !lastKnown(r); }));
     var active = nextupCarousel.current(), selectedId = nextupBrowsing && active && active.dataset.matchId;
     if (active && ROW_BY_ID[selectedId] && ROW_BY_ID[selectedId]._state === 'post' && active.dataset.terminal !== 'true') selectedId = null;
     nextupSection.hidden = !nextRows.length;
@@ -1415,7 +1496,7 @@
   function tickNextup() {
     var now = nowMs();
     nextupCards().forEach(function (card) {
-      card.classList.toggle('nextup--live', card._row._state === 'in');
+      card.classList.toggle('nextup--live', liveNow(card._row));
       card._matchCard.tick(card, now);
     });
     rows.forEach(function (r) { r._card.tick(r, now); });
@@ -1435,7 +1516,7 @@
   }
   function overlaySignature(state) {
     return state.kind === 'league' ? JSON.stringify(leagueRows(state.card.row).map(function (r) {
-      return [r.getAttribute('data-id'), r._state, r._b, r._k, r._svc, r._basis, r._outlet, scoreOf(r), clockOf(r), editorialPasses(r)];
+      return [r.getAttribute('data-id'), r._state, r._b, r._k, r._svc, r._basis, r._outlet, scoreOf(r), clockOf(r), liveNow(r), editorialPasses(r)];
     })) : state.card.detailsSignature();
   }
   function fillDetails(surface, state) {
@@ -1597,20 +1678,21 @@
   }
 
   function setPickWhen(when, r, now) {
-    var live = r._b === 'live' && r._state === 'in', finished = r._sourceStatus.final;
+    var live = r._b === 'live' && liveNow(r), finished = r._sourceStatus.final, retained = lastKnown(r);
     var st = r._tv ? splitTime(new Date(r._k)) : { t: 'TBD', ap: 'Time to be confirmed' };
     if (r._sourceStatus.void || r._statusKind === 'unknown') {
       setText(when.firstChild, r._sourceStatus.label);
       setText(when.lastChild, r._tv ? st.t + (st.ap ? ' ' + st.ap : '') : st.ap);
       return;
     }
-    var sc = live || finished ? scoreOf(r) : '';
-    setText(when.firstChild, live || finished ? sc || (finished ? 'Final' : 'Live') : st.t);
-    setText(when.lastChild, finished ? clockOf(r) || 'FT' : live ? (sc ? 'live ' + clockOf(r) : clockOf(r) || 'in progress') :
+    var sc = live || finished || retained ? scoreOf(r) : '';
+    setText(when.firstChild, live || finished || retained ? sc || (finished ? 'Final' : live ? 'Live' : 'In progress') : st.t);
+    setText(when.lastChild, finished ? clockOf(r) || 'FT' : retained ? 'Last known' + (clockOf(r) ? ' · ' + clockOf(r) : '') : live ? (sc ? 'live ' + clockOf(r) : clockOf(r) || 'in progress') :
       st.ap + (r._tv && r._k <= now ? ' · status pending' : ''));
   }
   function missTime(r, now) {
-    var sc = r._b === 'live' ? scoreOf(r) : '', clk = clockOf(r);
+    var sc = liveNow(r) || lastKnown(r) ? scoreOf(r) : '', clk = clockOf(r);
+    if (lastKnown(r)) return ['Last known', sc, clk].filter(Boolean).join(' · ');
     return sc ? 'live ' + sc + (clk ? ', ' + clk : '') : timeLabel(r) + dayTag(r, now);
   }
   // The top picks are the best matches the viewer can watch: from the same matches as the top card and
@@ -1709,7 +1791,7 @@
     host = host || document.createElement('article');
     var heldNetwork = openNetwork && host.contains(openNetwork) ?
       (openNetwork.hasAttribute('data-rule') ? '.network[data-rule]' : '.network[data-i="' + openNetwork.dataset.i + '"]') : '';
-    host.className = 'pick' + (top ? ' nextup' + (r._state === 'in' ? ' nextup--live' : '') : '') + ' svc-' + r._svc;
+    host.className = 'pick' + (top ? ' nextup' + (liveNow(r) ? ' nextup--live' : '') : '') + ' svc-' + r._svc;
     host.dataset.matchRole = role; host.dataset.matchId = r.getAttribute('data-id');
     host._row = r; host._matchCard = this; host.replaceChildren();
     var emblem = r.querySelector('.row__league .lg'), badge = null;
@@ -1843,7 +1925,7 @@
     var s = r.querySelectorAll('.team .score');
     return s.length === 2 && !s[0].hidden && !s[1].hidden ? s[0].textContent + '\u2013' + s[1].textContent : '';
   }
-  function clockOf(r) { var s = r.querySelector('.row__status'); return s && !s.hidden ? s.textContent : ''; }
+  function clockOf(r) { return r._sourceStatus.label || ''; }
 
   function matchCount(n) { return n + (n === 1 ? ' match' : ' matches'); }
   function coverageSummary(list) {
@@ -1860,10 +1942,11 @@
     var selected = remaining.filter(function (r) { return !compHidden(r); });
     var hidden = remaining.length - selected.length;
     if (!selected.length) return hidden ? matchCount(hidden) + ' hidden by competition filters.' : 'No remaining matches in the loaded schedule.';
-    var live = selected.filter(function (r) { return r._state === 'in'; }).length;
+    var live = selected.filter(liveNow).length, retained = selected.filter(lastKnown).length;
     var pending = selected.filter(function (r) { return (r._state === 'pre' || r._state === 'unknown') && r._tv && r._k <= now; }).length;
-    var scheduled = selected.length - live - pending, parts = [];
+    var scheduled = selected.length - live - retained - pending, parts = [];
     if (live) parts.push(live + ' live');
+    if (retained) parts.push(retained + ' last reported in progress');
     if (scheduled) parts.push(scheduled + ' upcoming');
     if (pending) parts.push(pending + ' awaiting score updates');
     var text = parts.join(' · ') + ' in selected competitions. ' + coverageSummary(selected);
@@ -2208,7 +2291,7 @@
       if (!headline || headline.length > 160 || !Number.isInteger(item.interest) || item.interest < 0 || item.interest > 100 ||
           !refs.length || !declared || declared.length !== refs.length || declared.some(function (r) { return refs.indexOf(r) < 0; }) ||
           !refs.every(function (r) { return r._lg === item.league_id && editorialPasses(r) && DAYS.concat(['live']).indexOf(r._b) !== -1 &&
-            r._state !== 'post' && (r._k >= now || r._b === 'live'); })) return null;
+            r._state !== 'post' && (r._k >= now || r._b === 'live' || lastKnown(r) && !FOLDED[r._b]); })) return null;
       return { league_id: item.league_id, headline: headline, interest: item.interest,
         match_ids: refs.map(function (r) { return r.getAttribute('data-id'); }),
         lede: typeof item.text === 'string' ? item.text : item.segments.map(function (part) { return part.text; }).join(''),
@@ -2236,7 +2319,7 @@
     if (!title || title.length > 160 || !headlineRows.length ||
         parts.map(function (part) { return part.text; }).join('').trim() !== title ||
         !headlineRows.every(function (r) { return editorialPasses(r) && DAYS.concat(['live']).indexOf(r._b) !== -1 &&
-          r._state !== 'post' && (r._k >= now || r._b === 'live'); })) return renderHeadlines([], now, false);
+          r._state !== 'post' && (r._k >= now || r._b === 'live' || lastKnown(r) && !FOLDED[r._b]); })) return renderHeadlines([], now, false);
     var lead = s && Array.isArray(s.lede_items) ? s.lede_items : [];
     function eligible(item) {
       var refs = referencedRows(item);
@@ -2384,11 +2467,12 @@
     setTimeout(function () { el.classList.remove('score--new'); }, 3200);
   }
   // Brings one row up to date with ESPN's event, noting in `changed` what moved.
-  function applyEvent(r, ev, first, changed) {
+  function applyEvent(r, ev, first, changed, receivedAt) {
+    if (!ev || typeof ev !== 'object' || Array.isArray(ev)) return;
     var comp = (Array.isArray(ev.competitions) ? ev.competitions : []).find(function (value) {
       return value && typeof value === 'object' && !Array.isArray(value);
     });
-    if (!comp) return;
+    if (!comp || comp.details != null && !Array.isArray(comp.details)) return;
     var side = {};
     (Array.isArray(comp.competitors) ? comp.competitors : []).forEach(function (c) { if (c && (c.homeAway === 'home' || c.homeAway === 'away')) side[c.homeAway] = c; });
     if (!side.home || !side.away) return;
@@ -2399,32 +2483,42 @@
     if (!Array.isArray(decisions) || decisions.length !== 1 || decisions[0].id !== identity) throw new Error('Shared Outlook live status identity mismatch');
     var value = decisions[0], state = value.phase, status = value.label, off = value.void, played = value.played;
     var vals = [value.scores.home, value.scores.away].map(function (score) { return score === null ? '' : String(score); });
+    // Prepare every provider-derived value before installing any accepted fact.
+    // A malformed scorer/team cannot leave a half-applied status and receipt.
+    var goals;
+    try { goals = played ? liveGoals(comp, side) : []; } catch (e) { return; }
+    var goalText = goals.length ? goals.map(function (p) { return p.team + ' ' + p.who; }).join(' · ') :
+      !played || vals[0] === '0' && vals[1] === '0' ? '' : r._sourceGoals;
+    var previous = r._sourceStatus;
     r._seen = Date.now();
+    setSourceReceipt(r, receivedAt);
     r._liveEvent = ev;
     r._sourceStatus = value;
-    if (state !== r._state || value.state !== r._statusKind) {
+    var stateChanged = state !== r._state || value.state !== r._statusKind;
+    if (stateChanged) {
       r._state = state; r.setAttribute('data-state', state); changed.state = true;
       r._statusKind = value.state; r.setAttribute('data-status-kind', value.state);
-      closeNetwork();
-      updateNetworks(r);
       if (off) { r._score = 0; r.setAttribute('data-score', '0'); }
     }
     var els = r.querySelectorAll('.team .score');
     vals.forEach(function (v, i) {
       var el = els[i]; if (!el) return;
-      if (el.hidden && v === '' || !el.hidden && el.textContent === v) return;
+      var before = previous.scores[i === 0 ? 'home' : 'away'];
+      if (v === (before === null ? '' : String(before))) return;
       if (!first && !el.hidden && v !== '') flash(el);
       el.textContent = v; el.hidden = v === ''; changed.score = true;
     });
-    var s = r.querySelector('.row__status');
-    if (s && s.textContent !== status) { s.textContent = status; s.hidden = !status; changed.clock = true; }
+    if (previous.label !== status) changed.clock = true;
     // Replace the scorers only with a list, or with nothing at 0-0: a feed that has the score but not
     // yet the scorer shouldn't wipe the scorers the page was built with.
-    var goals = played ? liveGoals(comp, side) : [], g = r.querySelector('.row__goals'), beforeGoals = g ? g.textContent : '';
-    if (goals.length) setGoals(r, goals);
-    else if (g && (!played || vals[0] === '0' && vals[1] === '0')) g.parentNode.removeChild(g);
-    g = r.querySelector('.row__goals');
-    if ((g ? g.textContent : '') !== beforeGoals) changed.goals = true;
+    if (goalText !== r._sourceGoals) {
+      if (goals.length) setGoals(r, goals);
+      else { var g = r.querySelector('.row__goals'); if (g) g.remove(); }
+      r._sourceGoals = goalText; changed.goals = true;
+    }
+    // Tick/link consumers can run while another competition's response is
+    // outstanding. Install this fixture's decision with its accepted status.
+    if (refreshLiveFreshness([r])) changed.freshness = true;
   }
   function showLiveNote(state) {
     var el = document.getElementById('livenote');
@@ -2457,10 +2551,18 @@
                  eligible: r._tv && r._state !== 'post' && !compHidden(r) };
       });
     },
-    applyEvent: function (id, event, first, changed) { applyEvent(ROW_BY_ID[id], event, first, changed); },
+    applyEvent: function (id, event, first, changed, receivedAt) { applyEvent(ROW_BY_ID[id], event, first, changed, receivedAt); },
+    responded: function (changed) {
+      // Install a whole response before rebuilding. Other leagues may still be
+      // pending, so final scores and links must reach all surfaces now.
+      if (changed.state || changed.score || changed.freshness) {
+        render(true);
+        Object.keys(changed).forEach(function (key) { changed[key] = false; });
+      }
+    },
     completed: function (state, changed) {
       showLiveNote(state);
-      if (changed.state || changed.score) render(true);
+      if (changed.state || changed.score || changed.freshness) render(true);
       else if (changed.clock || changed.goals) { render(false); refreshLiveText(); }
     }
   });
@@ -2509,7 +2611,7 @@
           initializeRow(row, old && old._card);
           if (old && old._liveEvent && old._seen > snapshot.generatedAt && old._lg === row._lg &&
               old.dataset.home === row.dataset.home && old.dataset.away === row.dataset.away) {
-            applyEvent(row, old._liveEvent, true, {}); row._seen = old._seen;
+            applyEvent(row, old._liveEvent, true, {}, old._sourceReceivedAt); row._seen = old._seen;
           }
           nextById[row.dataset.id] = row;
         });
@@ -2596,11 +2698,28 @@
   setInterval(function () { render(false); checkStale(); checkStory(); }, 60000);
   setInterval(liveScores.poll, liveScores.everyMs);
   document.addEventListener('visibilitychange', function () {
-    if (document.hidden) { clearTimeout(routeTimer); routeTimer = null; }
+    if (document.hidden) { clearTimeout(routeTimer); routeTimer = null; clearTimeout(freshnessTimer); freshnessTimer = null; }
     else { render(false); checkStale(); checkStory(); liveScores.poll(); if (scheduleUpdates) scheduleUpdates.poll(); }
   });
-  function suspendRouteChecks() { routeSuspended = true; clearTimeout(routeTimer); routeTimer = null; }
-  window.addEventListener('beforeunload', suspendRouteChecks);
+  var routeResumeTimer = null;
+  function clearRouteChecks() {
+    clearTimeout(routeTimer); routeTimer = null;
+    clearTimeout(freshnessTimer); freshnessTimer = null;
+    clearTimeout(routeResumeTimer); routeResumeTimer = null;
+  }
+  function suspendRouteChecks() {
+    routeSuspended = true; freshnessSuspended = true; clearRouteChecks();
+  }
+  window.addEventListener('beforeunload', function () {
+    clearRouteChecks();
+    // A cancelled navigation, download or 204 can leave this document open
+    // without pagehide/pageshow. Rearm its deadlines on the next turn; pagehide
+    // cancels this recovery and is the only event that latches suspension.
+    routeResumeTimer = setTimeout(function () {
+      routeResumeTimer = null;
+      if (!routeSuspended && !document.hidden) render(false);
+    }, 0);
+  });
   window.addEventListener('pagehide', suspendRouteChecks);
-  window.addEventListener('pageshow', function () { if (routeSuspended) { routeSuspended = false; render(false); } });
+  window.addEventListener('pageshow', function () { if (routeSuspended) { routeSuspended = false; freshnessSuspended = false; render(false); } });
 })();

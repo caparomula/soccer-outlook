@@ -165,12 +165,34 @@ python3 -m venv .venv
 .venv/bin/python -m tests.browser --browser webkit --smoke
 .venv/bin/python -m tests.browser_schedule
 .venv/bin/python -m tests.browser_schedule --browser webkit
+.venv/bin/python -m tests.browser_live_freshness --browser chromium
+.venv/bin/python -m tests.browser_live_freshness --browser webkit
+.venv/bin/python -m tests.browser_live_updates --browser chromium
+.venv/bin/python -m tests.browser_live_updates --browser webkit
+.venv/bin/python -m tests.browser_freshness_presentation --browser chromium
+.venv/bin/python -m tests.browser_freshness_presentation --browser webkit
 .venv/bin/python -m tests.browser_publication_capture
 ```
 
 On Linux, missing system libraries can be installed with `.venv/bin/python -m playwright install --with-deps chromium webkit`. This may require administrator access. The harness uses Playwright's Chromium by default; set `BROWSER_EXECUTABLE` to an existing compatible browser executable only when you intend to override it.
 
 Browser tests use a synthetic schedule, a fixed clock and local responses for ESPN and AI data. They check filters, persistence, rankings, live transitions, returning from background tabs, details dialogs, keyboard navigation and responsive layouts. Screenshots go to `work/browser/`; pass `--artifacts PATH` to choose another directory. External fonts are replaced with consistent fallback fonts. CI runs the full suite in Chromium and a focused smoke suite in WebKit, Safari's browser engine. WebKit coverage does not replace testing Safari itself on Apple devices. These tests do not verify ESPN's current network availability or the accuracy of real AI output.
+
+For focused source-receipt preservation and live-freshness checks, use the same
+prepared runtime and environment:
+
+```sh
+.venv/bin/python -m unittest tests.test_source_provenance tests.test_companion_freshness -v
+.venv/bin/python tool/companion_freshness_verify.py --runtime work/outlook-runtime --dart dart --browser both --out work/companion-freshness
+```
+
+The verifier runs independent boundary examples through the Dart VM, compiled
+publisher executable, Chromium and WebKit. Choose a new `--out` directory when
+retaining a previous report. The dedicated browser checks also exercise the
+generated page's expiry timer, stale score labels and live-only links; CI runs
+them in both engines. All these checks use retained or synthetic data and block
+live provider and AI requests. Response receipt remains distinct from the
+provider's unknown score-observation time.
 
 For a refactor that should preserve output exactly:
 

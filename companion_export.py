@@ -64,7 +64,7 @@ def number(value, *, maximum=100):
 
 def observation(received, source="espn"):
     return dict(source=source, observed_at=None, provider_updated_at=None,
-                received_at=instant(received))
+                received_at=received)
 
 
 def reported_form(raw):
@@ -174,6 +174,7 @@ def export_artifacts(builder, matches, built_at, report, *, standings_at=None):
         if match.utc.astimezone(ZoneInfo(scope["date_zone"])).date().isoformat() not in scope["covered_dates"]:
             raise ValueError("Fixture falls outside its covered source dates")
         receipt = scope_by_league[match.league]["validated_at"]
+        fixture_receipt = builder.source_receipt(match)
         kickoff = instant(match.utc) if match.time_valid else None
         team_ids, vital_ids = [], []
         for side, team in (("home", match.home), ("away", match.away)):
@@ -190,7 +191,7 @@ def export_artifacts(builder, matches, built_at, report, *, standings_at=None):
             vital_ids.append(vid)
             rank = dict(position=team.rank, table_size=team.size, group=team.group or None) if team.rank > 0 and team.size > 0 else None
             vitals.append(dict(id=vid, team_id=tid, league_id=match.league,
-                observation=observation(receipt), **reported_form(team.form),
+                observation=observation(fixture_receipt), **reported_form(team.form),
                 record=team.record or None, rank=rank, hometown=None,
                 leader=dict(name=team.leader, goals=number(team.leader_goals, maximum=1000)) if team.leader else None,
                 standings_received_at=instant(standings_at), points=team.pts or None))
@@ -290,7 +291,7 @@ def export_artifacts(builder, matches, built_at, report, *, standings_at=None):
                         scheduled_date_zone="America/New_York" if match.time_valid else None,
                         unconfirmed_date_basis=None if match.time_valid else "provider placeholder normalized to collection date; zone unverified"),
             status=dict(state=status_facts["state"], provider_state=status_facts["provider_state"], provider_detail=status_facts["label"],
-                        observation=observation(receipt),
+                        observation=observation(fixture_receipt),
                         scores=dict(match=status_facts["scores"], shootout=None, aggregate=None),
                         period=None, clock=status_facts["label"] or None if status_facts["state"] == "live" else None),
             context=dict(stage=match.stage or None, group=match.home.group or None,

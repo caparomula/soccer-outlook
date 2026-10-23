@@ -1426,19 +1426,21 @@ class BrowserChecks(unittest.TestCase):
                          {"watch-live": {"url": youtube_url, "channel": "USA Network"}}, clear=True)):
             html = render_page(build, fixtures=fixtures)
         for width in (1280, 390):
-            # The owner-default network disclosures contain native links before JavaScript runs.
+            # Ordinary destinations remain native links before JavaScript runs;
+            # live-only destinations need the runtime to enforce their timeout.
             with self.subTest(width=width, javascript=False):
                 context = self.browser.new_context(viewport={"width": width, "height": 900}, java_script_enabled=False)
                 try:
                     context.route("**/*", lambda route: route.fulfill(content_type="text/css", body=""))
                     page = context.new_page()
                     page.set_content(html)
-                    for mid, label, destination in (("live", "YouTube TV (main plan)", youtube_url),
-                                                    ("apple", "Apple TV", apple_url),
+                    for mid, label, destination in (("apple", "Apple TV", apple_url),
                                                     ("espn", "YouTube TV (main plan)", espn_url)):
                         chip = page.locator(f'li.row[data-id="watch-{mid}"] .network__providers a.network__link')
                         expect(chip).to_have_text(label)
                         expect(chip).to_have_attribute("href", destination)
+                    expect(page.locator('li.row[data-id="watch-live"] .network__providers li')).to_have_text("YouTube TV (main plan)")
+                    expect(page.locator('li.row[data-id="watch-live"] a.network__link')).to_have_count(0)
                     expect(page.locator('li.row[data-id="watch-no-player"] .network').first.locator("li")).to_have_text("Apple TV")
                     expect(page.locator('li.row[data-id="watch-no-youtube-link"] .network__providers li')).to_have_text("YouTube TV (main plan)")
                     expect(page.locator('a[href="https://tv.youtube.com/"]')).to_have_count(0)
@@ -1551,8 +1553,8 @@ class BrowserChecks(unittest.TestCase):
                 ("upcoming", "2026-10-07T17:05:00+00:00", state, "USA Network", "eng.1")])
                 for state in ("pre", "in", "post")}
 
-        # A no-JavaScript page also avoids tuning to a different program before/after
-        # the fixture. Keep the destination in the row so live updates can enable it.
+        # Static markup cannot enforce the response timeout. Keep live-only
+        # destinations in row metadata for the browser to enable while fresh.
         context = self.browser.new_context(java_script_enabled=False)
         try:
             context.route("**/*", lambda route: route.fulfill(content_type="text/css", body=""))
@@ -1564,9 +1566,7 @@ class BrowserChecks(unittest.TestCase):
                     destination = json.loads(row.get_attribute("data-watch"))["USA Network"]["yttv"]
                     self.assertEqual(destination["url"], youtube_url)
                     self.assertTrue(destination["live_only"])
-                    expect(row.locator("a.network__link")).to_have_count(1 if state == "in" else 0)
-                    if state == "in":
-                        expect(row.locator("a.network__link")).to_have_attribute("href", youtube_url)
+                    expect(row.locator("a.network__link")).to_have_count(0)
         finally:
             context.close()
 
@@ -2972,9 +2972,9 @@ class BrowserChecks(unittest.TestCase):
                 expect(page.locator("#nextup-track .nextup")).to_have_count(0)
                 expect(page.locator("#nextup-section")).to_be_hidden()
 
-    def test_top_card_reads_full_time_until_every_competition_has_answered(self):
-        # The live poll asks each competition for its day and redraws once all have answered; the
-        # card's one-second tick can come in between and must word the moment as the row does.
+    def test_final_response_updates_all_surfaces_before_other_competitions_answer(self):
+        # A final response is authoritative immediately. A pending unrelated
+        # league cannot prolong a current-live claim on any surface.
         fixtures = [("upcoming", "2026-10-07T16:30:00+00:00", "in", "ESPN+", "eng.1"),
                     ("spain", "2026-10-07T17:05:00+00:00", "pre", "ESPN+", "esp.1")]
         with self.page("after", html=render_page(build, fixtures=fixtures)) as (page, feed):
@@ -2986,10 +2986,14 @@ class BrowserChecks(unittest.TestCase):
             expect(page.locator('li.row[data-id="upcoming"]')).to_have_attribute("data-state", "post")
             self.assertEqual(len(feed["held"]), 1)
             page.clock.run_for(2000)    # two ticks, with Spain's answer outstanding (fetches give up after 8 s)
-            expect(page.locator("#nextup-status")).to_have_text("FT")
-            expect(page.locator("#nextup-count")).to_have_text("2\u20131")
-            expect(card).not_to_have_class(re.compile(r"\bnextup--live\b"))
-            expect(card).to_have_attribute("data-match-id", "upcoming")
+            finished = page.locator('#nextup-track [data-match-id="upcoming"]')
+            expect(finished.locator('.nextup__status')).to_have_text("FT")
+            expect(finished.locator('.nextup__count')).to_have_text("2\u20131")
+            expect(finished).not_to_have_class(re.compile(r"\bnextup--live\b"))
+            expect(page.locator('li.row[data-id="upcoming"] .row__live')).to_be_hidden()
+            expect(page.locator('[data-b="earlier"] li[data-id="upcoming"]')).to_have_count(1)
+            expect(page.locator('[data-b="live"] li[data-id="upcoming"]')).to_have_count(0)
+            expect(card).to_have_attribute("data-match-id", "spain")
             feed["held"].pop().fulfill(content_type="application/json", body=json.dumps(feed["data"]))
             expect(card).to_have_attribute("data-match-id", "spain")
             expect(page.locator("#nextup-h")).to_have_text("This afternoon")

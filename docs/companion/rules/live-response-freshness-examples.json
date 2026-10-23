@@ -1,0 +1,112 @@
+{
+  "version": 1,
+  "description": "Independent LIVE-FRESHNESS-1 complete-envelope expectations authored before core implementation. Fixed 180-second response-recency policy; source observation age is not inferred.",
+  "cases": [
+    {
+      "id": "three-minute-exclusive-boundary",
+      "request": {"version": 1, "operation": "live_freshness", "cases": [
+        {"id": "just-before", "now_utc": "2026-10-23T17:02:59.999999Z", "source_state": "in", "received_at": "2026-10-23T17:00:00Z"},
+        {"id": "exactly-at", "now_utc": "2026-10-23T17:03:00Z", "source_state": "in", "received_at": "2026-10-23T17:00:00Z"},
+        {"id": "just-after", "now_utc": "2026-10-23T17:03:00.000001Z", "source_state": "in", "received_at": "2026-10-23T17:00:00Z"}
+      ]},
+      "expected": {"version": 1, "results": [
+        {"id": "just-before", "live_now": true, "last_known": false, "reason": null, "expires_at": "2026-10-23T17:03:00.000Z", "next_transition_at": "2026-10-23T17:03:00.000Z"},
+        {"id": "exactly-at", "live_now": false, "last_known": true, "reason": "expired", "expires_at": "2026-10-23T17:03:00.000Z", "next_transition_at": null},
+        {"id": "just-after", "live_now": false, "last_known": true, "reason": "expired", "expires_at": "2026-10-23T17:03:00.000Z", "next_transition_at": null}
+      ]},
+      "because": "The response lease ends at exactly 180 seconds, without rounding a just-before instant into expiry."
+    },
+    {
+      "id": "receipt-is-inclusive-start",
+      "request": {"version": 1, "operation": "live_freshness", "cases": [
+        {"id": "future-by-microsecond", "now_utc": "2026-10-23T16:59:59.999999Z", "source_state": "in", "received_at": "2026-10-23T17:00:00Z"},
+        {"id": "at-receipt", "now_utc": "2026-10-23T17:00:00Z", "source_state": "in", "received_at": "2026-10-23T17:00:00Z"},
+        {"id": "after-receipt", "now_utc": "2026-10-23T17:00:00.000001Z", "source_state": "in", "received_at": "2026-10-23T17:00:00Z"}
+      ]},
+      "expected": {"version": 1, "results": [
+        {"id": "future-by-microsecond", "live_now": false, "last_known": true, "reason": "future_receipt", "expires_at": "2026-10-23T17:03:00.000Z", "next_transition_at": "2026-10-23T17:00:00.000Z"},
+        {"id": "at-receipt", "live_now": true, "last_known": false, "reason": null, "expires_at": "2026-10-23T17:03:00.000Z", "next_transition_at": "2026-10-23T17:03:00.000Z"},
+        {"id": "after-receipt", "live_now": true, "last_known": false, "reason": null, "expires_at": "2026-10-23T17:03:00.000Z", "next_transition_at": "2026-10-23T17:03:00.000Z"}
+      ]},
+      "because": "A future receipt grants no current-live claim until evaluation reaches its own instant."
+    },
+    {
+      "id": "missing-receipt-is-last-known",
+      "request": {"version": 1, "operation": "live_freshness", "cases": [
+        {"id": "legacy-live", "now_utc": "2026-10-23T17:00:00Z", "source_state": "in", "received_at": null}
+      ]},
+      "expected": {"version": 1, "results": [
+        {"id": "legacy-live", "live_now": false, "last_known": true, "reason": "missing_receipt", "expires_at": null, "next_transition_at": null}
+      ]},
+      "because": "An accepted in-progress report without provenance remains last known; no current clock is substituted."
+    },
+    {
+      "id": "non-progress-does-not-acquire-live-lease",
+      "request": {"version": 1, "operation": "live_freshness", "cases": [
+        {"id": "scheduled-new", "now_utc": "2026-10-23T17:00:00Z", "source_state": "pre", "received_at": "2026-10-23T17:00:00Z"},
+        {"id": "terminal-old", "now_utc": "2026-10-23T17:00:00Z", "source_state": "post", "received_at": "2026-10-22T17:00:00Z"},
+        {"id": "unknown-new", "now_utc": "2026-10-23T17:00:00Z", "source_state": "unknown", "received_at": "2026-10-23T17:00:00Z"},
+        {"id": "scheduled-missing", "now_utc": "2026-10-23T17:00:00Z", "source_state": "pre", "received_at": null},
+        {"id": "terminal-future", "now_utc": "2026-10-23T17:00:00Z", "source_state": "post", "received_at": "2026-10-23T17:05:00Z"}
+      ]},
+      "expected": {"version": 1, "results": [
+        {"id": "scheduled-new", "live_now": false, "last_known": false, "reason": "not_in_progress", "expires_at": null, "next_transition_at": null},
+        {"id": "terminal-old", "live_now": false, "last_known": false, "reason": "not_in_progress", "expires_at": null, "next_transition_at": null},
+        {"id": "unknown-new", "live_now": false, "last_known": false, "reason": "not_in_progress", "expires_at": null, "next_transition_at": null},
+        {"id": "scheduled-missing", "live_now": false, "last_known": false, "reason": "not_in_progress", "expires_at": null, "next_transition_at": null},
+        {"id": "terminal-future", "live_now": false, "last_known": false, "reason": "not_in_progress", "expires_at": null, "next_transition_at": null}
+      ]},
+      "because": "Receipt age never establishes progress or changes a terminal/unknown status; only in-progress presentation has this lease."
+    },
+    {
+      "id": "fractional-receipt-expiry-preserves-precision",
+      "request": {"version": 1, "operation": "live_freshness", "cases": [
+        {"id": "fraction-before", "now_utc": "2026-10-23T17:03:00.123455Z", "source_state": "in", "received_at": "2026-10-23T17:00:00.123456Z"},
+        {"id": "fraction-at", "now_utc": "2026-10-23T17:03:00.123456Z", "source_state": "in", "received_at": "2026-10-23T17:00:00.123456Z"}
+      ]},
+      "expected": {"version": 1, "results": [
+        {"id": "fraction-before", "live_now": true, "last_known": false, "reason": null, "expires_at": "2026-10-23T17:03:00.123456Z", "next_transition_at": "2026-10-23T17:03:00.123456Z"},
+        {"id": "fraction-at", "live_now": false, "last_known": true, "reason": "expired", "expires_at": "2026-10-23T17:03:00.123456Z", "next_transition_at": null}
+      ]},
+      "because": "A six-digit receipt keeps its exact fractional cutoff in every target."
+    },
+    {
+      "id": "same-receipt-does-not-renew-on-reuse",
+      "request": {"version": 1, "operation": "live_freshness", "cases": [
+        {"id": "first-render", "now_utc": "2026-10-23T17:01:00Z", "source_state": "in", "received_at": "2026-10-23T17:00:00Z"},
+        {"id": "reload-at-expiry", "now_utc": "2026-10-23T17:03:00Z", "source_state": "in", "received_at": "2026-10-23T17:00:00Z"},
+        {"id": "resume-long-after", "now_utc": "2026-10-24T17:00:00Z", "source_state": "in", "received_at": "2026-10-23T17:00:00Z"}
+      ]},
+      "expected": {"version": 1, "results": [
+        {"id": "first-render", "live_now": true, "last_known": false, "reason": null, "expires_at": "2026-10-23T17:03:00.000Z", "next_transition_at": "2026-10-23T17:03:00.000Z"},
+        {"id": "reload-at-expiry", "live_now": false, "last_known": true, "reason": "expired", "expires_at": "2026-10-23T17:03:00.000Z", "next_transition_at": null},
+        {"id": "resume-long-after", "live_now": false, "last_known": true, "reason": "expired", "expires_at": "2026-10-23T17:03:00.000Z", "next_transition_at": null}
+      ]},
+      "because": "Reading the same accepted report later advances age while leaving its original deadline unchanged."
+    },
+    {
+      "id": "new-accepted-response-restores-current-live",
+      "request": {"version": 1, "operation": "live_freshness", "cases": [
+        {"id": "old-response", "now_utc": "2026-10-23T17:04:00Z", "source_state": "in", "received_at": "2026-10-23T17:00:00Z"},
+        {"id": "new-response", "now_utc": "2026-10-23T17:04:00Z", "source_state": "in", "received_at": "2026-10-23T17:04:00Z"}
+      ]},
+      "expected": {"version": 1, "results": [
+        {"id": "old-response", "live_now": false, "last_known": true, "reason": "expired", "expires_at": "2026-10-23T17:03:00.000Z", "next_transition_at": null},
+        {"id": "new-response", "live_now": true, "last_known": false, "reason": null, "expires_at": "2026-10-23T17:07:00.000Z", "next_transition_at": "2026-10-23T17:07:00.000Z"}
+      ]},
+      "because": "A new accepted response grants its own bounded lease; its score need not have changed."
+    },
+    {
+      "id": "utc-date-rollover",
+      "request": {"version": 1, "operation": "live_freshness", "cases": [
+        {"id": "before-midnight-expiry", "now_utc": "2026-10-24T00:01:59.999999Z", "source_state": "in", "received_at": "2026-10-23T23:59:00Z"},
+        {"id": "at-midnight-expiry", "now_utc": "2026-10-24T00:02:00Z", "source_state": "in", "received_at": "2026-10-23T23:59:00Z"}
+      ]},
+      "expected": {"version": 1, "results": [
+        {"id": "before-midnight-expiry", "live_now": true, "last_known": false, "reason": null, "expires_at": "2026-10-24T00:02:00.000Z", "next_transition_at": "2026-10-24T00:02:00.000Z"},
+        {"id": "at-midnight-expiry", "live_now": false, "last_known": true, "reason": "expired", "expires_at": "2026-10-24T00:02:00.000Z", "next_transition_at": null}
+      ]},
+      "because": "The response timeout is elapsed UTC duration and does not reset at a date or sports-day boundary."
+    }
+  ]
+}

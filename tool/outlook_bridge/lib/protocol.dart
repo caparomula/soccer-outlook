@@ -251,6 +251,7 @@ String evaluate(String input) {
         operation != 'route_selection' &&
         operation != 'route_validity' &&
         operation != 'fixture_window' &&
+        operation != 'live_freshness' &&
         operation != 'espn_status' &&
         operation != 'fixture_status' &&
         operation != 'viewer_eligibility')
@@ -307,6 +308,30 @@ String evaluate(String input) {
                 awayScore: value['away_score'],
               );
         results.add({'id': id, ..._statusResult(status)});
+      } else if (operation == 'live_freshness') {
+        final value = _object(raw, {
+          'id',
+          'now_utc',
+          'source_state',
+          'received_at',
+        });
+        final decision = evaluateSourceFreshness(
+          SourceFreshnessFacts(
+            sourceState: _sourceState(value['source_state']),
+            receivedAt: value['received_at'] == null
+                ? null
+                : _instant(value['received_at']),
+          ),
+          _instant(value['now_utc']),
+        );
+        results.add({
+          'id': id,
+          'live_now': decision.liveNow,
+          'last_known': decision.lastKnown,
+          'reason': decision.reason?.wireName,
+          'expires_at': decision.expiresAt?.toIso8601String(),
+          'next_transition_at': decision.nextTransitionAt?.toIso8601String(),
+        });
       } else if (operation == 'fixture_window') {
         final value = _object(raw, {
           'id',

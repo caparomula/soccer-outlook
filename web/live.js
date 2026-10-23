@@ -44,7 +44,7 @@
         batch.cancel.push(function () { if (ctl) ctl.abort(); finish(reject, new Error('cancelled')); });
         fetch(url, { cache: 'no-store', credentials: 'omit', signal: ctl ? ctl.signal : undefined })
           .then(function (res) { if (!res.ok) throw new Error('HTTP ' + res.status); return res.json(); })
-          .then(function (data) { finish(resolve, data); }, function (error) { finish(reject, error); });
+          .then(function (data) { finish(resolve, { data: data, receivedAt: new Date().toISOString() }); }, function (error) { finish(reject, error); });
       });
     }
     function poll() {
@@ -63,9 +63,9 @@
       var changed = { state: false, score: false, clock: false, goals: false }, ok = 0;
       return Promise.all(keys.map(function (key) {
         var parts = key.split('/');
-        return getJson(base + encodeURIComponent(parts[0]) + '/scoreboard?dates=' + parts[1] + '&limit=200', batch).then(function (data) {
+        return getJson(base + encodeURIComponent(parts[0]) + '/scoreboard?dates=' + parts[1] + '&limit=200', batch).then(function (response) {
           if (!current()) return;
-          var events = data && data.events;
+          var events = response.data && response.data.events;
           if (!Array.isArray(events)) throw new Error('Invalid scoreboard');
           ok++;
           var byId = Object.create(null);
@@ -73,8 +73,9 @@
           groups[key].forEach(function (match) {
             var first = checked[match.id] === undefined, event = byId[match.id];
             checked[match.id] = options.now();
-            try { if (event) options.applyEvent(match.id, event, first, changed); } catch (e) {}
+            try { if (event) options.applyEvent(match.id, event, first, changed, response.receivedAt); } catch (e) {}
           });
+          if (options.responded) options.responded(changed);
         }).catch(function () {});
       })).then(function () {
         if (!current()) return;

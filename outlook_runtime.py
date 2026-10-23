@@ -226,6 +226,25 @@ def fixture_windows(cases):
     return values
 
 
+def live_freshness(cases):
+    """Read shared response-recency decisions using explicit original receipts.
+
+    The adapter maps aware datetime inputs without rounding their microseconds.
+    It neither supplies a clock nor substitutes publication time for a receipt.
+    """
+    inputs = []
+    for case in cases:
+        value = dict(case)
+        for field in ("now_utc", "received_at"):
+            if isinstance(value.get(field), datetime):
+                value[field] = utc_stamp(value[field])
+        inputs.append(value)
+    values = evaluate({"version": 1, "operation": "live_freshness", "cases": inputs})["results"]
+    if len(values) != len(inputs) or [value.get("id") for value in values] != [case.get("id") for case in inputs]:
+        raise RuntimeError("Shared Outlook freshness identities do not match request")
+    return values
+
+
 def _evaluate_status(encoded):
     values = evaluate(json.loads(encoded))["results"]
     if len(values) != 1 or values[0].get("id") != "status":

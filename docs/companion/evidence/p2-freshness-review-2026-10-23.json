@@ -1,0 +1,222 @@
+{
+  "passed": true,
+  "tests": 11,
+  "failures": 0,
+  "errors": 0,
+  "sources_before": {
+    "web/app.js": "506ac5e3b58ad1428215d0526f002a39483e7eb7db44c372549d52b34ef2ba03",
+    "web/live.js": "5f1f685fad0420e62fff3b8df98e14338d6fe9d6581b5a1450b49ba20199e44d",
+    "tests/browser_live_updates.py": "439076e3e234b8416cefe8f33f1b2582a55338b97d29cf7cad918f20388497dc"
+  },
+  "sources_after": {
+    "web/app.js": "506ac5e3b58ad1428215d0526f002a39483e7eb7db44c372549d52b34ef2ba03",
+    "web/live.js": "5f1f685fad0420e62fff3b8df98e14338d6fe9d6581b5a1450b49ba20199e44d",
+    "tests/browser_live_updates.py": "439076e3e234b8416cefe8f33f1b2582a55338b97d29cf7cad918f20388497dc"
+  },
+  "source_stable": true,
+  "probes": {
+    "backwards_partial_apply": {
+      "changed": {},
+      "queries": [
+        [
+          "upcoming",
+          "second"
+        ]
+      ],
+      "decisions": [
+        {
+          "id": "upcoming",
+          "live": false,
+          "reason": "future_receipt",
+          "label": "Last known \u00b7 30'"
+        },
+        {
+          "id": "second",
+          "live": false,
+          "reason": "future_receipt",
+          "label": "Last known \u00b7 30'"
+        }
+      ]
+    },
+    "fractional_due_transition": [
+      {
+        "queries": [],
+        "live": false,
+        "reason": "future_receipt",
+        "next": "2026-10-07T17:00:02.123456Z"
+      },
+      {
+        "queries": [
+          [
+            "upcoming"
+          ]
+        ],
+        "live": true,
+        "reason": null,
+        "next": "2026-10-07T17:03:02.123456Z"
+      },
+      {
+        "queries": [],
+        "live": true,
+        "reason": null,
+        "next": "2026-10-07T17:03:02.123456Z"
+      },
+      {
+        "queries": [
+          [
+            "upcoming"
+          ]
+        ],
+        "live": false,
+        "reason": "expired",
+        "next": null
+      }
+    ],
+    "malformed_nested_scorer": [
+      {
+        "before": {
+          "state": "in",
+          "receipt": null,
+          "seen": null,
+          "event": null,
+          "status": {
+            "id": "upcoming",
+            "state": "live",
+            "phase": "in",
+            "provider_state": "in",
+            "label": "30'",
+            "played": true,
+            "final": false,
+            "void": false,
+            "reported_scores": {
+              "home": 0,
+              "away": 0
+            },
+            "scores": {
+              "home": 0,
+              "away": 0
+            }
+          },
+          "goals": "",
+          "decision": {
+            "id": "upcoming",
+            "live_now": false,
+            "last_known": true,
+            "reason": "missing_receipt",
+            "expires_at": null,
+            "next_transition_at": null
+          }
+        },
+        "after": {
+          "state": "in",
+          "receipt": null,
+          "seen": null,
+          "event": null,
+          "status": {
+            "id": "upcoming",
+            "state": "live",
+            "phase": "in",
+            "provider_state": "in",
+            "label": "30'",
+            "played": true,
+            "final": false,
+            "void": false,
+            "reported_scores": {
+              "home": 0,
+              "away": 0
+            },
+            "scores": {
+              "home": 0,
+              "away": 0
+            }
+          },
+          "goals": "",
+          "decision": {
+            "id": "upcoming",
+            "live_now": false,
+            "last_known": true,
+            "reason": "missing_receipt",
+            "expires_at": null,
+            "next_transition_at": null
+          }
+        },
+        "changed": {},
+        "error": null
+      },
+      {
+        "before": {
+          "state": "in",
+          "receipt": null,
+          "seen": null,
+          "event": null,
+          "status": {
+            "id": "upcoming",
+            "state": "live",
+            "phase": "in",
+            "provider_state": "in",
+            "label": "30'",
+            "played": true,
+            "final": false,
+            "void": false,
+            "reported_scores": {
+              "home": 0,
+              "away": 0
+            },
+            "scores": {
+              "home": 0,
+              "away": 0
+            }
+          },
+          "goals": "",
+          "decision": {
+            "id": "upcoming",
+            "live_now": false,
+            "last_known": true,
+            "reason": "missing_receipt",
+            "expires_at": null,
+            "next_transition_at": null
+          }
+        },
+        "after": {
+          "state": "in",
+          "receipt": null,
+          "seen": null,
+          "event": null,
+          "status": {
+            "id": "upcoming",
+            "state": "live",
+            "phase": "in",
+            "provider_state": "in",
+            "label": "30'",
+            "played": true,
+            "final": false,
+            "void": false,
+            "reported_scores": {
+              "home": 0,
+              "away": 0
+            },
+            "scores": {
+              "home": 0,
+              "away": 0
+            }
+          },
+          "goals": "",
+          "decision": {
+            "id": "upcoming",
+            "live_now": false,
+            "last_known": true,
+            "reason": "missing_receipt",
+            "expires_at": null,
+            "next_transition_at": null
+          }
+        },
+        "changed": {},
+        "error": null
+      }
+    ]
+  },
+  "limits": [
+    "Synthetic Chromium checks; no live provider or AI requests.",
+    "Only observation and invocation hooks were added to generated HTML; normal initialization and the exact external runtime executed."
+  ]
+}

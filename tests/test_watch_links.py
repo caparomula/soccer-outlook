@@ -167,7 +167,7 @@ class MatchLinks(unittest.TestCase):
         match.rule, match.outlets = match.outlets[0], []
         self.assertEqual(watch_links.match_links(match), [])
 
-    def test_youtube_url_is_only_clickable_while_live_in_static_markup(self):
+    def test_static_markup_retains_but_never_activates_live_only_destinations(self):
         match = fixture("401879267", channel="USA Network", service="yttv", basis="listed")
         for state in ("pre", "in", "post"):
             with self.subTest(state=state):
@@ -175,8 +175,15 @@ class MatchLinks(unittest.TestCase):
                 # Retain the map so a browser score update can activate/deactivate the link.
                 self.assertTrue(build.provider_links(match)["USA Network"]["yttv"]["live_only"])
                 markup = build.pills_html(match)
-                self.assertEqual('<a class="network__link' in markup, state == "in")
+                self.assertNotIn('<a class="network__link', markup)
                 self.assertIn("YouTube TV (main plan)", markup)
+
+    def test_static_non_live_only_destination_remains_clickable(self):
+        match = game("Watch ESPN", "ESPN+", EXAMPLES[1][3])
+        with patch.object(build, "OWNER", ["espnplus"]):
+            markup = build.pills_html(match)
+        self.assertIn('<a class="network__link', markup)
+        self.assertIn('href="' + EXAMPLES[1][3] + '"', markup)
 
     def test_youtube_rejects_non_watch_urls_and_unexpected_query_parameters(self):
         good = "https://tv.youtube.com/watch/Qi_C4zyXBIg?vp=0gEEEgIwAQ%3D%3D"

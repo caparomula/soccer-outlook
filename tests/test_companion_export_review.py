@@ -78,10 +78,11 @@ class CompanionExportReview(unittest.TestCase):
 
     def test_status_receipt_does_not_become_known_source_observation(self):
         match = fixture(state="in", kickoff="2026-10-20T17:00:00Z")
+        match.source_received_at = "2026-10-20T17:00:01.123456Z"
         observed = self.export([match])["schedule"]["fixtures"][0]["status"]["observation"]
         self.assertIsNone(observed["observed_at"])
         self.assertIsNone(observed["provider_updated_at"])
-        self.assertEqual(observed["received_at"], "2026-10-20T17:01:00Z")
+        self.assertEqual(observed["received_at"], "2026-10-20T17:00:01.123456Z")
 
     def test_retained_expiry_is_limited_by_kickoff_even_when_six_hours_is_later(self):
         match = fixture(state="in", kickoff="2026-10-20T15:00:00Z")

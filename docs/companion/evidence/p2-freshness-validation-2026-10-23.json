@@ -1,0 +1,288 @@
+{
+  "base_commit": "6f045189528580f004265ee60d25dc19afbfe581",
+  "benchmarks": {
+    "A1": {
+      "after_median_task_duration_ms": 138.77200000000002,
+      "after_wipes": 1,
+      "before_median_task_duration_ms": 2516.3199999999997,
+      "before_wipes": 25,
+      "task_duration_ratio": 18.132764534632344
+    },
+    "A5": {
+      "after_core_query_batches": 0,
+      "after_mean_ms": 0.020400022983551026,
+      "after_median_ms": 0.0,
+      "before_core_query_batches": 500,
+      "before_mean_ms": 1.1852000002861023,
+      "before_median_ms": 1.149999976158142,
+      "timing_limit": "A zero median is below observable performance.now resolution, not zero execution time."
+    },
+    "final_source_hashes_match": true,
+    "source_hashes": {
+      "after": {
+        "web/app.js": "506ac5e3b58ad1428215d0526f002a39483e7eb7db44c372549d52b34ef2ba03",
+        "web/live.js": "5f1f685fad0420e62fff3b8df98e14338d6fe9d6581b5a1450b49ba20199e44d"
+      },
+      "before": {
+        "web/app.js": "278c189d1ee5e6465b86a77ef45c3d47228d10c0287355c9fcfed897f1cfdbd7",
+        "web/live.js": "6c17414dfe590edd58e80e08a199d2ed9411a7250a8c98873fdad96c09c1b647"
+      }
+    }
+  },
+  "checks": [
+    {
+      "command": "work/review-fixes-unit-2026-10-23/bin/python -m unittest -v",
+      "log": "work/freshness-review-2026-10-23/unit-full-owner-final.log",
+      "passed": true,
+      "sha256": "7f040aae351992ba33c2bd5e130e515309d4f4d9da76a066e9d4b72291890428",
+      "tests": 805
+    },
+    {
+      "command": "work/review-fixes-unit-2026-10-23/bin/python -m unittest tests.test_source_provenance tests.test_companion_freshness -v",
+      "log": "work/freshness-review-2026-10-23/unit-focused.log",
+      "passed": true,
+      "sha256": "87567df1bd170e8bc76baf8f277c8950ed88837b976a17808263bd2d24a54ba3",
+      "tests": 25
+    },
+    {
+      "command": "PUB_CACHE=\"$PWD/work/pub-cache\" work/review-fixes-unit-2026-10-23/bin/python tool/build_outlook_runtime.py --dart /Users/chris/flutter/bin/cache/dart-sdk/bin/dart",
+      "log": "work/freshness-review-2026-10-23/build-runtime.log",
+      "passed": true,
+      "sha256": "2d74443d106ab8e2bdc4443f1b5c0fa979858dfa4500bf3c7e05c29f7f605250",
+      "tests": null
+    },
+    {
+      "command": "PLAYWRIGHT_BROWSERS_PATH=\"$PWD/work/playwright\" work/review-fixes-clean-2026-10-23/bin/python -m tests.browser --artifacts work/freshness-review-2026-10-23/full-chromium-owner-final",
+      "log": "work/freshness-review-2026-10-23/browser-full-chromium-owner-final.log",
+      "passed": true,
+      "sha256": "eef9ee20bd62cfa1af48fe8059507984ab2f929b9574c04e9c027cc5f4e0315d",
+      "tests": 112
+    },
+    {
+      "command": "PLAYWRIGHT_BROWSERS_PATH=\"$PWD/work/playwright\" work/review-fixes-clean-2026-10-23/bin/python -m tests.browser_schedule",
+      "log": "work/freshness-review-2026-10-23/schedule-chromium-ready-final.log",
+      "passed": true,
+      "sha256": "070bd08efa1fe079e9a891bfa5516a864166b2dcc52b509b733132b4e92ca858",
+      "tests": 11
+    },
+    {
+      "command": "PLAYWRIGHT_BROWSERS_PATH=\"$PWD/work/playwright\" work/review-fixes-clean-2026-10-23/bin/python -m tests.browser_live_freshness --browser chromium",
+      "log": "work/freshness-review-2026-10-23/freshness-chromium-owner-final.log",
+      "passed": true,
+      "sha256": "7bb5bc8dd276365a76c2a5558b30ba0617ddac95aa0de56b8a9ad9c061683785",
+      "tests": 11
+    },
+    {
+      "command": "PLAYWRIGHT_BROWSERS_PATH=\"$PWD/work/playwright\" work/review-fixes-clean-2026-10-23/bin/python -m tests.browser_live_freshness --browser webkit",
+      "log": "work/freshness-review-2026-10-23/freshness-webkit-owner-final.log",
+      "passed": true,
+      "sha256": "20a1c3a806962131385d47d61b02a5e9ec1c059aae9d46102bb6b4afb2d22134",
+      "tests": 11
+    },
+    {
+      "command": "PLAYWRIGHT_BROWSERS_PATH=\"$PWD/work/playwright\" work/review-fixes-clean-2026-10-23/bin/python -m tests.browser_publication_capture",
+      "log": "work/freshness-review-2026-10-23/publication-capture-owner-final.log",
+      "passed": true,
+      "sha256": "ceccb9e9d01fd7870d119048b3df9e02617c8fe3d27eb61761d611d73c5b6d0e",
+      "tests": 1
+    },
+    {
+      "command": "PUB_CACHE=\"$PWD/work/pub-cache\" PLAYWRIGHT_BROWSERS_PATH=\"$PWD/work/playwright\" work/review-fixes-clean-2026-10-23/bin/python tool/companion_window_verify.py --runtime work/outlook-runtime --dart /Users/chris/flutter/bin/cache/dart-sdk/bin/dart --out work/freshness-review-2026-10-23/window-owner-final",
+      "log": "work/freshness-review-2026-10-23/window-owner-final.log",
+      "passed": true,
+      "sha256": "99faf9d013fae85c8526524c7155922eb469a3409667fd217523672e51c796d0",
+      "tests": null
+    },
+    {
+      "command": "PUB_CACHE=\"$PWD/work/pub-cache\" PLAYWRIGHT_BROWSERS_PATH=\"$PWD/work/playwright\" work/review-fixes-clean-2026-10-23/bin/python tool/companion_freshness_verify.py --runtime work/outlook-runtime --dart /Users/chris/flutter/bin/cache/dart-sdk/bin/dart --browser both --out work/freshness-review-2026-10-23/freshness-proof",
+      "log": "work/freshness-review-2026-10-23/freshness-proof.log",
+      "passed": true,
+      "sha256": "32817351bbe357a660375f827fd0bc1049210c706daeeb7cde80155fbed8d128",
+      "tests": null
+    },
+    {
+      "command": "PUB_CACHE=\"$PWD/work/pub-cache\" PLAYWRIGHT_BROWSERS_PATH=\"$PWD/work/playwright\" work/review-fixes-clean-2026-10-23/bin/python tool/companion_validity_verify.py --runtime work/outlook-runtime --dart /Users/chris/flutter/bin/cache/dart-sdk/bin/dart --out work/freshness-review-2026-10-23/validity-owner-final",
+      "log": "work/freshness-review-2026-10-23/validity-owner-final.log",
+      "passed": true,
+      "sha256": "b9cc4ed72dbcec99e0c64ba2c2b251630fb3b8c07448aba278f4ceedab9b9c93",
+      "tests": null
+    },
+    {
+      "command": "PLAYWRIGHT_BROWSERS_PATH=\"$PWD/work/playwright\" work/review-fixes-clean-2026-10-23/bin/python -m tests.browser_live_updates",
+      "log": "work/freshness-review-2026-10-23/browser/after-chromium-final.log",
+      "passed": true,
+      "sha256": "d48f6deb680586a0f4985aae3dea55f4da9e80f9f8a64f8a04e2bd281a028c16",
+      "tests": 8
+    },
+    {
+      "command": "PLAYWRIGHT_BROWSERS_PATH=\"$PWD/work/playwright\" work/review-fixes-clean-2026-10-23/bin/python -m tests.browser_live_updates --browser webkit",
+      "log": "work/freshness-review-2026-10-23/presentation/final-live-updates-webkit.log",
+      "passed": true,
+      "sha256": "fda2ed3ee295e9a8839d4a3ea8e89657570c37c715812bad9c09221d125661d4",
+      "tests": 8
+    },
+    {
+      "command": "PLAYWRIGHT_BROWSERS_PATH=\"$PWD/work/playwright\" work/review-fixes-clean-2026-10-23/bin/python -m tests.browser_freshness_presentation --browser chromium",
+      "log": "work/freshness-review-2026-10-23/presentation/final-combined-chromium.log",
+      "passed": true,
+      "sha256": "51f71571acb713025127414df90943cae5c722f3c4ccf331237c709ff7395b97",
+      "tests": 4
+    },
+    {
+      "command": "PLAYWRIGHT_BROWSERS_PATH=\"$PWD/work/playwright\" work/review-fixes-clean-2026-10-23/bin/python -m tests.browser_freshness_presentation --browser webkit",
+      "log": "work/freshness-review-2026-10-23/presentation/final-combined-webkit.log",
+      "passed": true,
+      "sha256": "3c83601eaf13a65e2d46547bfafd52b06dc7754d9efa9405f0ebd2437ba5fc9e",
+      "tests": 4
+    },
+    {
+      "command": "work/review-fixes-unit-2026-10-23/bin/python -m unittest tests.test_workflows -v",
+      "log": "work/freshness-review-2026-10-23/workflows.log",
+      "passed": true,
+      "sha256": "392d0c4a8ac84d8ad5fcb19571407b1e9f79c3d91bebeccce225eac3e61b5015",
+      "tests": 9
+    }
+  ],
+  "completed": true,
+  "index_unchanged": true,
+  "limits": [
+    "No live provider or AI requests; no hosted CI, publication, or physical-device checks.",
+    "Historical capture has no worker receipts; explicit legacy reference comparison is distinct from strict nonlegacy reconciliation.",
+    "Local Chromium timings are not a portable performance budget."
+  ],
+  "preserved_existing_files": {
+    ".DS_Store": "1878fed83735d0deabaa23938ca0c1f730fd60baaba4dd9f355b74810cef9808",
+    ".github/workflows/companion.yml": "66bf7353e14b43768309ffa5057734a637842bc103269b05b33b44e72b21ddeb",
+    "companion_export.py": "854c2c1f73587e5cf2939fa52f4309901ff89a7005cd895e548d5967aafdae03",
+    "docs/companion/architecture.md": "59230b7cdace72eb93f98c864a7f92bb19eaf2fff398b209de142bb207688ac0",
+    "docs/companion/implementation-plan.md": "81f81b55832b78a3c39b6fc14b7bfd5103821e03920ef9dbd725bbed938da55c",
+    "docs/companion/p0-contract.md": "49d87fb41ce19b3a6c7d7187b843efff38e713ad1949b0b224f08a584e803436",
+    "docs/companion/rules/README.md": "c8bf65602b5bcd12f8a7e1be51f5dd95855708345de1bb95354c0118c6bfc26d",
+    "docs/companion/rules/live-response-freshness-examples.json": "ca5ab5cf1db1063c7cdfeec2f20d40713f5c5d6b623910c9b80a67c8e3578242",
+    "docs/companion/rules/live-response-freshness.md": "3f9d5d09c54c29932f0dfebd91fe4a238a67450ec78c896e42e70350c7451bb7",
+    "docs/companion/rules/source-provenance-examples.json": "014fccf0be69d95d7f8938efdfdfc2f69ad9d137ddfd49819992333c2ad70830",
+    "docs/companion/rules/source-provenance.md": "035956b46692fb501819534deb53e6647204fb30a2c31687b870584b2ae2dc2e",
+    "docs/companion/specification.md": "014d0a19c522c14e67608a37da83f2e2c2ec292f1270ca08316724eae747618e",
+    "outlook_runtime.py": "957bcba3bc9c443fa2af177302ca4db2d97474ef64c1309d6056dbef8fe63ef0",
+    "packages/outlook_core/lib/outlook_core.dart": "ae099cb54855574247df9c10147de3c27c86c5e72d6d77e397da5b952b6e5f8b",
+    "packages/outlook_core/lib/src/source_freshness.dart": "e104719959a233c1f8e5eaadf40fad7f252298ca9d3f7e87525860ea3d340f9a",
+    "packages/outlook_core/test/source_freshness_test.dart": "771232b06e5a047e7f3cc27f25ebe0f3a468d2f24eb11edfa504179d01d74275",
+    "tests/.DS_Store": "875c935af82be09cd5b7be455267f404167162476209ab3d2ea528b8f24bb138",
+    "tests/browser.py": "c07ff3300bb6676eaa1146075ce611f95743f779c75eb3a16db979c4166b52ec",
+    "tests/test_companion_export.py": "9f3d3bc934140e13537861ad8df4ddfd2bfd4824e460fb1325d1d7a30c4e50e1",
+    "tests/test_companion_export_review.py": "c52f3952565537c0eb4105197b90ab8d335e0909337cd9a2446c1d57d266e272",
+    "tests/test_companion_freshness.py": "7877976c7740e9e202d19079eda087b7ffe8db8a2f5e06b5a3fe290dd6430e77",
+    "tests/test_espn_status_adapters.py": "6890e6d6b90659bb34c6ad9cf60961fc1da38bcb9ec02b73db1a6ca0edef7573",
+    "tests/test_watch_links.py": "bd671c31c6cbd232fcaad7f83d815f438ccd87b0d3b5378cd2c0512a30f15365",
+    "tool/companion_freshness_verify.py": "7579b8004efb02d2174b6ffe681e622e325dee556332d6b3754c68224df0a6cc",
+    "tool/companion_status_verify.py": "1533738e715d4756eca9ced25d7c74a332f95db29d739629c7a9c65e4ff6a060",
+    "tool/companion_window_verify.py": "bbb41521b73ccb249dcdec4fbdbabdb695423c21a6ba9415f921fc8d679cbad3",
+    "tool/outlook_bridge/lib/protocol.dart": "e93ead6156e47e6ddc349b092dc730a61ecf8ba57c3ef65764c4ac25c96186cc"
+  },
+  "python_environment": {
+    "base_prefix": "/Users/chris/soccer-outlook/work/python/cpython-3.13.16-macos-aarch64-none",
+    "dependencies": {
+      "attrs": "26.1.0",
+      "jsonschema": "4.25.1",
+      "jsonschema-specifications": "2025.9.1",
+      "pip": "26.2.1",
+      "referencing": "0.37.0",
+      "rpds-py": "2026.9.1"
+    },
+    "prefix": "/Users/chris/soccer-outlook/work/review-fixes-unit-2026-10-23",
+    "python": "3.13.16 (main, Oct 14 2026, 00:55:38) [Clang 23.1.3 ]",
+    "system_site_packages": false,
+    "user_site": false
+  },
+  "reports": {
+    "core": {
+      "path": "work/freshness-review-2026-10-23/freshness-proof/report.json",
+      "retained": "docs/companion/evidence/p2-freshness-core-2026-10-23.json",
+      "sha256": "a727a331f02f7149fbd71da5fbfe88d11ad4278089c7d7587eb48ff088083f0b",
+      "verified_sources": 34
+    },
+    "replay": {
+      "path": "work/freshness-review-2026-10-23/replay/run-2/report.json",
+      "retained": "docs/companion/evidence/p2-freshness-replay-2026-10-23.json",
+      "sha256": "a000c2c15b9b6fb4eb5bd22289e587757eb752392f3e3f729bec98b8a0249684",
+      "verified_sources": 89
+    },
+    "review": {
+      "path": "work/freshness-review-2026-10-23/presentation/review_group_a-final.json",
+      "retained": "docs/companion/evidence/p2-freshness-review-2026-10-23.json",
+      "sha256": "75024d432374bc033a0b8448444388cb558b46565bc4ce8f4861a810b97331e2",
+      "verified_sources": 3
+    },
+    "validity": {
+      "path": "work/freshness-review-2026-10-23/validity-owner-final/report.json",
+      "sha256": "b510b229d3fe6a5fa388cf6a27bde307a88d14bb5463cf6848f992256ffe8588",
+      "verified_sources": 68
+    },
+    "window": {
+      "path": "work/freshness-review-2026-10-23/window-owner-final/report.json",
+      "sha256": "0def1f93851eb07a09e960189f8cce57c36ea3aec2efd8b160fbc84969b5f558",
+      "verified_sources": 70
+    }
+  },
+  "rules_changed": [],
+  "scope": "A1-F2 review fixes",
+  "snapshot": "work/freshness-review-start-2026-10-23-gqsb0tcr",
+  "source_hashes": {
+    ".github/workflows/browser.yml": "fc97eb8daafb1f3e02980ec40a76b686f2ce9c09d9f0fe934c2ae750448a8745",
+    ".github/workflows/companion.yml": "66bf7353e14b43768309ffa5057734a637842bc103269b05b33b44e72b21ddeb",
+    "build.py": "7d89fd6885e72ae4562179c12bfc6ca074e63910610200a6707e30d241747bed",
+    "companion_export.py": "854c2c1f73587e5cf2939fa52f4309901ff89a7005cd895e548d5967aafdae03",
+    "docs/companion/architecture.md": "59230b7cdace72eb93f98c864a7f92bb19eaf2fff398b209de142bb207688ac0",
+    "docs/companion/implementation-plan.md": "81f81b55832b78a3c39b6fc14b7bfd5103821e03920ef9dbd725bbed938da55c",
+    "docs/companion/p0-contract.md": "49d87fb41ce19b3a6c7d7187b843efff38e713ad1949b0b224f08a584e803436",
+    "docs/companion/p2-freshness-evidence.md": "7562cce3879b8a096e40f3d9af336ee11f93e77adda91c390fbea840be6037a8",
+    "docs/companion/rules/README.md": "c8bf65602b5bcd12f8a7e1be51f5dd95855708345de1bb95354c0118c6bfc26d",
+    "docs/companion/rules/live-response-freshness-examples.json": "ca5ab5cf1db1063c7cdfeec2f20d40713f5c5d6b623910c9b80a67c8e3578242",
+    "docs/companion/rules/live-response-freshness.md": "3f9d5d09c54c29932f0dfebd91fe4a238a67450ec78c896e42e70350c7451bb7",
+    "docs/companion/rules/source-provenance-examples.json": "014fccf0be69d95d7f8938efdfdfc2f69ad9d137ddfd49819992333c2ad70830",
+    "docs/companion/rules/source-provenance.md": "035956b46692fb501819534deb53e6647204fb30a2c31687b870584b2ae2dc2e",
+    "docs/companion/specification.md": "014d0a19c522c14e67608a37da83f2e2c2ec292f1270ca08316724eae747618e",
+    "docs/development.md": "3546d475907c1083187564b5eca97764e633f0569d2490faa61ae865255c6916",
+    "outlook_runtime.py": "957bcba3bc9c443fa2af177302ca4db2d97474ef64c1309d6056dbef8fe63ef0",
+    "packages/outlook_core/lib/outlook_core.dart": "ae099cb54855574247df9c10147de3c27c86c5e72d6d77e397da5b952b6e5f8b",
+    "packages/outlook_core/lib/src/source_freshness.dart": "e104719959a233c1f8e5eaadf40fad7f252298ca9d3f7e87525860ea3d340f9a",
+    "packages/outlook_core/test/source_freshness_test.dart": "771232b06e5a047e7f3cc27f25ebe0f3a468d2f24eb11edfa504179d01d74275",
+    "tests/browser.py": "c07ff3300bb6676eaa1146075ce611f95743f779c75eb3a16db979c4166b52ec",
+    "tests/browser_freshness_presentation.py": "5a983997ea6518a5ffc505112b3f768fe92de6e43427db7c9d3af045e8a7f56b",
+    "tests/browser_live_freshness.py": "60f348619e649a163bf5662f17bc9e70e0e425dd5edb670dc6c008853ab5852a",
+    "tests/browser_live_updates.py": "439076e3e234b8416cefe8f33f1b2582a55338b97d29cf7cad918f20388497dc",
+    "tests/browser_schedule.py": "815d5a9b336d15554cb9a066e9b6acc7e955c8d81de1536cd79757779398204b",
+    "tests/page_fixture.py": "4010f203b2e38d2091c60f9fef0c2d03198fce65feac3bda4c7ae2f0197ec58b",
+    "tests/test_companion_collection.py": "d80d8cb044eb010484d3aa84a9b5ea76ea1b81c39ad44481f0cbc72a64af5a82",
+    "tests/test_companion_export.py": "9f3d3bc934140e13537861ad8df4ddfd2bfd4824e460fb1325d1d7a30c4e50e1",
+    "tests/test_companion_export_review.py": "c52f3952565537c0eb4105197b90ab8d335e0909337cd9a2446c1d57d266e272",
+    "tests/test_companion_freshness.py": "7877976c7740e9e202d19079eda087b7ffe8db8a2f5e06b5a3fe290dd6430e77",
+    "tests/test_espn_status_adapters.py": "6890e6d6b90659bb34c6ad9cf60961fc1da38bcb9ec02b73db1a6ca0edef7573",
+    "tests/test_page_fixture_receipts.py": "d829104352fd3ce8dadbb21c3f30d9d8e79943ea1a788284d7ea0e582712ba60",
+    "tests/test_producer_receipt_stamps.py": "381a83ab33094f1c843039bb544fdb02b07e7a44aeb751d0b6e9b39bf74e84ad",
+    "tests/test_source_provenance.py": "50e49418704b1f9c1c44279bc6f204b3f89705fdb7b4615c4ddc79aab768ed49",
+    "tests/test_watch_links.py": "bd671c31c6cbd232fcaad7f83d815f438ccd87b0d3b5378cd2c0512a30f15365",
+    "tests/test_workflows.py": "f0d55096539359426fe1b01e51e2468cb2510d680838084b3966aef60dd21b50",
+    "tool/companion_collection_capture.py": "901a4ca24e5f2e8f7b13fa3fb5f9ef36934edd24fa3ae1e4afa74a8d008efb57",
+    "tool/companion_collection_replay.py": "bd326e871751e86fe4c850b3137b6f3b355cedeb6d7fd6d66729b162785ce6fd",
+    "tool/companion_freshness_verify.py": "7579b8004efb02d2174b6ffe681e622e325dee556332d6b3754c68224df0a6cc",
+    "tool/companion_status_verify.py": "1533738e715d4756eca9ced25d7c74a332f95db29d739629c7a9c65e4ff6a060",
+    "tool/companion_window_verify.py": "bbb41521b73ccb249dcdec4fbdbabdb695423c21a6ba9415f921fc8d679cbad3",
+    "tool/outlook_bridge/lib/protocol.dart": "e93ead6156e47e6ddc349b092dc730a61ecf8ba57c3ef65764c4ac25c96186cc",
+    "web/app.js": "506ac5e3b58ad1428215d0526f002a39483e7eb7db44c372549d52b34ef2ba03",
+    "web/live.js": "5f1f685fad0420e62fff3b8df98e14338d6fe9d6581b5a1450b49ba20199e44d"
+  },
+  "supporting_tools": {
+    "work/freshness-review-2026-10-23/benchmarks/measure.py": "b444283cc80a783aca48e53d34445c10e31a4b8f7188180488071bef11f62664",
+    "work/freshness-review-2026-10-23/benchmarks/summarize.py": "30396aa3f7502892f832c356bf462ac8759b80666ef1e45cf0ca778e3343875d",
+    "work/freshness-review-2026-10-23/finalize.py": "c45c6d411a7bca380d642fbed677f4fc1fee29acd97051ce32bed774079b20bd",
+    "work/freshness-review-2026-10-23/presentation/review_group_a-final.py": "e752c0e41880557429dddece7a52752181bf81bdbbb68cd6b533c6c89e6e64cc",
+    "work/freshness-review-2026-10-23/replay/run.py": "a72e2efa38568cf17bc92d84b8bb1be22f29ebed2dce2d953916a2e547fa7f12"
+  },
+  "transcript": {
+    "path": "work/freshness-review-2026-10-23/transcript.md",
+    "sha256": "8e0a4c03facc078fae8e1b91e9fcebd71f1681c4373dd56c1bb62884ae627111"
+  },
+  "uncommitted": true,
+  "version": 1
+}

@@ -689,6 +689,8 @@ class Match:
     # Preserve decoded identity separately from display text through JSON context.
     # A changed public phase/label invalidates this binding before it can be used.
     status_binding: dict = field(default_factory=dict)
+    # Original accepted scoreboard response receipt; never source observation.
+    source_received_at: str | None = None
 
 
 def implied_chance(moneyline):
@@ -937,11 +939,12 @@ class BuildQuality:
     excluded_events: int = 0
     # Companion provenance is deliberately separate from the legacy report/cache.
     source_times: dict = field(default_factory=dict)
+    event_receipts: dict = field(default_factory=dict)
 
     def companion_scopes(self, fallback_time):
         """Exact requested and validated date sets; counts never imply coverage."""
         scopes = []
-        stamp = lambda value: value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+        stamp = outlook_runtime.utc_stamp
         for league in sorted({source["league"] for source in self.sources}):
             sources = [source for source in self.sources if source["league"] == league]
             timings = [self.source_times.get((league, source["date"]), {}) for source in sources]
@@ -1023,18 +1026,19 @@ def fetch_scoreboards(days, workers, quality=None):
         lg, day = job
         attempted_at = datetime.now(timezone.utc)
         raw = curl_bytes(ESPN.format(league=lg, day=day.strftime("%Y%m%d")))
+        received_at = datetime.now(timezone.utc)
         if raw is None:
-            return lg, day, None, attempted_at
+            return lg, day, None, attempted_at, received_at
         try:
-            return lg, day, json.loads(raw), attempted_at
+            return lg, day, json.loads(raw), attempted_at, received_at
         except ValueError:
-            return lg, day, None, attempted_at
+            return lg, day, None, attempted_at, received_at
 
     merged = {lg: {} for lg in LEAGUES}
     logos = {}
     failed = []
     with cf.ThreadPoolExecutor(workers) as ex:
-        for lg, day, data, attempted_at in ex.map(one, jobs):
+        for lg, day, data, attempted_at, received_at in ex.map(one, jobs):
             timing = dict(attempted_at=attempted_at, validated_at=None)
             quality.source_times[(lg, day.isoformat())] = timing
             # A 200 response with an error object is not a successful empty schedule.
@@ -1077,6 +1081,7 @@ def fetch_scoreboards(days, workers, quality=None):
                     source["reason"] = "Scoreboard contains fixtures outside the requested Eastern date."
                     continue
                 merged[lg][event_id] = dict(ev, id=event_id)
+                quality.event_receipts[(lg, event_id)] = received_at
             source["observed_dates"] = sorted(set(source["observed_dates"]))
             if not source["ok"]:
                 failed.append((lg, day))
@@ -1176,6 +1181,9 @@ def interpret_all(merged, quality=None):
                 quality.skip(lg, ev.get("id"), str(e))
                 continue
             if m:
+                received = quality.event_receipts.get((lg, str(ev.get("id"))))
+                if received is not None:
+                    m.source_received_at = outlook_runtime.utc_stamp(received)
                 matches.append(m)
             else:
                 quality.excluded_events += 1
@@ -1272,6 +1280,20 @@ def match_status(match, *, scores=None):
         scored["provider_state"] = result["provider_state"]
         return scored
     return result
+
+
+def source_receipt(match):
+    """Validate original receipt without borrowing a validation/publication clock."""
+    value = match.source_received_at
+    if value is None:
+        return None
+    if not isinstance(value, str) or not re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{1,6})?Z", value):
+        raise ValueError("Fixture source receipt must be a UTC timestamp or null")
+    try:
+        datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as error:
+        raise ValueError("Fixture source receipt has an invalid UTC date or time") from error
+    return value
 
 
 def shown_by_default(m):
@@ -1665,7 +1687,9 @@ def network_providers_html(m, outlet, destinations, usual=False):
     for sid in services:
         name = esc(SERVICES[sid])
         link = destinations.get(outlet.label, {}).get(sid) if not usual else None
-        if link and (not link.get("live_only") or match_status(m)["state"] == "live"):
+        # Static/no-script output cannot revoke an expiring live-only link. The
+        # browser enables it from data-watch only while its freshness rule allows.
+        if link and not link.get("live_only"):
             name = (f'<a class="network__link" href="{esc(link["url"])}" data-kind="{esc(link["kind"])}" '
                     f'target="_blank" rel="noopener noreferrer" title="{esc(link["title"])}">{name}</a>')
         items.append(f'<li>{name}</li>')
@@ -1905,6 +1929,7 @@ def league_logo_html(league, cache, *, label=""):
 
 
 def row_html(m, cache, *, now=None):
+    received = source_receipt(m)
     now = now or getattr(m, "_route_now", None) or datetime.now(timezone.utc)
     evaluate_match_routes(m, now)
     t, ap, local = et_parts(m.utc)
@@ -1945,6 +1970,7 @@ def row_html(m, cache, *, now=None):
         f'data-outlook="{outlook_score(parts):g}" data-outlook-parts="{esc(parts_json)}" '
         f'data-state="{status_facts["phase"]}" data-status-kind="{status_facts["state"]}" data-home="{esc(m.home.name)}" data-away="{esc(m.away.name)}" data-comp="{esc(m.comp)}" '
         f'data-outlet="{esc(m.outlet)}" data-hc="{m.home.color}" data-ac="{m.away.color}" data-o="{esc(outlets_json)}"' +
+        (f' data-source-received-at="{received}"' if received is not None else "") +
         f' data-ai-facts="{esc(json.dumps(ai_facts, ensure_ascii=False))}"' +
         (f' data-watch="{esc(json.dumps(destinations, ensure_ascii=False))}"' if destinations else "") +
         (f' data-r="{esc(rule_json)}"' if rule_json else "") + '>'

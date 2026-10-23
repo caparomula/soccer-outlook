@@ -1,0 +1,88 @@
+{
+  "version": 1,
+  "status": "passed",
+  "source_hashes": {
+    "companion-toolchain.json": "6f22792346a0b9c9430ce5cb054eea4b236a88f66f556e35695fa38ffd433c99",
+    "docs/companion/rules/live-response-freshness-examples.json": "ca5ab5cf1db1063c7cdfeec2f20d40713f5c5d6b623910c9b80a67c8e3578242",
+    "docs/companion/rules/live-response-freshness.md": "3f9d5d09c54c29932f0dfebd91fe4a238a67450ec78c896e42e70350c7451bb7",
+    "outlook_runtime.py": "957bcba3bc9c443fa2af177302ca4db2d97474ef64c1309d6056dbef8fe63ef0",
+    "packages/outlook_core/lib/outlook_core.dart": "ae099cb54855574247df9c10147de3c27c86c5e72d6d77e397da5b952b6e5f8b",
+    "packages/outlook_core/lib/src/eligibility.dart": "cae707fe6160016c810a3a4421cd5800a5a634dd8bec145cb9139d2844aaf7bd",
+    "packages/outlook_core/lib/src/fixture_window.dart": "0dc7a504c04054d23bc5bc51ab2d97cc53522a5b6ba24c5f52f68919807d7a00",
+    "packages/outlook_core/lib/src/outlook.dart": "6a31a694c27c4593cae58910a64c0903d6b16f03e7d02804bc548b4bc17006f6",
+    "packages/outlook_core/lib/src/route_basis.dart": "57726a60a6ec0d3e810a491234d44bceaf4beb94f80b4d395298091183fdf8c0",
+    "packages/outlook_core/lib/src/route_validity.dart": "4d685d13ce4e47eaebe780f73f4a7aa1a11eaf31d2ce2cf23fb98d184d9ef816",
+    "packages/outlook_core/lib/src/routes.dart": "6ec9184ea675d1fd51cbee7b778550ddb24260e03a013697b56d6361007649f7",
+    "packages/outlook_core/lib/src/source_freshness.dart": "e104719959a233c1f8e5eaadf40fad7f252298ca9d3f7e87525860ea3d340f9a",
+    "packages/outlook_core/lib/src/sports_day.dart": "924107b44bbff1b10168b80beaf75a2eb50341a4303eed0cb55f1fa252657881",
+    "packages/outlook_core/pubspec.lock": "951af870a0c95fbed5678225bc6c259298c75e4ba18de1ea93a23ca842851cdb",
+    "packages/outlook_core/pubspec.yaml": "d61828f0302735a3c5fe84b9b767df630f89711f106b244d9cba1ede1a32fd89",
+    "packages/outlook_core/test/source_freshness_test.dart": "771232b06e5a047e7f3cc27f25ebe0f3a468d2f24eb11edfa504179d01d74275",
+    "packages/outlook_data/lib/espn_decoder.dart": "d529b45213584396cb37cab0ac73cfd6a7fad47f1004a6bed0012799feb72a1f",
+    "packages/outlook_data/lib/outlook_data.dart": "78ce0f87033a6816d7942622c6c6484992ba9c1f5aad903cc1737da76d93fdb1",
+    "packages/outlook_data/lib/src/espn_decoder.dart": "31247752321e74e5f2bc5e6e95e4cbb4a8d7d565c343f199374d35526a6270cc",
+    "packages/outlook_data/lib/src/feed_reader.dart": "87eefcb88dd58dc6d4f8ddf3cbdd118da6f7a8897c2252f0a75fa0cf16b167d9",
+    "packages/outlook_data/lib/src/schema_registry.dart": "27b4b6c0124101112f63fefa05699cd1970c64ed45093aa10cc1320fbe92a218",
+    "packages/outlook_data/lib/src/strict_json.dart": "5ada91b93d3417c340a14522d8e284fc855de502a5233b416b643da0218ca66b",
+    "packages/outlook_data/pubspec.lock": "8830b415b54adba67d5b2d1c1cceefc6c0ad4555909bb44f554de71c53b14288",
+    "packages/outlook_data/pubspec.yaml": "33b8971c5b1837bc38b827bf280e96e816759c5d0e9b981b87031d1df6627062",
+    "tests/test_companion_freshness.py": "7877976c7740e9e202d19079eda087b7ffe8db8a2f5e06b5a3fe290dd6430e77",
+    "tool/build_outlook_runtime.py": "44f252927293d52e6a2803b473be177fdae525a5be8d832397ecfec6f31991c7",
+    "tool/companion_freshness_verify.py": "7579b8004efb02d2174b6ffe681e622e325dee556332d6b3754c68224df0a6cc",
+    "tool/companion_p0_limits.json": "c9434036444ebe62b1bea925d62267fe0122e0dc496c60ee873b5ed53a3260e3",
+    "tool/companion_p2_verify.py": "fe6a84a061b0690664e7011169816f67b702fefc3e759ab6147d736bf6a5c486",
+    "tool/outlook_bridge/bin/outlook.dart": "15122da81d462636246dee13f86fd27d33d30390dea52abd28b93d9595ff6394",
+    "tool/outlook_bridge/lib/protocol.dart": "e93ead6156e47e6ddc349b092dc730a61ecf8ba57c3ef65764c4ac25c96186cc",
+    "tool/outlook_bridge/pubspec.lock": "dfef25ed7c1f5d2b6d3463cc99a02e01ea354c905d88c56761a5e836322b9111",
+    "tool/outlook_bridge/pubspec.yaml": "eba5cbfd82d05f3733570cbab0f05ce63ae4b8d8b379a75552bb23a01754a208",
+    "tool/outlook_bridge/web/bridge.dart": "b2388aad6fb078ff91e00bfbf31a168df746d272420817f1a8fec4bfc806912e"
+  },
+  "sources_unchanged": true,
+  "dart_version": "Dart SDK version: 3.13.3 (stable) (Tue Sep 1 01:07:17 2026 -0700) on \"macos_arm64\"",
+  "checks": 8,
+  "literal_decisions": 21,
+  "runtime_hashes": {
+    "runtime.json": "9a7294a61532a013ec0779db09a283b213c342dee20fc29dcff30214f998e014",
+    "outlook": "8b0d0423d5f76b71e58304100f25301e9ebfba58918a3ed07788d2d231d52c6b",
+    "outlook.js": "0e2af22c894f97ea12eaa8e9115f88b70d1d4186fe3e109c20455a2eca985631"
+  },
+  "browser_gzip_bytes": 198552,
+  "browser_gzip_limit": 204800,
+  "consumers": {
+    "dart_vm": {
+      "checks": 8,
+      "stream_elapsed_ms": 798.353125108406,
+      "rejected_inputs": 3,
+      "freshness_malformed_requests_rejected": 15
+    },
+    "compiled_cli": {
+      "checks": 8,
+      "stream_elapsed_ms": 32.85099985077977,
+      "rejected_inputs": 3,
+      "freshness_malformed_requests_rejected": 15
+    }
+  },
+  "browsers": {
+    "chromium": {
+      "version": "151.0.7922.34",
+      "checks": 8,
+      "malformed_requests_rejected": 15,
+      "strict_csp": true,
+      "page_errors": [],
+      "blocked_requests": []
+    },
+    "webkit": {
+      "version": "26.5",
+      "checks": 8,
+      "malformed_requests_rejected": 15,
+      "strict_csp": true,
+      "page_errors": [],
+      "blocked_requests": []
+    }
+  },
+  "limitations": [
+    "Protocol parity proves the shared owner, not generated-page timer and link consumers; those require browser integration checks.",
+    "Response receipt is not a provider score-observation timestamp; source age remains unknown.",
+    "No source or AI calls, publication, distribution or physical-device acceptance is claimed."
+  ]
+}

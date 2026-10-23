@@ -69,6 +69,14 @@ The published feed must cover this window for supported device time zones. If an
 
 **TIME-2 — Keep status separate from the clock and TV programming.** Confirmed kickoff, time TBD, awaiting a status update, in progress, completed, postponed and cancelled are distinguishable where supplied. Passing kickoff alone does not confirm play has started. A stale in-progress observation must not indefinitely claim that a match is live now. Scores retain their observation time; the app must not extrapolate a score or match clock.
 
+The approved response timeout is three minutes, expiring at exactly 180 seconds
+after the accepted fixture response was received. Missing, future or expired
+receipts cannot support a current-live claim or live-only destination. Keep the
+reported score and clock with a **Last known** qualifier. Source observation
+and provider update times remain unknown when the provider does not establish
+them; response recency does not establish their age. See
+[LIVE-FRESHNESS-1](rules/live-response-freshness.md).
+
 **TIME-3 — Make browsing stable.** Upcoming day sections are open and empty sections are omitted. Earlier results and previous days are initially folded. The current schedule heading remains visible while its section scrolls, displaced by the following heading. A data update must not reset a person's reading position or move focus to the top.
 
 | Acceptance example | Expected result |

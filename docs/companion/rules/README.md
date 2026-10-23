@@ -4,7 +4,8 @@ This catalog begins P2 on October 20, 2026. Its implemented families select amon
 **already-qualified** viewing routes, calculate local sports-day boundaries and
 project saved league choices into viewer eligibility, enforce qualified route
 lifetimes, place normalized fixtures into focus and schedule windows, and decode
-bounded source status/result facts. Full source qualification, source freshness, recommendation and
+bounded source status/result facts, and expire current-live claims using original
+response receipt. Full source qualification, source observation freshness, recommendation and
 editorial lifetime decisions remain P2 work.
 
 | Stable ID | Rule | First migration boundary |
@@ -14,6 +15,8 @@ editorial lifetime decisions remain P2 work.
 | TIME-1 | [Local sports-day calendar](sports-day.md) | Containing sports day, calendar-day index and shifted heading boundary |
 | TIME-WINDOW-1 | [Fixture focus and schedule placement](fixture-windows.md) | Supplied-clock focus/bucket decisions and bounded accepted live-receipt age |
 | STATUS-ESPN-1 | [Source status and reported match scores](espn-status.md) | Shared raw/normalized status decoding, score applicability and final-result verdict |
+| SOURCE-PROVENANCE-1 | [Accepted response receipt](source-provenance.md) | Per-fixture publisher/browser receipt preserved through context, HTML, feed and overlay reuse |
+| LIVE-FRESHNESS-1 | [Current-live response timeout](live-response-freshness.md) | Shared three-minute deadline, last-known presentation and live-only destination gate |
 | VIEWER-ELIGIBILITY-1 | [League choices and fixture visibility](viewer-eligibility.md) | Follow/pause/solo projection, strip membership, common fixture and calendar-editorial gates |
 
 The IDs are stable; retired IDs will not be reused. TIME-1 retains the ID already
@@ -45,6 +48,12 @@ and normalized-fixture seams before replacing their consumers. Ordinary captured
 results establish parity; separate literals cover exceptional/conflicting status
 signals, missing status, score objects and numeric zero. This bounded decoder
 does not map shootout/aggregate fields or establish observation freshness.
+
+[Provenance examples](source-provenance-examples.json) distinguish response
+receipt from validation and publication. [Freshness examples](live-response-freshness-examples.json)
+independently specify the user-approved timeout, including exact microsecond
+boundaries, missing/future receipts and unchanged observations on reuse. These
+rules preserve unknown source age and do not extrapolate score or clock.
 
 [Later-family boundaries](later-families.md) records behavior inspected while
 choosing the first extraction. Its league projection is now covered by

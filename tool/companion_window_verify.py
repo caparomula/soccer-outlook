@@ -89,11 +89,14 @@ def write_pages(out):
     from tests.page_fixture import render_page
     def destinations(match):
         return {"ESPN+": {"espnplus": dict(url=LIVE_LINK, kind="match", title="Qualified live destination", live_only=True)}}
+    # The rollover scenario tests window arithmetic with explicitly current
+    # synthetic live observations; receipt freshness has its own proof below.
+    rollover_receipts = {identity: "2026-10-08T07:59:00Z" for identity in ("tbd-dawn", "grace-dawn")}
     with patch.object(build, "provider_links", side_effect=destinations):
-        html = render_page(build, fixtures=FIXTURES, tbd=("tbd", "tbd-dawn"), inline_runtime=False)
+        html = render_page(build, fixtures=FIXTURES, tbd=("tbd", "tbd-dawn"), source_receipts=rollover_receipts, inline_runtime=False)
         replacement = render_page(build, fixtures=[
             (fixture[0], fixture[1], fixture[2], "Paramount+" if fixture[0] == "upcoming" else fixture[3])
-            for fixture in FIXTURES], tbd=("tbd", "tbd-dawn"), inline_runtime=False)
+            for fixture in FIXTURES], tbd=("tbd", "tbd-dawn"), source_receipts=rollover_receipts, inline_runtime=False)
     build.outlook_runtime.publish_browser(out)
     asset = build.CORE_ASSET
     parsed = FixtureBindings(html)
@@ -176,6 +179,8 @@ def page_context(engine, base, html, asset, out, label, *, at=AT):
 def row_state(page, identity):
     return page.locator(f'li.row[data-id="{identity}"]').evaluate("""row => ({
       bucket:row.closest('.bucket').querySelector('.bucket__h > span').textContent,
+      window_bucket:row._timeWindow.bucket,source_label:row._sourceStatus.label,
+      source_received_at:row.dataset.sourceReceivedAt,
       source_state:row.dataset.state, service:row.dataset.svc,
       scores:Array.from(row.querySelectorAll('.team .score')).filter(el=>!el.hidden).map(el=>el.textContent),
       status:row.querySelector('.row__status').textContent,
@@ -189,10 +194,14 @@ def recompute(page, at):
     page.evaluate("document.dispatchEvent(new Event('visibilitychange'))")
 
 
-def expect_bucket(page, identity, label):
+def expect_bucket(page, identity, label, *, window_bucket=None):
     from playwright.sync_api import expect
     expect(page.locator(f'li.row[data-id="{identity}"]').locator("xpath=ancestor::*[contains(concat(' ',normalize-space(@class),' '),' bucket ')][1]").locator('.bucket__h > span').first).to_have_text(label)
-    return row_state(page, identity)
+    value = row_state(page, identity)
+    expected = window_bucket if window_bucket is not None else {
+        "Live now": "live", "Today": "today", "Earlier today": "earlier", "Yesterday": "yesterday"}[label]
+    require(value["window_bucket"] == expected, f"{identity}: shared window bucket changed: {value}")
+    return value
 
 
 def browser_consumer(engine, base, html, replacement, asset, out, name):
@@ -226,22 +235,29 @@ def browser_consumer(engine, base, html, replacement, asset, out, name):
         parsed = SnapshotHTML(replacement)
         state["snapshot"] = dict(version=1, complete=True, generated_at="2026-10-07T17:00:30Z",
                                  runtime_revision=parsed.revision, rows=parsed.rows, logos={})
-        page.clock.fast_forward(4 * 60000 + 1)
+        page.clock.run_for(3 * 60000)
+        stale = expect_bucket(page, "upcoming", "Today", window_bucket="live")
+        require(stale["source_state"] == "in" and stale["scores"] == ["2", "1"] and stale["source_label"] == "63'",
+                "Freshness expiry rewrote the accepted source status or score")
+        require(stale["status"] == "Last known · 63'" and stale["links"] == [] and
+                stale["source_received_at"] == "2026-10-07T17:01:00.000Z",
+                "Stale presentation renewed its receipt or retained a live-only destination")
+        page.clock.fast_forward(60000 + 1)
         expect(page.locator("#app")).to_have_attribute("data-schedule-built", "2026-10-07T17:00:30Z")
         expect(page.locator('li.row[data-id="upcoming"]')).to_have_attribute("data-svc", "para")
-        carried = expect_bucket(page, "upcoming", "Live now")
+        carried = expect_bucket(page, "upcoming", "Today", window_bucket="live")
         require(carried["source_state"] == "in" and carried["scores"] == ["2", "1"], "Snapshot replacement lost the newer live observation")
         recompute(page, AT + timedelta(minutes=10, seconds=59, milliseconds=999))
-        before = expect_bucket(page, "upcoming", "Live now")
+        before = expect_bucket(page, "upcoming", "Today", window_bucket="live")
         recompute(page, AT + timedelta(minutes=11))
         exact = expect_bucket(page, "upcoming", "Earlier today")
         require(exact["source_state"] == "in" and exact["scores"] == ["2", "1"], "Placement expiry rewrote source status/score outside this family")
         transitions.append(dict(name="accepted_receipt_exact_ten_minutes_and_snapshot_carry", received_at="2026-10-07T17:01:00.000Z",
-                                accepted=accepted, replacement=carried, before=before, exact=exact))
+                                accepted=accepted, stale_presentation=stale, replacement=carried, before=before, exact=exact))
         page.evaluate("location.hash='at-20261007-1305'")
-        pinned = expect_bucket(page, "upcoming", "Live now")
+        pinned = expect_bucket(page, "upcoming", "Today", window_bucket="live")
         recompute(page, AT + timedelta(hours=2))
-        wall_advanced = expect_bucket(page, "upcoming", "Live now")
+        wall_advanced = expect_bucket(page, "upcoming", "Today", window_bucket="live")
         page.evaluate("location.hash='at-20261007-1300'")
         future = expect_bucket(page, "upcoming", "Earlier today")
         page.evaluate("location.hash='at-20261007-1311'")
@@ -251,7 +267,7 @@ def browser_consumer(engine, base, html, replacement, asset, out, name):
         page.evaluate("history.replaceState(null,'',location.pathname+location.search);Object.defineProperty(document,'hidden',{configurable:true,get:()=>true});document.dispatchEvent(new Event('visibilitychange'))")
         page.clock.set_system_time(AT + timedelta(minutes=5))
         page.evaluate("Object.defineProperty(document,'hidden',{configurable:true,get:()=>false});document.dispatchEvent(new Event('visibilitychange'))")
-        resumed = expect_bucket(page, "upcoming", "Live now")
+        resumed = expect_bucket(page, "upcoming", "Today", window_bucket="live")
         transitions.append(dict(name="visibility_resume_recomputes_supplied_clock", state=resumed))
     rollover = datetime(2026, 10, 8, 7, 59, 59, 998000, tzinfo=timezone.utc)
     with page_context(engine, base, html, asset, out, name + "-rollover", at=rollover) as (page, _state):
@@ -262,7 +278,7 @@ def browser_consumer(engine, base, html, replacement, asset, out, name):
                      grace=expect_bucket(page, "grace-dawn", "Yesterday"))
         transitions.append(dict(name="four_am_rollover_confirmed_tbd_and_same_day_grace", before=before, after=after))
     return dict(transitions=transitions, external_sri_core=True, page_errors=[],
-                fixture_inputs="Synthetic qualified live-only destination and actual production-rendered row replacement; no destination opened.",
+                fixture_inputs="Synthetic qualified live-only destination and actual production-rendered row replacement; rollover live rows have an explicit 2026-10-08T07:59:00Z receipt. Shared window buckets are checked separately from the three-minute stale presentation, retained score and revoked live-only link; no destination opened.",
                 recomputation="Existing minute/hash/visibility/snapshot events, with exact boundary projection triggered explicitly; no dedicated boundary-timer claim.",
                 csp_scope="Protocol page enforces strict CSP; generated production page retains its existing inline scripts and styles.")
 

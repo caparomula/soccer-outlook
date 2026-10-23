@@ -28,8 +28,8 @@ independent Dart reader and fresh source/rendered reconciliation. The
 - Deferred with explicit scope: source permission blocks distribution;
   physical/minimum-OS runtime and release performance remain later gates.
   The transport captures preserve wire facts and unknown score freshness;
-  production status decoding, stale presentation and live correction ordering
-  still require P2/P3 acceptance evidence.
+  source observation freshness and live correction ordering still require their
+  P2/P3 evidence. The bounded status and response-timeout increments are below.
 - Implemented locally: P1's opt-in exporter, full/lightweight build integration,
   atomic immutable publication with durable revisions, original editorial
   bindings/lifetimes, and independent Dart validation. Workflow export remains
@@ -55,8 +55,10 @@ independent Dart reader and fresh source/rendered reconciliation. The
   Fixture focus and schedule placement now share one supplied clock and owner;
   see the [window evidence](p2-window-evidence.md). The bounded ESPN status/result
   decoder now serves publisher and browser consumers from one pure data owner;
-  see the [status review checkpoint](p2-status-evidence.md). Full source
-  qualification, observation freshness, ranking and editorial lifetime semantics
+  see the [status review checkpoint](p2-status-evidence.md). Per-fixture receipt
+  provenance and the user-approved three-minute current-live timeout are now
+  implemented locally; see the [freshness review checkpoint](p2-freshness-evidence.md).
+  Full source qualification, observation freshness, ranking and editorial lifetime semantics
   remain later P2 work.
 
 ## Scope and sequence
@@ -211,6 +213,16 @@ void records cannot invent a result, scorer list or live-only link. The
 preserved captured answers from nine declared legacy corrections and independent
 boundary examples. This is a local code-review checkpoint, not full TIME-2 or
 P2 acceptance.
+
+**October 23 response-freshness review checkpoint:** `SOURCE-PROVENANCE-1`
+preserves each accepted fixture's response receipt through context, HTML, feed
+and browser overlay reuse. `LIVE-FRESHNESS-1` implements the user-approved
+three-minute response timeout through one pure owner. Exact deadline and resume
+checks replace current-live claims with last-known presentation and disable
+live-only links while retaining source score/status. Accepted finals update all
+surfaces immediately, including when another league's request remains pending.
+See the [review evidence](p2-freshness-evidence.md). Unknown source observation
+age remains unknown; the response timeout does not complete all TIME-2 or P2 work.
 
 P2 remains incomplete: source-observation freshness, full source qualification,
 ranking, carousel/pick selection and editorial lifetimes still need their own

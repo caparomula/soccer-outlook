@@ -164,6 +164,9 @@ def write_pages(out, baseline):
                         for side, team, score in (("home", match.home, "1"), ("away", match.away, "0"))],
                     geoBroadcasts=[dict(media=dict(shortName="ESPN+"), region="us", market=dict(type="National"))])])
                 decoded = build.interpret("eng.1", source)
+                # This synthetic observation is fresh at the fixed page clock.
+                # Direct interpretation does not invent a response receipt.
+                decoded.source_received_at = "2026-10-07T17:00:00Z"
                 # Exercise the actual persisted Match shape, not a synthetic
                 # private decoder cache; one row is restored through JSON.
                 if match.id == "raw-clock-postponed":
@@ -341,7 +344,7 @@ def browser_consumer(engine, base, pages, asset, baseline, out, name):
             require(row.locator('.team .score').all_text_contents() == ['1', '0'], "Static fallback lost bound live scores")
         transitions.append(dict(name="no_javascript_static_result_fallback", final_scores=['0', '1']))
     return dict(transitions=transitions, external_sri_core=True, page_errors=[],
-                fixture_inputs="Synthetic normalized Match values with literal scorer facts; raw live display collisions decoded through interpret (one JSON-restored Match); frozen raw defects with a supplied scoring-play detail; a qualified literal live-only destination; explicitly described old scorer and unknown snapshot transformations; no destination opened.",
+                fixture_inputs="Synthetic normalized Match values with literal scorer facts; raw live display collisions decoded through interpret with an explicit 2026-10-07T17:00:00Z response receipt (one JSON-restored Match); frozen raw defects with a supplied scoring-play detail; a qualified literal live-only destination; explicitly described old scorer and unknown snapshot transformations; no destination opened.",
                 csp_scope="Protocol page enforces strict CSP; generated production page retains existing inline scripts/styles.")
 
 
