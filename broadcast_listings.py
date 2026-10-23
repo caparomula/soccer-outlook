@@ -1,9 +1,9 @@
 """Supplement ESPN with public US listings and retain each source's coverage evidence."""
 from datetime import datetime, timedelta, timezone
 from importlib import import_module
-from urllib.parse import urlsplit
 
-from provider_utils import eligible, finish_report, kickoff, report as source_report
+import outlook_runtime
+from provider_utils import eligible, finish_report, kickoff, public_https, report as source_report
 
 
 # The fallback keys stay stable for historical reports. Discovery is by supported
@@ -141,25 +141,25 @@ def retain_recent_evidence(builder, matches, previous_records, built_at, max_age
         records = {record.get("id"): record for record in previous_records if isinstance(record, dict)}
     retained_matches, retained_channels = set(), 0
     now = built_at.astimezone(timezone.utc)
-    ttl = timedelta(hours=max(0, min(6, max_age_hours)))
+    # The shared allowance uses whole seconds. Subsecond custom allowances
+    # truncate conservatively; the configured production six hours is exact.
+    retention_seconds = int(timedelta(hours=max(0, min(6, max_age_hours))).total_seconds())
     for match in matches:
         previous = records.get(match.id)
         if (not eligible(builder, match) or match.state not in ("pre", "in") or
-                now >= match.utc + timedelta(hours=4) or not isinstance(previous, dict) or
+                not isinstance(previous, dict) or
                 previous.get("league") != match.league or
                 kickoff(previous.get("utc") or previous.get("kickoff_utc")) != match.utc or
                 not _same_team(match.home, previous.get("home")) or not _same_team(match.away, previous.get("away"))):
             continue
         labels = {outlet.label for outlet in match.outlets}
         checks = getattr(match, "broadcast_checks", [])
+        candidates = {}
+        blocked_channels = set()
         for evidence in previous.get("broadcast_evidence", []):
             if not isinstance(evidence, dict):
                 continue
-            checked = kickoff(evidence.get("checked_at"))
-            url = evidence.get("url", "")
-            if (evidence.get("country") != "US" or evidence.get("kind") != "match_listing" or
-                    not isinstance(url, str) or urlsplit(url).scheme != "https" or
-                    checked is None or not timedelta(0) <= now - checked <= ttl):
+            if evidence.get("country") != "US" or evidence.get("kind") != "match_listing":
                 continue
             source_checks = [item for item in checks if item.get("source") == evidence.get("source")]
             if not source_checks:
@@ -184,12 +184,41 @@ def retain_recent_evidence(builder, matches, previous_records, built_at, max_age
             outlet = builder.map_outlet(evidence.get("channel", ""), match.league)
             if not outlet.known or outlet.label in labels:
                 continue
+            checked = kickoff(evidence.get("checked_at"))
+            explicit_expiry = kickoff(evidence.get("expires_at"))
+            if (not public_https(evidence.get("url")) or checked is None or
+                    (evidence.get("expires_at") is not None and explicit_expiry is None)):
+                # An outage cannot erase an unusable retained claim and then
+                # borrow a fresh record's age for that same channel. Only a
+                # source-qualified claim can constrain the aggregate.
+                if evidence.get("retained"):
+                    blocked_channels.add(outlet.label)
+                continue
+            temporal = outlook_runtime.route_validity(dict(basis="listed", retained=True,
+                verified_at=outlook_runtime.utc_stamp(checked),
+                expires_at=outlook_runtime.utc_stamp(explicit_expiry) if explicit_expiry else None,
+                kickoff_utc=outlook_runtime.utc_stamp(match.utc), rights_until=None,
+                retention_seconds=retention_seconds), now)
+            # Expired records still constrain the same channel's original
+            # lifetime. Other malformed/future observations cannot justify reuse.
+            if not temporal["usable"] and temporal["reason"] != "expired":
+                continue
+            candidates.setdefault(outlet.label, (outlet, []))[1].append(dict(evidence, channel=outlet.label))
+        for outlet, evidence in candidates.values():
+            if outlet.label in blocked_channels:
+                continue
+            facts = builder.route_validity_facts(match, outlet, evidence=evidence)
+            facts.update(retained=True, retention_seconds=retention_seconds)
+            temporal = outlook_runtime.route_validity(facts, now)
+            if not temporal["usable"]:
+                continue
             match.outlets.append(outlet)
             labels.add(outlet.label)
-            match.broadcast_evidence.append(dict(evidence, retained=True))
+            match.broadcast_evidence.extend(dict(item, retained=True, expires_at=temporal["expires_at"])
+                                            for item in evidence)
             retained_matches.add(match.id)
             retained_channels += 1
         if match.id in retained_matches:
             match.rule, match.hint = None, ""
-            match.service, match.basis, match.outlet = builder.evaluate(match.outlets, None, builder.OWNER)
+            builder.evaluate_match_routes(match, built_at)
     return dict(retained_matches=len(retained_matches), retained_channels=retained_channels)

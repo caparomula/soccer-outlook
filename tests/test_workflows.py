@@ -4,6 +4,7 @@ from contextlib import redirect_stderr, redirect_stdout
 import io
 import json
 from pathlib import Path
+import re
 import tempfile
 import unittest
 
@@ -12,6 +13,63 @@ ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location("check_build", ROOT / ".github/scripts/check-build.py")
 check_build = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(check_build)
+
+
+class TestDependencyPreparation(unittest.TestCase):
+    """Check the repository's indented job/step layout without a YAML dependency."""
+
+    @staticmethod
+    def jobs(path):
+        text = path.read_text(encoding="utf-8").split("\njobs:\n", 1)[1]
+        parts = re.split(r"^  ([\w-]+):\n", text, flags=re.MULTILINE)
+        for name, body in zip(parts[1::2], parts[2::2]):
+            yield name, re.split(r"^      - ", body, flags=re.MULTILINE)[1:]
+
+    @staticmethod
+    def condition(step):
+        value = re.search(r"^        if: (.+)$", step, re.MULTILINE)
+        return value.group(1) if value else None
+
+    @staticmethod
+    def environment(command):
+        # python/python3 share setup-python; a separate venv needs its own install.
+        return command.rsplit("/", 1)[0] if "/" in command else "setup-python"
+
+    def assert_prepared(self, module, requirements):
+        checked = set()
+        invocation = re.compile(r"([\w./-]*python3?) -m (" + module + r")(?=\s|$)")
+        installation = re.compile(r"([\w./-]*(?:python3? -m pip|pip)) install ([^\n]+)")
+        for path in sorted((ROOT / ".github/workflows").glob("*.yml")):
+            for job, steps in self.jobs(path):
+                for index, step in enumerate(steps):
+                    for run in invocation.finditer(step):
+                        with self.subTest(workflow=path.name, job=job, command=run.group(0)):
+                            checked.add((path.name, job))
+                            prepared = set()
+                            for earlier in steps[:index] + [step[:run.start()]]:
+                                condition = self.condition(earlier)
+                                if condition not in (None, self.condition(step)):
+                                    continue
+                                self.assertNotIn("COMPANION_FEED_ENABLED", condition or "")
+                                for install in installation.finditer(earlier):
+                                    if self.environment(install.group(1)) != self.environment(run.group(1)):
+                                        continue
+                                    prepared.update(re.findall(r"(?:^|\s)-r\s+(\S+)", install.group(2)))
+                            self.assertTrue(set(requirements) <= prepared,
+                                            f"{run.group(0)} needs {requirements} installed first in its environment")
+        return checked
+
+    def test_unit_jobs_prepare_companion_dependencies_even_when_feed_is_disabled(self):
+        self.assertEqual(self.assert_prepared("unittest", ["tests/requirements-companion.txt"]), {
+            ("browser.yml", "unit"), ("refresh.yml", "refresh"),
+            ("schedule.yml", "schedule"), ("companion.yml", "spike"),
+        })
+
+    def test_browser_jobs_prepare_their_own_test_environment(self):
+        self.assertEqual(self.assert_prepared(r"tests\.browser(?:_schedule|_publication_capture)?", [
+            "tests/requirements-browser.txt", "tests/requirements-companion.txt",
+        ]), {("browser.yml", "browser"), ("refresh.yml", "refresh"),
+             ("companion.yml", "spike")})
 
 
 class Publication(unittest.TestCase):

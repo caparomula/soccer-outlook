@@ -1,0 +1,23 @@
+{"event":"environment","at":"2026-10-20T19:01:29.351757Z","platform":"android","os_version":"BE4B.251210.005","dart_version":"3.13.3 (stable) (Tue Sep 1 01:07:17 2026 -0700) on \"android_arm64\"","iana_zone":"America/New_York","documents_exists":true,"cache_exists":true,"temporary_exists":true,"plugins":{"sqflite":"2.4.4+2","path_provider":"2.1.6","flutter_timezone":"5.1.1"}}
+{"event":"sqlite_close_reopen_pass","at":"2026-10-20T19:01:29.585545Z","rows":1}
+{"event":"public_https_skipped","at":"2026-10-20T19:01:29.594244Z"}
+{"event":"local_request_received","at":"2026-10-20T19:01:29.681704Z","path":"/p0/timeout","lifecycle_request_count":0}
+{"event":"real_socket_timeout_pass","at":"2026-10-20T19:01:37.622319Z","elapsed_ms":8013}
+{"event":"local_request_received","at":"2026-10-20T19:01:37.632408Z","path":"/p0/recovery","lifecycle_request_count":0}
+{"event":"after_timeout_recovery_pass","at":"2026-10-20T19:01:37.647112Z","http_status":200}
+{"event":"ready_for_native_background","at":"2026-10-20T19:01:37.648165Z"}
+{"event":"local_request_received","at":"2026-10-20T19:01:37.661187Z","path":"/p0/lifecycle","lifecycle_request_count":1}
+{"event":"native_lifecycle","at":"2026-10-20T19:01:37.906289Z","state":"inactive","lifecycle_request_count":1}
+{"event":"native_lifecycle","at":"2026-10-20T19:01:39.031416Z","state":"hidden","lifecycle_request_count":1}
+{"event":"session_cancelled_on_native_pause","at":"2026-10-20T19:01:39.043055Z","busy":false}
+{"event":"native_lifecycle","at":"2026-10-20T19:01:39.047011Z","state":"paused","lifecycle_request_count":1}
+{"event":"session_cancelled_on_native_pause","at":"2026-10-20T19:01:39.056253Z","busy":false}
+{"event":"lifecycle_check_completed","at":"2026-10-20T19:01:39.078413Z","check":1,"cancelled":true,"request_count":1}
+{"event":"native_lifecycle","at":"2026-10-20T19:01:40.950648Z","state":"hidden","lifecycle_request_count":1}
+{"event":"session_cancelled_on_native_pause","at":"2026-10-20T19:01:40.957148Z","busy":false}
+{"event":"native_lifecycle","at":"2026-10-20T19:01:40.959814Z","state":"inactive","lifecycle_request_count":1}
+{"event":"native_lifecycle","at":"2026-10-20T19:01:41.112279Z","state":"resumed","lifecycle_request_count":1}
+{"event":"local_request_received","at":"2026-10-20T19:01:41.174802Z","path":"/p0/lifecycle","lifecycle_request_count":2}
+{"event":"lifecycle_check_completed","at":"2026-10-20T19:01:41.316070Z","check":2,"cancelled":false,"request_count":2}
+{"event":"native_pause_resume_pass","at":"2026-10-20T19:01:41.319409Z","requests":2,"old_check_rejected":true}
+{"event":"all_native_checks_complete","at":"2026-10-20T19:01:41.331839Z"}

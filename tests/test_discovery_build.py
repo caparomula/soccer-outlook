@@ -67,7 +67,8 @@ class PublicBuild(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             folder = Path(tmp)
             self.run_build(folder, fragment=True)
-            self.assertEqual([p.name for p in folder.iterdir()], ["index.html"])
+            self.assertCountEqual(
+                [p.name for p in folder.iterdir()], ["index.html", build.CORE_ASSET])
             self.assertNotIn('rel="canonical"', (folder / "index.html").read_text())
 
     def test_absent_verification_and_invalid_configuration(self):

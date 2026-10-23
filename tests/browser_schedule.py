@@ -87,6 +87,9 @@ class ScheduleChecks(unittest.TestCase):
             context.close()
 
     def serve(self, page, payload):
+        # Finish the initial offline 404 before advancing time: an in-flight initial request can
+        # otherwise consume the next poll and start its backoff at the already-advanced clock.
+        expect(page.locator('#schedule-note')).to_contain_text('saved schedule remains available')
         state = {"payload": payload, "requests": 0, "fail": False}
 
         def request(route):
@@ -212,9 +215,17 @@ class ScheduleChecks(unittest.TestCase):
             feed['data'] = scoreboard('in')
             page.clock.fast_forward(120100)
             expect(page.locator('li.row[data-id="upcoming"] .score').first).to_have_text('2')
-            state = self.serve(page, snapshot())
+            replacement = snapshot([
+                ("upcoming", "2026-10-07T17:05:00+00:00", "pre", "Paramount+", "eng.1"),
+                *FIXTURES[1:]])
+            state = self.serve(page, replacement)
             self.tick(page, state)
             row = page.locator('li.row[data-id="upcoming"]')
+            # A preserved old row would also have the live score: prove installation
+            # of the new broadcast facts and reevaluation of the shared route owner.
+            expect(page.locator('#app')).to_have_attribute('data-schedule-built', replacement['generated_at'])
+            expect(row).to_have_attribute('data-svc', 'para')
+            expect(row.locator('.network summary')).to_contain_text('Paramount+')
             expect(row).to_have_attribute('data-state', 'in')
             expect(row.locator('.score').first).to_have_text('2')
             expect(row.locator('.row__status')).to_contain_text("63'")

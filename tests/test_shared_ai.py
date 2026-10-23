@@ -146,7 +146,8 @@ class SharedAI(unittest.TestCase):
             self.assertEqual(self.destination.read_bytes(), raw)
             fragment = self.root / "fragment"
             test_discovery_build.PublicBuild.run_build(self, fragment, fragment=True)
-            self.assertEqual([item.name for item in fragment.iterdir()], ["index.html"])
+            self.assertCountEqual(
+                [item.name for item in fragment.iterdir()], ["index.html", build.CORE_ASSET])
 
 
 if __name__ == "__main__":

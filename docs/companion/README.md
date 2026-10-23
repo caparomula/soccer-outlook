@@ -2,7 +2,25 @@
 
 These documents describe how to build a phone and tablet companion to Soccer Outlook while keeping its website useful and consistent. The app should answer the same question: what soccer can I watch with my services, and which matches are most worth my time?
 
-This is a proposed development baseline; the companion app and its new data feed are not implemented.
+The P0 technical spike has passed. P1 now has a local versioned exporter,
+durable publication writer and independent Dart reader, reconciled against a
+fresh complete source collection. See the [current P1 evidence](p1-continuation-evidence.md)
+and [operation guide](p1-operation.md).
+P2 is in progress: shared Dart route selection, calendar boundaries, viewer
+league/fixture eligibility, route expiry and fixture focus/schedule placement
+now run in the shared core. The window family has a browser adapter and a
+CLI/Python operation; Python static grouping retains its distinct policy. See the
+[current window evidence](p2-window-evidence.md),
+[validity checkpoint](p2-validity-evidence.md),
+[eligibility checkpoint](p2-eligibility-evidence.md), [first increment](p2-evidence.md)
+and [rule catalog](rules/README.md) for implemented families and remaining work.
+The shared ESPN status/result decoder now has a local
+[code-review checkpoint](p2-status-evidence.md), with publisher and browser
+consumers using one pure data owner. Source-observation freshness is next;
+remaining source qualification, ranking and editorial rules still need migration.
+The feed is not deployed, and the companion app is not implemented.
+P0's production source-permission requirement remains open; the user authorized
+continued local engineering while feed delivery and distribution stay gated.
 
 ## Read the plan
 
@@ -35,7 +53,7 @@ It adapts these practices to this project. It does not require Pit Dash's roboti
 
 ## About this document
 
-- Status: proposed, October 20, 2026. Requesting these documents does not authorize an app release or mean the feasibility gates have passed.
+- Status: reconciled October 23, 2026. P0/P1 local technical acceptance passed; production source permission remains open. P2 route/calendar, viewer-eligibility, route-validity and fixture-window checkpoints passed locally; the bounded status/result decoder is ready for code review. P2 remains in progress; feed delivery and distribution remain gated.
 - Current Soccer Outlook baseline: [`cb0475e`](https://github.com/caparomula/soccer-outlook/tree/cb0475e).
 - Pit Dash reviewed: [`865fa263`](https://github.com/caparomula/pit-dash/tree/865fa263062b0870b9ae71555132d4ace894dccf).
 - These are original Soccer Outlook planning documents. Existing project licensing and third-party attribution requirements continue to apply.

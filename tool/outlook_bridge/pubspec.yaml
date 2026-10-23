@@ -1,0 +1,11 @@
+name: outlook_bridge_spike
+description: Browser and publisher adapters for shared Soccer Outlook rules.
+publish_to: none
+version: 0.0.1
+environment:
+  sdk: '>=3.13.3 <3.14.0'
+dependencies:
+  outlook_core:
+    path: ../../packages/outlook_core
+  outlook_data:
+    path: ../../packages/outlook_data

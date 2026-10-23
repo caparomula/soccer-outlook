@@ -53,6 +53,13 @@ jobs:
               print('::notice::No compatible recent standings context; keeping the published site until a full refresh succeeds.')
           PY
 
+      - uses: ./.github/actions/outlook-runtime
+        if: steps.context.outputs.ready == 'true'
+
+      - name: Install test dependencies
+        if: steps.context.outputs.ready == 'true'
+        run: python3 -m pip install -r tests/requirements-companion.txt
+
       - name: Unit tests
         if: steps.context.outputs.ready == 'true'
         run: python3 -m unittest -v
@@ -60,13 +67,28 @@ jobs:
       - name: Refresh fixtures and broadcasts
         if: steps.context.outputs.ready == 'true'
         env:
+          COMPANION_FEED_ENABLED: ${{ vars.COMPANION_FEED_ENABLED }}
           SITE_URL: ${{ vars.SITE_URL || format('https://{0}.github.io/{1}/', github.repository_owner, github.event.repository.name) }}
           GOOGLE_SITE_VERIFICATION: ${{ vars.GOOGLE_SITE_VERIFICATION }}
           BING_SITE_VERIFICATION: ${{ vars.BING_SITE_VERIFICATION }}
           INDEXNOW_KEY: ${{ vars.INDEXNOW_KEY }}
         run: |
           bash .github/scripts/check-current-revision.sh
-          python3 build.py --lightweight --previous-context published/schedule-context.json --out site/index.html --site-url "$SITE_URL" --facts work/facts.json --metrics work/metrics.json --warnings work/mapping-report.txt --report work/build-report.json
+          companion=()
+          if [ "$COMPANION_FEED_ENABLED" = true ]; then
+            previous_api=none
+            if [ -d published/api ]; then
+              previous_api=published/api/v1
+            fi
+            companion=(--companion-feed --companion-previous-api "$previous_api" --companion-producer-revision "$GITHUB_SHA" --companion-stage work/companion-stage.json)
+          fi
+          python3 build.py --lightweight --previous-context published/schedule-context.json --out site/index.html --site-url "$SITE_URL" --facts work/facts.json --metrics work/metrics.json --warnings work/mapping-report.txt --report work/build-report.json "${companion[@]}"
+
+      - name: Finalize opt-in companion publication
+        if: steps.context.outputs.ready == 'true' && vars.COMPANION_FEED_ENABLED == 'true'
+        run: |
+          bash .github/scripts/check-current-revision.sh
+          python3 .github/scripts/companion-feed.py --stage work/companion-stage.json --api-dir site/api/v1 --automatic site/story.json --shared site/shared-ai.json
 
       - name: Check the page
         if: steps.context.outputs.ready == 'true'
@@ -104,5 +126,7 @@ jobs:
             work/metrics.json
             work/history-snapshot.json.gz
             site/coverage.json
+            site/api/
+            work/companion-stage.json
           if-no-files-found: ignore
           retention-days: 7

@@ -1,0 +1,293 @@
+{
+  "version": 1,
+  "reviewed_date": "2026-10-23",
+  "completed": true,
+  "scope": "Fresh STATUS-ESPN-1 decoder, existing feed reader, unknown window phase and VM protocol checks",
+  "environment": {
+    "dart": "/Users/chris/flutter/bin/cache/dart-sdk/bin/dart",
+    "PUB_CACHE": "/Users/chris/soccer-outlook/work/pub-cache"
+  },
+  "checks": [
+    {
+      "name": "data-test",
+      "command": [
+        "/Users/chris/flutter/bin/cache/dart-sdk/bin/dart",
+        "--suppress-analytics",
+        "test",
+        "--reporter",
+        "expanded"
+      ],
+      "cwd": "packages/outlook_data",
+      "exit_code": 0,
+      "passed_tests": 49,
+      "log": {
+        "path": "work/p2-status-core-final-2026-10-23/data-test.log",
+        "sha256": "90a8b432191f6223e501f88cd50a0bf5ab55094935807abc3cda40261705508e"
+      },
+      "retained": false
+    },
+    {
+      "name": "core-test",
+      "command": [
+        "/Users/chris/flutter/bin/cache/dart-sdk/bin/dart",
+        "--suppress-analytics",
+        "test",
+        "--reporter",
+        "expanded"
+      ],
+      "cwd": "packages/outlook_core",
+      "exit_code": 0,
+      "passed_tests": 128,
+      "log": {
+        "path": "work/p2-status-core-final-2026-10-23/core-test.log",
+        "sha256": "a470f55ba6047e4ad2d11a5ac26e23e25b0d348210fbe0727d0d70afc962d03d"
+      },
+      "retained": false
+    },
+    {
+      "name": "data-analyze",
+      "command": [
+        "/Users/chris/flutter/bin/cache/dart-sdk/bin/dart",
+        "--suppress-analytics",
+        "analyze"
+      ],
+      "cwd": "packages/outlook_data",
+      "exit_code": 0,
+      "log": {
+        "path": "work/p2-status-core-final-2026-10-23/data-analyze.log",
+        "sha256": "1cd45586f64a6ce4091c2a20a5ef12c2bc86a7f598fb62547b675b15a38698f4"
+      },
+      "retained": false
+    },
+    {
+      "name": "core-analyze",
+      "command": [
+        "/Users/chris/flutter/bin/cache/dart-sdk/bin/dart",
+        "--suppress-analytics",
+        "analyze"
+      ],
+      "cwd": "packages/outlook_core",
+      "exit_code": 0,
+      "log": {
+        "path": "work/p2-status-core-final-2026-10-23/core-analyze.log",
+        "sha256": "b025a19ca25e484f7eb2049cd409712640864bbacc067c403f46f99523af22b9"
+      },
+      "retained": false
+    },
+    {
+      "name": "bridge-analyze",
+      "command": [
+        "/Users/chris/flutter/bin/cache/dart-sdk/bin/dart",
+        "--suppress-analytics",
+        "analyze"
+      ],
+      "cwd": "tool/outlook_bridge",
+      "exit_code": 0,
+      "log": {
+        "path": "work/p2-status-core-final-2026-10-23/bridge-analyze.log",
+        "sha256": "4bc33b45f815fefdfb4dfafea9576e9eadb9e05627c165e793b68ca850623840"
+      },
+      "retained": false
+    }
+  ],
+  "format": {
+    "command": [
+      "/Users/chris/flutter/bin/cache/dart-sdk/bin/dart",
+      "--suppress-analytics",
+      "format",
+      "--output=none",
+      "--set-exit-if-changed",
+      "packages/outlook_core/lib",
+      "packages/outlook_core/test",
+      "packages/outlook_data/lib",
+      "packages/outlook_data/test",
+      "tool/outlook_bridge/lib/protocol.dart",
+      "tool/outlook_bridge/bin/outlook.dart",
+      "tool/outlook_bridge/web/bridge.dart"
+    ],
+    "exit_code": 0,
+    "files": 25,
+    "changed": 0,
+    "log": {
+      "path": "work/p2-status-core-final-2026-10-23/format.log",
+      "sha256": "2915bf1467ffad9cf6bd8a440f3753d5a6bc52be9e48fb4a6cbbea513b54b2e7"
+    }
+  },
+  "decoder_test_composition": {
+    "independent_groups": 18,
+    "literal_decisions": 67,
+    "additional_decoder_tests": 8,
+    "existing_feed_reader_tests": 23,
+    "total_data_tests": 49
+  },
+  "core_test_composition": {
+    "prior_tests": 127,
+    "unknown_phase_tests": 1,
+    "total": 128
+  },
+  "protocol": {
+    "result": {
+      "completed": true,
+      "independent_example_groups": 96,
+      "status_groups": 18,
+      "status_decisions": 67,
+      "window_groups": 18,
+      "window_decisions": 38,
+      "validity_groups": 18,
+      "validity_decisions": 33,
+      "invalid_frames": [
+        "unsupported-basis",
+        "negative-retention",
+        "excess-retention",
+        "fractional-retention",
+        "boolean-retention",
+        "numeric-retained",
+        "missing-nullable-field",
+        "impossible-instant",
+        "impossible-rights-date",
+        "seven-digit-fraction",
+        "non-Z-instant",
+        "unknown-field",
+        "validity-without-clock",
+        "listed-basis-mismatch",
+        "usual-basis-mismatch",
+        "null-validity-object",
+        "window-unsupported-state",
+        "window-null-state",
+        "window-numeric-confirmation",
+        "window-missing-nullable-receipt",
+        "window-numeric-receipt",
+        "window-impossible-kickoff",
+        "window-impossible-receipt",
+        "window-non-Z-clock",
+        "window-seven-digit-receipt",
+        "window-unknown-zone",
+        "window-unknown-case-field",
+        "window-unknown-envelope-field",
+        "window-duplicate-case-id",
+        "window-too-many-cases",
+        "window-empty-id",
+        "window-missing-clock",
+        "window-mixed-batch-atomicity",
+        "window-nonobject-case",
+        "espn_status-bound-state-forbidden",
+        "espn_status-missing-id",
+        "espn_status-missing-event_status",
+        "espn_status-missing-competition_status",
+        "espn_status-missing-home_score",
+        "espn_status-missing-away_score",
+        "espn_status-unknown-case-field",
+        "espn_status-duplicate-id",
+        "espn_status-atomic-mixed-batch",
+        "fixture_status-missing-id",
+        "fixture_status-missing-phase",
+        "fixture_status-missing-label",
+        "fixture_status-missing-home_score",
+        "fixture_status-missing-away_score",
+        "fixture_status-unknown-case-field",
+        "fixture_status-duplicate-id",
+        "fixture_status-atomic-mixed-batch"
+      ],
+      "time_aware_selection_alignment_passed": true,
+      "mathematical_integer_retention_passed": true,
+      "server_exit": 0,
+      "one_shot_invalid_exit": 65,
+      "stderr_empty": true,
+      "commands": [
+        [
+          "/Users/chris/flutter/bin/cache/dart-sdk/bin/dart",
+          "--suppress-analytics",
+          "run",
+          "bin/outlook.dart",
+          "--serve"
+        ],
+        [
+          "/Users/chris/flutter/bin/cache/dart-sdk/bin/dart",
+          "--suppress-analytics",
+          "run",
+          "bin/outlook.dart"
+        ]
+      ],
+      "transport_invalid_frames": 2,
+      "transport_server_recovered": true,
+      "maximum_1000_cases_accepted": true,
+      "unknown_window_seam_passed": true,
+      "maximum_status_1000_cases_accepted": true
+    },
+    "script": {
+      "path": "work/p2-status-core-final-2026-10-23/verify_protocol.py",
+      "sha256": "2fc86a46aa26119edda738e4e60fa3fdd2572246be892c4bfbdd296ed646dd75"
+    },
+    "log": {
+      "path": "work/p2-status-core-final-2026-10-23/protocol.log",
+      "sha256": "4f588e93dbbfd467e6af8e945d7db7a1c28b94ffa613ce9fa0b82b041fbb0ac4"
+    },
+    "retained": false
+  },
+  "source_binding": {
+    "verified_paths": 42,
+    "hashes": {
+      "docs/companion/rules/eligibility-examples.json": "3bd72c6dcafe137b688000f0a6ae69d0a0ddd418e0bcbe9c35cc1e71f6ca1d58",
+      "docs/companion/rules/espn-status-examples.json": "82dfc9d5c5534b5260752d4285c8e53db74fa23d1ce3f9be8d5a59ea489c0e6c",
+      "docs/companion/rules/espn-status.md": "ee6b0978515ec0f45b95b8be49bddb2ad8f37df129681fd3913108c7b51345c3",
+      "docs/companion/rules/fixture-window-examples.json": "64f6309645d391df0e639d107f6ffd2443143a5ee1b69d6e7087ff4cfdc112e4",
+      "docs/companion/rules/fixture-windows.md": "a3015a16d266c391bd1551a3457137bdfe8f8c768d41cf796c71b1004b4775a7",
+      "docs/companion/rules/route-examples.json": "830ae7e65c053a0bbf27ad424623fed07a35d797dec541ef131eb1e4efe5f9e9",
+      "docs/companion/rules/route-validity-examples.json": "4ddd06ed3fac1e48d1342110580a876ca66558aed828bf808aaef110266dff0c",
+      "docs/companion/rules/sports-day-examples.json": "5e82e6c8564fb7ff14ccc4db02bbe1df5a17b27f41114aae9728c4c949dc9db3",
+      "packages/outlook_core/analysis_options.yaml": "9d8678dc8c46856d2400175deef7deae8c83bb99f7608594c6d5d804ca726efa",
+      "packages/outlook_core/lib/outlook_core.dart": "3a30cbfc6e863df9f7a8d3d61c53c7180d2320717e746769a0983a9642085bcc",
+      "packages/outlook_core/lib/src/eligibility.dart": "cae707fe6160016c810a3a4421cd5800a5a634dd8bec145cb9139d2844aaf7bd",
+      "packages/outlook_core/lib/src/fixture_window.dart": "0dc7a504c04054d23bc5bc51ab2d97cc53522a5b6ba24c5f52f68919807d7a00",
+      "packages/outlook_core/lib/src/outlook.dart": "6a31a694c27c4593cae58910a64c0903d6b16f03e7d02804bc548b4bc17006f6",
+      "packages/outlook_core/lib/src/route_basis.dart": "57726a60a6ec0d3e810a491234d44bceaf4beb94f80b4d395298091183fdf8c0",
+      "packages/outlook_core/lib/src/route_validity.dart": "4d685d13ce4e47eaebe780f73f4a7aa1a11eaf31d2ce2cf23fb98d184d9ef816",
+      "packages/outlook_core/lib/src/routes.dart": "6ec9184ea675d1fd51cbee7b778550ddb24260e03a013697b56d6361007649f7",
+      "packages/outlook_core/lib/src/sports_day.dart": "924107b44bbff1b10168b80beaf75a2eb50341a4303eed0cb55f1fa252657881",
+      "packages/outlook_core/pubspec.lock": "951af870a0c95fbed5678225bc6c259298c75e4ba18de1ea93a23ca842851cdb",
+      "packages/outlook_core/pubspec.yaml": "d61828f0302735a3c5fe84b9b767df630f89711f106b244d9cba1ede1a32fd89",
+      "packages/outlook_core/test/eligibility_test.dart": "52c9a29b44b758262ee33e1cf9dd978be27a4623f23b373fa237e8c08562e1e1",
+      "packages/outlook_core/test/fixture_window_test.dart": "a253f38861a9b7e39fd7e6622dac91f2f201b2bac58a3d02990b3ba4d6845f1a",
+      "packages/outlook_core/test/outlook_test.dart": "1d16b721a198654c1bbf54649485f212a57e975b1753157c2ead31320e6c1761",
+      "packages/outlook_core/test/route_calendar_examples_test.dart": "9843063e84d99107a2e1dc3acaedba095ebb711a71c635d1741d18b18d5fdfcc",
+      "packages/outlook_core/test/route_validity_test.dart": "c44440141f14c3ddf34f03283d23f2ff45d1d6a461266b2fa395c23f93164260",
+      "packages/outlook_core/test/sports_day_test.dart": "39705115cb951e9b606a0866348497e4b09dde841af3dea4bac57d03ffcf1fc7",
+      "packages/outlook_data/analysis_options.yaml": "ce712fc2cd21216e43142033539deab3c9ba5237c26fcec9616149da01268bcd",
+      "packages/outlook_data/lib/espn_decoder.dart": "d529b45213584396cb37cab0ac73cfd6a7fad47f1004a6bed0012799feb72a1f",
+      "packages/outlook_data/lib/outlook_data.dart": "78ce0f87033a6816d7942622c6c6484992ba9c1f5aad903cc1737da76d93fdb1",
+      "packages/outlook_data/lib/src/espn_decoder.dart": "31247752321e74e5f2bc5e6e95e4cbb4a8d7d565c343f199374d35526a6270cc",
+      "packages/outlook_data/lib/src/feed_reader.dart": "87eefcb88dd58dc6d4f8ddf3cbdd118da6f7a8897c2252f0a75fa0cf16b167d9",
+      "packages/outlook_data/lib/src/schema_registry.dart": "27b4b6c0124101112f63fefa05699cd1970c64ed45093aa10cc1320fbe92a218",
+      "packages/outlook_data/lib/src/strict_json.dart": "5ada91b93d3417c340a14522d8e284fc855de502a5233b416b643da0218ca66b",
+      "packages/outlook_data/pubspec.lock": "8830b415b54adba67d5b2d1c1cceefc6c0ad4555909bb44f554de71c53b14288",
+      "packages/outlook_data/pubspec.yaml": "33b8971c5b1837bc38b827bf280e96e816759c5d0e9b981b87031d1df6627062",
+      "packages/outlook_data/test/espn_decoder_test.dart": "253b70a350e5bbdc657ee281efbc8a6efe76e39dced7547d67c35b2b6552524d",
+      "packages/outlook_data/test/feed_reader_test.dart": "ac10f08e99d9cf485c949a399f6a7bcdec256adb79eeabaed76eb78134b2104d",
+      "tool/outlook_bridge/analysis_options.yaml": "81e0446176a695d2d1ace5d585a59bcb5ee97addd27f33a9a478f19136c56cca",
+      "tool/outlook_bridge/bin/outlook.dart": "15122da81d462636246dee13f86fd27d33d30390dea52abd28b93d9595ff6394",
+      "tool/outlook_bridge/lib/protocol.dart": "f14c4fb69a1d649ef577fb6c22f3998c4d126185ede4d6dfa295277a7b9ec5bd",
+      "tool/outlook_bridge/pubspec.lock": "dfef25ed7c1f5d2b6d3463cc99a02e01ea354c905d88c56761a5e836322b9111",
+      "tool/outlook_bridge/pubspec.yaml": "eba5cbfd82d05f3733570cbab0f05ce63ae4b8d8b379a75552bb23a01754a208",
+      "tool/outlook_bridge/web/bridge.dart": "b2388aad6fb078ff91e00bfbf31a168df746d272420817f1a8fec4bfc806912e"
+    },
+    "captured_before_checks": true,
+    "current_mismatches": [],
+    "manifest": {
+      "path": "work/p2-status-core-final-2026-10-23/source-hashes-before.json",
+      "sha256": "eb78fac430134653b8d6917694470629942f0d87a0a202a91022d84e0d944686"
+    }
+  },
+  "documentation": {
+    "path": "tool/outlook_bridge/README.md",
+    "sha256": "fc3a2370bda5158fdc7585cc08ea606c8d30e69ab1f3e0d42f19047740a622dd"
+  },
+  "limits": [
+    "Compiled CLI/browser parity, consumer integration and runtime size are separate evidence.",
+    "No clock, receipt age, kickoff confirmation, scorer-event, shootout or aggregate inference is tested as decoder behavior.",
+    "Source status malformation returns conservative facts; envelope violations reject the batch."
+  ],
+  "binding_script": {
+    "path": "work/p2-status-core-final-2026-10-23/bind_evidence.py",
+    "sha256": "9be2a126de8e4912385075fcebdc7d684f6ef0ce93429e2221ec8610c477442d"
+  }
+}

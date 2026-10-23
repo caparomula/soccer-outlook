@@ -2,7 +2,11 @@
 
 The companion needs public match data it can understand without parsing a webpage. This document defines the proposed contract between Soccer Outlook's existing publishing pipeline and its clients. It is for the people implementing the Python publisher, Dart repositories, browser adapter, and their compatibility tests.
 
-This is a design specification; the feed and schemas described here have not been implemented.
+This is a draft contract with [JSON Schemas](../../contracts/outlook/v1/README.md),
+an opt-in local producer and an independent Dart reader. The
+[P1 evidence](p1-evidence.md) records implementation limits; the
+[operation guide](p1-operation.md) explains local publication. No public API has
+been deployed and no shipped-client compatibility promise has begun.
 
 ## What changes
 
@@ -132,7 +136,32 @@ Each fixture record includes the following groups:
 | Rating | Canonical Outlook total, components, raw inputs, assumptions, weights, and calibration ID. |
 | Links | Typed match page, calendar source fields, table reference, and verified viewing destinations. |
 
+The bounded [STATUS-ESPN-1 decoder](rules/espn-status.md) now supplies normalized
+status, original provider phase and score decisions to the exporter. Unfamiliar
+or contradictory status stays unknown; void/unknown/scheduled records expose
+no ordinary score. Internal saved-row bindings preserve canonical status
+separately from display text and retain the original phase when available. This
+changes the producer owner without changing the draft v1 public schema. Source
+observation time remains independent of transport receipt and decoder execution.
+
 Team form is an ordered sequence of result values with its direction specified once in the schema. Rank must include its competition/group and table size; a number without its table context is not a meaningful standing. Team name, emblem, hometown, leaders, record, and other vitals retain their source and observation context. Missing star-player information stays missing.
+
+The P1 producer normalizes supported source-reported W/D/L form into oldest-first
+order while retaining `raw_form`. The [dated comparison](../../tests/contracts/form/README.md)
+supports newest-first source encoding across the sampled leagues; it also finds
+contradictory result values. `form_provenance` therefore records the ordering
+evidence, `values_verified: false`, and null as-of time and competition scope.
+It does not replace conflicting source values with another endpoint's history.
+Missing or unrecognized form stays an empty sequence. The evidence directly
+covers five-character fields; shorter fields use the same encoding inference,
+and future longer source fields require decoder review before changing the
+existing builder's five-character projection.
+The producer exports per-fixture rank/vitals, not complete standings tables. A missing
+provider observation/update instant stays null; `received_at` records the
+original collection receipt separately. Unknown shared editorial publication
+time is likewise null, distinct from its known original prompt time. These
+nullable fields clarify the unshipped draft; publication time must never fill
+an unknown source timestamp.
 
 An unconfirmed kickoff is not a synthetic midnight timestamp. It cannot win “next confirmed kickoff,” acquire a countdown, or become live when an invented time passes. Its supplied date may support an explicitly time-unconfirmed schedule group. A date without a known zone cannot be converted into the visitor's local date as though it were an instant.
 
@@ -251,6 +280,7 @@ See [Engineering practices](engineering.md) for ownership and test discipline, a
 
 ## About this document
 
-Status: proposed contract for the first companion release. No public API or compatibility guarantee is created by this document alone.
+Status: draft contract implemented by the local P1 preview producer and reader.
+No public API or compatibility guarantee is created by this document alone.
 
 Baseline: Soccer Outlook `cb0475e`, reviewed 20 October 2026. Current implementation references are [`schedule_data.py`](../../schedule_data.py), [`build.py`](../../build.py), [`rights.toml`](../../rights.toml), [`watch_links.py`](../../watch_links.py), [`story_state.py`](../../story_state.py), and [`web/live.js`](../../web/live.js). Existing source behavior is described in [Schedule data and coverage](../schedule-data.md) and [Scoring](../scoring.md).

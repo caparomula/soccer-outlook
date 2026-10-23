@@ -1,0 +1,24 @@
+{"event":"native_lifecycle","at":"2026-10-20T18:58:07.370674Z","state":"resumed","lifecycle_request_count":0}
+{"event":"environment","at":"2026-10-20T18:58:07.457317Z","platform":"ios","os_version":"Version 26.5 (Build 23F77)","dart_version":"3.13.3 (stable) (Tue Sep 1 01:07:17 2026 -0700) on \"ios_arm64\"","iana_zone":"America/New_York","documents_exists":true,"cache_exists":true,"temporary_exists":true,"plugins":{"sqflite":"2.4.4+2","path_provider":"2.1.6","flutter_timezone":"5.1.1"}}
+{"event":"sqlite_close_reopen_pass","at":"2026-10-20T18:58:07.518073Z","rows":1}
+{"event":"public_https_skipped","at":"2026-10-20T18:58:07.518740Z"}
+{"event":"local_request_received","at":"2026-10-20T18:58:07.622193Z","path":"/p0/timeout","lifecycle_request_count":0}
+{"event":"real_socket_timeout_pass","at":"2026-10-20T18:58:15.561926Z","elapsed_ms":8021}
+{"event":"local_request_received","at":"2026-10-20T18:58:15.583307Z","path":"/p0/recovery","lifecycle_request_count":0}
+{"event":"after_timeout_recovery_pass","at":"2026-10-20T18:58:15.595868Z","http_status":200}
+{"event":"ready_for_native_background","at":"2026-10-20T18:58:15.596805Z"}
+{"event":"local_request_received","at":"2026-10-20T18:58:15.613579Z","path":"/p0/lifecycle","lifecycle_request_count":1}
+{"event":"native_lifecycle","at":"2026-10-20T18:58:15.966921Z","state":"inactive","lifecycle_request_count":1}
+{"event":"native_lifecycle","at":"2026-10-20T18:58:18.821598Z","state":"hidden","lifecycle_request_count":1}
+{"event":"session_cancelled_on_native_pause","at":"2026-10-20T18:58:18.823221Z","busy":false}
+{"event":"native_lifecycle","at":"2026-10-20T18:58:18.823986Z","state":"paused","lifecycle_request_count":1}
+{"event":"session_cancelled_on_native_pause","at":"2026-10-20T18:58:18.824516Z","busy":false}
+{"event":"lifecycle_check_completed","at":"2026-10-20T18:58:19.021012Z","check":1,"cancelled":true,"request_count":1}
+{"event":"native_lifecycle","at":"2026-10-20T18:58:22.177880Z","state":"hidden","lifecycle_request_count":1}
+{"event":"session_cancelled_on_native_pause","at":"2026-10-20T18:58:22.178500Z","busy":false}
+{"event":"native_lifecycle","at":"2026-10-20T18:58:22.178868Z","state":"inactive","lifecycle_request_count":1}
+{"event":"native_lifecycle","at":"2026-10-20T18:58:22.617988Z","state":"resumed","lifecycle_request_count":1}
+{"event":"local_request_received","at":"2026-10-20T18:58:22.631858Z","path":"/p0/lifecycle","lifecycle_request_count":2}
+{"event":"lifecycle_check_completed","at":"2026-10-20T18:58:22.635316Z","check":2,"cancelled":false,"request_count":2}
+{"event":"native_pause_resume_pass","at":"2026-10-20T18:58:22.635850Z","requests":2,"old_check_rejected":true}
+{"event":"all_native_checks_complete","at":"2026-10-20T18:58:22.638937Z"}

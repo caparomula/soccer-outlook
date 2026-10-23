@@ -25,6 +25,16 @@ class Tags(HTMLParser):
 
 
 class Rendering(unittest.TestCase):
+    def test_production_runtime_is_one_integrity_checked_adjacent_asset(self):
+        page = render_page(build, inline_runtime=False)
+        scripts = [attrs for tag, attrs in Tags(page).tags if tag == "script" and "src" in attrs]
+        self.assertEqual(scripts, [{"src": build.CORE_ASSET, "integrity": build.CORE_INTEGRITY}])
+        self.assertNotIn(build.outlook_runtime.browser_script(), page)
+        with tempfile.TemporaryDirectory() as directory:
+            name = build.outlook_runtime.publish_browser(directory)
+            self.assertEqual(name, build.CORE_ASSET)
+            self.assertEqual((Path(directory) / name).read_text(), build.outlook_runtime.browser_script())
+
     def test_document_and_fragment_include_assets_and_schedule(self):
         root = Path(build.__file__).resolve().parent
         for fragment in (False, True):
@@ -167,7 +177,7 @@ class MalformedFeed(unittest.TestCase):
     def test_an_event_that_cannot_be_read_is_skipped_not_fatal(self):
         broken = Markup.event()
         broken["id"] = "8"
-        broken["competitions"][0]["status"] = "postponed"      # a string where an object belongs
+        broken["competitions"][0]["competitors"] = []  # status uncertainty alone retains a fixture
         with patch("sys.stderr", io.StringIO()) as err:
             matches = build.interpret_all({"fifa.friendly.w": {"8": broken, "9": Markup.event()}})
         self.assertEqual([m.id for m in matches], ["9"])

@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://soccer-outlook.invalid/contracts/outlook/v1/schedule.schema.json",
+  "title": "Draft P0 schedule",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "kind": {
+      "const": "outlook_schedule"
+    },
+    "content_revision": {
+      "$ref": "common.schema.json#/$defs/id"
+    },
+    "catalog_revision": {
+      "$ref": "common.schema.json#/$defs/id"
+    },
+    "policy_id": {
+      "$ref": "common.schema.json#/$defs/id"
+    },
+    "fixture_sources_complete": {
+      "const": true
+    },
+    "source_scopes": {
+      "type": "array",
+      "items": {
+        "$ref": "common.schema.json#/$defs/source_scope"
+      },
+      "maxItems": 200,
+      "minItems": 1
+    },
+    "confirmed_horizon": {
+      "anyOf": [
+        {
+          "$ref": "common.schema.json#/$defs/utc_interval"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "broadcast_sources": {
+      "type": "array",
+      "items": {
+        "$ref": "common.schema.json#/$defs/source_health"
+      },
+      "maxItems": 100,
+      "minItems": 0
+    },
+    "fixtures": {
+      "type": "array",
+      "items": {
+        "$ref": "common.schema.json#/$defs/fixture"
+      },
+      "maxItems": 3000,
+      "minItems": 0
+    },
+    "team_vitals": {
+      "type": "array",
+      "items": {
+        "$ref": "common.schema.json#/$defs/vitals"
+      },
+      "maxItems": 6000,
+      "minItems": 0
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "$ref": "common.schema.json#/$defs/evidence"
+      },
+      "maxItems": 30000,
+      "minItems": 0
+    },
+    "destinations": {
+      "type": "array",
+      "items": {
+        "$ref": "common.schema.json#/$defs/destination"
+      },
+      "maxItems": 30000,
+      "minItems": 0
+    },
+    "viewer_preferences": false,
+    "personal_ai": false,
+    "final_pick_score": false,
+    "rating_dots": false,
+    "personalized_picks": false
+  },
+  "required": [
+    "schema_version",
+    "kind",
+    "content_revision",
+    "catalog_revision",
+    "policy_id",
+    "fixture_sources_complete",
+    "source_scopes",
+    "confirmed_horizon",
+    "broadcast_sources",
+    "fixtures",
+    "team_vitals",
+    "evidence",
+    "destinations"
+  ],
+  "additionalProperties": true,
+  "maxProperties": 100
+}

@@ -1,0 +1,10 @@
+name: outlook_core
+description: Pure Soccer Outlook route selection and sports-day calendar rules.
+publish_to: none
+version: 0.0.1
+environment:
+  sdk: '>=3.13.3 <3.14.0'
+dependencies:
+  timezone: 0.11.2
+dev_dependencies:
+  test: 1.33.0

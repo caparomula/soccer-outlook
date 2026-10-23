@@ -1,0 +1,246 @@
+{
+  "ESPN+": {
+    "id": "network:espn-plus",
+    "scope": "separate_subscription"
+  },
+  "ESPN Unlimited": {
+    "id": "network:espn-unlimited",
+    "scope": "separate_subscription"
+  },
+  "ESPN": {
+    "id": "network:espn",
+    "scope": "linear_channel"
+  },
+  "ESPN2": {
+    "id": "network:espn2",
+    "scope": "linear_channel"
+  },
+  "ESPNU": {
+    "id": "network:espnu",
+    "scope": "linear_channel"
+  },
+  "ESPNEWS": {
+    "id": "network:espnews",
+    "scope": "linear_channel"
+  },
+  "ESPN Deportes": {
+    "id": "network:espn-deportes",
+    "scope": "linear_channel"
+  },
+  "ACC Network": {
+    "id": "network:acc-network",
+    "scope": "linear_channel"
+  },
+  "SEC Network": {
+    "id": "network:sec-network",
+    "scope": "linear_channel"
+  },
+  "ABC": {
+    "id": "network:abc",
+    "scope": "linear_channel"
+  },
+  "FS1": {
+    "id": "network:fs1",
+    "scope": "linear_channel"
+  },
+  "FS2": {
+    "id": "network:fs2",
+    "scope": "linear_channel"
+  },
+  "FOX": {
+    "id": "network:fox",
+    "scope": "linear_channel"
+  },
+  "Fox Deportes": {
+    "id": "network:fox-deportes",
+    "scope": "linear_channel"
+  },
+  "Big Ten Network": {
+    "id": "network:big-ten-network",
+    "scope": "linear_channel"
+  },
+  "Fox Soccer Plus": {
+    "id": "network:fox-soccer-plus",
+    "scope": "linear_channel"
+  },
+  "Fox Sports app": {
+    "id": "network:fox-sports-app",
+    "scope": "provider_stream"
+  },
+  "FOX One": {
+    "id": "network:fox-one",
+    "scope": "separate_subscription"
+  },
+  "Paramount+": {
+    "id": "network:paramount-plus",
+    "scope": "separate_subscription"
+  },
+  "CBS": {
+    "id": "network:cbs",
+    "scope": "linear_channel"
+  },
+  "CBS Sports Network": {
+    "id": "network:cbs-sports-network",
+    "scope": "linear_channel"
+  },
+  "CBS Sports Golazo Network": {
+    "id": "network:cbs-sports-golazo-network",
+    "scope": "linear_channel"
+  },
+  "Apple TV": {
+    "id": "network:apple-tv",
+    "scope": "separate_subscription"
+  },
+  "USA Network": {
+    "id": "network:usa-network",
+    "scope": "linear_channel"
+  },
+  "NBC": {
+    "id": "network:nbc",
+    "scope": "linear_channel"
+  },
+  "Peacock": {
+    "id": "network:peacock",
+    "scope": "separate_subscription"
+  },
+  "NBCSN": {
+    "id": "network:nbcsn",
+    "scope": "linear_channel"
+  },
+  "CNBC": {
+    "id": "network:cnbc",
+    "scope": "linear_channel"
+  },
+  "Telemundo": {
+    "id": "network:telemundo",
+    "scope": "linear_channel"
+  },
+  "Universo": {
+    "id": "network:universo",
+    "scope": "linear_channel"
+  },
+  "HBO Max": {
+    "id": "network:hbo-max",
+    "scope": "separate_subscription"
+  },
+  "TNT": {
+    "id": "network:tnt",
+    "scope": "linear_channel"
+  },
+  "TBS": {
+    "id": "network:tbs",
+    "scope": "linear_channel"
+  },
+  "truTV": {
+    "id": "network:trutv",
+    "scope": "linear_channel"
+  },
+  "Prime Video": {
+    "id": "network:prime-video",
+    "scope": "separate_subscription"
+  },
+  "Netflix": {
+    "id": "network:netflix",
+    "scope": "separate_subscription"
+  },
+  "Disney+": {
+    "id": "network:disney-plus",
+    "scope": "separate_subscription"
+  },
+  "ION": {
+    "id": "network:ion",
+    "scope": "linear_channel"
+  },
+  "The Roku Channel": {
+    "id": "network:the-roku-channel",
+    "scope": "provider_stream"
+  },
+  "Victory+": {
+    "id": "network:victory-plus",
+    "scope": "provider_stream"
+  },
+  "Fandango": {
+    "id": "network:fandango",
+    "scope": "provider_stream"
+  },
+  "NWSL+": {
+    "id": "network:nwsl-plus",
+    "scope": "provider_stream"
+  },
+  "Tubi": {
+    "id": "network:tubi",
+    "scope": "provider_stream"
+  },
+  "YouTube": {
+    "id": "network:youtube",
+    "scope": "provider_stream"
+  },
+  "The CW": {
+    "id": "network:the-cw",
+    "scope": "linear_channel"
+  },
+  "TUDN": {
+    "id": "network:tudn",
+    "scope": "linear_channel"
+  },
+  "Univision": {
+    "id": "network:univision",
+    "scope": "linear_channel"
+  },
+  "UniMás": {
+    "id": "network:unim-s",
+    "scope": "linear_channel"
+  },
+  "Galavisión": {
+    "id": "network:galavisi-n",
+    "scope": "linear_channel"
+  },
+  "TyC Sports": {
+    "id": "network:tyc-sports",
+    "scope": "linear_channel"
+  },
+  "ViX": {
+    "id": "network:vix",
+    "scope": "separate_subscription"
+  },
+  "Fubo": {
+    "id": "network:fubo",
+    "scope": "separate_subscription"
+  },
+  "Fubo Sports Network": {
+    "id": "network:fubo-sports-network",
+    "scope": "linear_channel"
+  },
+  "beIN Sports": {
+    "id": "network:bein-sports",
+    "scope": "linear_channel"
+  },
+  "beIN Sports XTRA": {
+    "id": "network:bein-sports-xtra",
+    "scope": "linear_channel"
+  },
+  "beIN Sports en Español": {
+    "id": "network:bein-sports-en-espa-ol",
+    "scope": "linear_channel"
+  },
+  "beIN Sports Connect": {
+    "id": "network:bein-sports-connect",
+    "scope": "provider_stream"
+  },
+  "FOX Sports networks": {
+    "id": "network:fox-sports-networks",
+    "scope": "linear_channel"
+  },
+  "Fanatiz": {
+    "id": "network:fanatiz",
+    "scope": "separate_subscription"
+  },
+  "DAZN": {
+    "id": "network:dazn",
+    "scope": "separate_subscription"
+  },
+  "Hulu": {
+    "id": "network:hulu",
+    "scope": "separate_subscription"
+  }
+}

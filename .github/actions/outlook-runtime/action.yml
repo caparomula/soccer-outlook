@@ -1,0 +1,22 @@
+name: Prepare shared Outlook runtime
+description: Compile the pinned Dart owner for the publisher and browser
+runs:
+  using: composite
+  steps:
+    - id: pin
+      shell: bash
+      run: |
+        python - <<'PY'
+        import json, os
+        with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+            output.write('dart=' + json.load(open('companion-toolchain.json'))['dart'] + '\n')
+        PY
+    - uses: dart-lang/setup-dart@v1
+      with:
+        sdk: ${{ steps.pin.outputs.dart }}
+    - shell: bash
+      run: |
+        dart --suppress-analytics pub get --enforce-lockfile --directory packages/outlook_core
+        dart --suppress-analytics pub get --enforce-lockfile --directory packages/outlook_data
+        dart --suppress-analytics pub get --enforce-lockfile --directory tool/outlook_bridge
+        python tool/build_outlook_runtime.py --dart dart

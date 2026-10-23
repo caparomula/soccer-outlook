@@ -1,0 +1,29 @@
+{
+  "platform": "ios",
+  "environment": {
+    "os_version": "Version 26.5 (Build 23F77)",
+    "dart_version": "3.13.3 (stable) (Tue Sep 1 01:07:17 2026 -0700) on \"ios_arm64\"",
+    "iana_zone": "America/New_York",
+    "plugins": {
+      "sqflite": "2.4.4+2",
+      "path_provider": "2.1.6",
+      "flutter_timezone": "5.1.1"
+    }
+  },
+  "public_https": {
+    "status": 200,
+    "elapsed_ms": 189,
+    "received_at": "2026-10-20T18:55:00.319731Z",
+    "source_score_observed_at": null
+  },
+  "stalled_socket_timeout_ms": 8021,
+  "pause_resume_requests": 2,
+  "public_run_other_failures": [
+    "harness_failed"
+  ],
+  "limits": "Native simulator/emulator transport and plugin smoke only; no physical-device performance, licensing, freshness, or cache durability claim",
+  "evidence_sha256": {
+    "public": "753cfda652273cebce903983109d3e3da1103d282412cd90d19f5506ffa01ecd",
+    "local": "da54190a35cf8015a4aad9b9931d63029f0d8811c175844b9148dbfb541cf716"
+  }
+}

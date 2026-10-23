@@ -15,6 +15,7 @@ import re
 import sys
 import tempfile
 from threading import Thread
+from time import monotonic
 import unittest
 from unittest.mock import patch
 from urllib.parse import quote, urlsplit
@@ -84,8 +85,12 @@ class BrowserChecks(unittest.TestCase):
                 # deterministic across reloads; browser_schedule overrides this with real snapshots.
                 route.fulfill(status=404, body="No fixture schedule update")
             elif url.hostname != "127.0.0.1":
-                # Stable offline screenshots: use the same fallback fonts on both pages.
-                route.fulfill(content_type="text/css", body="")
+                if route.request.is_navigation_request():
+                    # External player links open a real offline document in either engine.
+                    route.fulfill(content_type="text/html", body="<!doctype html><title>Offline destination</title>")
+                else:
+                    # Stable offline screenshots: use the same fallback fonts on both pages.
+                    route.fulfill(content_type="text/css", body="")
             else:
                 route.continue_()
 
@@ -208,10 +213,14 @@ class BrowserChecks(unittest.TestCase):
                     self.assertLessEqual(box['x'] + box['width'], width)
                     self.assertLessEqual(box['y'] + box['height'], page.viewport_size['height'])
                     self.assertFalse(dialog.evaluate('el => el.scrollWidth > el.clientWidth'))
-                    page.keyboard.press('Shift+Tab')
-                    expect(dialog.get_by_role('link', name='Team statistics')).to_be_focused()
-                    page.keyboard.press('Tab')
-                    expect(page.locator('#team-dialog-close')).to_be_focused()
+                    team_stops = [dialog.get_by_role('link', name=name, exact=True) for name in
+                                  ('Team on ESPN', 'Full squad', 'Team statistics')] + [page.locator('#team-dialog-close')]
+                    for stop in team_stops:
+                        page.keyboard.press('Tab')
+                        expect(stop).to_be_focused()
+                    for stop in [*reversed(team_stops[:-1]), team_stops[-1]]:
+                        page.keyboard.press('Shift+Tab')
+                        expect(stop).to_be_focused()
                     page.screenshot(path=str(self.artifacts / f'team-vitals-{width}.png'))
                     page.keyboard.press('Escape')
                     page.clock.run_for(50)
@@ -505,9 +514,13 @@ class BrowserChecks(unittest.TestCase):
                 self.assertGreaterEqual(box['y'], 0)
                 self.assertLessEqual(box['x'] + box['width'], width)
                 self.assertLessEqual(box['y'] + box['height'], page.viewport_size['height'])
-                for _ in range(6):
+                detail_stops = [calendar, dialog.get_by_role('link', name='League table'), page.locator('#match-dialog-close')]
+                for stop in detail_stops * 2:
                     page.keyboard.press('Tab')
-                    self.assertTrue(dialog.evaluate('el => el.contains(document.activeElement)'))
+                    expect(stop).to_be_focused()
+                for stop in [detail_stops[1], detail_stops[0], detail_stops[2]]:
+                    page.keyboard.press('Shift+Tab')
+                    expect(stop).to_be_focused()
                 page.screenshot(path=str(self.artifacts / f'details-dialog-{width}.png'))
                 page.keyboard.press('Escape')
                 page.clock.run_for(50)
@@ -620,9 +633,16 @@ class BrowserChecks(unittest.TestCase):
                     expect(dialog.get_by_role('button', name='Close league vitals')).to_be_focused()
                     self.assertEqual(before, card.bounding_box())
                     self.assertLessEqual(dialog.evaluate('el => el.scrollWidth'), dialog.evaluate('el => el.clientWidth'))
-                    for _ in range(6):
+                    league_stops = dialog.locator('.league-vitals__fixtures a').all() + [
+                        dialog.get_by_role('link', name='Full league table', exact=True),
+                        dialog.get_by_role('link', name='Competition on ESPN', exact=True),
+                        dialog.get_by_role('button', name='Close league vitals')]
+                    for stop in league_stops:
                         page.keyboard.press('Tab')
-                        self.assertTrue(dialog.evaluate('el => el.contains(document.activeElement)'))
+                        expect(stop).to_be_focused()
+                    for stop in [*reversed(league_stops[:-1]), league_stops[-1]]:
+                        page.keyboard.press('Shift+Tab')
+                        expect(stop).to_be_focused()
                     page.screenshot(path=str(self.artifacts / f'league-vitals-{width}-{card.get_attribute("data-match-role")}.png'))
                     page.keyboard.press('Escape')
                     page.clock.run_for(50)
@@ -1351,6 +1371,19 @@ class BrowserChecks(unittest.TestCase):
                 page.screenshot(path=str(self.artifacts / f'network-provider-panel-{width}.png'))
                 page.locator('#nextup-h').click()
                 expect(panel).to_be_hidden()
+                summary.click()
+                expect(panel).to_be_visible()
+                page.locator('#btn-menu').focus()
+                expect(panel).to_be_hidden()  # focus leaving after pointer activation still dismisses it
+                summary.click()
+                summary.focus()
+                # Deliver a down event with no matching up, modeling a lost pointer sequence.
+                # A physically held mouse button inhibits native Tab navigation in WebKit itself.
+                summary.dispatch_event('mousedown')
+                page.keyboard.press('Shift+Tab')
+                # macOS keyboard preferences can omit the preceding control from native Tab order.
+                page.locator('#btn-menu').focus()
+                expect(panel).to_be_hidden()
                 self.full_page_shot(page, f'network-pills-{width}.png')
                 self.assertLessEqual(page.evaluate('document.documentElement.scrollWidth'), width)
 
@@ -1455,14 +1488,22 @@ class BrowserChecks(unittest.TestCase):
                     summary.tap() if width < 600 else summary.click()
                     link = scope.get_by_role("link", name=label, exact=True)
                     expect(link).to_have_attribute("target", "_blank")
+                    expect(link).to_have_attribute("href", destination)
                     expect(link).to_have_attribute("data-kind", kind)
                     self.assertTrue({"noopener", "noreferrer"}.issubset(link.get_attribute("rel").split()))
                     self.assertTrue(link.get_attribute("title"))
+                    # macOS WebKit handles tv.apple.com before any routable browser request,
+                    # even on a plain standalone anchor. Keep exact provider URL assertions above;
+                    # a reserved host tests this same anchor's event delivery and navigation only.
+                    navigation_url = destination.replace('https://tv.apple.com/', 'https://apple-player.fixture.invalid/', 1)
+                    if navigation_url != destination:
+                        link.evaluate('(el, url) => { el.href = url; }', navigation_url)
                     with page.expect_popup() as opened:
                         link.tap() if width < 600 else link.click()
                     popup = opened.value
                     popup.wait_for_load_state("domcontentloaded")
-                    self.assertEqual(popup.url, destination)
+                    self.assertEqual(popup.url, navigation_url)
+                    self.assertTrue(popup.evaluate("window.opener === null"))
                     popup.close()
                     self.assertEqual(page.url, source_url)
                     page.keyboard.press("Escape")
@@ -3760,6 +3801,41 @@ class BrowserChecks(unittest.TestCase):
             expect(page.locator('#comp-enabled .fpill')).to_have_count(3)
             self.assertIsNone(page.evaluate("localStorage.getItem('ssg5-leagues')"))
 
+    def test_expanded_results_survive_fixture_free_choices_and_league_reordering(self):
+        fixtures = [("result", "2026-10-07T14:00:00+00:00", "post", "ESPN+", "eng.1"),
+                    ("upcoming", "2026-10-07T18:00:00+00:00", "pre", "ESPN+", "eng.1"),
+                    ("spanish", "2026-10-07T19:00:00+00:00", "pre", "ESPN+", "esp.1"),
+                    ("italian", "2026-10-07T20:00:00+00:00", "pre", "ESPN+", "ita.1")]
+        html = render_page(build, fixtures=fixtures, ai=False)
+        for action in ("select_all", "reorder_paused"):
+            with self.subTest(action=action), self.page("after", html=html) as (page, _):
+                if action == "reorder_paused":
+                    for league in ("esp.1", "ita.1"):
+                        page.locator(f'#league-strip-list [data-league="{league}"]').click()
+                folded = page.locator('details[data-b="earlier"]')
+                folded.locator(':scope > summary').click()
+                self.assertTrue(folded.evaluate("el => el.open"))
+                shown_before = page.locator('li.row:visible').evaluate_all("rows => rows.map(r => r.dataset.id).sort()")
+                self.open_settings(page, "leagues")
+                if action == "select_all":
+                    # Every league with a fixture is already followed. Only fixture-free
+                    # defaults change, so the reader's expanded results must stay open.
+                    page.locator('#btn-select-leagues').click()
+                else:
+                    # Paused leagues remain enabled and reorderable. Changing their
+                    # relative priority does not change which schedule rows pass filters.
+                    order = page.locator('#comp-enabled .fpill').evaluate_all("pills => pills.map(p => p.dataset.key)")
+                    paused_order = [key for key in order if key in ("esp.1", "ita.1")]
+                    moved = page.locator(f'#comp-enabled [data-key="{paused_order[1]}"]')
+                    moved.focus()
+                    for _ in range(order.index(paused_order[1]) - order.index(paused_order[0])):
+                        moved.press("Alt+ArrowUp")
+                    after = page.locator('#comp-enabled .fpill').evaluate_all("pills => pills.map(p => p.dataset.key)")
+                    self.assertLess(after.index(paused_order[1]), after.index(paused_order[0]))
+                    self.assertEqual(sorted(page.evaluate("JSON.parse(localStorage.getItem('ssg1-league-paused'))")), ["esp.1", "ita.1"])
+                self.assertTrue(folded.evaluate("el => el.open"), "Unchanged row eligibility must preserve expanded results")
+                self.assertEqual(page.locator('li.row:visible').evaluate_all("rows => rows.map(r => r.dataset.id).sort()"), shown_before)
+
     def test_league_strip_ends_solo_when_its_last_match_leaves_the_window(self):
         fixtures = [("expires", "2026-10-04T18:00:00+00:00", "post", "ESPN+", "eng.1"),
                     ("remaining", "2026-10-08T18:00:00+00:00", "pre", "ESPN+", "esp.1")]
@@ -4305,9 +4381,31 @@ class BrowserChecks(unittest.TestCase):
 
             def poll():
                 previous = feed['stories']
-                with page.expect_response(lambda response: urlsplit(response.url).path.endswith('/story.json')):
+                responses = []
+
+                def is_story(response):
+                    return urlsplit(response.url).path.endswith('/story.json')
+
+                def received(response):
+                    if is_story(response):
+                        responses.append(response)
+
+                # Advancing ten simulated minutes runs every countdown/render callback.
+                # That work can exceed a response waiter's wall-clock deadline under
+                # tracing or load. Observe responses throughout, then bound any remaining
+                # network wait after advancement instead of timing the simulated work.
+                page.on('response', received)
+                try:
                     page.clock.run_for(10 * 60 * 1000)
+                    deadline = monotonic() + 30
+                    while not responses and monotonic() < deadline:
+                        # Pump the listener already registered above; installing a new
+                        # event waiter here could miss a response during the handoff.
+                        page.wait_for_timeout(25)
+                finally:
+                    page.remove_listener('response', received)
                 page.wait_for_load_state('networkidle')
+                self.assertTrue(responses, 'The checkpoint poll must receive a new story response')
                 self.assertGreater(feed['stories'], previous)
 
             expect(headline).to_have_text('Premier League: Initial team news')
@@ -5629,6 +5727,7 @@ SMOKE_TESTS = (
     "test_youtube_tv_match_link_is_only_available_while_its_fixture_is_live",
     "test_filter_groups_drag_between_areas_sort_persist_and_accept_empty_drops",
     "test_league_strip_long_press_solos_and_restores_without_saving",
+    "test_expanded_results_survive_fixture_free_choices_and_league_reordering",
     "test_details_hover_preview_is_stable_hoverable_and_dismissible",
     "test_details_dialog_mouse_touch_keyboard_and_focus_without_reflow",
     "test_rating_breakdown_uses_effective_components_without_fabricating_missing_values",

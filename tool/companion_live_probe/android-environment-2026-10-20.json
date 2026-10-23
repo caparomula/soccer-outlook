@@ -1,0 +1,110 @@
+{
+  "recorded_on": "2026-10-20",
+  "host": {
+    "os": "macOS",
+    "version": "27.0.1",
+    "build": "26A434",
+    "architecture": "arm64"
+  },
+  "toolchain": {
+    "flutter": "3.47.4",
+    "flutter_revision": "9584c6713b324636289d067944a46fd6b49df14b",
+    "dart": "3.13.3",
+    "java": "25.0.3+-15898627-b508.16",
+    "java_vendor": "Android Studio JetBrains Runtime",
+    "gradle": "9.3.1",
+    "android_gradle_plugin": "9.1.0",
+    "kotlin": "2.4.0",
+    "ndk": "28.2.13676358",
+    "cmake": "3.22.1",
+    "build_tools": "36.0.0",
+    "compile_sdk": 36,
+    "min_sdk_from_apk": 24,
+    "target_sdk_from_apk": 36,
+    "sdk_command_line_tools": "23.0"
+  },
+  "emulator": {
+    "version": "37.1.11.0",
+    "build_id": "15917651",
+    "adb": "37.0.1-15733141",
+    "avd": "soccer_p0_api36_1",
+    "image": "system-images;android-36.1;google_apis_playstore;arm64-v8a",
+    "image_revision": 4,
+    "image_extension_level": 20,
+    "android_release": "16",
+    "runtime_api": 36,
+    "os_build": "BE4B.251210.005",
+    "model": "sdk_gphone64_arm64",
+    "definition": "Pixel 7",
+    "display_pixels": [
+      1080,
+      2400
+    ],
+    "display_density_dpi": 420,
+    "ram_mib": 2048,
+    "renderer": "swiftshader",
+    "adb_server_port": 5038,
+    "emulator_port": 5580
+  },
+  "provisioning": {
+    "shared_sdk_changed": false,
+    "sdk_root": "work/p0-android/sdk",
+    "additional_local_package": "platforms;android-35 revision 2",
+    "shared_platforms_before_and_after": [
+      "android-34",
+      "android-36",
+      "android-36.1"
+    ],
+    "initial_build_failure": "flutter_timezone 5.1.1 compileSdk 35 unavailable in shared SDK; SDK auto-download disabled",
+    "intermediate_build_failure": "CMake3.22.1 missing in isolated SDK; supplied by copying existing shared installation"
+  },
+  "artifacts": {
+    "public_debug_apk": {
+      "path": "work/p0-android/public-probe-debug.apk",
+      "sha256": "7df1165ebe8584440c1ff84049278376df6927e7679895aa5e3d877ab20c9c3e",
+      "bytes": 79952826
+    },
+    "local_only_debug_apk": {
+      "path": "work/p0-android/native-app/build/app/outputs/flutter-apk/app-debug.apk",
+      "sha256": "efffafbd88d32b332b2ff4c8300dd265c2d59e23ccb17b891002d48b0b032b03",
+      "bytes": 97443663
+    },
+    "built_harness_source": {
+      "path": "work/p0-android/native-app/lib/main.dart",
+      "sha256": "a07bb4fba1861a3abda3a1d85d6ace08fdedda4eb608b03096752719f934570d",
+      "bytes": 9585
+    },
+    "transport_source": {
+      "path": "tool/companion_live_probe/lib/probe.dart",
+      "sha256": "39dcff2e933a162ec6e529ad730d04e9f42e67a3900ddc96bde489f992c078ad",
+      "bytes": 7987
+    },
+    "pubspec_lock": {
+      "path": "tool/companion_live_probe/android-pubspec.lock",
+      "sha256": "3ec7f69fba5f0f563f65775fdc417af2d1ba0b931d0cc1bd12d1ff8278f7af28",
+      "bytes": 13494
+    },
+    "generator": {
+      "path": "tool/companion_live_probe/android-prepare-harness.sh",
+      "sha256": "31a0707a2fd57e764f0d3dc03e839479e256d92452bfd11167cb0d48c7123840",
+      "bytes": 1768
+    },
+    "controller": {
+      "path": "tool/companion_live_probe/android-run-harness.py",
+      "sha256": "63785b7c974806696f0a43cc2e49c4f53f691435ebbf3ace90e4d827fca440c0",
+      "bytes": 4671
+    }
+  },
+  "limitations": [
+    "Debug emulator execution only",
+    "Android API24 floor declared in APK but not runtime-tested",
+    "No physical device or release build tested",
+    "No source-use permission inferred",
+    "No source score observation timestamp established"
+  ],
+  "cleanup": {
+    "dedicated_emulator_stopped": true,
+    "alternate_adb_server_stopped": true,
+    "workspace_gradle_daemon_stopped": true
+  }
+}

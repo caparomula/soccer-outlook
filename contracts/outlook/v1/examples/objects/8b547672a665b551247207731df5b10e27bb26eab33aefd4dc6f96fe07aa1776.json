@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "kind": "outlook_editorial",
+  "content_revision": "editorial-example-1",
+  "catalog_revision": "catalog-example-1",
+  "policy_id": "outlook-policy-p0-draft-1",
+  "automatic": null,
+  "shared": {
+    "origin": "shared",
+    "response_id": "shared:example-response",
+    "request_id": "example-request",
+    "generated_at": null,
+    "prompted_at": "2026-10-20T10:00:00Z",
+    "published_at": "2026-10-20T12:00:00Z",
+    "expires_at": "2026-10-21T10:00:00Z",
+    "focus_until": null,
+    "model": null,
+    "effort": null,
+    "aggregation_id": null,
+    "influence_weight": 70,
+    "headlines": [],
+    "matches": [
+      {
+        "id": "shared:example-response:rating-1",
+        "kind": "rating",
+        "league_id": "eng.1",
+        "headline": null,
+        "text": "",
+        "interest": null,
+        "sources": [],
+        "expires_at": "2026-10-21T10:00:00Z",
+        "event_period": null,
+        "rating_total": 70,
+        "automatic_components": null,
+        "automatic_weights": null,
+        "fixture_refs": [
+          {
+            "fixture_id": "espn:fixture:example-1",
+            "kickoff": "2026-10-20T18:00:00Z"
+          }
+        ]
+      }
+    ]
+  }
+}

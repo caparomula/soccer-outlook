@@ -1,0 +1,124 @@
+{
+  "version": 1,
+  "status": "passed",
+  "checked_at": "2026-10-20T12:00:00Z",
+  "kickoff_utc": "2026-10-20T19:00:00Z",
+  "retention_seconds": 21600,
+  "expectation": "Legacy source admits age <= six hours. WATCH-VALIDITY-1 expires at that endpoint; one microsecond before remains usable.",
+  "legacy_source_sha256": "962eba2ed9856414b6b99603bf6ca2f08b0c534899e0db0c691d84ddc4ccbad4",
+  "source_archive_sha256": "fbfb7ab2451dbdfcec4377c2dbe644467a93830989f3e2e33cf6847cbcb51898",
+  "source_snapshot_manifest_sha256": "389c9c37c7d253abfe57a31bf5de91f419a56f74aaa3303fa0c8f1aa5fd0637d",
+  "source_snapshot_head": "9b977bb2b779b55bea84472e81f4ab00da423f1a",
+  "legacy_source_origin": "git:9b977bb2b779b55bea84472e81f4ab00da423f1a:broadcast_listings.py (unchanged file omitted from dirty snapshot archive)",
+  "runtime_hashes": {
+    "runtime.json": "16d602db6c7b42654ee69445686f5fb7539ac1e572f006bcdf94eb8e67278263",
+    "outlook": "ccd21cf302d324e7a0d45a45f0b231cb0724ecc2fd7369fe83b5f84306051545"
+  },
+  "current_source_hashes": {
+    "broadcast_listings.py": "d0cd4b3051676337fe663a843b59024f97e154420fbeff93a1ed069aacd547a6",
+    "build.py": "e04f649cd8742e5fb7efd22a9b1010ca63d29e7913ee96822cbb9085e1bf8336",
+    "provider_utils.py": "8044c9170049d31ea2492047dfe68652fb4ca4d7d81777f9a0cb01f0a1605d05",
+    "outlook_runtime.py": "1a200b8c1253be6984594543aec45fec5772c086edf9ae14d30487ad12aaa871",
+    "tests/test_discovery.py": "e3cf2a51fafaf0696f95b7e2b23c141f91f312d9b53f0df1bf063a29347ad612",
+    "docs/companion/rules/route-validity.md": "5c555c766ad833309a3832b49b004a100e902d61cb70f3bdc59bbf4bc43c4159",
+    "docs/companion/rules/route-validity-examples.json": "4ddd06ed3fac1e48d1342110580a876ca66558aed828bf808aaef110266dff0c"
+  },
+  "runner_sha256": "d16d1645d50abc3ff02a9163dbc6e63d21632beb78c908dc9be1b0f84094bc21",
+  "cases": [
+    {
+      "id": "one_microsecond_before",
+      "now_utc": "2026-10-20T17:59:59.999999Z",
+      "expected_legacy_retained": 1,
+      "expected_current_retained": 1,
+      "legacy": {
+        "retained_channels": 1,
+        "retained_matches": 1,
+        "channels": [
+          "USA Network"
+        ],
+        "evidence": [
+          {
+            "channel": "USA Network",
+            "source": "ESPN",
+            "url": "https://example.org/listing",
+            "country": "US",
+            "kind": "match_listing",
+            "checked_at": "2026-10-20T12:00:00Z",
+            "retained": true
+          }
+        ]
+      },
+      "current": {
+        "retained_channels": 1,
+        "retained_matches": 1,
+        "channels": [
+          "USA Network"
+        ],
+        "evidence": [
+          {
+            "channel": "USA Network",
+            "source": "ESPN",
+            "url": "https://example.org/listing",
+            "country": "US",
+            "kind": "match_listing",
+            "checked_at": "2026-10-20T12:00:00Z",
+            "retained": true,
+            "expires_at": "2026-10-20T18:00:00Z"
+          }
+        ]
+      }
+    },
+    {
+      "id": "exact_six_hours",
+      "now_utc": "2026-10-20T18:00:00Z",
+      "expected_legacy_retained": 1,
+      "expected_current_retained": 0,
+      "legacy": {
+        "retained_channels": 1,
+        "retained_matches": 1,
+        "channels": [
+          "USA Network"
+        ],
+        "evidence": [
+          {
+            "channel": "USA Network",
+            "source": "ESPN",
+            "url": "https://example.org/listing",
+            "country": "US",
+            "kind": "match_listing",
+            "checked_at": "2026-10-20T12:00:00Z",
+            "retained": true
+          }
+        ]
+      },
+      "current": {
+        "retained_channels": 0,
+        "retained_matches": 0,
+        "channels": [],
+        "evidence": []
+      }
+    },
+    {
+      "id": "one_microsecond_after",
+      "now_utc": "2026-10-20T18:00:00.000001Z",
+      "expected_legacy_retained": 0,
+      "expected_current_retained": 0,
+      "legacy": {
+        "retained_channels": 0,
+        "retained_matches": 0,
+        "channels": [],
+        "evidence": []
+      },
+      "current": {
+        "retained_channels": 0,
+        "retained_matches": 0,
+        "channels": [],
+        "evidence": []
+      }
+    }
+  ],
+  "limitations": [
+    "Only the original and current temporal admission boundary is exercised; both calls share unchanged fixture facts and the current collection preference adapter.",
+    "No source network, publication or AI generation occurred."
+  ]
+}

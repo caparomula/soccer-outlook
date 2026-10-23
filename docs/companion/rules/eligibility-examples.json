@@ -1,0 +1,1490 @@
+{
+  "version": 1,
+  "description": "Independent VIEWER-ELIGIBILITY-1 examples authored before core and consumer replacement; expected decisions are literals, not implementation-generated.",
+  "cases": [
+    {
+      "id": "published-defaults",
+      "request": {
+        "version": 1,
+        "operation": "viewer_eligibility",
+        "cases": [
+          {
+            "id": "published-defaults",
+            "leagues": [
+              {
+                "id": "a",
+                "default_followed": true
+              },
+              {
+                "id": "b",
+                "default_followed": false
+              },
+              {
+                "id": "c",
+                "default_followed": true
+              }
+            ],
+            "preferences": {
+              "choices": {},
+              "paused": [],
+              "solo_id": null
+            },
+            "has_selected_services": true,
+            "fixtures": [
+              {
+                "id": "a-current",
+                "league_id": "a",
+                "has_route": true,
+                "in_window": true
+              },
+              {
+                "id": "b-current",
+                "league_id": "b",
+                "has_route": true,
+                "in_window": true
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "published-defaults",
+            "active_solo_id": null,
+            "solo_reset_reason": null,
+            "strip_league_ids": [
+              "a"
+            ],
+            "leagues": [
+              {
+                "id": "a",
+                "followed": true,
+                "hidden_by_strip": false,
+                "visible": true,
+                "calendar_editorial_eligible": true
+              },
+              {
+                "id": "b",
+                "followed": false,
+                "hidden_by_strip": false,
+                "visible": false,
+                "calendar_editorial_eligible": false
+              },
+              {
+                "id": "c",
+                "followed": true,
+                "hidden_by_strip": false,
+                "visible": true,
+                "calendar_editorial_eligible": true
+              }
+            ],
+            "fixtures": [
+              {
+                "id": "a-current",
+                "eligible": true,
+                "schedule_eligible": true
+              },
+              {
+                "id": "b-current",
+                "eligible": false,
+                "schedule_eligible": false
+              }
+            ]
+          }
+        ]
+      },
+      "because": "No explicit choice follows current defaults; fixture-free c remains eligible for calendar editorial."
+    },
+    {
+      "id": "explicit-choices-and-returning-fixtures",
+      "request": {
+        "version": 1,
+        "operation": "viewer_eligibility",
+        "cases": [
+          {
+            "id": "explicit-choices-and-returning-fixtures",
+            "leagues": [
+              {
+                "id": "a",
+                "default_followed": true
+              },
+              {
+                "id": "b",
+                "default_followed": false
+              },
+              {
+                "id": "c",
+                "default_followed": true
+              }
+            ],
+            "preferences": {
+              "choices": {
+                "a": false,
+                "b": true
+              },
+              "paused": [],
+              "solo_id": null
+            },
+            "has_selected_services": true,
+            "fixtures": [
+              {
+                "id": "a-current",
+                "league_id": "a",
+                "has_route": true,
+                "in_window": true
+              },
+              {
+                "id": "b-current",
+                "league_id": "b",
+                "has_route": true,
+                "in_window": true
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "explicit-choices-and-returning-fixtures",
+            "active_solo_id": null,
+            "solo_reset_reason": null,
+            "strip_league_ids": [
+              "b"
+            ],
+            "leagues": [
+              {
+                "id": "a",
+                "followed": false,
+                "hidden_by_strip": false,
+                "visible": false,
+                "calendar_editorial_eligible": false
+              },
+              {
+                "id": "b",
+                "followed": true,
+                "hidden_by_strip": false,
+                "visible": true,
+                "calendar_editorial_eligible": true
+              },
+              {
+                "id": "c",
+                "followed": true,
+                "hidden_by_strip": false,
+                "visible": true,
+                "calendar_editorial_eligible": true
+              }
+            ],
+            "fixtures": [
+              {
+                "id": "a-current",
+                "eligible": false,
+                "schedule_eligible": false
+              },
+              {
+                "id": "b-current",
+                "eligible": true,
+                "schedule_eligible": true
+              }
+            ]
+          }
+        ]
+      },
+      "because": "The same choices as empty-week-persistence apply when fixtures return; a is off and b is on."
+    },
+    {
+      "id": "changed-defaults-preserve-explicit-choices",
+      "request": {
+        "version": 1,
+        "operation": "viewer_eligibility",
+        "cases": [
+          {
+            "id": "changed-defaults-preserve-explicit-choices",
+            "leagues": [
+              {
+                "id": "a",
+                "default_followed": false
+              },
+              {
+                "id": "b",
+                "default_followed": true
+              },
+              {
+                "id": "c",
+                "default_followed": true
+              }
+            ],
+            "preferences": {
+              "choices": {
+                "a": true,
+                "b": false
+              },
+              "paused": [],
+              "solo_id": null
+            },
+            "has_selected_services": true,
+            "fixtures": [
+              {
+                "id": "a-current",
+                "league_id": "a",
+                "has_route": true,
+                "in_window": true
+              },
+              {
+                "id": "b-current",
+                "league_id": "b",
+                "has_route": true,
+                "in_window": true
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "changed-defaults-preserve-explicit-choices",
+            "active_solo_id": null,
+            "solo_reset_reason": null,
+            "strip_league_ids": [
+              "a"
+            ],
+            "leagues": [
+              {
+                "id": "a",
+                "followed": true,
+                "hidden_by_strip": false,
+                "visible": true,
+                "calendar_editorial_eligible": true
+              },
+              {
+                "id": "b",
+                "followed": false,
+                "hidden_by_strip": false,
+                "visible": false,
+                "calendar_editorial_eligible": false
+              },
+              {
+                "id": "c",
+                "followed": true,
+                "hidden_by_strip": false,
+                "visible": true,
+                "calendar_editorial_eligible": true
+              }
+            ],
+            "fixtures": [
+              {
+                "id": "a-current",
+                "eligible": true,
+                "schedule_eligible": true
+              },
+              {
+                "id": "b-current",
+                "eligible": false,
+                "schedule_eligible": false
+              }
+            ]
+          }
+        ]
+      },
+      "because": "Explicit choices win over opposite changed publisher defaults."
+    },
+    {
+      "id": "pauses-retain-strip-controls",
+      "request": {
+        "version": 1,
+        "operation": "viewer_eligibility",
+        "cases": [
+          {
+            "id": "pauses-retain-strip-controls",
+            "leagues": [
+              {
+                "id": "a",
+                "default_followed": true
+              },
+              {
+                "id": "b",
+                "default_followed": false
+              },
+              {
+                "id": "c",
+                "default_followed": true
+              }
+            ],
+            "preferences": {
+              "choices": {
+                "b": true
+              },
+              "paused": [
+                "a",
+                "c"
+              ],
+              "solo_id": null
+            },
+            "has_selected_services": true,
+            "fixtures": [
+              {
+                "id": "a-current",
+                "league_id": "a",
+                "has_route": true,
+                "in_window": true
+              },
+              {
+                "id": "b-current",
+                "league_id": "b",
+                "has_route": true,
+                "in_window": true
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "pauses-retain-strip-controls",
+            "active_solo_id": null,
+            "solo_reset_reason": null,
+            "strip_league_ids": [
+              "a",
+              "b"
+            ],
+            "leagues": [
+              {
+                "id": "a",
+                "followed": true,
+                "hidden_by_strip": true,
+                "visible": false,
+                "calendar_editorial_eligible": false
+              },
+              {
+                "id": "b",
+                "followed": true,
+                "hidden_by_strip": false,
+                "visible": true,
+                "calendar_editorial_eligible": true
+              },
+              {
+                "id": "c",
+                "followed": true,
+                "hidden_by_strip": true,
+                "visible": false,
+                "calendar_editorial_eligible": false
+              }
+            ],
+            "fixtures": [
+              {
+                "id": "a-current",
+                "eligible": false,
+                "schedule_eligible": false
+              },
+              {
+                "id": "b-current",
+                "eligible": true,
+                "schedule_eligible": true
+              }
+            ]
+          }
+        ]
+      },
+      "because": "Paused a keeps its reachable strip control; fixture-free paused c is not calendar-editorial eligible. This is also the restored view after solo ends."
+    },
+    {
+      "id": "solo-temporarily-overrides-pause",
+      "request": {
+        "version": 1,
+        "operation": "viewer_eligibility",
+        "cases": [
+          {
+            "id": "solo-temporarily-overrides-pause",
+            "leagues": [
+              {
+                "id": "a",
+                "default_followed": true
+              },
+              {
+                "id": "b",
+                "default_followed": false
+              },
+              {
+                "id": "c",
+                "default_followed": true
+              }
+            ],
+            "preferences": {
+              "choices": {
+                "b": true
+              },
+              "paused": [
+                "a",
+                "c"
+              ],
+              "solo_id": "a"
+            },
+            "has_selected_services": true,
+            "fixtures": [
+              {
+                "id": "a-current",
+                "league_id": "a",
+                "has_route": true,
+                "in_window": true
+              },
+              {
+                "id": "b-current",
+                "league_id": "b",
+                "has_route": true,
+                "in_window": true
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "solo-temporarily-overrides-pause",
+            "active_solo_id": "a",
+            "solo_reset_reason": null,
+            "strip_league_ids": [
+              "a",
+              "b"
+            ],
+            "leagues": [
+              {
+                "id": "a",
+                "followed": true,
+                "hidden_by_strip": false,
+                "visible": true,
+                "calendar_editorial_eligible": true
+              },
+              {
+                "id": "b",
+                "followed": true,
+                "hidden_by_strip": true,
+                "visible": false,
+                "calendar_editorial_eligible": false
+              },
+              {
+                "id": "c",
+                "followed": true,
+                "hidden_by_strip": true,
+                "visible": false,
+                "calendar_editorial_eligible": false
+              }
+            ],
+            "fixtures": [
+              {
+                "id": "a-current",
+                "eligible": true,
+                "schedule_eligible": true
+              },
+              {
+                "id": "b-current",
+                "eligible": false,
+                "schedule_eligible": false
+              }
+            ]
+          }
+        ]
+      },
+      "because": "Solo a temporarily shows paused a and hides b/c, without changing saved choices or pauses. Clearing solo gives pauses-retain-strip-controls."
+    },
+    {
+      "id": "disabled-solo-resets-to-paused-view",
+      "request": {
+        "version": 1,
+        "operation": "viewer_eligibility",
+        "cases": [
+          {
+            "id": "disabled-solo-resets-to-paused-view",
+            "leagues": [
+              {
+                "id": "a",
+                "default_followed": true
+              },
+              {
+                "id": "b",
+                "default_followed": false
+              },
+              {
+                "id": "c",
+                "default_followed": true
+              }
+            ],
+            "preferences": {
+              "choices": {},
+              "paused": [
+                "a"
+              ],
+              "solo_id": "b"
+            },
+            "has_selected_services": true,
+            "fixtures": [
+              {
+                "id": "a-current",
+                "league_id": "a",
+                "has_route": true,
+                "in_window": true
+              },
+              {
+                "id": "b-current",
+                "league_id": "b",
+                "has_route": true,
+                "in_window": true
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "disabled-solo-resets-to-paused-view",
+            "active_solo_id": null,
+            "solo_reset_reason": "disabled",
+            "strip_league_ids": [
+              "a"
+            ],
+            "leagues": [
+              {
+                "id": "a",
+                "followed": true,
+                "hidden_by_strip": true,
+                "visible": false,
+                "calendar_editorial_eligible": false
+              },
+              {
+                "id": "b",
+                "followed": false,
+                "hidden_by_strip": false,
+                "visible": false,
+                "calendar_editorial_eligible": false
+              },
+              {
+                "id": "c",
+                "followed": true,
+                "hidden_by_strip": false,
+                "visible": true,
+                "calendar_editorial_eligible": true
+              }
+            ],
+            "fixtures": [
+              {
+                "id": "a-current",
+                "eligible": false,
+                "schedule_eligible": false
+              },
+              {
+                "id": "b-current",
+                "eligible": false,
+                "schedule_eligible": false
+              }
+            ]
+          }
+        ]
+      },
+      "because": "A known but unfollowed target resets as disabled before evaluating pauses; paused a stays hidden.",
+      "intentional_delta": true
+    },
+    {
+      "id": "unknown-solo-resets",
+      "request": {
+        "version": 1,
+        "operation": "viewer_eligibility",
+        "cases": [
+          {
+            "id": "unknown-solo-resets",
+            "leagues": [
+              {
+                "id": "a",
+                "default_followed": true
+              },
+              {
+                "id": "b",
+                "default_followed": false
+              },
+              {
+                "id": "c",
+                "default_followed": true
+              }
+            ],
+            "preferences": {
+              "choices": {
+                "retired": true
+              },
+              "paused": [],
+              "solo_id": "retired"
+            },
+            "has_selected_services": true,
+            "fixtures": [
+              {
+                "id": "a-current",
+                "league_id": "a",
+                "has_route": true,
+                "in_window": true
+              },
+              {
+                "id": "b-current",
+                "league_id": "b",
+                "has_route": true,
+                "in_window": true
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "unknown-solo-resets",
+            "active_solo_id": null,
+            "solo_reset_reason": "unknown",
+            "strip_league_ids": [
+              "a"
+            ],
+            "leagues": [
+              {
+                "id": "a",
+                "followed": true,
+                "hidden_by_strip": false,
+                "visible": true,
+                "calendar_editorial_eligible": true
+              },
+              {
+                "id": "b",
+                "followed": false,
+                "hidden_by_strip": false,
+                "visible": false,
+                "calendar_editorial_eligible": false
+              },
+              {
+                "id": "c",
+                "followed": true,
+                "hidden_by_strip": false,
+                "visible": true,
+                "calendar_editorial_eligible": true
+              }
+            ],
+            "fixtures": [
+              {
+                "id": "a-current",
+                "eligible": true,
+                "schedule_eligible": true
+              },
+              {
+                "id": "b-current",
+                "eligible": false,
+                "schedule_eligible": false
+              }
+            ]
+          }
+        ]
+      },
+      "because": "An unknown solo target has reason unknown, even if an unknown saved choice says it is enabled.",
+      "intentional_delta": true
+    },
+    {
+      "id": "no-route-cannot-sustain-solo",
+      "request": {
+        "version": 1,
+        "operation": "viewer_eligibility",
+        "cases": [
+          {
+            "id": "no-route-cannot-sustain-solo",
+            "leagues": [
+              {
+                "id": "a",
+                "default_followed": true
+              },
+              {
+                "id": "b",
+                "default_followed": false
+              },
+              {
+                "id": "c",
+                "default_followed": true
+              }
+            ],
+            "preferences": {
+              "choices": {},
+              "paused": [],
+              "solo_id": "a"
+            },
+            "has_selected_services": true,
+            "fixtures": [
+              {
+                "id": "featured-team-no-route",
+                "league_id": "a",
+                "has_route": false,
+                "in_window": true
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "no-route-cannot-sustain-solo",
+            "active_solo_id": null,
+            "solo_reset_reason": "no_eligible_fixture",
+            "strip_league_ids": [],
+            "leagues": [
+              {
+                "id": "a",
+                "followed": true,
+                "hidden_by_strip": false,
+                "visible": true,
+                "calendar_editorial_eligible": true
+              },
+              {
+                "id": "b",
+                "followed": false,
+                "hidden_by_strip": false,
+                "visible": false,
+                "calendar_editorial_eligible": false
+              },
+              {
+                "id": "c",
+                "followed": true,
+                "hidden_by_strip": false,
+                "visible": true,
+                "calendar_editorial_eligible": true
+              }
+            ],
+            "fixtures": [
+              {
+                "id": "featured-team-no-route",
+                "eligible": false,
+                "schedule_eligible": false
+              }
+            ]
+          }
+        ]
+      },
+      "because": "A featured-team label does not create access. Without a selected route a cannot sustain solo; followed league calendar eligibility remains independent.",
+      "intentional_delta": true
+    },
+    {
+      "id": "outside-window-base-eligibility",
+      "request": {
+        "version": 1,
+        "operation": "viewer_eligibility",
+        "cases": [
+          {
+            "id": "outside-window-base-eligibility",
+            "leagues": [
+              {
+                "id": "a",
+                "default_followed": true
+              },
+              {
+                "id": "b",
+                "default_followed": false
+              },
+              {
+                "id": "c",
+                "default_followed": true
+              }
+            ],
+            "preferences": {
+              "choices": {},
+              "paused": [],
+              "solo_id": "a"
+            },
+            "has_selected_services": true,
+            "fixtures": [
+              {
+                "id": "a-outside",
+                "league_id": "a",
+                "has_route": true,
+                "in_window": false
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "outside-window-base-eligibility",
+            "active_solo_id": null,
+            "solo_reset_reason": "no_eligible_fixture",
+            "strip_league_ids": [],
+            "leagues": [
+              {
+                "id": "a",
+                "followed": true,
+                "hidden_by_strip": false,
+                "visible": true,
+                "calendar_editorial_eligible": true
+              },
+              {
+                "id": "b",
+                "followed": false,
+                "hidden_by_strip": false,
+                "visible": false,
+                "calendar_editorial_eligible": false
+              },
+              {
+                "id": "c",
+                "followed": true,
+                "hidden_by_strip": false,
+                "visible": true,
+                "calendar_editorial_eligible": true
+              }
+            ],
+            "fixtures": [
+              {
+                "id": "a-outside",
+                "eligible": true,
+                "schedule_eligible": false
+              }
+            ]
+          }
+        ]
+      },
+      "because": "Outside-window a remains base eligible but cannot appear in the schedule or sustain solo.",
+      "intentional_delta": true
+    },
+    {
+      "id": "empty-services-fail-closed",
+      "request": {
+        "version": 1,
+        "operation": "viewer_eligibility",
+        "cases": [
+          {
+            "id": "empty-services-fail-closed",
+            "leagues": [
+              {
+                "id": "a",
+                "default_followed": true
+              },
+              {
+                "id": "b",
+                "default_followed": false
+              },
+              {
+                "id": "c",
+                "default_followed": true
+              }
+            ],
+            "preferences": {
+              "choices": {},
+              "paused": [],
+              "solo_id": null
+            },
+            "has_selected_services": false,
+            "fixtures": [
+              {
+                "id": "a-current",
+                "league_id": "a",
+                "has_route": true,
+                "in_window": true
+              },
+              {
+                "id": "b-current",
+                "league_id": "b",
+                "has_route": true,
+                "in_window": true
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "empty-services-fail-closed",
+            "active_solo_id": null,
+            "solo_reset_reason": null,
+            "strip_league_ids": [],
+            "leagues": [
+              {
+                "id": "a",
+                "followed": true,
+                "hidden_by_strip": false,
+                "visible": true,
+                "calendar_editorial_eligible": false
+              },
+              {
+                "id": "b",
+                "followed": false,
+                "hidden_by_strip": false,
+                "visible": false,
+                "calendar_editorial_eligible": false
+              },
+              {
+                "id": "c",
+                "followed": true,
+                "hidden_by_strip": false,
+                "visible": true,
+                "calendar_editorial_eligible": false
+              }
+            ],
+            "fixtures": [
+              {
+                "id": "a-current",
+                "eligible": false,
+                "schedule_eligible": false
+              },
+              {
+                "id": "b-current",
+                "eligible": false,
+                "schedule_eligible": false
+              }
+            ]
+          }
+        ]
+      },
+      "because": "Contradictory has_route true cannot supply strip or fixture eligibility without selected services. League visibility remains available for Elsewhere and polling.",
+      "intentional_delta": true
+    },
+    {
+      "id": "unknown-fixture-league-fails-closed",
+      "request": {
+        "version": 1,
+        "operation": "viewer_eligibility",
+        "cases": [
+          {
+            "id": "unknown-fixture-league-fails-closed",
+            "leagues": [
+              {
+                "id": "a",
+                "default_followed": true
+              },
+              {
+                "id": "b",
+                "default_followed": false
+              },
+              {
+                "id": "c",
+                "default_followed": true
+              }
+            ],
+            "preferences": {
+              "choices": {},
+              "paused": [],
+              "solo_id": null
+            },
+            "has_selected_services": true,
+            "fixtures": [
+              {
+                "id": "unknown-league",
+                "league_id": "retired",
+                "has_route": true,
+                "in_window": true
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "unknown-fixture-league-fails-closed",
+            "active_solo_id": null,
+            "solo_reset_reason": null,
+            "strip_league_ids": [],
+            "leagues": [
+              {
+                "id": "a",
+                "followed": true,
+                "hidden_by_strip": false,
+                "visible": true,
+                "calendar_editorial_eligible": true
+              },
+              {
+                "id": "b",
+                "followed": false,
+                "hidden_by_strip": false,
+                "visible": false,
+                "calendar_editorial_eligible": false
+              },
+              {
+                "id": "c",
+                "followed": true,
+                "hidden_by_strip": false,
+                "visible": true,
+                "calendar_editorial_eligible": true
+              }
+            ],
+            "fixtures": [
+              {
+                "id": "unknown-league",
+                "eligible": false,
+                "schedule_eligible": false
+              }
+            ]
+          }
+        ]
+      },
+      "because": "A fixture outside the known catalog is denied rather than inheriting a missing default-off entry.",
+      "intentional_delta": true
+    },
+    {
+      "id": "unknown-saved-ids-ignored",
+      "request": {
+        "version": 1,
+        "operation": "viewer_eligibility",
+        "cases": [
+          {
+            "id": "unknown-saved-ids-ignored",
+            "leagues": [
+              {
+                "id": "a",
+                "default_followed": true
+              },
+              {
+                "id": "b",
+                "default_followed": false
+              },
+              {
+                "id": "c",
+                "default_followed": true
+              }
+            ],
+            "preferences": {
+              "choices": {
+                "retired": false,
+                "future": true
+              },
+              "paused": [
+                "retired",
+                "future"
+              ],
+              "solo_id": null
+            },
+            "has_selected_services": true,
+            "fixtures": [
+              {
+                "id": "a-current",
+                "league_id": "a",
+                "has_route": true,
+                "in_window": true
+              },
+              {
+                "id": "b-current",
+                "league_id": "b",
+                "has_route": true,
+                "in_window": true
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "unknown-saved-ids-ignored",
+            "active_solo_id": null,
+            "solo_reset_reason": null,
+            "strip_league_ids": [
+              "a"
+            ],
+            "leagues": [
+              {
+                "id": "a",
+                "followed": true,
+                "hidden_by_strip": false,
+                "visible": true,
+                "calendar_editorial_eligible": true
+              },
+              {
+                "id": "b",
+                "followed": false,
+                "hidden_by_strip": false,
+                "visible": false,
+                "calendar_editorial_eligible": false
+              },
+              {
+                "id": "c",
+                "followed": true,
+                "hidden_by_strip": false,
+                "visible": true,
+                "calendar_editorial_eligible": true
+              }
+            ],
+            "fixtures": [
+              {
+                "id": "a-current",
+                "eligible": true,
+                "schedule_eligible": true
+              },
+              {
+                "id": "b-current",
+                "eligible": false,
+                "schedule_eligible": false
+              }
+            ]
+          }
+        ]
+      },
+      "because": "Unknown explicit choices and pauses do not affect known leagues and are not a request to delete caller-owned saved preferences."
+    },
+    {
+      "id": "empty-week-persistence",
+      "request": {
+        "version": 1,
+        "operation": "viewer_eligibility",
+        "cases": [
+          {
+            "id": "empty-week-persistence",
+            "leagues": [
+              {
+                "id": "a",
+                "default_followed": true
+              },
+              {
+                "id": "b",
+                "default_followed": false
+              },
+              {
+                "id": "c",
+                "default_followed": true
+              }
+            ],
+            "preferences": {
+              "choices": {
+                "a": false,
+                "b": true
+              },
+              "paused": [],
+              "solo_id": null
+            },
+            "has_selected_services": true,
+            "fixtures": []
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "empty-week-persistence",
+            "active_solo_id": null,
+            "solo_reset_reason": null,
+            "strip_league_ids": [],
+            "leagues": [
+              {
+                "id": "a",
+                "followed": false,
+                "hidden_by_strip": false,
+                "visible": false,
+                "calendar_editorial_eligible": false
+              },
+              {
+                "id": "b",
+                "followed": true,
+                "hidden_by_strip": false,
+                "visible": true,
+                "calendar_editorial_eligible": true
+              },
+              {
+                "id": "c",
+                "followed": true,
+                "hidden_by_strip": false,
+                "visible": true,
+                "calendar_editorial_eligible": true
+              }
+            ],
+            "fixtures": []
+          }
+        ]
+      },
+      "because": "Fixture-free b/c remain visible and eligible for calendar editorial, and explicit a-off/b-on choices are retained for the returning-fixture case."
+    },
+    {
+      "id": "all-leagues-disabled",
+      "request": {
+        "version": 1,
+        "operation": "viewer_eligibility",
+        "cases": [
+          {
+            "id": "all-leagues-disabled",
+            "leagues": [
+              {
+                "id": "a",
+                "default_followed": true
+              },
+              {
+                "id": "b",
+                "default_followed": false
+              },
+              {
+                "id": "c",
+                "default_followed": true
+              }
+            ],
+            "preferences": {
+              "choices": {
+                "a": false,
+                "b": false,
+                "c": false
+              },
+              "paused": [],
+              "solo_id": null
+            },
+            "has_selected_services": true,
+            "fixtures": [
+              {
+                "id": "a-current",
+                "league_id": "a",
+                "has_route": true,
+                "in_window": true
+              },
+              {
+                "id": "b-current",
+                "league_id": "b",
+                "has_route": true,
+                "in_window": true
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "all-leagues-disabled",
+            "active_solo_id": null,
+            "solo_reset_reason": null,
+            "strip_league_ids": [],
+            "leagues": [
+              {
+                "id": "a",
+                "followed": false,
+                "hidden_by_strip": false,
+                "visible": false,
+                "calendar_editorial_eligible": false
+              },
+              {
+                "id": "b",
+                "followed": false,
+                "hidden_by_strip": false,
+                "visible": false,
+                "calendar_editorial_eligible": false
+              },
+              {
+                "id": "c",
+                "followed": false,
+                "hidden_by_strip": false,
+                "visible": false,
+                "calendar_editorial_eligible": false
+              }
+            ],
+            "fixtures": [
+              {
+                "id": "a-current",
+                "eligible": false,
+                "schedule_eligible": false
+              },
+              {
+                "id": "b-current",
+                "eligible": false,
+                "schedule_eligible": false
+              }
+            ]
+          }
+        ]
+      },
+      "because": "Explicit false for every league produces no visible leagues or eligible fixtures, even with services/routes present."
+    },
+    {
+      "id": "folded-history-remains-strip-evidence",
+      "request": {
+        "version": 1,
+        "operation": "viewer_eligibility",
+        "cases": [
+          {
+            "id": "folded-history-remains-strip-evidence",
+            "leagues": [
+              {
+                "id": "a",
+                "default_followed": true
+              },
+              {
+                "id": "b",
+                "default_followed": false
+              },
+              {
+                "id": "c",
+                "default_followed": true
+              }
+            ],
+            "preferences": {
+              "choices": {},
+              "paused": [],
+              "solo_id": null
+            },
+            "has_selected_services": true,
+            "fixtures": [
+              {
+                "id": "a-folded-result",
+                "league_id": "a",
+                "has_route": true,
+                "in_window": true
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "folded-history-remains-strip-evidence",
+            "active_solo_id": null,
+            "solo_reset_reason": null,
+            "strip_league_ids": [
+              "a"
+            ],
+            "leagues": [
+              {
+                "id": "a",
+                "followed": true,
+                "hidden_by_strip": false,
+                "visible": true,
+                "calendar_editorial_eligible": true
+              },
+              {
+                "id": "b",
+                "followed": false,
+                "hidden_by_strip": false,
+                "visible": false,
+                "calendar_editorial_eligible": false
+              },
+              {
+                "id": "c",
+                "followed": true,
+                "hidden_by_strip": false,
+                "visible": true,
+                "calendar_editorial_eligible": true
+              }
+            ],
+            "fixtures": [
+              {
+                "id": "a-folded-result",
+                "eligible": true,
+                "schedule_eligible": true
+              }
+            ]
+          }
+        ]
+      },
+      "because": "The bucket owner includes a folded recent result via in_window true; visibility does not impose another status or age filter."
+    },
+    {
+      "id": "catalog-order-controls-strip-order",
+      "request": {
+        "version": 1,
+        "operation": "viewer_eligibility",
+        "cases": [
+          {
+            "id": "catalog-order-controls-strip-order",
+            "leagues": [
+              {
+                "id": "b",
+                "default_followed": false
+              },
+              {
+                "id": "c",
+                "default_followed": true
+              },
+              {
+                "id": "a",
+                "default_followed": true
+              }
+            ],
+            "preferences": {
+              "choices": {
+                "b": true
+              },
+              "paused": [],
+              "solo_id": null
+            },
+            "has_selected_services": true,
+            "fixtures": [
+              {
+                "id": "a-current",
+                "league_id": "a",
+                "has_route": true,
+                "in_window": true
+              },
+              {
+                "id": "b-current",
+                "league_id": "b",
+                "has_route": true,
+                "in_window": true
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "catalog-order-controls-strip-order",
+            "active_solo_id": null,
+            "solo_reset_reason": null,
+            "strip_league_ids": [
+              "b",
+              "a"
+            ],
+            "leagues": [
+              {
+                "id": "b",
+                "followed": true,
+                "hidden_by_strip": false,
+                "visible": true,
+                "calendar_editorial_eligible": true
+              },
+              {
+                "id": "c",
+                "followed": true,
+                "hidden_by_strip": false,
+                "visible": true,
+                "calendar_editorial_eligible": true
+              },
+              {
+                "id": "a",
+                "followed": true,
+                "hidden_by_strip": false,
+                "visible": true,
+                "calendar_editorial_eligible": true
+              }
+            ],
+            "fixtures": [
+              {
+                "id": "a-current",
+                "eligible": true,
+                "schedule_eligible": true
+              },
+              {
+                "id": "b-current",
+                "eligible": true,
+                "schedule_eligible": true
+              }
+            ]
+          }
+        ]
+      },
+      "because": "Supplied effective league priority order controls both league results and the strip; fixture results retain their own input order."
+    }
+  ]
+}

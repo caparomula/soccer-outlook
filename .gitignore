@@ -3,3 +3,5 @@ work/
 .venv/
 logos.json
 __pycache__/
+.dart_tool/
+.packages

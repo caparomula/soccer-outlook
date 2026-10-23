@@ -1,0 +1,234 @@
+{
+  "status": "passed",
+  "check_count": 23,
+  "checks": [
+    {
+      "name": "static final score numeric zero and halftime survive normalized projection",
+      "status": "passed"
+    },
+    {
+      "name": "legacy unfamiliar terminal and void clear displayed scores and scorers",
+      "status": "passed"
+    },
+    {
+      "name": "static source-unknown phase stays conservative",
+      "status": "passed"
+    },
+    {
+      "name": "2501 static rows use bounded aligned batches",
+      "status": "passed"
+    },
+    {
+      "name": "throw in projection batch 1 installs no partial facts",
+      "status": "passed"
+    },
+    {
+      "name": "throw in projection batch 2 installs no partial facts",
+      "status": "passed"
+    },
+    {
+      "name": "count in projection batch 1 installs no partial facts",
+      "status": "passed"
+    },
+    {
+      "name": "count in projection batch 2 installs no partial facts",
+      "status": "passed"
+    },
+    {
+      "name": "identity in projection batch 1 installs no partial facts",
+      "status": "passed"
+    },
+    {
+      "name": "identity in projection batch 2 installs no partial facts",
+      "status": "passed"
+    },
+    {
+      "name": "same phase final to unfamiliar terminal invalidates state, hides scores, and refreshes destinations",
+      "status": "passed"
+    },
+    {
+      "name": "same phase final to abandoned invalidates card state without claiming final",
+      "status": "passed"
+    },
+    {
+      "name": "live contradiction drops source progress and triggers destination refresh",
+      "status": "passed"
+    },
+    {
+      "name": "live object scores and zero delegate parsing to shared owner",
+      "status": "passed"
+    },
+    {
+      "name": "failed live core response mutates no receipt, cached event, score or kind",
+      "status": "passed"
+    },
+    {
+      "name": "unknown and exception card captions do not infer Final from post placement",
+      "status": "passed"
+    },
+    {
+      "name": "snapshot carries newer live observation with original receipt",
+      "status": "passed"
+    },
+    {
+      "name": "snapshot keeps newer publisher observation",
+      "status": "passed"
+    },
+    {
+      "name": "snapshot projection rejection leaves prior rows, card ownership, and DOM removal unchanged",
+      "status": "passed"
+    },
+    {
+      "name": "bound live FT display survives rehydration",
+      "status": "passed"
+    },
+    {
+      "name": "bound live Postponed display survives rehydration",
+      "status": "passed"
+    },
+    {
+      "name": "bound unknown cannot become final through a stale FT label",
+      "status": "passed"
+    },
+    {
+      "name": "inconsistent bound kind fails to unknown without creating live destinations",
+      "status": "passed"
+    }
+  ],
+  "source_hashes": {
+    "web/app.js": "f90e3c2c4a77ff77295f17ad1aa29400cb49a7de920cff21feba5dd79646e01d",
+    "web/schedule.js": "92dd1f79339d7915e3badd3ddcac7557942b334c286fe0c666d5c981b5269a8d",
+    "docs/companion/rules/espn-status.md": "ee6b0978515ec0f45b95b8be49bddb2ad8f37df129681fd3913108c7b51345c3",
+    "docs/companion/rules/espn-status-examples.json": "82dfc9d5c5534b5260752d4285c8e53db74fa23d1ce3f9be8d5a59ea489c0e6c",
+    "work/outlook-runtime/runtime.json": "2a352d6caf188775d94dec207b9ff1c135836a2db2466db824b8666030945d36",
+    "work/outlook-runtime/outlook.js": "c88996f8228a040db199a69be136237ee44be5895b026938496e8ccef9c69bf6"
+  },
+  "extracted_function_hashes": {
+    "projectRowStatuses": "793da3c8c3a1b4cd591caa58d6da796fc97329b0d676a78f84ee2a1756372b3f",
+    "initializeRow": "69714e7d9a0442ebd6cd2242ba2f25ac02f32f2855a30745201552834542abe6",
+    "applyEvent": "3a6e9e380d5bc27e3ae2298501cf6ca1707f0152cde08fcdf11af2719d27d2ac",
+    "applySchedule": "5e5ea1679efd36a1c01b90cdedab85f422508642ea2af3f0f7c026c22e78a6b6",
+    "setPickWhen": "48528b3a95065d3ffb2cf168e85ae026c180e15c0d8b85589fd10aec89099ac0",
+    "scoreOf": "af45927b2a44eeb068bf666b28d1261a440b1d0d6effbc6397d430351a12b986"
+  },
+  "probe_sha256": "1ecf3057a1f60a345842df005729fe6a7193b9722a78f87f4195d1581dde1ea2",
+  "findings": [],
+  "resolved_findings": [
+    {
+      "id": "status-rehydration-display-identity",
+      "severity": "medium",
+      "status": "verified_fixed",
+      "original_report": {
+        "path": "work/p2-status-web-review-2026-10-23/report-before-repair.json",
+        "sha256": "1865c3b995801addeed8d9614a5cba5db581de9cbc6bf01de1d99eb09f1037e5"
+      },
+      "description": "The browser now supplies data-status-kind to the shared optional-state seam. Original accepted live FT/Postponed clock values retain live/in/played and their scores during rehydration; a bound unknown cannot be promoted by stale FT text.",
+      "reproduction": [
+        {
+          "display_clock": "FT",
+          "live_decision": {
+            "id": "f",
+            "state": "live",
+            "phase": "in",
+            "provider_state": "in",
+            "label": "FT",
+            "played": true,
+            "final": false,
+            "void": false,
+            "reported_scores": {
+              "home": 1,
+              "away": 0
+            },
+            "scores": {
+              "home": 1,
+              "away": 0
+            }
+          },
+          "rehydrated_decision": {
+            "id": "f",
+            "state": "live",
+            "phase": "in",
+            "provider_state": "in",
+            "label": "FT",
+            "played": true,
+            "final": false,
+            "void": false,
+            "reported_scores": {
+              "home": 1,
+              "away": 0
+            },
+            "scores": {
+              "home": 1,
+              "away": 0
+            }
+          }
+        },
+        {
+          "display_clock": "Postponed",
+          "live_decision": {
+            "id": "f",
+            "state": "live",
+            "phase": "in",
+            "provider_state": "in",
+            "label": "Postponed",
+            "played": true,
+            "final": false,
+            "void": false,
+            "reported_scores": {
+              "home": 1,
+              "away": 0
+            },
+            "scores": {
+              "home": 1,
+              "away": 0
+            }
+          },
+          "rehydrated_decision": {
+            "id": "f",
+            "state": "live",
+            "phase": "in",
+            "provider_state": "in",
+            "label": "Postponed",
+            "played": true,
+            "final": false,
+            "void": false,
+            "reported_scores": {
+              "home": 1,
+              "away": 0
+            },
+            "scores": {
+              "home": 1,
+              "away": 0
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "archived_baseline": {
+    "web/app.js": "754329fe5da0710e543e2181a9e4bc5aef4eb297d72f37b618169efc804e2f06",
+    "web/schedule.js": "2764927619323eda42d599eb75e4a07aaf78ea6ad5224259ca5f6b773e655eff"
+  },
+  "manual_review": [
+    "Compared current app.js and schedule.js with the retained pre-increment archive, not Git HEAD alone.",
+    "Live destinations consume the conservative normalized phase; same-phase changes in terminal kind trigger state redraw and label/score changes invalidate detail signatures.",
+    "The source-window projection cache includes phase and receipt; source kind changes within post do not alter window semantics."
+  ],
+  "limits": [
+    "Read-only extracted production functions and actual compiled runtime, with minimal DOM doubles; does not establish rendered browser behavior.",
+    "No new browser session, network/source collection, production edits, or publication.",
+    "Overlay identity/correction ordering and raw scorer extraction remain outside this increment."
+  ],
+  "runtime_source_binding": {
+    "verified_source_count": 25,
+    "mismatches": [],
+    "verified_artifacts": {
+      "outlook": "9760436f616fdbf22274ec440be2c9f9d89ac0dfcacd51849b4a2fa2f69b6810",
+      "outlook.js": "c88996f8228a040db199a69be136237ee44be5895b026938496e8ccef9c69bf6"
+    }
+  },
+  "probe_log": {
+    "path": "work/p2-status-web-review-2026-10-23/probe.log",
+    "sha256": "2e5e8ee1bc80821d3e10c3bab490c3d4ed2a2a5c531677ecbee313137dc0685f"
+  }
+}

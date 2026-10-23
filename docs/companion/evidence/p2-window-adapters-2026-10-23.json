@@ -1,0 +1,98 @@
+{
+  "status": "passed",
+  "scope": "Independent actual-wrapper orchestration with a controlled core response, not domain parity or a real browser",
+  "check_count": 19,
+  "checks": [
+    {
+      "name": "identical inputs cache once; wrappers expose core decisions without reclassification",
+      "status": "passed"
+    },
+    {
+      "name": "now change invalidates projection",
+      "status": "passed"
+    },
+    {
+      "name": "zone change invalidates projection",
+      "status": "passed"
+    },
+    {
+      "name": "kickoff change invalidates projection",
+      "status": "passed"
+    },
+    {
+      "name": "confirmation change invalidates projection",
+      "status": "passed"
+    },
+    {
+      "name": "state change invalidates projection",
+      "status": "passed"
+    },
+    {
+      "name": "receipt change invalidates projection",
+      "status": "passed"
+    },
+    {
+      "name": "identity change invalidates projection",
+      "status": "passed"
+    },
+    {
+      "name": "finite epoch receipt is retained; absent or nonfinite receipt is null",
+      "status": "passed"
+    },
+    {
+      "name": "new DOM object receives its own projection with unchanged fixture facts",
+      "status": "passed"
+    },
+    {
+      "name": "2501 rows use bounded 1000/1000/501 batches and aligned identities",
+      "status": "passed"
+    },
+    {
+      "name": "count failure in batch 1 installs no pending results",
+      "status": "passed"
+    },
+    {
+      "name": "count failure in batch 2 installs no pending results",
+      "status": "passed"
+    },
+    {
+      "name": "identity failure in batch 1 installs no pending results",
+      "status": "passed"
+    },
+    {
+      "name": "identity failure in batch 2 installs no pending results",
+      "status": "passed"
+    },
+    {
+      "name": "throw failure in batch 1 installs no pending results",
+      "status": "passed"
+    },
+    {
+      "name": "throw failure in batch 2 installs no pending results",
+      "status": "passed"
+    },
+    {
+      "name": "invalid kickoff throws before any row installs or core call",
+      "status": "passed"
+    },
+    {
+      "name": "empty batch does not invoke core",
+      "status": "passed"
+    }
+  ],
+  "source_hashes": {
+    "web/app.js": "754329fe5da0710e543e2181a9e4bc5aef4eb297d72f37b618169efc804e2f06",
+    "docs/companion/rules/fixture-windows.md": "da7f732c9bd7d979401f4f131344d0593f5d12ac3f8ab8f0f2d2829295b34dc4",
+    "docs/companion/rules/fixture-window-examples.json": "64f6309645d391df0e639d107f6ffd2443143a5ee1b69d6e7087ff4cfdc112e4",
+    "work/p2-window-adapter-review-2026-10-23/probe.cjs": "d580a63b3661710acc9ace9c7d70a4f028445647f0d021314f8bb99837779695"
+  },
+  "extracted_wrapper_sha256": "25d1db456468447d5441dc7a3b5a65a70ca2bf816ab16143253eec8e69482bfd",
+  "findings": [],
+  "manual_review": [
+    "The 38 literal examples independently match 125-minute inclusive focus, 155-minute exclusive same-day grace, 24-hour exclusive upper bound, receipt 10-minute exclusive age and future-receipt rejection.",
+    "New York October 04:00 is 08:00Z and November fallback 04:00 is 09:00Z; examples preserve sports-day history boundaries and the Los Angeles/New York difference.",
+    "applyCompChoices passes one explicit now to the batch then consumes in_window and bucket; row replacement owns its projection; only accepted live transport writes receipt via Date.now and snapshot reuse restores the original receipt.",
+    "No new window decision is added to Python static grouping, AI facts, ranking or editorial policy. FOCUS_MS remains for separate editorial deadlines.",
+    "Existing refresh cadence is preserved; this review does not claim a dedicated wake-up timer for every boundary."
+  ]
+}

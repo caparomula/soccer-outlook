@@ -65,7 +65,8 @@ class FixedDatetime(datetime):
 
 
 def render_page(builder, *, fragment=False, fixtures=None, failed=(), facts_path=None, team_names=None, league_logos=False,
-                tbd=(), ai=True, stature=None, odds=None, design=None, model=None, team_ids=None, match_links=None):
+                tbd=(), ai=True, stature=None, odds=None, design=None, model=None, team_ids=None, match_links=None,
+                inline_runtime=True):
     """Exercise the real renderer with fixed time, rights, teams, scores, a table and settings.
 
     Fixtures named in `tbd` have a kickoff time to be set (ESPN's timeValid false); their kickoff
@@ -131,6 +132,11 @@ def render_page(builder, *, fragment=False, fixtures=None, failed=(), facts_path
                 builder.LEAGUE_LOGOS[league] = url
                 cache[builder.logo_key(url)] = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%23905bc9'/%3E%3C/svg%3E"
         page = builder.build_page(matches, cache, BUILT_AT, failed, TODAY)
+        # Most interaction fixtures are served as standalone synthetic pages.
+        # Production external-asset loading is checked separately with this off.
+        if inline_runtime and hasattr(builder, "CORE_SCRIPT_TAG"):
+            page = page.replace(builder.CORE_SCRIPT_TAG,
+                                '<script>' + builder.outlook_runtime.browser_script() + '</script>')
         return page if fragment else builder.as_document(page)
 
 

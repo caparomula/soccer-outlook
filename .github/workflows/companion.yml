@@ -1,0 +1,102 @@
+name: Companion engineering checks
+
+on:
+  pull_request:
+    paths: ["companion-toolchain.json", "packages/**", "tool/**", "contracts/**", "docs/companion/rules/**", "tests/**", "web/**", "*.py", "*.toml", ".github/workflows/**", ".github/scripts/**", ".github/actions/**"]
+  push:
+    branches: [main]
+    paths: ["companion-toolchain.json", "packages/**", "tool/**", "contracts/**", "docs/companion/rules/**", "tests/**", "web/**", "*.py", "*.toml", ".github/workflows/**", ".github/scripts/**", ".github/actions/**"]
+
+permissions:
+  contents: read
+
+jobs:
+  spike:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - id: toolchain
+        run: |
+          python - <<'PY'
+          import json, os
+          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+              output.write("dart=" + json.load(open("companion-toolchain.json"))["dart"] + "\n")
+          PY
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: ${{ steps.toolchain.outputs.dart }}
+      - run: python -m pip install -r tests/requirements-browser.txt -r tests/requirements-companion.txt
+      - run: python -m playwright install --with-deps chromium webkit
+      - run: dart --suppress-analytics pub get --enforce-lockfile
+        working-directory: packages/outlook_core
+      - run: dart --suppress-analytics pub get --enforce-lockfile
+        working-directory: tool/outlook_bridge
+      - run: dart --suppress-analytics pub get --enforce-lockfile
+        working-directory: packages/outlook_data
+      - run: dart --suppress-analytics pub get --enforce-lockfile
+        working-directory: tool/companion_feed_reader
+      - run: python tool/build_outlook_runtime.py --dart dart
+      - name: Companion producer and integration tests
+        run: >-
+          python -m unittest tests.test_companion_contracts tests.test_companion_boundaries
+          tests.test_companion_native_evidence tests.test_companion_publication_capture
+          tests.test_companion_capture_resources
+          tests.test_companion_spike_limits tests.test_companion_publication
+          tests.test_companion_export tests.test_companion_export_review tests.test_companion_integration
+          tests.test_companion_story_bindings tests.test_companion_form_evidence
+          tests.test_companion_collection tests.test_companion_p2 tests.test_outlook_runtime
+          tests.test_outlook_asset_retention tests.test_companion_eligibility
+          tests.test_route_validity_adapters tests.test_companion_validity
+          tests.test_fixture_window_adapters tests.test_companion_windows -v
+      - name: Shared source status adapters and proof integrity
+        run: python -m unittest tests.test_espn_status_adapters tests.test_companion_status -v
+      - name: Offline publication browser initialization
+        run: python -m tests.browser_publication_capture
+      - name: Verify retained native evidence offline
+        run: |
+          python tool/companion_live_probe/verify_native_evidence.py --platform ios --public tool/companion_live_probe/ios-native-public.jsonl --local tool/companion_live_probe/ios-native-local.jsonl --out work/companion-p0/ios.json
+          python tool/companion_live_probe/verify_native_evidence.py --platform android --public tool/companion_live_probe/android-public-2026-10-20.jsonl --local tool/companion_live_probe/android-local-2026-10-20.jsonl --out work/companion-p0/android.json
+      - run: dart --suppress-analytics format --output=none --set-exit-if-changed packages/outlook_core packages/outlook_data tool/outlook_bridge/lib tool/outlook_bridge/bin tool/outlook_bridge/web tool/companion_live_probe tool/companion_feed_reader
+      - run: dart --suppress-analytics analyze
+        working-directory: packages/outlook_core
+      - run: dart --suppress-analytics test
+        working-directory: packages/outlook_core
+      - run: dart --suppress-analytics analyze
+        working-directory: tool/outlook_bridge
+      - run: dart --suppress-analytics analyze
+        working-directory: packages/outlook_data
+      - run: dart --suppress-analytics test
+        working-directory: packages/outlook_data
+      - run: dart --suppress-analytics analyze
+        working-directory: tool/companion_feed_reader
+      - run: dart --suppress-analytics test
+        working-directory: tool/companion_feed_reader
+      - name: Verify production exporter with the independent Dart reader
+        run: python tool/companion_feed_verify.py --out work/companion-p1 --dart dart
+      - run: dart --suppress-analytics analyze tool/companion_live_probe/lib
+      - run: dart --suppress-analytics analyze tool/companion_live_probe/bin
+      - run: dart --suppress-analytics analyze tool/companion_live_probe/test
+      - run: dart --suppress-analytics run tool/companion_live_probe/test/probe_test.dart
+      - run: python tool/companion_p2_verify.py --runtime work/outlook-runtime --dart dart
+      - run: python tool/companion_eligibility_verify.py --runtime work/outlook-runtime --dart dart
+      - run: python tool/companion_validity_verify.py --runtime work/outlook-runtime --dart dart
+      - run: python tool/companion_window_verify.py --runtime work/outlook-runtime --dart dart
+      - run: python tool/companion_status_verify.py --runtime work/outlook-runtime --dart dart
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: companion-engineering-evidence
+          path: |
+            work/companion-p0/
+            work/companion-p1/
+            work/companion-p2/
+            work/companion-eligibility/
+            work/companion-validity/
+            work/companion-window/
+            work/companion-status/
+          if-no-files-found: ignore
+          retention-days: 14

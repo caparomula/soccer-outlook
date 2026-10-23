@@ -1,0 +1,211 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://soccer-outlook.invalid/contracts/outlook/v1/policy.schema.json",
+  "title": "Draft P0 policy",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "kind": {
+      "const": "outlook_policy"
+    },
+    "content_revision": {
+      "$ref": "common.schema.json#/$defs/id"
+    },
+    "policy_id": {
+      "$ref": "common.schema.json#/$defs/id"
+    },
+    "defaults": {
+      "type": "object",
+      "properties": {
+        "league_order": {
+          "type": "array",
+          "items": {
+            "$ref": "common.schema.json#/$defs/id"
+          },
+          "maxItems": 100,
+          "minItems": 0,
+          "uniqueItems": true
+        },
+        "enabled_league_ids": {
+          "type": "array",
+          "items": {
+            "$ref": "common.schema.json#/$defs/id"
+          },
+          "maxItems": 100,
+          "minItems": 0,
+          "uniqueItems": true
+        },
+        "service_plan_order": {
+          "type": "array",
+          "items": {
+            "$ref": "common.schema.json#/$defs/id"
+          },
+          "maxItems": 500,
+          "minItems": 0,
+          "uniqueItems": true
+        },
+        "enabled_service_plan_ids": {
+          "type": "array",
+          "items": {
+            "$ref": "common.schema.json#/$defs/id"
+          },
+          "maxItems": 500,
+          "minItems": 0,
+          "uniqueItems": true
+        },
+        "ai_text": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "league_order",
+        "enabled_league_ids",
+        "service_plan_order",
+        "enabled_service_plan_ids",
+        "ai_text"
+      ],
+      "additionalProperties": true,
+      "maxProperties": 100
+    },
+    "rules": {
+      "type": "object",
+      "properties": {
+        "eligibility": {
+          "$ref": "common.schema.json#/$defs/id"
+        },
+        "sports_day": {
+          "$ref": "common.schema.json#/$defs/id"
+        },
+        "ranking": {
+          "$ref": "common.schema.json#/$defs/id"
+        },
+        "editorial": {
+          "$ref": "common.schema.json#/$defs/id"
+        },
+        "rating_dots": {
+          "$ref": "common.schema.json#/$defs/id"
+        },
+        "freshness": {
+          "$ref": "common.schema.json#/$defs/id"
+        }
+      },
+      "required": [
+        "eligibility",
+        "sports_day",
+        "ranking",
+        "editorial",
+        "rating_dots",
+        "freshness"
+      ],
+      "additionalProperties": true,
+      "maxProperties": 100
+    },
+    "blend": {
+      "type": "object",
+      "properties": {
+        "ai": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000
+        },
+        "outlook": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000
+        },
+        "interest": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000
+        },
+        "league_priority": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000
+        }
+      },
+      "required": [
+        "ai",
+        "outlook",
+        "interest",
+        "league_priority"
+      ],
+      "additionalProperties": true,
+      "maxProperties": 100
+    },
+    "window": {
+      "type": "object",
+      "properties": {
+        "boundary_hour": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 23
+        },
+        "past_days": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 30
+        },
+        "future_days": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 30
+        }
+      },
+      "required": [
+        "boundary_hour",
+        "past_days",
+        "future_days"
+      ],
+      "additionalProperties": true,
+      "maxProperties": 100
+    },
+    "freshness": {
+      "type": "object",
+      "properties": {
+        "retained_evidence_max_seconds": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 86400
+        },
+        "personal_shared_max_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 86400
+        },
+        "automatic_max_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 604800
+        }
+      },
+      "required": [
+        "retained_evidence_max_seconds",
+        "personal_shared_max_seconds",
+        "automatic_max_seconds"
+      ],
+      "additionalProperties": true,
+      "maxProperties": 100
+    },
+    "viewer_preferences": false,
+    "personal_ai": false,
+    "final_pick_score": false,
+    "rating_dots": false,
+    "personalized_picks": false
+  },
+  "required": [
+    "schema_version",
+    "kind",
+    "content_revision",
+    "policy_id",
+    "defaults",
+    "rules",
+    "blend",
+    "window",
+    "freshness"
+  ],
+  "additionalProperties": true,
+  "maxProperties": 100
+}

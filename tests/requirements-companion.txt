@@ -1,0 +1,2 @@
+# Required for the full test suite; also used by the opt-in companion publisher.
+jsonschema==4.25.1

@@ -1,0 +1,537 @@
+{
+  "status": "P0 shared-time spike; native and stage acceptance recorded separately in docs/companion/p0-evidence.md",
+  "source_revision": "9b977bb2b779b55bea84472e81f4ab00da423f1a",
+  "source_hashes": {
+    "apple_listings.py": "cc71d0a39665efc547a8bcf2b6be8ee3d1d8a0e0d421f4a3fbb9a4c7a745d965",
+    "bein_listings.py": "6597807cfc4a18c80a951d8f011e4bcf9f24ef63caeef2fc3fc76ebfe18cf853",
+    "broadcast_listings.py": "962eba2ed9856414b6b99603bf6ca2f08b0c534899e0db0c691d84ddc4ccbad4",
+    "build.py": "88d2545fe68b2ccb47766f4738935ff36dd1e344449ece35b94610095efee2af",
+    "companion-toolchain.json": "6f22792346a0b9c9430ce5cb054eea4b236a88f66f556e35695fa38ffd433c99",
+    "discovery.py": "de0b358e4038c6fc4aaa85ac587f522215ee9f7aabe9b7510e236a877f8b31e3",
+    "espn_listings.py": "b8b7c1ab5c441893fa22d502e760a7529a7511763614d61a0520cd01bf813368",
+    "fandango_listings.py": "e92c21b752226abc108b67baba56cd219f8a964a6f009b54567c243e883fa22d",
+    "fixture_comparison.py": "5bce960d165dde18bb9541ac3a80987f065959118c5a837c6c44d5df33615b60",
+    "fox_listings.py": "ce03c26e4e53b7d1b954905e3bc17b0b8dd20e16c3f509ff17b27b5afba2af8a",
+    "history.py": "636e210744374b3d12391fd3dc82438976114b73f70456218f4867315f1e3193",
+    "history_report.py": "4187c87c0b4627ae35456b0ea4d114e9349b4463f5065e57074a61288ef72573",
+    "metrics.py": "d642af0f602bbc9b878505a9bb7e07449c9d463dea77ccfe55c1023e0d5149c9",
+    "observations.py": "e8e4f3776cd55f407b45747b9d5c3c5524dbba148ddab7780f94116b05f21f92",
+    "packages/outlook_core/analysis_options.yaml": "9d8678dc8c46856d2400175deef7deae8c83bb99f7608594c6d5d804ca726efa",
+    "packages/outlook_core/lib/outlook_core.dart": "bc3b3a479223e7272361331411fda284627311d7eccab238d94bb83543d40f5f",
+    "packages/outlook_core/lib/src/sports_day.dart": "a2e120091a008f3ae0c424caaaf98f5d959f58c101587c0f052a1b061e478ba0",
+    "packages/outlook_core/pubspec.lock": "951af870a0c95fbed5678225bc6c259298c75e4ba18de1ea93a23ca842851cdb",
+    "packages/outlook_core/pubspec.yaml": "133694b6c7d3ada0bf631f7dad12ca8a4f6d545cff49fddc4dd050397f88402b",
+    "packages/outlook_core/test/sports_day_test.dart": "99571f13112f6ab5c4b019168c89a20b57fb3fffd7ebf182e9e21730e996f7d6",
+    "paramount_listings.py": "bfc87e42faf92da71eab8e0f0bec35423824c918285a2a9d915ce55eb7fd1bda",
+    "peacock_listings.py": "453f5f96c033e748000ab91330dd5e10bc331ec3d203ee2d5bc7c98f12e4cbe5",
+    "provider_utils.py": "527b8574ca8f8a6a818b83a14cd509a5320749722aa9446e9eea6a69dac93827",
+    "providers.py": "3693bac082aa6901c2e0988daf327c1805388e30c5497f0dfd19c468c15121fc",
+    "rights.toml": "792b0fd83100d9b50c36e41fe3ab57bbaf39af89e46a6aa06d8f124492d13a67",
+    "schedule_data.py": "b23dcef37e56cbd4eef9714b78ec17e19da24c363b2c99de3c986ce1a42167ae",
+    "settings.toml": "f2f9d16b5d7b8e7de61fa9858b7c2445f0d01331e959b1a07c5197e545ee4a23",
+    "story.py": "b94eaa6bf7505fb9d90d7b44b548ea043f1ea72f0fd7dedbbdc4088b7341a6f2",
+    "story_state.py": "5cc5cf5bb5a6ddc5ccd841795d16a5d148de679dbc50c0172fa3a755f408cf46",
+    "tests/page_fixture.py": "e2eac877ac8582246fe7265f48815f8c43d4333fb1b216d9bb3ffc78d4f420ac",
+    "tool/companion_p0_limits.json": "c9434036444ebe62b1bea925d62267fe0122e0dc496c60ee873b5ed53a3260e3",
+    "tool/outlook_bridge/README.md": "bdf3bc3a51625be87b5fd0364f4a35388f519fd8b1b7fe19d0d323e2daa8f7aa",
+    "tool/outlook_bridge/analysis_options.yaml": "81e0446176a695d2d1ace5d585a59bcb5ee97addd27f33a9a478f19136c56cca",
+    "tool/outlook_bridge/bin/outlook.dart": "2cfd09dd1353dd18a29ff4c8b87c60dec3ca0f4f46fbbb7f0300160b9f68fe55",
+    "tool/outlook_bridge/cases/sports_day.json": "2560660ecf523f2e254b69cb2b063f5d28caeb0ecab94407d616672ef320dd93",
+    "tool/outlook_bridge/lib/protocol.dart": "5d30424e51c7ed834c334c50c14734b8c913e7d223f9818bb6723dfad6bc830c",
+    "tool/outlook_bridge/pubspec.lock": "6f4dfc7b699e87acf07633f65c9d7db1a3d1e26dbcfed57835b7a3660f1969f0",
+    "tool/outlook_bridge/pubspec.yaml": "4fb73276173e75e27d8343f4536d6cf83cd26a20fe8504e1ea5d8b0029ca93d1",
+    "tool/outlook_bridge/verify.py": "eb08a9f493595afcfa8298dd1bffb4615e03516ce747bf23d131499f8bbf92d9",
+    "tool/outlook_bridge/web/bridge.dart": "a6b8632f01122db1496419c33702ff14989b0ee43ef78ba9cafb8bc5e6bc9ec2",
+    "tool/outlook_bridge/web/demo.js": "a352cc0a51638cb38965adfd4788305943872abb8fb4285ac6ca5b0a8b0467d4",
+    "tool/outlook_bridge/web/index.html": "cdd8573ca5c611140b45099718f9bdc775df7d1b49a03eca6daa30b19708040c",
+    "tudn_listings.py": "8bf69100a8d3feb4a1c3cc7f93d3386c4837a323320fc5a0d9bfa61b0a9851f0",
+    "vix_listings.py": "49c428db74c99fe827b31d81bc32892aa1e91824a65fd6c2c1c7ee0da2ce4d14",
+    "watch-links.toml": "f214e47052326610358e59cfa37b26b871c2ef846d5d9350d7e3e44f8393087c",
+    "watch_links.py": "b486e5eb001ba6e4e9c73b88edb679edad5e8dddde546c427ed3fc846132b14b",
+    "web/app.js": "495707eaf6c00b1ae725464e10fa1cef45498336b417c37c0c4b8ca29fc7d0e4",
+    "web/discovery.css": "7bd3ef98d3f80639991eef44a1f41ce61661e2904a95a2bc31276ca637f72291",
+    "web/favicon.png": "de2ddfd9b2067116b5855579bc59dd822487a45f5966ee1990800df380da9d98",
+    "web/favicon.svg": "7a22dbda89c1a8f7de5fd67e1e098c4d6e9c72ecb98826aa0dbe2abac4480921",
+    "web/github-publish.js": "c8e5611fcd6612441ab34f727fcb84fc1d2876c8e80596711180ee4e80a2c113",
+    "web/indexnow-key.txt": "1e3088a376434b4ce236bcd6364841eedcc6685c6d79b09e8dbdb4bcf9ae43aa",
+    "web/live.js": "fa25890d5ee0885ed859fba200ff926209c6c32ef5b3ae65e9d66af9441c3dee",
+    "web/page.html": "831b09afce61c61376280b33b7756fc32e91293bdcb5ab6ceca633b0c0cc3d70",
+    "web/personal-ai.js": "779efc4d21f91961216749737fc37590a9029db3be338bb7e9846d84b5a4ddb6",
+    "web/schedule.js": "1ba127784a06e821b8a37b5f05409b3e011760d251987dd1d912256977e173eb",
+    "web/styles.css": "79b0b52d58901ac6f7a89638307d690545b385a9c43bbbda824220d2c514cd3a",
+    "web/teams.js": "4c49484eb2066c3071b1b2407bf8e363e6bb8260d3d7e939f439c163b362894c"
+  },
+  "dart": "Dart SDK version: 3.13.3 (stable) (Tue Sep 1 01:07:17 2026 -0700) on \"macos_arm64\"",
+  "python": "3.13.16",
+  "javascript_bytes": 933379,
+  "javascript_gzip_bytes": 126503,
+  "size_budget": {
+    "limit_bytes": 204800,
+    "passed": true,
+    "remaining_bytes": 78297
+  },
+  "performance_acceptance": "pending release-mode physical reference measurements",
+  "artifact_hashes": {
+    "baseline.html": "7d67e206ae55e750977102d07e7c5f23216c233e1daa38c10d265051e8a7c5dd",
+    "with_bridge.html": "a8ae8213829badfd1a62e432f85589920941b630c5de2f2b951da983f0027d4f",
+    "outlook.js": "5b3d54077970546f22aaf595fb01c42e36d9cded70f2a5600bf60f4b828e7ca8",
+    "outlook": "1f45bfca47dd43918df9a211f9c0abd5fd68f1b908abd84fa5da84536cf4e755"
+  },
+  "baseline_html_bytes": 374542,
+  "baseline_html_gzip_bytes": 90187,
+  "cold_batch_ms": {
+    "dart_vm": 404.45333416573703,
+    "python_to_cli": 134.2597499024123
+  },
+  "browsers": {
+    "chromium": {
+      "version": "151.0.7922.34",
+      "independent_cases": 17,
+      "legacy_cases": 17,
+      "invalid_batches": 6,
+      "strict_csp": "passed",
+      "dom_content_loaded_ms": {
+        "baseline": [
+          64.09999990463257,
+          67.20000004768372,
+          65.29999995231628,
+          59.60000014305115,
+          59.89999985694885,
+          61.90000009536743,
+          59.39999985694885
+        ],
+        "with_bridge": [
+          87.5,
+          85.5,
+          81.79999995231628,
+          80.40000009536743,
+          80.5,
+          82.70000004768372,
+          74.59999990463257
+        ]
+      },
+      "first_batch_including_timezone_initialization_ms": [
+        13.899999856948853,
+        13.299999952316284,
+        12.899999856948853,
+        12.700000047683716,
+        13.200000047683716,
+        12.900000095367432,
+        11.700000047683716
+      ],
+      "median_ms": {
+        "baseline": 61.90000009536743,
+        "with_bridge": 81.79999995231628
+      },
+      "median_added_ms": 19.899999856948853,
+      "legacy_results": [
+        {
+          "id": "pacific-same-instant",
+          "date": "2026-10-07",
+          "start_utc": "2026-10-07T11:00:00.000Z",
+          "end_utc": "2026-10-08T11:00:00.000Z",
+          "day_index": 0
+        },
+        {
+          "id": "eastern-before-four",
+          "date": "2026-10-07",
+          "start_utc": "2026-10-07T08:00:00.000Z",
+          "end_utc": "2026-10-08T08:00:00.000Z",
+          "day_index": 0
+        },
+        {
+          "id": "eastern-at-four",
+          "date": "2026-10-08",
+          "start_utc": "2026-10-08T08:00:00.000Z",
+          "end_utc": "2026-10-09T08:00:00.000Z",
+          "day_index": 1
+        },
+        {
+          "id": "spring-short-day",
+          "date": "2026-03-07",
+          "start_utc": "2026-03-07T09:00:00.000Z",
+          "end_utc": "2026-03-08T08:00:00.000Z",
+          "day_index": 0
+        },
+        {
+          "id": "spring-at-four",
+          "date": "2026-03-08",
+          "start_utc": "2026-03-08T08:00:00.000Z",
+          "end_utc": "2026-03-09T08:00:00.000Z",
+          "day_index": 1
+        },
+        {
+          "id": "autumn-first-one-thirty",
+          "date": "2026-10-31",
+          "start_utc": "2026-10-31T08:00:00.000Z",
+          "end_utc": "2026-11-01T09:00:00.000Z",
+          "day_index": -1
+        },
+        {
+          "id": "autumn-second-one-thirty",
+          "date": "2026-10-31",
+          "start_utc": "2026-10-31T08:00:00.000Z",
+          "end_utc": "2026-11-01T09:00:00.000Z",
+          "day_index": -1
+        },
+        {
+          "id": "autumn-before-four",
+          "date": "2026-10-31",
+          "start_utc": "2026-10-31T08:00:00.000Z",
+          "end_utc": "2026-11-01T09:00:00.000Z",
+          "day_index": 0
+        },
+        {
+          "id": "autumn-at-four",
+          "date": "2026-11-01",
+          "start_utc": "2026-11-01T09:00:00.000Z",
+          "end_utc": "2026-11-02T09:00:00.000Z",
+          "day_index": 1
+        },
+        {
+          "id": "three-days-through-dst",
+          "date": "2026-03-10",
+          "start_utc": "2026-03-10T08:00:00.000Z",
+          "end_utc": "2026-03-11T08:00:00.000Z",
+          "day_index": 3
+        },
+        {
+          "id": "kolkata-half-hour-offset",
+          "date": "2026-10-08",
+          "start_utc": "2026-10-07T22:30:00.000Z",
+          "end_utc": "2026-10-08T22:30:00.000Z",
+          "day_index": 1
+        },
+        {
+          "id": "lord-howe-half-hour-dst",
+          "date": "2026-10-03",
+          "start_utc": "2026-10-02T17:30:00.000Z",
+          "end_utc": "2026-10-03T17:00:00.000Z",
+          "day_index": 0
+        },
+        {
+          "id": "utc-midnight",
+          "date": "2026-10-07",
+          "start_utc": "2026-10-07T04:00:00.000Z",
+          "end_utc": "2026-10-08T04:00:00.000Z",
+          "day_index": 0
+        },
+        {
+          "id": "year-boundary",
+          "date": "2026-12-31",
+          "start_utc": "2026-12-31T04:00:00.000Z",
+          "end_utc": "2027-01-01T04:00:00.000Z",
+          "day_index": 1
+        },
+        {
+          "id": "leap-day",
+          "date": "2028-02-29",
+          "start_utc": "2028-02-29T04:00:00.000Z",
+          "end_utc": "2028-03-01T04:00:00.000Z",
+          "day_index": 1
+        },
+        {
+          "id": "london-spring-short-day",
+          "date": "2026-03-28",
+          "start_utc": "2026-03-28T04:00:00.000Z",
+          "end_utc": "2026-03-29T03:00:00.000Z",
+          "day_index": 0
+        },
+        {
+          "id": "auckland-date-line",
+          "date": "2026-10-08",
+          "start_utc": "2026-10-07T15:00:00.000Z",
+          "end_utc": "2026-10-08T15:00:00.000Z",
+          "day_index": 1
+        }
+      ]
+    },
+    "webkit": {
+      "version": "26.5",
+      "independent_cases": 17,
+      "legacy_cases": 17,
+      "invalid_batches": 6,
+      "strict_csp": "passed",
+      "dom_content_loaded_ms": {
+        "baseline": [
+          73,
+          74,
+          65,
+          64,
+          65,
+          54,
+          53
+        ],
+        "with_bridge": [
+          104,
+          95,
+          95,
+          94,
+          78,
+          72,
+          72
+        ]
+      },
+      "first_batch_including_timezone_initialization_ms": [
+        16,
+        15,
+        15,
+        15,
+        12,
+        12,
+        12
+      ],
+      "median_ms": {
+        "baseline": 65,
+        "with_bridge": 94
+      },
+      "median_added_ms": 29,
+      "legacy_results": [
+        {
+          "id": "pacific-same-instant",
+          "date": "2026-10-07",
+          "start_utc": "2026-10-07T11:00:00.000Z",
+          "end_utc": "2026-10-08T11:00:00.000Z",
+          "day_index": 0
+        },
+        {
+          "id": "eastern-before-four",
+          "date": "2026-10-07",
+          "start_utc": "2026-10-07T08:00:00.000Z",
+          "end_utc": "2026-10-08T08:00:00.000Z",
+          "day_index": 0
+        },
+        {
+          "id": "eastern-at-four",
+          "date": "2026-10-08",
+          "start_utc": "2026-10-08T08:00:00.000Z",
+          "end_utc": "2026-10-09T08:00:00.000Z",
+          "day_index": 1
+        },
+        {
+          "id": "spring-short-day",
+          "date": "2026-03-07",
+          "start_utc": "2026-03-07T09:00:00.000Z",
+          "end_utc": "2026-03-08T08:00:00.000Z",
+          "day_index": 0
+        },
+        {
+          "id": "spring-at-four",
+          "date": "2026-03-08",
+          "start_utc": "2026-03-08T08:00:00.000Z",
+          "end_utc": "2026-03-09T08:00:00.000Z",
+          "day_index": 1
+        },
+        {
+          "id": "autumn-first-one-thirty",
+          "date": "2026-10-31",
+          "start_utc": "2026-10-31T08:00:00.000Z",
+          "end_utc": "2026-11-01T09:00:00.000Z",
+          "day_index": -1
+        },
+        {
+          "id": "autumn-second-one-thirty",
+          "date": "2026-10-31",
+          "start_utc": "2026-10-31T08:00:00.000Z",
+          "end_utc": "2026-11-01T09:00:00.000Z",
+          "day_index": -1
+        },
+        {
+          "id": "autumn-before-four",
+          "date": "2026-10-31",
+          "start_utc": "2026-10-31T08:00:00.000Z",
+          "end_utc": "2026-11-01T09:00:00.000Z",
+          "day_index": 0
+        },
+        {
+          "id": "autumn-at-four",
+          "date": "2026-11-01",
+          "start_utc": "2026-11-01T09:00:00.000Z",
+          "end_utc": "2026-11-02T09:00:00.000Z",
+          "day_index": 1
+        },
+        {
+          "id": "three-days-through-dst",
+          "date": "2026-03-10",
+          "start_utc": "2026-03-10T08:00:00.000Z",
+          "end_utc": "2026-03-11T08:00:00.000Z",
+          "day_index": 3
+        },
+        {
+          "id": "kolkata-half-hour-offset",
+          "date": "2026-10-08",
+          "start_utc": "2026-10-07T22:30:00.000Z",
+          "end_utc": "2026-10-08T22:30:00.000Z",
+          "day_index": 1
+        },
+        {
+          "id": "lord-howe-half-hour-dst",
+          "date": "2026-10-03",
+          "start_utc": "2026-10-02T17:30:00.000Z",
+          "end_utc": "2026-10-03T17:00:00.000Z",
+          "day_index": 0
+        },
+        {
+          "id": "utc-midnight",
+          "date": "2026-10-07",
+          "start_utc": "2026-10-07T04:00:00.000Z",
+          "end_utc": "2026-10-08T04:00:00.000Z",
+          "day_index": 0
+        },
+        {
+          "id": "year-boundary",
+          "date": "2026-12-31",
+          "start_utc": "2026-12-31T04:00:00.000Z",
+          "end_utc": "2027-01-01T04:00:00.000Z",
+          "day_index": 1
+        },
+        {
+          "id": "leap-day",
+          "date": "2028-02-29",
+          "start_utc": "2028-02-29T04:00:00.000Z",
+          "end_utc": "2028-03-01T04:00:00.000Z",
+          "day_index": 1
+        },
+        {
+          "id": "london-spring-short-day",
+          "date": "2026-03-28",
+          "start_utc": "2026-03-28T04:00:00.000Z",
+          "end_utc": "2026-03-29T03:00:00.000Z",
+          "day_index": 0
+        },
+        {
+          "id": "auckland-date-line",
+          "date": "2026-10-08",
+          "start_utc": "2026-10-07T15:00:00.000Z",
+          "end_utc": "2026-10-08T15:00:00.000Z",
+          "day_index": 1
+        }
+      ]
+    }
+  },
+  "expected_results": {
+    "version": 1,
+    "results": [
+      {
+        "id": "eastern-before-four",
+        "date": "2026-10-07",
+        "start_utc": "2026-10-07T08:00:00.000Z",
+        "end_utc": "2026-10-08T08:00:00.000Z",
+        "day_index": 0
+      },
+      {
+        "id": "eastern-at-four",
+        "date": "2026-10-08",
+        "start_utc": "2026-10-08T08:00:00.000Z",
+        "end_utc": "2026-10-09T08:00:00.000Z",
+        "day_index": 1
+      },
+      {
+        "id": "spring-short-day",
+        "date": "2026-03-07",
+        "start_utc": "2026-03-07T09:00:00.000Z",
+        "end_utc": "2026-03-08T08:00:00.000Z",
+        "day_index": 0
+      },
+      {
+        "id": "spring-at-four",
+        "date": "2026-03-08",
+        "start_utc": "2026-03-08T08:00:00.000Z",
+        "end_utc": "2026-03-09T08:00:00.000Z",
+        "day_index": 1
+      },
+      {
+        "id": "autumn-first-one-thirty",
+        "date": "2026-10-31",
+        "start_utc": "2026-10-31T08:00:00.000Z",
+        "end_utc": "2026-11-01T09:00:00.000Z",
+        "day_index": -1
+      },
+      {
+        "id": "autumn-second-one-thirty",
+        "date": "2026-10-31",
+        "start_utc": "2026-10-31T08:00:00.000Z",
+        "end_utc": "2026-11-01T09:00:00.000Z",
+        "day_index": -1
+      },
+      {
+        "id": "autumn-before-four",
+        "date": "2026-10-31",
+        "start_utc": "2026-10-31T08:00:00.000Z",
+        "end_utc": "2026-11-01T09:00:00.000Z",
+        "day_index": 0
+      },
+      {
+        "id": "autumn-at-four",
+        "date": "2026-11-01",
+        "start_utc": "2026-11-01T09:00:00.000Z",
+        "end_utc": "2026-11-02T09:00:00.000Z",
+        "day_index": 1
+      },
+      {
+        "id": "pacific-same-instant",
+        "date": "2026-10-07",
+        "start_utc": "2026-10-07T11:00:00.000Z",
+        "end_utc": "2026-10-08T11:00:00.000Z",
+        "day_index": 0
+      },
+      {
+        "id": "utc-midnight",
+        "date": "2026-10-07",
+        "start_utc": "2026-10-07T04:00:00.000Z",
+        "end_utc": "2026-10-08T04:00:00.000Z",
+        "day_index": 0
+      },
+      {
+        "id": "kolkata-half-hour-offset",
+        "date": "2026-10-08",
+        "start_utc": "2026-10-07T22:30:00.000Z",
+        "end_utc": "2026-10-08T22:30:00.000Z",
+        "day_index": 1
+      },
+      {
+        "id": "london-spring-short-day",
+        "date": "2026-03-28",
+        "start_utc": "2026-03-28T04:00:00.000Z",
+        "end_utc": "2026-03-29T03:00:00.000Z",
+        "day_index": 0
+      },
+      {
+        "id": "lord-howe-half-hour-dst",
+        "date": "2026-10-03",
+        "start_utc": "2026-10-02T17:30:00.000Z",
+        "end_utc": "2026-10-03T17:00:00.000Z",
+        "day_index": 0
+      },
+      {
+        "id": "auckland-date-line",
+        "date": "2026-10-08",
+        "start_utc": "2026-10-07T15:00:00.000Z",
+        "end_utc": "2026-10-08T15:00:00.000Z",
+        "day_index": 1
+      },
+      {
+        "id": "year-boundary",
+        "date": "2026-12-31",
+        "start_utc": "2026-12-31T04:00:00.000Z",
+        "end_utc": "2027-01-01T04:00:00.000Z",
+        "day_index": 1
+      },
+      {
+        "id": "leap-day",
+        "date": "2028-02-29",
+        "start_utc": "2028-02-29T04:00:00.000Z",
+        "end_utc": "2028-03-01T04:00:00.000Z",
+        "day_index": 1
+      },
+      {
+        "id": "three-days-through-dst",
+        "date": "2026-03-10",
+        "start_utc": "2026-03-10T08:00:00.000Z",
+        "end_utc": "2026-03-11T08:00:00.000Z",
+        "day_index": 3
+      }
+    ]
+  },
+  "measurement_limits": "7 localhost samples per variant, fresh browser contexts, warm host; desktop development measurements, no device/network budget certification"
+}

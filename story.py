@@ -52,7 +52,7 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from zoneinfo import ZoneInfo
 
 import providers
-from story_state import (BLURB_CANDIDATES, DAY_START_HOUR, MIN_GAP_HOURS, WINDOW_DAYS, choose_mode, missing_ratings,
+from story_state import (BLURB_CANDIDATES, MAX_AGE_HOURS, MIN_GAP_HOURS, WINDOW_DAYS, choose_mode, missing_ratings,
                          rating_window, still_fresh, story_age_hours, window_end)
 
 ET = ZoneInfo("America/New_York")
@@ -870,6 +870,81 @@ def news_matches(facts):
     return matches
 
 
+def companion_origin(facts, ids, prompted_at, *, generated_at=None, allow_calendar=False):
+    """Bind one accepted response to its original facts and lifetime, when opted in."""
+    if not facts.get("_companion_bindings"):
+        return None
+    def instant(value):
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00")) if isinstance(value, str) else value
+        if parsed.utcoffset() is None:
+            raise ValueError("Companion origins require an explicit time zone.")
+        return parsed.astimezone(timezone.utc)
+    def stamp(value):
+        return instant(value).isoformat().replace("+00:00", "Z")
+    matches = {}
+    candidates = list(news_matches(facts).values()) + facts.get("ranking_candidates", []) + facts.get("overview_fixtures", [])
+    try:
+        for match in candidates:
+            mid, league = match["id"], match["league_id"]
+            if not isinstance(mid, str) or not mid or not isinstance(league, str) or not league:
+                return None
+            binding = dict(id=mid, league_id=league,
+                kickoff_utc=None if match.get("time_confirmed") is False else stamp(match["kickoff_utc"]))
+            if mid in matches and matches[mid] != binding:
+                return None
+            matches[mid] = binding
+        bindings = [matches[mid] for mid in dict.fromkeys(ids)]
+        if not bindings and not allow_calendar:
+            return None
+        generated = instant(generated_at or datetime.now(timezone.utc))
+        expiry = min(instant(facts["focus_until"]), generated + timedelta(hours=MAX_AGE_HOURS))
+        return dict(fixture_bindings=bindings, prompted_at=stamp(prompted_at), generated_at=stamp(generated),
+                    expires_at=stamp(expiry))
+    except (KeyError, TypeError, AttributeError, ValueError, OverflowError):
+        return None  # Incomplete legacy facts never acquire a guessed binding.
+
+
+def bind_companion_news(value, facts, prompted_at, *, generated_at=None):
+    if not value or not facts.get("_companion_bindings"):
+        return
+    generated_at = generated_at or datetime.now(timezone.utc)
+    def bind(item, ids, key="companion_origin", allow_calendar=False):
+        origin = companion_origin(facts, ids, prompted_at, generated_at=generated_at, allow_calendar=allow_calendar)
+        if origin:
+            item[key] = origin
+    for item in value.get("lede_items", []) + value.get("league_blurbs", []) + value.get("forecast", {}).get("items", []):
+        calendar = bool(item.get("event_start") and item.get("event_end") and
+                        isinstance(item.get("sources"), list) and item["sources"])
+        bind(item, item.get("match_ids", []), allow_calendar=calendar)
+    for mid, item in value.get("notes", {}).items():
+        bind(item, [mid])
+    refs = [mid for segment in value.get("headline_segments", []) for mid in segment.get("match_ids", [])]
+    if value.get("headline"):
+        bind(value, refs, "companion_headline_origin")
+
+
+def restore_companion_news(value, previous):
+    """Revalidation of saved text preserves a binding only for identical saved content."""
+    def signature(item):
+        return {key: val for key, val in item.items() if key != "companion_origin"}
+    def restore(item, earlier):
+        if signature(item) == signature(earlier) and isinstance(earlier.get("companion_origin"), dict):
+            item["companion_origin"] = copy.deepcopy(earlier["companion_origin"])
+    for name in ("lede_items", "league_blurbs"):
+        for item in value.get(name, []):
+            for earlier in previous.get(name, []):
+                restore(item, earlier)
+    for item in value.get("forecast", {}).get("items", []):
+        for earlier in previous.get("forecast", {}).get("items", []):
+            restore(item, earlier)
+    for mid, item in value.get("notes", {}).items():
+        restore(item, previous.get("notes", {}).get(mid, {}))
+    if (value.get("headline") == previous.get("headline") and
+            value.get("headline_segments") == previous.get("headline_segments") and
+            isinstance(previous.get("companion_headline_origin"), dict)):
+        value["companion_headline_origin"] = copy.deepcopy(previous["companion_headline_origin"])
+
+
 def authored_headline(value):
     """Accept authored text only; a legacy paragraph never becomes a generated heading."""
     if not isinstance(value, str):
@@ -1003,6 +1078,9 @@ def merge_news(first, second):
     if not first.get("lede_items") and second.get("lede_items"):
         set_lede(out, second["lede_items"])
         out.update(headline=second.get("headline", ""), headline_segments=second.get("headline_segments", []))
+        out.pop("companion_headline_origin", None)
+        if "companion_headline_origin" in second:
+            out["companion_headline_origin"] = copy.deepcopy(second["companion_headline_origin"])
     blurbs = {b["league_id"]: b for b in first.get("league_blurbs", [])}
     for b in second.get("league_blurbs", []):
         previous = blurbs.get(b["league_id"])
@@ -1106,6 +1184,9 @@ def earlier_ratings(previous, ids):
             out[mid].update(blurb=clip(r["blurb"], LIMITS["blurb"]), sources=sources)
         if isinstance(r.get("provenance"), dict):
             out[mid]["provenance"] = copy.deepcopy(r["provenance"])
+        for key in ("companion_origin", "companion_blurb_origin"):
+            if isinstance(r.get(key), dict) or (key == "companion_blurb_origin" and key in r and r[key] is None):
+                out[mid][key] = copy.deepcopy(r[key])
     return out
 
 
@@ -1220,20 +1301,23 @@ def write_ratings(rate, facts, wanted, context, seen, links, totals, scores_only
     header = (f"It is {clock(facts['built_at'])} on {facts.get('weekday', '')}, {facts.get('date', '')}, US Eastern time."
               if facts.get("built_at") else "")
     ratings, pending, served, uncertain = {}, order, None, set()
+    def rate_bound(chunk):
+        prompted_at = datetime.now(timezone.utc)
+        return rate([rating_fixture(candidates[mid]) for mid in chunk], context, header, scores_only), prompted_at
     for attempt in (1, 2):
         size = SCORES_CHUNK if scores_only else RATING_CHUNK
         if attempt == 2 and not scores_only:
             size = max(1, size // 2)
         chunks = [pending[i:i + size] for i in range(0, len(pending), size)]
         with ThreadPoolExecutor(max_workers=RATING_WORKERS) as pool:
-            futures = {pool.submit(rate, [rating_fixture(candidates[mid]) for mid in chunk], context, header, scores_only): chunk
+            futures = {pool.submit(rate_bound, chunk): chunk
                        for chunk in chunks}
             try:
                 # Save each completed chunk immediately, even while an earlier request is still thinking.
                 for future in as_completed(futures):
                     chunk = futures[future]
                     try:
-                        raw, usage, stop, by = future.result()
+                        (raw, usage, stop, by), prompted_at = future.result()
                     except Exception as e:     # a failed chunk is asked again; its fixtures are not lost
                         log(f"rating request failed: {type(e).__name__}: {e}")
                         if providers.ambiguous_failure(e):
@@ -1247,6 +1331,9 @@ def write_ratings(rate, facts, wanted, context, seen, links, totals, scores_only
                         log(f"rating request stopped: {stop}")
                     for mid, rating in clean_rankings(raw, set(chunk), seen, links).items():
                         if mid not in ratings or ("blurb" in rating and "blurb" not in ratings[mid]):
+                            origin = companion_origin(facts, [mid], prompted_at)
+                            if origin:
+                                rating["companion_origin"] = origin
                             ratings[mid] = rating
                     if checkpoint:
                         checkpoint(ratings, served)
@@ -1389,6 +1476,7 @@ def write_news(client, facts, model, effort, mode, previous, totals, links, seen
     messages = [{"role": "user", "content": prompt}]
     served, story, nudged, repaired = model, None, False, False
     for attempt in range(1, MAX_REQUESTS + 1):
+        prompted_at = datetime.now(timezone.utc)
         with client.beta.messages.stream(
             model=model,
             max_tokens=MAX_TOKENS,
@@ -1421,6 +1509,7 @@ def write_news(client, facts, model, effort, mode, previous, totals, links, seen
                 except ValueError:
                     raw = None
             found = clean_story(raw, facts, seen, links)
+            bind_companion_news(found, facts, prompted_at)
             story = merge_news(story, found) if story else found
             if story and checkpoint:
                 checkpoint(story, served)
@@ -1531,6 +1620,7 @@ def write_story(facts, model, effort, mode, previous, totals, checkpoint=None):
     if resuming and previous["generation"].get("research_complete") is True:
         # Recheck fixture references against this build, using only sources the saved run accepted.
         news = clean_story(earlier_news(previous), facts, seen, links)
+        restore_companion_news(news, previous)
         if isinstance(previous.get("research_provenance"), dict):
             news["research_provenance"] = copy.deepcopy(previous["research_provenance"])
         served = previous.get("model") or model
@@ -1553,7 +1643,7 @@ def write_story(facts, model, effort, mode, previous, totals, checkpoint=None):
     elif mode == "refresh" and previous:
         log("keeping the news written earlier today")
         story.update({k: previous[k] for k in ("headline", "headline_segments", "lede", "lede_items", "sources", "notes",
-                                               "later_reason", "forecast", "league_blurbs", "league_order", "blurb_coverage")
+                                               "later_reason", "forecast", "league_blurbs", "league_order", "blurb_coverage", "companion_headline_origin")
                       if k in previous})
     complete_order(story, facts)
 
@@ -1631,6 +1721,7 @@ def add_overview(story, facts, model, effort, request=overview_request):
         account["why"] = f"no {key_name}"
     else:
         started = time.monotonic()
+        prompted_at = datetime.now(timezone.utc)
         try:
             reply = request(model, effort, os.environ[key_name], facts)
             account.update(served=reply.served or model, usage=sum_usage({}, reply.usage))
@@ -1643,6 +1734,9 @@ def add_overview(story, facts, model, effort, request=overview_request):
         account["cost_usd"] = providers.cost(priced_as, {k: account["usage"].get(k, 0) for k in REPLY_USAGE_KEYS})
         if overview:
             story["overview"] = dict(overview, model=account["served"], requested_model=model, effort=effort)
+            origin = companion_origin(facts, [match["id"] for match in facts.get("overview_fixtures", [])], prompted_at)
+            if origin:
+                story["overview"]["companion_origin"] = origin
             account.update(published=True, sources=len(overview["sources"]))
     u = account["usage"]
     spent = (f"; {u.get('searches', 0) + u.get('opens', 0)} searches recorded, input {u.get('in', 0):,} tokens, output "
@@ -1672,6 +1766,7 @@ def add_blurbs(story, facts, model, effort, request=blurb_request):
         account["why"] = f"no {key_name}"
     else:
         started = time.monotonic()
+        prompted_at = datetime.now(timezone.utc)
         try:
             reply = request(model, effort, os.environ[key_name], facts, candidates)
             account.update(served=reply.served or model, usage=sum_usage({}, reply.usage))
@@ -1683,12 +1778,19 @@ def add_blurbs(story, facts, model, effort, request=blurb_request):
         priced_as = account["served"] if account["served"] in providers.MODELS else model
         account["cost_usd"] = providers.cost(priced_as, {k: account["usage"].get(k, 0) for k in REPLY_USAGE_KEYS})
         for mid, b in blurbs.items():
+            origin = companion_origin(facts, [mid], prompted_at)
             if mid in story["rankings"]:
                 story["rankings"][mid].update(b)
+                if origin or "companion_origin" in story["rankings"][mid] or "companion_blurb_origin" in story["rankings"][mid]:
+                    # Explicit null distinguishes newly unbound text from a blurb
+                    # accepted alongside the original bound rating response.
+                    story["rankings"][mid]["companion_blurb_origin"] = origin
             else:
                 # Candidate selection can use an Outlook score when AI omitted the rating. Keep
                 # researched text independently; the browser already reads fixture notes.
                 story.setdefault("notes", {})[mid] = {"note": b["blurb"], "sources": b["sources"]}
+                if origin:
+                    story["notes"][mid]["companion_origin"] = origin
         account["written"] = len(blurbs)
         known = set(story["rankings"]) | set(story.get("notes") or {})
         story["match_blurb_coverage"] = {"written": sum(has_blurb(story, mid) for mid in known), "total": len(known)}
@@ -1844,6 +1946,8 @@ def main():
     ap.add_argument("--effort", choices=ALL_EFFORTS, help="default: settings.toml's [ai] effort, else by mode")
     ap.add_argument("--usage-out", help="write the run's tokens, searches, cost and time here as JSON")
     ap.add_argument("--settings", default=SETTINGS_PATH, help="the settings file with the [ai] table (default: settings.toml)")
+    ap.add_argument("--companion-bindings", action="store_true",
+                    help="record original fixture identity and lifetime on new companion editorial responses")
     ap.add_argument("--ignore-switch", action="store_true",
                     help="ignore settings.toml's [ai] table, for measuring configurations: --mode, --model and --effort decide")
     preparation = ap.add_mutually_exclusive_group()
@@ -1862,6 +1966,8 @@ def main():
 
     with open(args.facts, encoding="utf-8") as f:
         facts = json.load(f)
+    if args.companion_bindings:
+        facts["_companion_bindings"] = True
     previous_path = args.previous
     previous = load_previous(previous_path) if previous_path else None
     current = (lambda st: written_by(st, config)) if config else (lambda st: True)

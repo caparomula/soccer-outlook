@@ -2,7 +2,21 @@
 
 This guide explains how to develop the companion app without moving Soccer Outlook's existing mistakes into a new interface. It applies Pit Dash's strongest practices to the boundaries, data sources, and product described in the [architecture](architecture.md) and [specification](specification.md).
 
-These are proposed development standards; the companion packages, rule checks, and mobile tests do not exist yet.
+These are the development standards for the companion. P0 now has a small domain
+package, dependency checks, contract fixtures, browser/CLI parity checks and
+isolated native transport/plugin tests. P1 adds production exporter tests,
+publication fault/concurrency tests, and an independent schema-driven Dart
+reader. P2 starts the [rule catalog](rules/README.md) and migrates qualified-route
+selection, qualified-route lifetimes, sports-day boundaries, viewer
+league/fixture eligibility and fixture focus/schedule placement into the shared
+core. The bounded ESPN status/result decoder now has one pure data owner,
+shared through the same bridge. Remaining rules, application packages and product/device acceptance
+remain future work. See the [P0 evidence](p0-evidence.md),
+[P1 evidence](p1-continuation-evidence.md), [first P2 evidence](p2-evidence.md) and
+[eligibility evidence](p2-eligibility-evidence.md),
+[validity evidence](p2-validity-evidence.md) and
+[window evidence](p2-window-evidence.md) and
+[status/result review checkpoint](p2-status-evidence.md) for the exact boundaries.
 
 ## Place each decision with its owner
 

@@ -32,15 +32,22 @@ ESPN supplies fixtures and live scores. The builder also checks supported broadc
 
 ## Run locally
 
-You need **Python 3.11 or newer**, **curl**, and access to ESPN's public APIs. From the repository root:
+You need **Python 3.11 or newer**, the **Dart SDK pinned in
+[companion-toolchain.json](companion-toolchain.json)**, **curl**, and access to
+ESPN's public APIs. From the repository root:
 
 ```sh
-python3 -m unittest -v
+python3 -m venv .venv
+.venv/bin/python -m pip install -r tests/requirements-companion.txt
+dart --suppress-analytics pub get --enforce-lockfile --directory packages/outlook_core
+dart --suppress-analytics pub get --enforce-lockfile --directory tool/outlook_bridge
+python3 tool/build_outlook_runtime.py --dart dart
+.venv/bin/python -m unittest -v
 python3 build.py --out site/index.html --facts work/facts.json --warnings work/mapping-report.txt
 python3 -m http.server 8000 --directory site
 ```
 
-Open `http://localhost:8000` in your browser. Building the schedule needs no API key and makes no AI calls. Without current personal, shared or automatic AI ratings, recommendations use the Outlook score and league priority. See the [development guide](docs/development.md) for optional AI generation and browser tests.
+Open `http://localhost:8000` in your browser. The virtual environment supplies test dependencies; the default builder needs no third-party Python packages. Building the schedule needs no API key and makes no AI calls. Without current personal, shared or automatic AI ratings, recommendations use the Outlook score and league priority. See the [development guide](docs/development.md) for optional AI generation and browser tests.
 
 Page structure, styles and browser behavior live in [web/](web/). Rebuild after editing them: the generator embeds those files in the HTML. [settings.toml](settings.toml) controls AI and scoring; [build.py](build.py) defines tracked leagues and the default lineup.
 

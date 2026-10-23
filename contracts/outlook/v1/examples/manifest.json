@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "kind": "outlook_manifest",
+  "content_revision": "publication-example-1",
+  "publication_revision": 1,
+  "published_at": "2026-10-20T12:00:00Z",
+  "producer_revision": "cb0475e1fbcb4fffe7cf69827c0fd998dd90b29a",
+  "artifacts": {
+    "catalog": {
+      "path": "objects/c350221a1e3f032a3248be49600be58dfad79752c355fe8cca44bf00aaabb530.json",
+      "sha256": "c350221a1e3f032a3248be49600be58dfad79752c355fe8cca44bf00aaabb530",
+      "bytes": 1384,
+      "schema_version": 1,
+      "content_revision": "catalog-example-1"
+    },
+    "schedule": {
+      "path": "objects/36e90825ab56b9ddf5239355823acb49f130c2b67528226be5a9e27a8224d41d.json",
+      "sha256": "36e90825ab56b9ddf5239355823acb49f130c2b67528226be5a9e27a8224d41d",
+      "bytes": 4525,
+      "schema_version": 1,
+      "content_revision": "schedule-example-1"
+    },
+    "policy": {
+      "path": "objects/9df9a52d303c2474728605bba8b6fad191b660f35d1f8ed372d513f3891fcbb3.json",
+      "sha256": "9df9a52d303c2474728605bba8b6fad191b660f35d1f8ed372d513f3891fcbb3",
+      "bytes": 1019,
+      "schema_version": 1,
+      "content_revision": "policy-example-1"
+    },
+    "editorial": {
+      "path": "objects/8b547672a665b551247207731df5b10e27bb26eab33aefd4dc6f96fe07aa1776.json",
+      "sha256": "8b547672a665b551247207731df5b10e27bb26eab33aefd4dc6f96fe07aa1776",
+      "bytes": 1207,
+      "schema_version": 1,
+      "content_revision": "editorial-example-1"
+    }
+  }
+}

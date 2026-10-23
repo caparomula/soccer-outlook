@@ -1,0 +1,843 @@
+{
+  "version": 1,
+  "description": "Independent WATCH-VALIDITY-1 examples authored before core and consumer replacement; expected decisions and cutoffs are literals, not implementation-generated.",
+  "cases": [
+    {
+      "id": "fresh-listing-no-invented-ttl",
+      "request": {
+        "version": 1,
+        "operation": "route_validity",
+        "cases": [
+          {
+            "id": "fresh-missing-times",
+            "now_utc": "2026-10-20T17:00:00Z",
+            "basis": "listed",
+            "retained": false,
+            "verified_at": null,
+            "expires_at": null,
+            "kickoff_utc": null,
+            "rights_until": null,
+            "retention_seconds": 21600
+          },
+          {
+            "id": "fresh-old-verification",
+            "now_utc": "2026-10-20T17:00:00Z",
+            "basis": "listed",
+            "retained": false,
+            "verified_at": "2026-10-01T12:00:00Z",
+            "expires_at": null,
+            "kickoff_utc": "2026-10-01T13:00:00Z",
+            "rights_until": null,
+            "retention_seconds": 21600
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "fresh-missing-times",
+            "usable": true,
+            "reason": null,
+            "expires_at": null
+          },
+          {
+            "id": "fresh-old-verification",
+            "usable": true,
+            "reason": null,
+            "expires_at": null
+          }
+        ]
+      },
+      "because": "A qualified fresh listing has no universal age or kickoff cutoff in this family. Missing optional times do not invent negative broadcast evidence."
+    },
+    {
+      "id": "fresh-explicit-deadline",
+      "request": {
+        "version": 1,
+        "operation": "route_validity",
+        "cases": [
+          {
+            "id": "fresh-before",
+            "now_utc": "2026-10-20T17:59:59.999999Z",
+            "basis": "listed",
+            "retained": false,
+            "verified_at": null,
+            "expires_at": "2026-10-20T18:00:00Z",
+            "kickoff_utc": null,
+            "rights_until": null,
+            "retention_seconds": 21600
+          },
+          {
+            "id": "fresh-at",
+            "now_utc": "2026-10-20T18:00:00Z",
+            "basis": "listed",
+            "retained": false,
+            "verified_at": null,
+            "expires_at": "2026-10-20T18:00:00Z",
+            "kickoff_utc": null,
+            "rights_until": null,
+            "retention_seconds": 21600
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "fresh-before",
+            "usable": true,
+            "reason": null,
+            "expires_at": "2026-10-20T18:00:00.000Z"
+          },
+          {
+            "id": "fresh-at",
+            "usable": false,
+            "reason": "expired",
+            "expires_at": "2026-10-20T18:00:00.000Z"
+          }
+        ]
+      },
+      "because": "An explicitly supplied listing deadline is binding and end-exclusive."
+    },
+    {
+      "id": "retained-six-hour-boundary",
+      "request": {
+        "version": 1,
+        "operation": "route_validity",
+        "cases": [
+          {
+            "id": "retained-one-us-before",
+            "now_utc": "2026-10-20T17:59:59.999999Z",
+            "basis": "listed",
+            "retained": true,
+            "verified_at": "2026-10-20T12:00:00Z",
+            "expires_at": null,
+            "kickoff_utc": "2026-10-20T20:00:00Z",
+            "rights_until": null,
+            "retention_seconds": 21600
+          },
+          {
+            "id": "retained-exactly-at",
+            "now_utc": "2026-10-20T18:00:00Z",
+            "basis": "listed",
+            "retained": true,
+            "verified_at": "2026-10-20T12:00:00Z",
+            "expires_at": null,
+            "kickoff_utc": "2026-10-20T20:00:00Z",
+            "rights_until": null,
+            "retention_seconds": 21600
+          },
+          {
+            "id": "retained-one-us-after",
+            "now_utc": "2026-10-20T18:00:00.000001Z",
+            "basis": "listed",
+            "retained": true,
+            "verified_at": "2026-10-20T12:00:00Z",
+            "expires_at": null,
+            "kickoff_utc": "2026-10-20T20:00:00Z",
+            "rights_until": null,
+            "retention_seconds": 21600
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "retained-one-us-before",
+            "usable": true,
+            "reason": null,
+            "expires_at": "2026-10-20T18:00:00.000Z"
+          },
+          {
+            "id": "retained-exactly-at",
+            "usable": false,
+            "reason": "expired",
+            "expires_at": "2026-10-20T18:00:00.000Z"
+          },
+          {
+            "id": "retained-one-us-after",
+            "usable": false,
+            "reason": "expired",
+            "expires_at": "2026-10-20T18:00:00.000Z"
+          }
+        ]
+      },
+      "because": "Original verification at noon plus six hours expires at 18:00 exactly. Legacy retained admission accepted the exact endpoint; it must now be unusable consistently.",
+      "intentional_delta": true
+    },
+    {
+      "id": "fractional-verification-cutoff",
+      "request": {
+        "version": 1,
+        "operation": "route_validity",
+        "cases": [
+          {
+            "id": "fractional-before",
+            "now_utc": "2026-10-20T18:00:00Z",
+            "basis": "listed",
+            "retained": true,
+            "verified_at": "2026-10-20T12:00:00.000001Z",
+            "expires_at": null,
+            "kickoff_utc": "2026-10-20T20:00:00Z",
+            "rights_until": null,
+            "retention_seconds": 21600
+          },
+          {
+            "id": "fractional-at",
+            "now_utc": "2026-10-20T18:00:00.000001Z",
+            "basis": "listed",
+            "retained": true,
+            "verified_at": "2026-10-20T12:00:00.000001Z",
+            "expires_at": null,
+            "kickoff_utc": "2026-10-20T20:00:00Z",
+            "rights_until": null,
+            "retention_seconds": 21600
+          },
+          {
+            "id": "fractional-after",
+            "now_utc": "2026-10-20T18:00:00.000002Z",
+            "basis": "listed",
+            "retained": true,
+            "verified_at": "2026-10-20T12:00:00.000001Z",
+            "expires_at": null,
+            "kickoff_utc": "2026-10-20T20:00:00Z",
+            "rights_until": null,
+            "retention_seconds": 21600
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "fractional-before",
+            "usable": true,
+            "reason": null,
+            "expires_at": "2026-10-20T18:00:00.000001Z"
+          },
+          {
+            "id": "fractional-at",
+            "usable": false,
+            "reason": "expired",
+            "expires_at": "2026-10-20T18:00:00.000001Z"
+          },
+          {
+            "id": "fractional-after",
+            "usable": false,
+            "reason": "expired",
+            "expires_at": "2026-10-20T18:00:00.000001Z"
+          }
+        ]
+      },
+      "because": "Preserving the original microsecond is necessary: truncation or rounding would change the first or second result."
+    },
+    {
+      "id": "reuse-does-not-renew",
+      "request": {
+        "version": 1,
+        "operation": "route_validity",
+        "cases": [
+          {
+            "id": "original",
+            "now_utc": "2026-10-20T17:00:00Z",
+            "basis": "listed",
+            "retained": true,
+            "verified_at": "2026-10-20T12:00:00Z",
+            "expires_at": "2026-10-20T18:00:00Z",
+            "kickoff_utc": "2026-10-20T20:00:00Z",
+            "rights_until": null,
+            "retention_seconds": 21600
+          },
+          {
+            "id": "reloaded-later",
+            "now_utc": "2026-10-20T19:00:00Z",
+            "basis": "listed",
+            "retained": true,
+            "verified_at": "2026-10-20T12:00:00Z",
+            "expires_at": "2026-10-20T18:00:00Z",
+            "kickoff_utc": "2026-10-20T20:00:00Z",
+            "rights_until": null,
+            "retention_seconds": 21600
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "original",
+            "usable": true,
+            "reason": null,
+            "expires_at": "2026-10-20T18:00:00.000Z"
+          },
+          {
+            "id": "reloaded-later",
+            "usable": false,
+            "reason": "expired",
+            "expires_at": "2026-10-20T18:00:00.000Z"
+          }
+        ]
+      },
+      "because": "The same original evidence and fixed cutoff produce expiry after reload; download or snapshot receipt time is not an input."
+    },
+    {
+      "id": "earlier-explicit-cutoff-wins",
+      "request": {
+        "version": 1,
+        "operation": "route_validity",
+        "cases": [
+          {
+            "id": "shortened",
+            "now_utc": "2026-10-20T17:00:00Z",
+            "basis": "listed",
+            "retained": true,
+            "verified_at": "2026-10-20T12:00:00Z",
+            "expires_at": "2026-10-20T17:00:00Z",
+            "kickoff_utc": "2026-10-20T20:00:00Z",
+            "rights_until": null,
+            "retention_seconds": 21600
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "shortened",
+            "usable": false,
+            "reason": "expired",
+            "expires_at": "2026-10-20T17:00:00.000Z"
+          }
+        ]
+      },
+      "because": "An existing earlier cutoff cannot be extended to the later verification or kickoff limit."
+    },
+    {
+      "id": "kickoff-four-hour-cap",
+      "request": {
+        "version": 1,
+        "operation": "route_validity",
+        "cases": [
+          {
+            "id": "kickoff-before",
+            "now_utc": "2026-10-20T16:59:59.999999Z",
+            "basis": "listed",
+            "retained": true,
+            "verified_at": "2026-10-20T12:00:00Z",
+            "expires_at": null,
+            "kickoff_utc": "2026-10-20T13:00:00Z",
+            "rights_until": null,
+            "retention_seconds": 21600
+          },
+          {
+            "id": "kickoff-at",
+            "now_utc": "2026-10-20T17:00:00Z",
+            "basis": "listed",
+            "retained": true,
+            "verified_at": "2026-10-20T12:00:00Z",
+            "expires_at": null,
+            "kickoff_utc": "2026-10-20T13:00:00Z",
+            "rights_until": null,
+            "retention_seconds": 21600
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "kickoff-before",
+            "usable": true,
+            "reason": null,
+            "expires_at": "2026-10-20T17:00:00.000Z"
+          },
+          {
+            "id": "kickoff-at",
+            "usable": false,
+            "reason": "expired",
+            "expires_at": "2026-10-20T17:00:00.000Z"
+          }
+        ]
+      },
+      "because": "Kickoff plus four hours is earlier than verification plus six hours and is already end-exclusive in retained admission."
+    },
+    {
+      "id": "configured-retention-shortens",
+      "request": {
+        "version": 1,
+        "operation": "route_validity",
+        "cases": [
+          {
+            "id": "one-hour",
+            "now_utc": "2026-10-20T13:00:00Z",
+            "basis": "listed",
+            "retained": true,
+            "verified_at": "2026-10-20T12:00:00Z",
+            "expires_at": null,
+            "kickoff_utc": "2026-10-20T20:00:00Z",
+            "rights_until": null,
+            "retention_seconds": 3600
+          },
+          {
+            "id": "zero",
+            "now_utc": "2026-10-20T12:00:00Z",
+            "basis": "listed",
+            "retained": true,
+            "verified_at": "2026-10-20T12:00:00Z",
+            "expires_at": null,
+            "kickoff_utc": "2026-10-20T20:00:00Z",
+            "rights_until": null,
+            "retention_seconds": 0
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "one-hour",
+            "usable": false,
+            "reason": "expired",
+            "expires_at": "2026-10-20T13:00:00.000Z"
+          },
+          {
+            "id": "zero",
+            "usable": false,
+            "reason": "expired",
+            "expires_at": "2026-10-20T12:00:00.000Z"
+          }
+        ]
+      },
+      "because": "The bounded allowance is an input, including zero; a default six-hour limit must not replace a shorter configured allowance."
+    },
+    {
+      "id": "retained-missing-verification",
+      "request": {
+        "version": 1,
+        "operation": "route_validity",
+        "cases": [
+          {
+            "id": "missing-verification",
+            "now_utc": "2026-10-20T17:00:00Z",
+            "basis": "listed",
+            "retained": true,
+            "verified_at": null,
+            "expires_at": "2026-10-20T18:00:00Z",
+            "kickoff_utc": "2026-10-20T20:00:00Z",
+            "rights_until": null,
+            "retention_seconds": 21600
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "missing-verification",
+            "usable": false,
+            "reason": "missing_verification",
+            "expires_at": null
+          }
+        ]
+      },
+      "because": "An explicit expiry cannot stand in for original verification or establish a valid retained age.",
+      "intentional_delta": true
+    },
+    {
+      "id": "retained-future-verification",
+      "request": {
+        "version": 1,
+        "operation": "route_validity",
+        "cases": [
+          {
+            "id": "future-by-one-us",
+            "now_utc": "2026-10-20T11:59:59.999999Z",
+            "basis": "listed",
+            "retained": true,
+            "verified_at": "2026-10-20T12:00:00Z",
+            "expires_at": null,
+            "kickoff_utc": "2026-10-20T20:00:00Z",
+            "rights_until": null,
+            "retention_seconds": 21600
+          },
+          {
+            "id": "verified-now",
+            "now_utc": "2026-10-20T12:00:00Z",
+            "basis": "listed",
+            "retained": true,
+            "verified_at": "2026-10-20T12:00:00Z",
+            "expires_at": null,
+            "kickoff_utc": "2026-10-20T20:00:00Z",
+            "rights_until": null,
+            "retention_seconds": 21600
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "future-by-one-us",
+            "usable": false,
+            "reason": "future_verification",
+            "expires_at": null
+          },
+          {
+            "id": "verified-now",
+            "usable": true,
+            "reason": null,
+            "expires_at": "2026-10-20T18:00:00.000Z"
+          }
+        ]
+      },
+      "because": "Retained verification cannot lie in the future, even by one microsecond; equality is valid when the cutoff is later."
+    },
+    {
+      "id": "retained-missing-kickoff",
+      "request": {
+        "version": 1,
+        "operation": "route_validity",
+        "cases": [
+          {
+            "id": "missing-kickoff",
+            "now_utc": "2026-10-20T17:00:00Z",
+            "basis": "listed",
+            "retained": true,
+            "verified_at": "2026-10-20T12:00:00Z",
+            "expires_at": null,
+            "kickoff_utc": null,
+            "rights_until": null,
+            "retention_seconds": 21600
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "missing-kickoff",
+            "usable": false,
+            "reason": "missing_kickoff",
+            "expires_at": null
+          }
+        ]
+      },
+      "because": "A retained route cannot establish its required kickoff cap without a confirmed kickoff.",
+      "intentional_delta": true
+    },
+    {
+      "id": "reason-precedence",
+      "request": {
+        "version": 1,
+        "operation": "route_validity",
+        "cases": [
+          {
+            "id": "unknown-retained",
+            "now_utc": "2026-10-20T17:00:00Z",
+            "basis": "none",
+            "retained": true,
+            "verified_at": null,
+            "expires_at": null,
+            "kickoff_utc": null,
+            "rights_until": null,
+            "retention_seconds": 21600
+          },
+          {
+            "id": "retained-rule",
+            "now_utc": "2026-10-20T17:00:00Z",
+            "basis": "rule",
+            "retained": true,
+            "verified_at": null,
+            "expires_at": null,
+            "kickoff_utc": null,
+            "rights_until": null,
+            "retention_seconds": 21600
+          },
+          {
+            "id": "missing-both",
+            "now_utc": "2026-10-20T17:00:00Z",
+            "basis": "listed",
+            "retained": true,
+            "verified_at": null,
+            "expires_at": null,
+            "kickoff_utc": null,
+            "rights_until": null,
+            "retention_seconds": 21600
+          },
+          {
+            "id": "future-and-missing-kickoff",
+            "now_utc": "2026-10-20T11:00:00Z",
+            "basis": "listed",
+            "retained": true,
+            "verified_at": "2026-10-20T12:00:00Z",
+            "expires_at": null,
+            "kickoff_utc": null,
+            "rights_until": null,
+            "retention_seconds": 21600
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "unknown-retained",
+            "usable": false,
+            "reason": "unknown_basis",
+            "expires_at": null
+          },
+          {
+            "id": "retained-rule",
+            "usable": false,
+            "reason": "invalid_retained_basis",
+            "expires_at": null
+          },
+          {
+            "id": "missing-both",
+            "usable": false,
+            "reason": "missing_verification",
+            "expires_at": null
+          },
+          {
+            "id": "future-and-missing-kickoff",
+            "usable": false,
+            "reason": "future_verification",
+            "expires_at": null
+          }
+        ]
+      },
+      "because": "Contradictory facts have stable reasons: unknown basis, invalid retained basis, verification absence or future, then kickoff absence.",
+      "intentional_delta": true
+    },
+    {
+      "id": "usual-eastern-inclusive-date",
+      "request": {
+        "version": 1,
+        "operation": "route_validity",
+        "cases": [
+          {
+            "id": "usual-one-us-before",
+            "now_utc": "2026-11-01T03:59:59.999999Z",
+            "basis": "rule",
+            "retained": false,
+            "verified_at": null,
+            "expires_at": null,
+            "kickoff_utc": null,
+            "rights_until": "2026-10-31",
+            "retention_seconds": 21600
+          },
+          {
+            "id": "usual-at-midnight",
+            "now_utc": "2026-11-01T04:00:00Z",
+            "basis": "rule",
+            "retained": false,
+            "verified_at": null,
+            "expires_at": null,
+            "kickoff_utc": null,
+            "rights_until": "2026-10-31",
+            "retention_seconds": 21600
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "usual-one-us-before",
+            "usable": true,
+            "reason": null,
+            "expires_at": "2026-11-01T04:00:00.000Z"
+          },
+          {
+            "id": "usual-at-midnight",
+            "usable": false,
+            "reason": "expired",
+            "expires_at": "2026-11-01T04:00:00.000Z"
+          }
+        ]
+      },
+      "because": "October 31 remains valid through its final Eastern microsecond, expiring at November 1 local midnight, not UTC midnight or the sports-day boundary."
+    },
+    {
+      "id": "usual-dst-civil-midnight",
+      "request": {
+        "version": 1,
+        "operation": "route_validity",
+        "cases": [
+          {
+            "id": "usual-fall-back-day",
+            "now_utc": "2026-11-02T04:30:00Z",
+            "basis": "rule",
+            "retained": false,
+            "verified_at": null,
+            "expires_at": null,
+            "kickoff_utc": null,
+            "rights_until": "2026-11-01",
+            "retention_seconds": 21600
+          },
+          {
+            "id": "usual-spring-forward-day",
+            "now_utc": "2026-03-09T04:00:00Z",
+            "basis": "rule",
+            "retained": false,
+            "verified_at": null,
+            "expires_at": null,
+            "kickoff_utc": null,
+            "rights_until": "2026-03-08",
+            "retention_seconds": 21600
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "usual-fall-back-day",
+            "usable": true,
+            "reason": null,
+            "expires_at": "2026-11-02T05:00:00.000Z"
+          },
+          {
+            "id": "usual-spring-forward-day",
+            "usable": false,
+            "reason": "expired",
+            "expires_at": "2026-03-09T04:00:00.000Z"
+          }
+        ]
+      },
+      "because": "The following local midnight uses the actual New York offset: EST after the fall transition and EDT after the spring transition."
+    },
+    {
+      "id": "usual-preserves-evaluation-date-policy",
+      "request": {
+        "version": 1,
+        "operation": "route_validity",
+        "cases": [
+          {
+            "id": "future-fixture",
+            "now_utc": "2026-10-20T17:00:00Z",
+            "basis": "rule",
+            "retained": false,
+            "verified_at": "2026-10-21T00:00:00Z",
+            "expires_at": null,
+            "kickoff_utc": "2026-10-25T18:00:00Z",
+            "rights_until": "2026-10-20",
+            "retention_seconds": 21600
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "future-fixture",
+            "usable": true,
+            "reason": null,
+            "expires_at": "2026-10-21T04:00:00.000Z"
+          }
+        ]
+      },
+      "because": "The current policy checks the Eastern evaluation date only. Verification is not a contractual start and future fixture kickoff does not impose an unagreed rights-period gate."
+    },
+    {
+      "id": "usual-explicit-shorter-cutoff",
+      "request": {
+        "version": 1,
+        "operation": "route_validity",
+        "cases": [
+          {
+            "id": "usual-shortened",
+            "now_utc": "2026-10-20T17:00:00Z",
+            "basis": "rule",
+            "retained": false,
+            "verified_at": null,
+            "expires_at": "2026-10-20T17:00:00Z",
+            "kickoff_utc": null,
+            "rights_until": "2026-10-31",
+            "retention_seconds": 21600
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "usual-shortened",
+            "usable": false,
+            "reason": "expired",
+            "expires_at": "2026-10-20T17:00:00.000Z"
+          }
+        ]
+      },
+      "because": "An explicit earlier deadline also bounds a qualified usual route."
+    },
+    {
+      "id": "usual-missing-rights-end",
+      "request": {
+        "version": 1,
+        "operation": "route_validity",
+        "cases": [
+          {
+            "id": "usual-no-until",
+            "now_utc": "2026-10-20T17:00:00Z",
+            "basis": "rule",
+            "retained": false,
+            "verified_at": null,
+            "expires_at": "2026-10-20T18:00:00Z",
+            "kickoff_utc": null,
+            "rights_until": null,
+            "retention_seconds": 21600
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "usual-no-until",
+            "usable": false,
+            "reason": "missing_rights_until",
+            "expires_at": null
+          }
+        ]
+      },
+      "because": "A supplied timestamp cannot substitute for the required usual rights date.",
+      "intentional_delta": true
+    },
+    {
+      "id": "unknown-is-not-a-route",
+      "request": {
+        "version": 1,
+        "operation": "route_validity",
+        "cases": [
+          {
+            "id": "none",
+            "now_utc": "2026-10-20T17:00:00Z",
+            "basis": "none",
+            "retained": false,
+            "verified_at": "2026-10-20T12:00:00Z",
+            "expires_at": "2026-10-21T18:00:00Z",
+            "kickoff_utc": "2026-10-20T20:00:00Z",
+            "rights_until": "2026-10-31",
+            "retention_seconds": 21600
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "none",
+            "usable": false,
+            "reason": "unknown_basis",
+            "expires_at": null
+          }
+        ]
+      },
+      "because": "Positive-looking times cannot turn unknown broadcast evidence into a usable route.",
+      "intentional_delta": true
+    }
+  ]
+}

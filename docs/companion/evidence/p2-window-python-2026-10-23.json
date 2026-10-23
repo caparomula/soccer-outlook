@@ -1,0 +1,20 @@
+{
+  "status": "passed",
+  "command": "work/companion-venv/bin/python -m unittest -v tests.test_fixture_window_adapters",
+  "test_count": 7,
+  "elapsed_seconds": 0.15,
+  "independent_example_groups": 18,
+  "independent_example_decisions": 38,
+  "source_and_artifact_hashes": {
+    "outlook_runtime.py": "216c255b03fbc127556517ce6f552840239386a27bd386db90697605081a00ad",
+    "tests/test_fixture_window_adapters.py": "f56fa77c668586a6a5a7eda16173a76c8c0c1fadf08ffa3e8f82387824ff0c7a",
+    "docs/companion/rules/fixture-window-examples.json": "64f6309645d391df0e639d107f6ffd2443143a5ee1b69d6e7087ff4cfdc112e4",
+    "packages/outlook_core/lib/src/fixture_window.dart": "6032343c23cb48e1a4d471e68be2b12927358f05c9c2fa20ee1063ccb82b3f1b",
+    "tool/outlook_bridge/lib/protocol.dart": "7595b81e526b8f231a51bb61f59d38e049045fe795e4b9907924af39e94181b8",
+    "work/outlook-runtime/outlook": "b3acf2f4435d013467f1944f99c9657b72bcf9b8e7225936fcfe1184ef0a2db5",
+    "work/outlook-runtime/outlook.js": "df6ca962284ff0cefa81d07232e6ce21fedfcd8606599995245e28ed2dfa21d2",
+    "work/outlook-runtime/runtime.json": "2a740fe238b9e5cf73910dbb2b65fbf4a58f9971f69530168f799bcae1d03bef",
+    "work/p2-window-python-focused-2026-10-23.log": "63699c887d92f92b965c62c88908b1c244df38f05bf948159e3f6d6b110b21e8"
+  },
+  "scope": "Focused Python fixture_windows adapter through actual compiled production CLI, plus adversarial output identity mapping; broader suite and browser verification are separate."
+}

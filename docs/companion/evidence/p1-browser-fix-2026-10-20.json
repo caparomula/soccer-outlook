@@ -1,0 +1,131 @@
+{
+  "schema_version": 1,
+  "recorded_at": "2026-10-20T19:49:20.673550+00:00",
+  "base_commit": "9b977bb2b779b55bea84472e81f4ab00da423f1a",
+  "uncommitted": true,
+  "playwright": "1.62.0",
+  "browsers": {
+    "chromium": "151.0.7922.34",
+    "webkit": "26.5"
+  },
+  "source_sha256": {
+    "web/app.js": "1082ab4408db29d65527ae7d038be1400e5e4c8db8fcbcbbcae7a017c2b53334",
+    "web/teams.js": "84d47ebe6c5f81a9ae221cb6d5d474e1ad4fcb5a3a18774ecad99e4501fec548",
+    "tests/browser.py": "c2f1f949fcfe37c8e29a616e9995bf9325d9a1e4c965aeed90450b05a70cc626",
+    "tests/page_fixture.py": "e2eac877ac8582246fe7265f48815f8c43d4333fb1b216d9bb3ffc78d4f420ac",
+    "tests/browser_schedule.py": "31ec1fdc5af016ca16e26caa9588b5c218234f2562d81b9dc9f9bc4f0eb571b0",
+    "web/page.html": "831b09afce61c61376280b33b7756fc32e91293bdcb5ab6ceca633b0c0cc3d70",
+    "web/styles.css": "79b0b52d58901ac6f7a89638307d690545b385a9c43bbbda824220d2c514cd3a",
+    "build.py": "afd0208d95cf70ecb8b3d1f9ffce47aa09981ec65cd108c45810200a3d20ff6a"
+  },
+  "checks": {
+    "chromium_full": {
+      "log": "work/companion-p1-webkit-fix/full-chromium.log",
+      "sha256": "25c8ae668ba0b9406a22574846097c9a63771478eeedb02d705d7ed2d4b1cbf2",
+      "tests": 111,
+      "elapsed_seconds": 248.94,
+      "result": "pass"
+    },
+    "webkit_smoke": {
+      "log": "work/companion-p1-webkit-fix/smoke-webkit.log",
+      "sha256": "056ddf9420f4f7626b9d5c6554dc20ad7d4026c6622cb1a114c4b659983451ed",
+      "tests": 39,
+      "elapsed_seconds": 190.641,
+      "result": "pass"
+    },
+    "chromium_schedule": {
+      "log": "work/companion-p1-webkit-fix/schedule-chromium.log",
+      "sha256": "67334494d023b4466a0d65bc557bf448c1e9589aee2266e704795a85352d70b1",
+      "tests": 11,
+      "elapsed_seconds": 16.208,
+      "result": "pass"
+    },
+    "webkit_schedule": {
+      "log": "work/companion-p1-webkit-fix/schedule-webkit.log",
+      "sha256": "db26c2e55fa882630f6d9260b3b380e15c8ad29f4cd0ede7d2d65ec7a08767df",
+      "tests": 11,
+      "elapsed_seconds": 19.44,
+      "result": "pass"
+    },
+    "webkit_navigation_focused": {
+      "log": "work/companion-p1-webkit-fix/navigation-confirm-webkit.log",
+      "sha256": "616514787be8ab57a87fb9b2826ca26eae3c2d4d667780dbf29f1d14f69b8b7f",
+      "tests": 3,
+      "elapsed_seconds": 13.554,
+      "result": "pass"
+    },
+    "controlled_initial_schedule_race": {
+      "log": "work/companion-p1-webkit-fix/schedule-race-proof-final.log",
+      "sha256": "2587d3ef7073f5d9520b3afcfc020dd8da807bf4c0be728fcd1854329ff6a9e9",
+      "tests": 1,
+      "elapsed_seconds": 2.136,
+      "result": "pass"
+    },
+    "final_harness_rejects_original_provider_bug": {
+      "log": "work/companion-p1-webkit-fix/mutation-baseline-provider.log",
+      "sha256": "39b99a9d1c11f38a09fe34ab8dcc39de67001fcc24e6d33f847d648654ae8768",
+      "tests": 1,
+      "elapsed_seconds": 6.832,
+      "result": "expected_rejection"
+    },
+    "lost_mouseup_test_rejects_missing_keyboard_reset": {
+      "log": "work/companion-p1-webkit-fix/mutation-keyboard-reset.log",
+      "sha256": "9dfdf6fb4ca0184ec257a2a61a4bf8df8ca22a3020ec8f09af80c66508363591",
+      "tests": 1,
+      "elapsed_seconds": 15.975,
+      "result": "expected_rejection"
+    }
+  },
+  "causes_and_fixes": [
+    {
+      "cause": "Schedule test advanced its fake clock while the initial offline 404 request could still be pending; the next poll was skipped as busy and backoff began at the advanced time.",
+      "fix": "Wait for the initial schedule completion note before installing the next test response. Controlled delayed-response proof records zero refresh requests without the boundary and one with it."
+    },
+    {
+      "cause": "WebKit skips native link Tab stops; boundary-only modal trap lets focus leave Close for BODY.",
+      "fix": "Traverse eligible visible modal controls explicitly in both directions, retaining modifier shortcuts, Escape and return focus."
+    },
+    {
+      "cause": "WebKit native link mousedown focuses carousel ancestor; disclosure focusin dismissal removes link before click.",
+      "fix": "Keep disclosure during its own mouse/touch compatibility focus transition; reset guard on mouseup, pointercancel, blur, keydown and close."
+    },
+    {
+      "cause": "An empty-page anchor to the synthetic tv.apple.com event triggers neither a routable request nor a browser page on this macOS WebKit build.",
+      "fix": "Retain exact original provider URL assertions, then alias only the Apple host to apple-player.fixture.invalid for offline native-anchor activation. Preserve path/query, popup event, null opener and unchanged source assertions."
+    }
+  ],
+  "independent_review": {
+    "reviewer": "p1_form_evidence",
+    "result": "No blocking findings for current rendered content; focus traversal, pointer keyboard reset and final navigation harness reviewed."
+  },
+  "initial_schedule_failure": {
+    "log": "work/companion-p1-webkit-fix/schedule-webkit-initial.log",
+    "sha256": "6b2c238421803379eb9b26341881714e4ea043b640c720fcd58417098434bb6b",
+    "detail": "One invalid-snapshot case observed zero refresh requests because initial fetch completion raced fake-clock advancement; no invalid payload was parsed. Final harness waits for the initial completion note."
+  },
+  "probe_logs": {
+    "probe-webkit.log": {
+      "path": "work/companion-p1-webkit-fix/probe-webkit.log",
+      "sha256": "3e2bb27c29ef1a6cf1f31f7f4e289678dc3ba19aca005985a12f0109468465b4"
+    },
+    "probe-context-webkit.log": {
+      "path": "work/companion-p1-webkit-fix/probe-context-webkit.log",
+      "sha256": "283c7182d64857f6b147c15bc7035ccacf486cb2c3373108d7a79f96eb129bc2"
+    },
+    "minimal-popup.log": {
+      "path": "work/companion-p1-webkit-fix/minimal-popup.log",
+      "sha256": "e08d750a890fc215213bf7bbf38903ba0b348794b2344ab752e28890f7f6a0e4"
+    }
+  },
+  "limitations": [
+    "The Apple original-host behavior is observed; native application handoff is an inference and was not inspected.",
+    "Offline browser checks do not prove provider playback, sign-in, original Apple-host resolution or mobile physical-device behavior.",
+    "Independent reviewer found that a synthetic CSS visibility:hidden modal control would remain an unfocusable candidate; current rendered dialogs have no such controls, so this future hardening remains outside this fix."
+  ],
+  "commands": [
+    "PLAYWRIGHT_BROWSERS_PATH=\"$PWD/work/playwright\" work/companion-venv/bin/python -m tests.browser_schedule --browser chromium",
+    "PLAYWRIGHT_BROWSERS_PATH=\"$PWD/work/playwright\" work/companion-venv/bin/python -m tests.browser_schedule --browser webkit",
+    "PLAYWRIGHT_BROWSERS_PATH=\"$PWD/work/playwright\" work/companion-venv/bin/python -m tests.browser --artifacts work/companion-p1-webkit-fix/full-chromium",
+    "PLAYWRIGHT_BROWSERS_PATH=\"$PWD/work/playwright\" work/companion-venv/bin/python -m tests.browser --browser webkit --smoke --artifacts work/companion-p1-webkit-fix/smoke-webkit"
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "status": "Engineering baseline for P0-P5; not shipped client configuration",
+  "platforms": {
+    "ios_minimum": "15.0",
+    "android_minimum_api": 24,
+    "physical_reference_devices": [
+      {"role": "small iOS phone", "model": "iPhone SE (3rd generation)", "verification": "pending"},
+      {"role": "Android phone", "model": "Pixel 6a", "verification": "pending"},
+      {"role": "iOS tablet", "model": "iPad (9th generation)", "verification": "pending"},
+      {"role": "Android tablet", "model": "Galaxy Tab A9", "verification": "pending"}
+    ]
+  },
+  "budgets": {
+    "browser_core_gzip_bytes": 204800,
+    "browser_additional_requests_at_startup": 1,
+    "physical_device_cached_first_content_ms": 2500,
+    "physical_device_snapshot_p95_ms": 100,
+    "physical_device_fixture_count": 3000,
+    "physical_device_first_core_evaluation_ms": 100,
+    "physical_device_scroll_frame_p95_ms": 16.7,
+    "physical_device_steady_rss_bytes": 268435456,
+    "publisher_batch_cold_start_ms": 1000
+  },
+  "storage": {
+    "active_complete_generations": 1,
+    "previous_complete_generations": 1,
+    "content_cache_retained_bytes": 134217728,
+    "content_cache_peak_update_bytes": 268435456,
+    "asset_cache_bytes": 33554432,
+    "personal_import_records": 2,
+    "personal_store_bytes": 4194304,
+    "diagnostic_export_bytes": 2097152
+  },
+  "compatibility": {
+    "minimum_feed_support_days_after_last_compatible_app_distribution": 365,
+    "advance_retirement_notice_days": 90,
+    "supported_schema_majors_during_migration": 2,
+    "unsupported_policy_behavior": "keep last compatible snapshot; report update required",
+    "incompatible_preference_migration_behavior": "preserve original store; report failure"
+  },
+  "measurement_rules": {
+    "browser_size": "hard check on every compiled spike build; includes bundled time-zone data",
+    "timings": "observations on host/simulator; release-mode physical reference evidence required for acceptance",
+    "cache": "P3 must count retained bytes and test peak update space, eviction and rollback",
+    "support": "starts only with an explicitly authorized distribution; no installed companion clients exist yet"
+  }
+}

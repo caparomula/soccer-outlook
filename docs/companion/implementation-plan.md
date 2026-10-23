@@ -2,7 +2,62 @@
 
 Build the companion in small, reviewable stages, beginning with the contracts and shared decisions that will keep it consistent with the website. Each stage below ends with working evidence, updated documentation and a clear recovery path.
 
-This is a proposed plan. Writing it does not implement the app or authorize distribution.
+The P0 technical spike and P1 local producer/reader acceptance passed on
+October 20, 2026 within the scope recorded below. P0's source-permission
+requirement remains unresolved, so these results do not establish production
+readiness or permission to distribute. The user explicitly authorized continued
+local engineering while that gate remains open.
+
+## Current checkpoint
+
+The [P0 evidence record](p0-evidence.md) links the runnable Dart/browser/publisher
+spike, [ownership map](p0-ownership.md), [draft contracts](p0-contract.md),
+[published-site comparison](p0-publication.md), [native transport findings](p0-live.md)
+and [engineering decisions](p0-decisions.md). The deployed website remains unchanged.
+The [current P1 evidence record](p1-continuation-evidence.md) and
+[operation guide](p1-operation.md) cover the local exporter, publication writer,
+independent Dart reader and fresh source/rendered reconciliation. The
+[initial checkpoint](p1-evidence.md) remains as historical evidence.
+
+- Passed: shared sports-day VM/browser/compiled-CLI parity and strict CSP;
+  enforced browser size budget; 360-fixture publication comparison; draft
+  contract checks; native HTTPS, real timeout/recovery, background/resume and
+  plugin smoke on both dedicated simulator/emulator targets.
+- Decided: OS floors, exact plugins, physical reference targets, performance
+  and cache budgets, and feed-version support policy.
+- Deferred with explicit scope: source permission blocks distribution;
+  physical/minimum-OS runtime and release performance remain later gates.
+  The transport captures preserve wire facts and unknown score freshness;
+  production status decoding, stale presentation and live correction ordering
+  still require P2/P3 acceptance evidence.
+- Implemented locally: P1's opt-in exporter, full/lightweight build integration,
+  atomic immutable publication with durable revisions, original editorial
+  bindings/lifetimes, and independent Dart validation. Workflow export remains
+  disabled, and no public API has been deployed.
+- Passed locally: all 306 required source requests and 360 fixtures reconciled
+  with the same rendered output and independent reader; bounded form-order
+  evidence with explicit accuracy/freshness limits; numeric-zero preservation;
+  repaired WebKit focus/provider activation; 675 Python, 25 Dart and 172 browser
+  checks. The offline lightweight replay preserves original ages and artifact
+  bytes while advancing the publication revision.
+- Remaining P1 delivery: an authorized feed endpoint. Public JSON requires
+  machine-readable distribution rights; protected delivery may require a revised
+  architecture. Local technical acceptance is complete; source permission and
+  publication authorization still gate distribution.
+- P2 in progress: shared owners now select among qualified viewing routes,
+  calculate sports-day boundaries and project league follow/pause/solo choices
+  into common fixture eligibility. The publisher and browser read those Dart
+  decisions; migrated copies are removed. See the [rule catalog](rules/README.md),
+  [first increment](p2-evidence.md) and [eligibility increment](p2-eligibility-evidence.md).
+  Qualified-route expiry also passed local acceptance on October 23; see the
+  [validity evidence](p2-validity-evidence.md). Original observation deadlines
+  now govern publisher and browser access, including reload, refresh and resume.
+  Fixture focus and schedule placement now share one supplied clock and owner;
+  see the [window evidence](p2-window-evidence.md). The bounded ESPN status/result
+  decoder now serves publisher and browser consumers from one pure data owner;
+  see the [status review checkpoint](p2-status-evidence.md). Full source
+  qualification, observation freshness, ranking and editorial lifetime semantics
+  remain later P2 work.
 
 ## Scope and sequence
 
@@ -31,11 +86,22 @@ The arrows indicate completion dependencies, not a requirement for one person to
 2. Inventory current production rule owners across Python and JavaScript, including the Python default-view calculation, duplicated ESPN status/result interpretation, and AI expiry checks in `story_state.py`, `build.py` and browser handlers. Map the specification's requirement IDs to current owners, proposed owners, tests and consumers. Capture representative permitted data and browser outputs, with no personal data.
 3. Pin a supported Flutter/Dart toolchain and record the Android and iOS build environments. Reuse Pit Dash's conventions where useful, but check current plugin requirements rather than inheriting its exact versions. Linux can run shared/package checks; iOS build/signing checks need macOS and Xcode.
 4. Spike one pure Dart eligibility/ranking/time operation, exposed through a small JavaScript interface and a publisher CLI. Exercise identical inputs in Dart VM, compiled browser code and Python-to-CLI invocation. Test named time zones and daylight-saving boundaries. Include browser artifact size, startup overhead, CSP compatibility and static-site integration.
-5. Spike an approved foreground live-data path on iOS and Android. Direct ESPN access is conditional on permission; a licensed replacement may need server-held credentials and different source IDs. Verify fixture identity, status, score, stale data, timeouts and resume behavior using permitted captures and a limited live check. Do not infer that browser CORS success guarantees every platform's access or grants reuse rights.
+5. Spike an approved foreground live-data path on iOS and Android. Direct ESPN access is conditional on permission; a licensed replacement may need server-held credentials and different source IDs. Verify preservation of fixture identity, wire status and score using permitted captures and a limited live check; distinguish receipt time from unknown source freshness. Exercise real timeouts and OS pause/resume. Production status decoding, stale-data presentation and live-transition/correction ordering require separate P2/P3 evidence. Do not infer that browser CORS success guarantees every platform's access or grants reuse rights.
 6. Draft the v1 JSON Schemas, representative examples, policy identifiers and compatibility decisions from the [contract](data-contract.md). Separate factual publication from personalized views, and limit delivery/retention to the agreed scope.
 7. Record decisions, measurements and any changed assumptions in these documents. Decide minimum OS versions, reference devices, size/startup budgets, cache limits and supported client-version policy before proceeding beyond the spike.
 
 **Exit evidence:** the selected data source's permitted production uses are documented; a small reproducible demo runs the same input through all three rule consumers; browser overhead is measured against the existing page; native live transport is proven or a limitation is explicitly resolved; the schemas and ownership map are reviewed. An unexplained parity difference, unproven live path or unresolved permission for the planned publication is not a pass.
+
+**October 20 technical disposition, reconciled October 23:** the bounded
+technical portion is satisfied by the linked evidence. The combined P0 exit
+remains open until the selected source's permitted production uses are
+documented. The user's instruction to continue local engineering does not grant
+source access, reuse or distribution rights.
+Native captures include scheduled/final wire records, not an observed
+live-to-final sequence. That limit does not certify the later production
+decoder, freshness rules or reconciliation; those must pass P2/P3 before live
+behavior is adopted. Physical-device and minimum-OS testing still precede pilot
+distribution.
 
 **If a gate fails:** revise the architecture before implementing the dependent layer. Separate Dart and JavaScript implementations are controlled duplication, not the promised one-owner design. A hosted live proxy would change operating scope. Neither fallback should appear silently in later work.
 
@@ -56,6 +122,20 @@ The arrows indicate completion dependencies, not a requirement for one person to
 
 **Delivery:** feed URL and schema, sample captured publication, coverage report and producer tests. No app or website reader switches yet.
 
+**October 20 local acceptance:** the producer and independent reader are
+implemented, including complete-empty and incomplete-source handling, preserved
+source ages, optional editorial isolation, concurrent writers, durable sequence
+reservation, retention and rollback. Both build paths are tested locally;
+workflow export remains disabled and remote workflows unexecuted. The fresh
+306-request collection reconciles 360 fixtures across source, rendered output
+and the independent reader. Form order now has bounded independent evidence,
+and the affected Chromium/WebKit gates pass. See the
+[current P1 evidence](p1-continuation-evidence.md) for results and limitations.
+The local technical exit is satisfied. Source permission and publication
+authorization remain required before the feed-URL delivery; this is not a
+shipped compatibility promise. P2 can proceed locally under the existing
+authorization to continue engineering while distribution stays gated.
+
 **Recovery:** disable the new export while retaining the old website artifacts. Once clients use v1, use a new publication sequence pointing to validated prior content for rollback, not a rewound counter.
 
 ## P2: Establish the shared domain
@@ -72,6 +152,71 @@ The arrows indicate completion dependencies, not a requirement for one person to
 **Exit evidence:** native/compiled/CLI results agree on the recorded corpus and independent examples; the website passes affected Chromium/WebKit checks; production duplicates for migrated decisions are removed; each rule has a documented owner, consumers and tests. Scoring calibration, package boundaries and AI expiry remain intact.
 
 **Delivery:** shared core, browser/CLI adapters and rule catalog. A developer can inspect a decision without opening a widget.
+
+**October 20 first increment:** `WATCH-ROUTES-1` and the `TIME-1` calendar are
+implemented in the pure core, with immutable inputs and a partial `buildOutlook`
+snapshot. Browser batches and a bounded persistent publisher CLI use those
+owners. `build.evaluate`, provider ordering, browser calendar helpers and
+`story_state.window_end` now delegate instead of repeating the migrated rules.
+The [evidence record](p2-evidence.md) distinguishes independent examples,
+captured legacy comparisons, actual generated-page checks and remaining gaps.
+The subsequent increment below extends this snapshot; neither increment implies
+a native product or distribution.
+
+**October 20 viewer-eligibility increment:** `VIEWER-ELIGIBILITY-1` owns explicit
+league choices over defaults, pauses, valid temporary solo selection, strip
+membership and the common route/league filter. The browser's schedule, carousel,
+match editorial, calendar-only editorial and league-only consumers read the
+appropriate shared decisions. Python's default-view and filter-pill decisions
+also delegate. At this checkpoint, `buildOutlook` composed routes, calendar
+labels and eligibility with window classification as an explicit input. The
+October 23 window increment below replaces that input with shared evaluation.
+See [the evidence record](p2-eligibility-evidence.md) for independent examples,
+frozen browser comparisons, actual page transitions and build replays.
+
+**October 23 route-validity acceptance:** `WATCH-VALIDITY-1` owns retained
+observation deadlines, explicit route expiry and inclusive Eastern usual-rights
+end dates before provider selection. Publisher outputs and the browser supply
+original evidence and an explicit clock. Access, strip/solo state, match editorial,
+provider links and prompt channels update at a cutoff and on resume without
+renewing the observation. Reload and schedule refresh preserve the same deadline.
+The exclusive six-hour endpoint and the actual output clock's precedence over a
+historical `--date` are documented behavior changes. Duplicate and malformed
+retained evidence now preserve conservative deadlines through source outages;
+independent fresh routes remain available. See the [rule](rules/route-validity.md)
+and [acceptance evidence](p2-validity-evidence.md) for source-bound core,
+Python, Chromium/WebKit, adversarial review and full/lightweight replay results.
+
+**October 23 fixture-window acceptance:** `TIME-WINDOW-1` owns fixture focus,
+schedule buckets and schedule-window membership. The browser batches explicit
+clock, zone, kickoff, normalized source state, confirmed-time and original
+receipt facts; `buildOutlook` computes the same window before eligibility. The
+versioned CLI operation and Python adapter expose the same decision. The
+extraction preserves 453 frozen legacy answers and records three cases corrected
+by two clock changes: receipt age uses the supplied clock, and future receipts
+cannot count as recent. The [rule](rules/fixture-windows.md) and
+[acceptance evidence](p2-window-evidence.md) distinguish placement from score
+status and source-observation freshness. Existing lifecycle triggers remain;
+there is no new dedicated deadline timer. Independent examples, four-target
+parity, generated-page transitions and full/lightweight replay pass locally.
+
+**October 23 status/result review checkpoint:** `STATUS-ESPN-1` supplies a
+bounded pure data decoder through the versioned CLI and browser bridge. Raw
+ESPN observations and saved normalized rows share status, played/final/void and
+score decisions. Static HTML, live updates, schedule replacement, feed export,
+discovery and metrics consume those facts. Canonical status survives context
+serialization without reinterpreting display clocks as identity. Unknown and
+void records cannot invent a result, scorer list or live-only link. The
+[rule](rules/espn-status.md) and [evidence](p2-status-evidence.md) separate 360
+preserved captured answers from nine declared legacy corrections and independent
+boundary examples. This is a local code-review checkpoint, not full TIME-2 or
+P2 acceptance.
+
+P2 remains incomplete: source-observation freshness, full source qualification,
+ranking, carousel/pick selection and editorial lifetimes still need their own
+migrations. Python static grouping and AI windows
+retain their distinct policies. P3 persistence and the native product remain
+later work, with distribution gated.
 
 **Recovery:** retain the pre-migration website release as a deployable rollback artifact. Do not keep competing decision implementations as a permanent runtime fallback. A rollback restores a coherent code-and-policy release.
 
@@ -165,11 +310,16 @@ Home-screen widgets, reminders, push notifications, background score delivery, a
 
 A full temporal database, developer replay UI and independent source-collection daemon are also deferred. Bounded recordings, deterministic replay tests and a persistent last-good snapshot provide the initial diagnostic value without replicating Pit Dash's whole operating environment.
 
-Do not set calendar dates from this document alone. Estimate P1–P6 after P0 identifies the browser migration and native transport costs; then schedule reviewed increments. The immediate implementation task is the P0 spike and ownership/contract work, not building screens against unstable HTML.
+Do not set calendar dates from this document alone. Use the P0/P1 measurements
+to estimate the remaining stages, then schedule reviewed increments. The next
+local work is review of P2's bounded shared ESPN status/result decoder, followed by
+source-observation freshness, remaining source qualification, ranking, surface
+selection and editorial migration. Screens must
+consume the contracts and shared decisions.
 
 ## About this document
 
-- Status: proposed, October 20, 2026.
+- Status: reconciled with upstream October 23, 2026. P0/P1 local technical acceptance passed; P0 production permission remains open. P2 route/calendar, viewer-eligibility, route-validity and fixture-window checkpoints passed locally; the bounded status/result decoder is ready for code review. Remaining P2 families and P3–P6 are pending; feed delivery and distribution remain gated.
 - Baseline: [planning overview](README.md).
 - Process references: [Pit Dash engineering guidance](https://github.com/caparomula/pit-dash/blob/865fa263062b0870b9ae71555132d4ace894dccf/AGENTS.md) and the [adoption matrix](engineering.md).
-- Every stage updates its specification, architecture or runbook when behavior changes. Document-only completion is sufficient for this planning task; it is not evidence that an implementation stage passed.
+- Every stage updates its specification, architecture or runbook when behavior changes. Implementation progress and outstanding gates are recorded above and in the stage evidence.

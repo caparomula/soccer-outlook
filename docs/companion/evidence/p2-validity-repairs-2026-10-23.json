@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "status": "focused_checks_passed",
+  "recorded_at": "2026-10-23T04:26:41.146576+00:00",
+  "source_hashes_before": {
+    "build.py": "e04f649cd8742e5fb7efd22a9b1010ca63d29e7913ee96822cbb9085e1bf8336",
+    "broadcast_listings.py": "e3ff24cb4a336f66ced146105d657b8f0850473c6b79c5a8933d866464027639",
+    "companion_export.py": "f0cd938b4eab0455edae0f703856fba9ad5e76ad9f9aab6c0ddc741c03c3659e",
+    "provider_utils.py": "8044c9170049d31ea2492047dfe68652fb4ca4d7d81777f9a0cb01f0a1605d05",
+    "outlook_runtime.py": "1a200b8c1253be6984594543aec45fec5772c086edf9ae14d30487ad12aaa871",
+    "schedule_data.py": "e947e44b8dbb2238867229066b958211395e6058b217b4f668b3437174529b68",
+    "tests/test_route_validity_adapters.py": "60c05f83784cfc761231e025ef773a83a79a7bf9225e393558561e193d2c7c9b"
+  },
+  "source_hashes_after": {
+    "build.py": "e04f649cd8742e5fb7efd22a9b1010ca63d29e7913ee96822cbb9085e1bf8336",
+    "broadcast_listings.py": "d0cd4b3051676337fe663a843b59024f97e154420fbeff93a1ed069aacd547a6",
+    "companion_export.py": "899d29cb2e7a482f062aabf23c86d58c34840a923cb20160f92d12d438b55a87",
+    "provider_utils.py": "8044c9170049d31ea2492047dfe68652fb4ca4d7d81777f9a0cb01f0a1605d05",
+    "outlook_runtime.py": "1a200b8c1253be6984594543aec45fec5772c086edf9ae14d30487ad12aaa871",
+    "schedule_data.py": "e947e44b8dbb2238867229066b958211395e6058b217b4f668b3437174529b68",
+    "tests/test_route_validity_adapters.py": "60c05f83784cfc761231e025ef773a83a79a7bf9225e393558561e193d2c7c9b"
+  },
+  "logs": {
+    "work/p2-validity-review-repair-before-2026-10-23.log": "934fa48ffdbb8896c44bf8e25ac97f6c4978cc5112e50728c33d96390df416b5",
+    "work/p2-validity-review-repair-passed-2026-10-23.log": "9135813f03144985c3314787f11518826c09443c3ab11c5bf0692f6e94809959"
+  },
+  "before": {
+    "test_methods": 17,
+    "failing_subcases": 4,
+    "contract_errors": 1
+  },
+  "after": {
+    "test_methods": 163,
+    "seconds": 4.468,
+    "result": "OK"
+  },
+  "previous_repair_report": {
+    "path": "work/p2-validity-edge-review-2026-10-23/repair-report.json",
+    "sha256": "9812c13d68feef69b17f6811b0933c183115a87b0471c592b005b6449542e08b"
+  },
+  "final_boundary_report": {
+    "path": "work/p2-validity-boundary-final-reviewed-2026-10-23/report.json",
+    "sha256": "bb34abab4bc2b3b959511409239462cb4d98d1b683527984276ed629a2fc06b4"
+  },
+  "runtime_hashes": {
+    "runtime.json": "16d602db6c7b42654ee69445686f5fb7539ac1e572f006bcdf94eb8e67278263",
+    "outlook": "ccd21cf302d324e7a0d45a45f0b231cb0724ecc2fd7369fe83b5f84306051545"
+  },
+  "repaired_behaviors": [
+    "An unavailable source cannot discard a malformed retained same-channel claim and borrow another record verification timestamp.",
+    "Country, listing kind, identical fixture, known outlet and source-specific current rejection gates remain before constraints; rejected malformed sources cannot poison admitted evidence.",
+    "Malformed or expired retained channels do not suppress an independently verified fresh channel.",
+    "Feed references are deduplicated while all raw observation timestamps and earliest original cutoffs remain available for aggregation."
+  ],
+  "limitations": [
+    "This records focused Python checks and local original-source boundary reproduction; full suite, offline replay and browser proof belong to the parent validation record.",
+    "Independent final review was requested after this candidate freeze.",
+    "No source network calls, commits or publication occurred."
+  ]
+}

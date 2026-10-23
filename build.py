@@ -53,6 +53,8 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+import outlook_runtime
+
 import providers
 import story_state  # shared window and candidate limits; the builder does not import AI generation
 import discovery
@@ -61,6 +63,7 @@ import watch_links
 import metrics
 import schedule_data
 import fixture_comparison
+from provider_utils import public_https
 
 ET = ZoneInfo("America/New_York")
 ESPN = "https://site.api.espn.com/apis/site/v2/sports/soccer/{league}/scoreboard?dates={day}&limit=200"
@@ -657,7 +660,7 @@ class Match:
     home: Team
     away: Team
     venue: str
-    state: str          # pre | in | post
+    state: str          # pre | in | post | unknown; shared placement phase
     status: str         # e.g. FT, HT, 63', Canceled
     outlets: list       # Listed US outlets, from ESPN or a verified broadcaster listing
     rule: object        # the league's usual home as an Outlet when nothing is listed, else None
@@ -683,6 +686,9 @@ class Match:
     broadcast_checked_at: str = ""
     broadcast_checks: list = field(default_factory=list)
     broadcast_evidence: list = field(default_factory=list)
+    # Preserve decoded identity separately from display text through JSON context.
+    # A changed public phase/label invalidates this binding before it can be used.
+    status_binding: dict = field(default_factory=dict)
 
 
 def implied_chance(moneyline):
@@ -803,7 +809,7 @@ def usual_home(league, home_id=""):
     changes do not change its rights; an unknown ID gets no claim rather than a guess."""
     r = RIGHTS.leagues.get(league)
     u = r.usual if r else None
-    if not u or TODAY > u.until:
+    if not u or not usual_current(u):
         return None
     channel = u.by_home.get(str(home_id)) or u.channel
     if not channel:
@@ -817,7 +823,7 @@ def league_hint(league):
     r = RIGHTS.leagues.get(league)
     if not r:
         return ""
-    if r.usual and TODAY > r.usual.until:
+    if r.usual and not usual_current(r.usual):
         was = r.usual.channel or "set club by club"
         lapsed = f"Usual US home not confirmed for this season (was {was} in {r.usual.season})"
         return lapsed + (f" · {r.hint}" if r.hint else "")
@@ -825,24 +831,78 @@ def league_hint(league):
 
 
 def evaluate(outlets, rule, have):
-    """Which of the services in `have` carries a match, and on which outlet.
+    """Preference-only collection helper; final outputs also apply route lifetimes."""
+    result = outlook_runtime.routes([route_input(o) for o in outlets],
+                                    route_input(rule) if rule else None,
+                                    have, SERVICE_RANK, SERVICES)
+    return result["service_id"] or "", result["basis"], result["outlet"]
 
-    The page's own script repeats this for each viewer's lineup; this copy renders the owner's view
-    into the static markup. Preference: the higher-ranked service, then the outlet that is the
-    service itself (HBO Max over its TNT simulcast), then English over Spanish feeds."""
-    best = None
-    for o in outlets:
-        for sid in o.via:
-            if sid in have:
-                key = (SERVICE_RANK.index(sid), o.label != SERVICES[sid], o.es)
-                if best is None or key < best[0]:
-                    best = (key, sid, o.label)
-    if best:
-        return best[1], "listed", best[2]
-    if rule:
-        for sid in sorted((x for x in rule.via if x in have), key=SERVICE_RANK.index):
-            return sid, "rule", rule.label
-    return "", "none", ""
+
+def route_input(outlet, validity=None):
+    value = dict(label=outlet.label, service_ids=list(outlet.via),
+                 spanish=bool(outlet.es), unknown=not outlet.known)
+    if validity is not None:
+        value["validity"] = validity
+    return value
+
+
+def usual_current(usual):
+    """Preserve the source-qualification date, including an explicit --date."""
+    now = datetime(TODAY.year, TODAY.month, TODAY.day, 12, tzinfo=ET)
+    return outlook_runtime.route_validity(dict(basis="rule", retained=False, verified_at=None,
+        expires_at=None, kickoff_utc=None, rights_until=usual.until.isoformat(), retention_seconds=21600), now)["usable"]
+
+
+def route_validity_facts(match, outlet, *, usual=False, evidence=None):
+    """Map the original channel ledger; never substitute publication/receipt time."""
+    # Share the feed's existing evidence URL qualification. This is source fact
+    # normalization, separate from both temporal decisions and destination URLs.
+    ledger = match.broadcast_evidence if evidence is None else evidence
+    channel_records = [item for item in ledger if isinstance(item, dict) and item.get("channel") == outlet.label]
+    records = [item for item in channel_records if item.get("country") == "US"
+               and item.get("kind") == "match_listing" and public_https(item.get("url"))]
+    checked = [schedule_data.timestamp(item.get("checked_at")) for item in records]
+    verified = min((stamp for stamp in checked if stamp is not None), default=None)
+    # A malformed retained claim cannot become a fresh, unbounded listing or
+    # borrow another observation's age when qualification removes its record.
+    if any(item.get("retained") and (item not in records or schedule_data.timestamp(item.get("checked_at")) is None)
+           for item in channel_records):
+        verified = None
+    expiries = []
+    for item in records:
+        if item.get("expires_at") is not None:
+            expiry = schedule_data.timestamp(item["expires_at"])
+            if expiry is None:
+                raise ValueError("Invalid original route expiry")
+            expiries.append(expiry)
+    rights = RIGHTS.leagues.get(match.league)
+    until = rights.usual.until if usual and rights and rights.usual else None
+    return dict(basis="none" if not outlet.known else "rule" if usual else "listed",
+                retained=False if usual else any(bool(item.get("retained")) for item in channel_records),
+                verified_at=outlook_runtime.utc_stamp(verified) if verified and not usual else None,
+                expires_at=outlook_runtime.utc_stamp(min(expiries)) if expiries else None,
+                kickoff_utc=outlook_runtime.utc_stamp(match.utc) if match.time_valid and not usual else None,
+                rights_until=until.isoformat() if until else None, retention_seconds=21600)
+
+
+def match_route_decision(match, now, selected):
+    listed = [route_input(outlet, route_validity_facts(match, outlet)) for outlet in match.outlets]
+    usual = route_input(match.rule, route_validity_facts(match, match.rule, usual=True)) if match.rule else None
+    return outlook_runtime.routes(listed, usual, selected, SERVICE_RANK, SERVICES, now=now)
+
+
+def evaluate_match_routes(match, now):
+    """Finalize owner access at the supplied clock after evidence collection."""
+    decision = match_route_decision(match, now, OWNER)
+    match.service, match.basis, match.outlet = decision["service_id"] or "", decision["basis"], decision["outlet"]
+    match._route_decision, match._route_now = decision, now
+    return decision
+
+
+def selected_providers(via):
+    result = outlook_runtime.routes([dict(label="providers", service_ids=list(via), spanish=False)],
+                                    None, OWNER, SERVICE_RANK, SERVICES)
+    return result["listed_providers"][0]
 
 
 # ----------------------------------------------------------------------------------------------
@@ -875,6 +935,25 @@ class BuildQuality:
     sources: list = field(default_factory=list)
     skipped_events: list = field(default_factory=list)
     excluded_events: int = 0
+    # Companion provenance is deliberately separate from the legacy report/cache.
+    source_times: dict = field(default_factory=dict)
+
+    def companion_scopes(self, fallback_time):
+        """Exact requested and validated date sets; counts never imply coverage."""
+        scopes = []
+        stamp = lambda value: value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+        for league in sorted({source["league"] for source in self.sources}):
+            sources = [source for source in self.sources if source["league"] == league]
+            timings = [self.source_times.get((league, source["date"]), {}) for source in sources]
+            attempts = [timing["attempted_at"] for timing in timings if timing.get("attempted_at")]
+            validations = [timing["validated_at"] for timing in timings if timing.get("validated_at")]
+            scopes.append(dict(source="espn", league_id=league, date_zone="America/New_York",
+                requested_dates=sorted({source["date"] for source in sources}),
+                covered_dates=sorted({source["date"] for source in sources if source["ok"]}),
+                complete=all(source["ok"] for source in sources),
+                attempted_at=stamp(min(attempts) if attempts else fallback_time),
+                validated_at=stamp(max(validations)) if validations else None))
+        return scopes
 
     def skip(self, league, event_id, reason, day=None):
         entry = dict(league=league, id=str(event_id) if event_id is not None else None, reason=str(reason))
@@ -942,19 +1021,22 @@ def fetch_scoreboards(days, workers, quality=None):
 
     def one(job):
         lg, day = job
+        attempted_at = datetime.now(timezone.utc)
         raw = curl_bytes(ESPN.format(league=lg, day=day.strftime("%Y%m%d")))
         if raw is None:
-            return lg, day, None
+            return lg, day, None, attempted_at
         try:
-            return lg, day, json.loads(raw)
+            return lg, day, json.loads(raw), attempted_at
         except ValueError:
-            return lg, day, None
+            return lg, day, None, attempted_at
 
     merged = {lg: {} for lg in LEAGUES}
     logos = {}
     failed = []
     with cf.ThreadPoolExecutor(workers) as ex:
-        for lg, day, data in ex.map(one, jobs):
+        for lg, day, data, attempted_at in ex.map(one, jobs):
+            timing = dict(attempted_at=attempted_at, validated_at=None)
+            quality.source_times[(lg, day.isoformat())] = timing
             # A 200 response with an error object is not a successful empty schedule.
             if not isinstance(data, dict) or not isinstance(data.get("events"), list):
                 failed.append((lg, day))
@@ -998,6 +1080,8 @@ def fetch_scoreboards(days, workers, quality=None):
             source["observed_dates"] = sorted(set(source["observed_dates"]))
             if not source["ok"]:
                 failed.append((lg, day))
+            else:
+                timing["validated_at"] = datetime.now(timezone.utc)
             league_info = dicts(data.get("leagues"))
             for lo in dicts(league_info[0].get("logos")) if league_info else []:
                 if "dark" not in (lo.get("rel") or []) and lo.get("href") and lg not in logos:
@@ -1135,17 +1219,70 @@ def luminance(hex6):
     return 0.2126 * r + 0.7152 * g + 0.0722 * b
 
 
+# Compatibility labels for existing provider-admission policies. The source
+# decoder owns result meaning; production result consumers use match_status.
 VOID_STATUSES = ("canceled", "cancelled", "postponed")
 
 
 def called_off(state, status):
-    """A match ESPN has closed without playing it; its 0-0 is a placeholder, not a score."""
-    return state == "post" and status.lower() in VOID_STATUSES
+    """Compatibility seam for exceptional non-final status, including abandonment."""
+    return outlook_runtime.fixture_status(state, status, None, None)["void"]
+
+
+def _status_signature(match):
+    return json.dumps([match.state, match.status, match.home.score, match.away.score, match.status_binding],
+                      sort_keys=True, separators=(",", ":"), allow_nan=False)
+
+
+def _attach_status(match, projection, *, bind=False):
+    # Only a canonical public phase can carry an explicit normalized identity.
+    # Direct legacy values such as in/Canceled keep inference on later edits.
+    if bind:
+        match.status_binding = (dict(phase=match.state, label=match.status,
+                                     state=projection["state"], provider_state=projection["provider_state"])
+                                if projection["phase"] == match.state else {})
+    # The full result is private; replace drops it, while the small binding survives
+    # asdict/JSON. Every public input, including that binding, participates in reuse.
+    match._status_projection = json.dumps(projection, separators=(",", ":"))
+    match._status_signature = _status_signature(match)
+    return match
+
+
+def match_status(match, *, scores=None):
+    """Read shared facts for the current Match, never stale source metadata.
+
+    Metrics may supply original raw score fields without replacing the current
+    match's status verdict. Raw status archives remain separate evidence.
+    """
+    if getattr(match, "_status_signature", None) != _status_signature(match):
+        binding = match.status_binding
+        bound = (isinstance(binding, dict) and binding.get("phase") == match.state
+                 and binding.get("label") == match.status)
+        projection = outlook_runtime.fixture_status(
+            match.state, match.status, match.home.score, match.away.score,
+            state=binding.get("state") if bound else None)
+        provider_state = binding.get("provider_state") if bound else None
+        if isinstance(provider_state, str) and len(provider_state) <= 100:
+            projection["provider_state"] = provider_state
+        _attach_status(match, projection)
+    result = json.loads(match._status_projection)
+    if scores is not None:
+        scored = outlook_runtime.fixture_status(result["phase"], result["label"],
+            scores.get("home"), scores.get("away"), state=result["state"])
+        scored["provider_state"] = result["provider_state"]
+        return scored
+    return result
 
 
 def shown_by_default(m):
     """Whether the page shows the match before a viewer changes the competition filters."""
-    return not LEAGUES[m.league].get("default_off")
+    return followed_by_default(m.league)
+
+
+def followed_by_default(league):
+    """Map published defaults into the shared viewer preference projection."""
+    return outlook_runtime.default_followed(
+        league, {key: not bool(info.get("default_off")) for key, info in LEAGUES.items()})
 
 
 def interpret(league, ev):
@@ -1163,13 +1300,13 @@ def interpret(league, ev):
     if league == "concacaf.nations.league" and not group.startswith("League A"):
         return None
 
-    teams = {}
+    teams, raw_scores = {}, {}
     table = (STANDINGS.get(league) or {}).get("by_team") or {}
     for c in dicts(comp.get("competitors")):
         t = c["team"]
         url = t.get("logo") or ""
         team = Team(name=t.get("displayName") or t.get("name") or "?", abbr=(t.get("abbreviation") or "")[:4],
-                    logo_key=logo_key(url) if url else "", logo_url=url, score=str(c.get("score") or ""),
+                    logo_key=logo_key(url) if url else "", logo_url=url,
                     winner=bool(c.get("winner")), id=str(t.get("id") or ""))
         team.form = (c.get("form") or "")[-5:]
         recs = dicts(c.get("records"))
@@ -1194,23 +1331,17 @@ def interpret(league, ev):
             if row["rec"]:
                 team.record = row["rec"]
         teams[c["homeAway"]] = team
+        raw_scores[c["homeAway"]] = c.get("score")
     home, away = teams.get("home"), teams.get("away")
     if not home or not away:
         raise ValueError("Event is missing a home or away team.")
 
-    st = comp.get("status") or ev.get("status") or {}
-    stype = st.get("type") or {}
-    state = stype.get("state") or "pre"
-    if state not in ("pre", "in", "post"):
-        raise ValueError("Event has an unrecognized match state.")
-    status = ""
-    if state == "in":
-        status = st.get("displayClock") or stype.get("shortDetail") or "Live"
-        if (stype.get("description") or "").lower().startswith("halftime"):
-            status = "HT"
-    elif state == "post":
-        desc = (stype.get("description") or "")
-        status = "FT" if desc.lower() in ("full time", "final", "full-time") else (stype.get("shortDetail") or desc or "FT")
+    status_facts = outlook_runtime.espn_status(ev.get("status"), comp.get("status"),
+                                             raw_scores.get("home"), raw_scores.get("away"))
+    state, status = status_facts["phase"], status_facts["label"]
+    for side, team in (("home", home), ("away", away)):
+        value = status_facts["reported_scores"][side]
+        team.score = "" if value is None else str(value)
 
     stage = pretty_stage(league, comp)
     if not stage and league in ("esp.copa_del_rey", "eng.fa", "eng.league_cup", "ger.dfb_pokal", "ita.coppa_italia",
@@ -1282,18 +1413,19 @@ def interpret(league, ev):
             score += 45
     else:
         score += 25 * len(team_ids & MARQUEE_CLUBS.keys())
-    if called_off(state, status):
+    if status_facts["void"]:
         score = 0
 
     kickoff = datetime.fromisoformat(ev["date"].replace("Z", "+00:00"))
     if kickoff.tzinfo is None:
         raise ValueError("Kickoff is missing its time zone.")
-    return Match(id=ev["id"], utc=kickoff.astimezone(timezone.utc),
+    match = Match(id=ev["id"], utc=kickoff.astimezone(timezone.utc),
                  time_valid=bool(comp.get("timeValid", True)), league=league, comp=info["name"], stage=stage,
                  note=note, home=home, away=away, venue=venue, state=state, status=status, outlets=outlets,
                  rule=rule, hint=hint, service=service, basis=basis, outlet=outlet, score=score,
                  goals=goals, recap=recap, attendance=attendance, link=link, draw=draw, goal_line=goal_line,
                  home_win=home_win, away_win=away_win, win_balance=win_balance(home_win, away_win))
+    return _attach_status(match, status_facts, bind=True)
 
 
 # ----------------------------------------------------------------------------------------------
@@ -1512,24 +1644,28 @@ def about_scores():
 
 
 def owner_pill_service(via):
-    have = set(OWNER)
-    for sid in sorted((x for x in via if x in have), key=SERVICE_RANK.index):
-        return sid
-    return ""
+    selected = selected_providers(via)
+    return selected[0] if selected else ""
 
 
 def network_providers_html(m, outlet, destinations, usual=False):
     """Selected routes for this network, with only compatible, verified viewing links."""
     if not outlet.known:
         return f'<p>{esc(UNRECOGNIZED_TITLE)}</p>'
-    services = sorted((sid for sid in outlet.via if sid in OWNER), key=SERVICE_RANK.index)
+    decision = getattr(m, "_route_decision", None)
+    services = (decision["usual_providers"] if usual else decision["listed_providers"][m.outlets.index(outlet)]) if decision else selected_providers(outlet.via)
+    validity = (decision["usual_validity"] if usual else decision["listed_validity"][m.outlets.index(outlet)]) if decision else None
+    if validity is not None and not validity["usable"]:
+        if validity["reason"] == "expired":
+            return '<p>This usual-coverage claim has expired.</p>' if usual else '<p>This listing has expired.</p>'
+        return '<p>Coverage is not currently verified.</p>'
     if not services:
         return '<p>Not in your selected services.</p>'
     items = []
     for sid in services:
         name = esc(SERVICES[sid])
         link = destinations.get(outlet.label, {}).get(sid) if not usual else None
-        if link and (not link.get("live_only") or m.state == "in"):
+        if link and (not link.get("live_only") or match_status(m)["state"] == "live"):
             name = (f'<a class="network__link" href="{esc(link["url"])}" data-kind="{esc(link["kind"])}" '
                     f'target="_blank" rel="noopener noreferrer" title="{esc(link["title"])}">{name}</a>')
         items.append(f'<li>{name}</li>')
@@ -1539,11 +1675,15 @@ def network_providers_html(m, outlet, destinations, usual=False):
 
 
 def pills_html(m, destinations=None):
+    if isinstance(m, Match):
+        evaluate_match_routes(m, getattr(m, "_route_now", None) or datetime.now(timezone.utc))
     if destinations is None:
         destinations = provider_links(m)
     parts = []
     for i, o in enumerate(m.outlets):
-        sid = owner_pill_service(o.via)
+        decision = getattr(m, "_route_decision", None)
+        selected = decision["listed_providers"][i] if decision else selected_providers(o.via)
+        sid = selected[0] if selected else ""
         if not o.known:
             cls, extra = 'pill pill--unk', '<span class="pill__free">not recognized</span>'
         else:
@@ -1553,7 +1693,9 @@ def pills_html(m, destinations=None):
                      f'aria-label="{esc(o.label)}: viewing providers"><i class="dot"></i>{esc(o.label)}{extra}</summary>'
                      f'<div class="network__providers">{network_providers_html(m, o, destinations)}</div></details>')
     if m.rule:
-        sid = owner_pill_service(m.rule.via)
+        decision = getattr(m, "_route_decision", None)
+        selected = decision["usual_providers"] if decision else selected_providers(m.rule.via)
+        sid = selected[0] if selected else ""
         cls = f"pill pill--rule svc-{sid}" if sid else "pill pill--rule pill--rule-off"
         parts.append(f'<details class="network" data-rule="1"><summary class="{cls}" '
                      f'aria-label="Usually {esc(m.rule.label)}: viewing providers"><i class="dot"></i>usually {esc(m.rule.label)}</summary>'
@@ -1762,7 +1904,9 @@ def league_logo_html(league, cache, *, label=""):
     return f'<i class="lg l-{key}{monochrome}" {accessibility}></i>' if key and key in cache else ""
 
 
-def row_html(m, cache):
+def row_html(m, cache, *, now=None):
+    now = now or getattr(m, "_route_now", None) or datetime.now(timezone.utc)
+    evaluate_match_routes(m, now)
     t, ap, local = et_parts(m.utc)
     avail = "row--on" if m.service else "row--off"
     if m.service and m.basis == "rule":
@@ -1770,10 +1914,10 @@ def row_html(m, cache):
     tv = "1" if m.time_valid else "0"
     time_html = (f'<span class="t" data-t>{t}</span><span class="ap" data-ap>{ap}</span>' if m.time_valid
                  else '<span class="t t--tbd">TBD</span><span class="ap">time</span>')
-    played = m.state != "pre" and not called_off(m.state, m.status)
-    score_h, score_a = (f'<b class="score"{"" if played and t.score != "" else " hidden"}>{esc(t.score) if played else ""}</b>'
-                        for t in (m.home, m.away))
-    status = f'<span class="row__status"{"" if m.status else " hidden"}>{esc(m.status)}</span>'
+    status_facts = match_status(m)
+    score_h, score_a = (f'<b class="score"{"" if value is not None else " hidden"}>{value if value is not None else ""}</b>'
+                        for value in (status_facts["scores"]["home"], status_facts["scores"]["away"]))
+    status = f'<span class="row__status"{"" if status_facts["label"] else " hidden"}>{esc(status_facts["label"])}</span>'
     lglogo = league_logo_html(m.league, cache, label=m.comp)
     league_badge = f'<div class="row__league" title="{esc(m.comp)}">{lglogo}</div>' if lglogo else ""
     meta = [] if lglogo else [f'<span class="comp">{esc(m.comp)}</span>']
@@ -1782,9 +1926,11 @@ def row_html(m, cache):
     if m.venue:
         meta.append(f'<span class="venue">{esc(m.venue)}</span>')
     note = f'<div class="row__note">{esc(m.note)}</div>' if m.note else ""
-    outlets_json = json.dumps([dict({"l": o.label, "v": o.via, "f": int(o.free), "e": int(o.es)}, **({} if o.known else {"u": 1}))
+    outlets_json = json.dumps([dict({"l": o.label, "v": o.via, "f": int(o.free), "e": int(o.es),
+                                    "t": route_validity_facts(m, o)}, **({} if o.known else {"u": 1}))
                                for o in m.outlets], ensure_ascii=False)
-    rule_json = json.dumps({"l": m.rule.label, "v": m.rule.via}, ensure_ascii=False) if m.rule else ""
+    rule_json = json.dumps({"l": m.rule.label, "v": m.rule.via,
+                           "t": route_validity_facts(m, m.rule, usual=True)}, ensure_ascii=False) if m.rule else ""
     parts = outlook_parts(m)
     parts_json = json.dumps({k: None if v is None else round(100 * v) for k, v in parts.items()})
     destinations = provider_links(m)
@@ -1797,7 +1943,7 @@ def row_html(m, cache):
         f'<li class="row {avail}" data-id="{esc(m.id)}" data-utc="{m.utc.strftime("%Y-%m-%dT%H:%M:%SZ")}" data-tv="{tv}" '
         f'data-lg="{esc(m.league)}" data-svc="{m.service or "none"}" data-basis="{m.basis}" data-score="{m.score}" '
         f'data-outlook="{outlook_score(parts):g}" data-outlook-parts="{esc(parts_json)}" '
-        f'data-state="{m.state}" data-home="{esc(m.home.name)}" data-away="{esc(m.away.name)}" data-comp="{esc(m.comp)}" '
+        f'data-state="{status_facts["phase"]}" data-status-kind="{status_facts["state"]}" data-home="{esc(m.home.name)}" data-away="{esc(m.away.name)}" data-comp="{esc(m.comp)}" '
         f'data-outlet="{esc(m.outlet)}" data-hc="{m.home.color}" data-ac="{m.away.color}" data-o="{esc(outlets_json)}"' +
         f' data-ai-facts="{esc(json.dumps(ai_facts, ensure_ascii=False))}"' +
         (f' data-watch="{esc(json.dumps(destinations, ensure_ascii=False))}"' if destinations else "") +
@@ -1806,7 +1952,7 @@ def row_html(m, cache):
         f'<div class="row__body"><div class="row__info">'
         f'<div class="row__teams">{team_html(m.home, cache, score_h, m.league)}<span class="vs">v</span>{team_html(m.away, cache, score_a, m.league)}</div></div>'
         f'<div class="pills">{pills_html(m, destinations)}</div>'
-        f'<div class="row__footer"><div class="row__context"><div class="row__meta">{"".join(meta)}</div>{goals_html(m)}{note}'
+        f'<div class="row__footer"><div class="row__context"><div class="row__meta">{"".join(meta)}</div>{goals_html(m) if status_facts["played"] else ""}{note}'
         f'{detail_html(m, cache)}</div><button type="button" class="more" aria-haspopup="dialog" aria-controls="match-dialog" '
         f'aria-label="More: {esc(m.home.name)} v {esc(m.away.name)}">More</button></div>'
         f'</div>'
@@ -1877,9 +2023,15 @@ def team_facts(t):
 
 def write_facts(path, matches, built_at, today):
     """Give Claude service-backed fixtures in the next 24 hours, with later candidates as fallback."""
+    matches = list(matches)
+    for match in matches:
+        evaluate_match_routes(match, built_at)
+    available = {id(match): match_route_decision(match, built_at, SERVICES) for match in matches}
+
     def routes(m):
-        return sorted({sid for outlet in m.outlets for sid in outlet.via}
-                      | (set(m.rule.via) if m.rule else set()))
+        decision = available[id(m)]
+        return sorted({sid for group in decision["listed_providers"] for sid in group}
+                      | set(decision["usual_providers"]))
 
     def entry(m):
         local = m.utc.astimezone(ET)
@@ -1892,7 +2044,8 @@ def write_facts(path, matches, built_at, today):
             competition=m.comp, stage=m.stage, venue=m.venue, note=m.note,
             home=team_facts(m.home), away=team_facts(m.away),
             watch_on=(SERVICES[m.service] + ("" if m.outlet == SERVICES[m.service] else f" ({m.outlet})") + (", usual home, channel not posted yet" if m.basis == "rule" else "")) if m.service else "",
-            broadcasters=[o.label for o in m.outlets],
+            broadcasters=[o.label for i, o in enumerate(m.outlets)
+                          if available[id(m)]["listed_validity"][i]["usable"]],
             broadcast_source=m.broadcast_source, broadcast_source_url=m.broadcast_url,
             broadcast_check=m.broadcast_check, broadcast_checked_at=m.broadcast_checked_at,
             stature=m.score).items() if v not in ("", [], None)}
@@ -1907,7 +2060,7 @@ def write_facts(path, matches, built_at, today):
     # Unknown coverage stays in the schedule, but cannot support a recommendation to watch.
     until = built_at + timedelta(hours=24)
     upcoming = [m for m in matches if m.state != "post" and routes(m)
-                and not called_off(m.state, m.status)]
+                and not match_status(m)["void"]]
     near = [m for m in upcoming if built_at <= m.utc < until
             or (m.state == "in" and built_at - timedelta(hours=4) <= m.utc < built_at)]
     later = [m for m in upcoming if m.utc >= until]
@@ -1949,11 +2102,11 @@ def write_facts(path, matches, built_at, today):
                                     source_url=f"https://www.espn.com/soccer/match/_/gameId/{m.id}",
                                     stage=m.stage, home=team_facts(m.home), away=team_facts(m.away))
                                for m in sorted(matches, key=lambda m: m.utc)
-                               if m.state != "post" and not called_off(m.state, m.status)
+                               if m.state != "post" and not match_status(m)["void"]
                                and (m.utc >= built_at or (m.state == "in" and m.utc >= built_at - timedelta(hours=4)))],
     }
-    played = [m for m in matches if m.state == "post" and m.utc.astimezone(ET).date() == today
-              and not called_off(m.state, m.status) and m.score >= 85]
+    played = [m for m in matches if match_status(m)["final"] and m.utc.astimezone(ET).date() == today
+              and m.score >= 85]
     if played:
         facts["played_today"] = [result(m) for m in by_stature(played)[:6]]
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
@@ -1962,6 +2115,8 @@ def write_facts(path, matches, built_at, today):
 
 
 def build_page(matches, cache, built_at, failed, today, skipped=(), site_url=None):
+    for match in matches:
+        evaluate_match_routes(match, built_at)
     matches.sort(key=lambda m: (m.utc, -m.score, m.comp, m.home.name))
     # Static fallback: rows grouped by Eastern day, headed as the page script heads its days (Today and
     # Tomorrow with the full date in grey, a later day by its weekday with the rest of its date in grey).
@@ -1975,7 +2130,7 @@ def build_page(matches, cache, built_at, failed, today, skipped=(), site_url=Non
         title, when = (name, d.strftime("%A, %B ") + str(d.day)) if name else (d.strftime("%A"), d.strftime("%B ") + str(d.day))
         static_sections.append(
             f'<section class="bucket" data-static="1"><h3 class="bucket__h"><span>{esc(title)}</span><span class="when">{esc(when)}</span>'
-            f'<span class="bucket__count"></span></h3><ol class="rows">{"".join(row_html(m, cache) for m in ms)}</ol></section>')
+            f'<span class="bucket__count"></span></h3><ol class="rows">{"".join(row_html(m, cache, now=built_at) for m in ms)}</ol></section>')
     if not matches:
         static_sections.append('<p class="empty">No matches are scheduled in the fetched date range.</p>')
 
@@ -1993,7 +2148,7 @@ def build_page(matches, cache, built_at, failed, today, skipped=(), site_url=Non
     for lg, info in LEAGUES.items():
         n = sum(1 for m in matches if m.league == lg)
         if n:
-            comps.append((info["name"], lg, n, bool(info.get("default_off"))))
+            comps.append((info["name"], lg, n, not followed_by_default(lg)))
     comp_buttons = {lg: (
         f'<button type="button" class="fpill" data-kind="comp" data-key="{esc(lg)}" data-short="{esc(LEAGUES[lg]["short"])}" data-default-off="{"1" if off else "0"}" aria-pressed="{"false" if off else "true"}"><span class="fpill__grip" aria-hidden="true">⠿</span>{league_logo_html(lg, cache)}{esc(name)}'
         f'<span class="fpill__n">{n}</span></button>') for name, lg, n, off in comps}
@@ -2153,8 +2308,11 @@ def sitemap(site_url, built_at, paths=()):
 # ----------------------------------------------------------------------------------------------
 WEB_DIR = Path(__file__).resolve().parent / "web"
 RUNTIME_REVISION = schedule_data.runtime_revision(Path(__file__).resolve().parent)
+CORE_ASSET, CORE_INTEGRITY, _ = outlook_runtime.browser_asset()
+CORE_SCRIPT_TAG = f'<script src="{CORE_ASSET}" integrity="{CORE_INTEGRITY}"></script>'
 TEMPLATE = (WEB_DIR.joinpath("page.html").read_text(encoding="utf-8")
             .replace("@@STYLES@@", WEB_DIR.joinpath("styles.css").read_text(encoding="utf-8"))
+            .replace("<script>\n@@SCRIPT@@", CORE_SCRIPT_TAG + "\n<script>\n@@SCRIPT@@")
             .replace("@@SCRIPT@@", "\n".join(WEB_DIR.joinpath(name).read_text(encoding="utf-8")
                                             for name in ("live.js", "teams.js", "personal-ai.js", "github-publish.js", "schedule.js", "app.js"))))
 
@@ -2394,10 +2552,24 @@ def main():
     ap.add_argument("--lightweight", action="store_true",
                     help="refresh fixtures and broadcasts using recent cached standings; makes no AI calls")
     ap.add_argument("--previous-context", help="previous schedule-context.json (defaults to the output directory)")
+    ap.add_argument("--companion-feed", action="store_true",
+                    help="opt in to the local v1 companion feed (distribution remains separately gated)")
+    ap.add_argument("--companion-previous-api",
+                    help="prior api/v1 directory, or 'none' for an explicitly new publication")
+    ap.add_argument("--companion-producer-revision", help="40-character source Git revision for the companion feed")
+    ap.add_argument("--companion-stage", help="stage companion facts here; finalize after optional editorial generation")
     args = ap.parse_args()
+    if args.companion_feed:
+        if args.fragment or not args.companion_previous_api or not re.fullmatch(r"[0-9a-f]{40}", args.companion_producer_revision or ""):
+            ap.error("--companion-feed needs a full document, --companion-previous-api (path or 'none'), and a 40-character --companion-producer-revision")
+    elif args.companion_previous_api or args.companion_producer_revision or args.companion_stage:
+        ap.error("companion options require --companion-feed")
     # Reject malformed deployment settings before making requests or writing output.
     head_extra = verification_meta() if not args.fragment else ""
     discovery_key = indexnow_key() if not args.fragment else ""
+    if args.companion_feed:
+        import companion_build
+        companion_build.prepare(Path(args.out).resolve().parent / "api/v1", args.companion_previous_api)
 
     write_build_report(args.report, dict(version=1, publishable=False, complete=False,
                                         reasons=["Build did not complete."]))
@@ -2425,9 +2597,12 @@ def main():
         STANDINGS.update(fetch_standings(list(LEAGUES), args.workers))
     matches = interpret_all(merged, quality)
     report = quality.report(len(matches))
-    if (args.lightweight or previous is not None) and not report["complete"]:
+    if (args.lightweight or previous is not None or args.companion_feed) and not report["complete"]:
         report["publishable"] = False
-        report["reasons"].append("A refresh with reusable context requires complete fixture responses; keeping the last published schedule and context.")
+        reason = ("A companion feed requires complete fixture responses; keeping the last published schedule and context."
+                  if args.companion_feed else
+                  "A refresh with reusable context requires complete fixture responses; keeping the last published schedule and context.")
+        report["reasons"].append(reason)
     if not report["publishable"]:
         write_build_report(args.report, report)
         print("FAIL " + " ".join(report["reasons"]), file=sys.stderr)
@@ -2489,6 +2664,7 @@ def main():
     if not args.fragment:
         page = as_document(page, args.site_url)
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
+    outlook_runtime.publish_browser(Path(args.out).resolve().parent)
     with open(args.out, "w", encoding="utf-8") as f:
         f.write(page)
     if not args.fragment:
@@ -2513,6 +2689,12 @@ def main():
     if args.metrics:
         metrics.write(args.metrics, sys.modules[__name__], matches, merged, datetime.now(timezone.utc),
                       build_started_at=built_at, source_report=report)
+    if args.companion_feed:
+        companion_build.finish(sys.modules[__name__], matches, built_at,
+            dict(report, source_scopes=quality.companion_scopes(built_at)), output_dir / "api/v1",
+            producer_revision=args.companion_producer_revision,
+            standings_at=schedule_data.timestamp(previous["standings_at"]) if args.lightweight else built_at,
+            stage_path=args.companion_stage)
     write_build_report(args.report, report)
     n_on = sum(1 for m in matches if m.service)
     image_mode = "none" if args.no_logos else ("embedded" if args.embed_images else "linked")

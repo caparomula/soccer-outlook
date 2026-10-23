@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://soccer-outlook.invalid/contracts/outlook/v1/editorial.schema.json",
+  "title": "Draft P0 editorial",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "kind": {
+      "const": "outlook_editorial"
+    },
+    "content_revision": {
+      "$ref": "common.schema.json#/$defs/id"
+    },
+    "catalog_revision": {
+      "$ref": "common.schema.json#/$defs/id"
+    },
+    "policy_id": {
+      "$ref": "common.schema.json#/$defs/id"
+    },
+    "automatic": {
+      "anyOf": [
+        {
+          "allOf": [
+            {
+              "$ref": "common.schema.json#/$defs/editorial_slot"
+            },
+            {
+              "properties": {
+                "origin": {
+                  "const": "automatic"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "shared": {
+      "anyOf": [
+        {
+          "allOf": [
+            {
+              "$ref": "common.schema.json#/$defs/editorial_slot"
+            },
+            {
+              "properties": {
+                "origin": {
+                  "const": "shared"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "viewer_preferences": false,
+    "personal_ai": false,
+    "final_pick_score": false,
+    "rating_dots": false,
+    "personalized_picks": false
+  },
+  "required": [
+    "schema_version",
+    "kind",
+    "content_revision",
+    "catalog_revision",
+    "policy_id",
+    "automatic",
+    "shared"
+  ],
+  "additionalProperties": true,
+  "maxProperties": 100
+}

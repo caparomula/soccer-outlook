@@ -1,0 +1,2232 @@
+{
+  "version": 1,
+  "description": "Independent STATUS-ESPN-1 complete-envelope expectations authored without consulting new decoder or consumer outputs.",
+  "cases": [
+    {
+      "id": "ordinary-statuses",
+      "request": {
+        "version": 1,
+        "operation": "espn_status",
+        "cases": [
+          {
+            "id": "scheduled",
+            "event_status": null,
+            "competition_status": {
+              "type": {
+                "state": "pre",
+                "name": "STATUS_SCHEDULED",
+                "description": "Scheduled",
+                "completed": false
+              }
+            },
+            "home_score": 0,
+            "away_score": "0"
+          },
+          {
+            "id": "live-zero-missing",
+            "event_status": null,
+            "competition_status": {
+              "type": {
+                "state": "in",
+                "name": "STATUS_FIRST_HALF",
+                "description": "First Half",
+                "shortDetail": "12'",
+                "completed": false
+              },
+              "displayClock": "12'"
+            },
+            "home_score": 0,
+            "away_score": null
+          },
+          {
+            "id": "final",
+            "event_status": null,
+            "competition_status": {
+              "type": {
+                "state": "post",
+                "name": "STATUS_FULL_TIME",
+                "description": "Full Time",
+                "shortDetail": "FT",
+                "completed": true
+              }
+            },
+            "home_score": "0",
+            "away_score": "1"
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "scheduled",
+            "state": "scheduled",
+            "phase": "pre",
+            "provider_state": "pre",
+            "label": "",
+            "played": false,
+            "final": false,
+            "void": false,
+            "reported_scores": {
+              "home": 0,
+              "away": 0
+            },
+            "scores": {
+              "home": null,
+              "away": null
+            }
+          },
+          {
+            "id": "live-zero-missing",
+            "state": "live",
+            "phase": "in",
+            "provider_state": "in",
+            "label": "12'",
+            "played": true,
+            "final": false,
+            "void": false,
+            "reported_scores": {
+              "home": 0,
+              "away": null
+            },
+            "scores": {
+              "home": 0,
+              "away": null
+            }
+          },
+          {
+            "id": "final",
+            "state": "finished",
+            "phase": "post",
+            "provider_state": "post",
+            "label": "FT",
+            "played": true,
+            "final": true,
+            "void": false,
+            "reported_scores": {
+              "home": 0,
+              "away": 1
+            },
+            "scores": {
+              "home": 0,
+              "away": 1
+            }
+          }
+        ]
+      },
+      "because": "Ordinary captured names retain their phase and label semantics; pregame zeros remain reported placeholders."
+    },
+    {
+      "id": "halftime-and-display-clock",
+      "request": {
+        "version": 1,
+        "operation": "espn_status",
+        "cases": [
+          {
+            "id": "halftime",
+            "event_status": null,
+            "competition_status": {
+              "type": {
+                "state": "in",
+                "name": "STATUS_HALFTIME",
+                "description": "Halftime",
+                "shortDetail": "HT"
+              },
+              "displayClock": "45'+3'"
+            },
+            "home_score": "1",
+            "away_score": "0"
+          },
+          {
+            "id": "second-half",
+            "event_status": null,
+            "competition_status": {
+              "type": {
+                "state": "in",
+                "name": "STATUS_SECOND_HALF",
+                "description": "Second Half",
+                "shortDetail": "77'"
+              },
+              "displayClock": "77'"
+            },
+            "home_score": "2",
+            "away_score": "1"
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "halftime",
+            "state": "live",
+            "phase": "in",
+            "provider_state": "in",
+            "label": "HT",
+            "played": true,
+            "final": false,
+            "void": false,
+            "reported_scores": {
+              "home": 1,
+              "away": 0
+            },
+            "scores": {
+              "home": 1,
+              "away": 0
+            }
+          },
+          {
+            "id": "second-half",
+            "state": "live",
+            "phase": "in",
+            "provider_state": "in",
+            "label": "77'",
+            "played": true,
+            "final": false,
+            "void": false,
+            "reported_scores": {
+              "home": 2,
+              "away": 1
+            },
+            "scores": {
+              "home": 2,
+              "away": 1
+            }
+          }
+        ]
+      },
+      "because": "Halftime identity wins over a still-running display clock; a normal second-half display clock remains verbatim."
+    },
+    {
+      "id": "exception-before-label",
+      "request": {
+        "version": 1,
+        "operation": "espn_status",
+        "cases": [
+          {
+            "id": "cancel-abbreviation",
+            "event_status": null,
+            "competition_status": {
+              "type": {
+                "state": "post",
+                "description": "Canceled",
+                "shortDetail": "CAN",
+                "completed": true
+              }
+            },
+            "home_score": "0",
+            "away_score": "0"
+          },
+          {
+            "id": "pre-postponed",
+            "event_status": null,
+            "competition_status": {
+              "type": {
+                "state": "pre",
+                "description": "Postponed",
+                "shortDetail": "PPD",
+                "completed": false
+              }
+            },
+            "home_score": 0,
+            "away_score": 0
+          },
+          {
+            "id": "in-abandoned",
+            "event_status": null,
+            "competition_status": {
+              "type": {
+                "state": "in",
+                "name": "STATUS_ABANDONED",
+                "description": "Abandoned"
+              }
+            },
+            "home_score": "2",
+            "away_score": "1"
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "cancel-abbreviation",
+            "state": "cancelled",
+            "phase": "post",
+            "provider_state": "post",
+            "label": "Canceled",
+            "played": false,
+            "final": false,
+            "void": true,
+            "reported_scores": {
+              "home": 0,
+              "away": 0
+            },
+            "scores": {
+              "home": null,
+              "away": null
+            }
+          },
+          {
+            "id": "pre-postponed",
+            "state": "postponed",
+            "phase": "post",
+            "provider_state": "pre",
+            "label": "Postponed",
+            "played": false,
+            "final": false,
+            "void": true,
+            "reported_scores": {
+              "home": 0,
+              "away": 0
+            },
+            "scores": {
+              "home": null,
+              "away": null
+            }
+          },
+          {
+            "id": "in-abandoned",
+            "state": "abandoned",
+            "phase": "post",
+            "provider_state": "in",
+            "label": "Abandoned",
+            "played": false,
+            "final": false,
+            "void": true,
+            "reported_scores": {
+              "home": 2,
+              "away": 1
+            },
+            "scores": {
+              "home": null,
+              "away": null
+            }
+          }
+        ]
+      },
+      "because": "An unambiguous exception is classified before its abbreviation is displayed and overrides generic phase without rewriting provider_state."
+    },
+    {
+      "id": "unknown-terminal-not-a-final",
+      "request": {
+        "version": 1,
+        "operation": "espn_status",
+        "cases": [
+          {
+            "id": "unfamiliar-terminal",
+            "event_status": null,
+            "competition_status": {
+              "type": {
+                "state": "post",
+                "description": "Awaiting Official Ruling"
+              }
+            },
+            "home_score": "2",
+            "away_score": "1"
+          },
+          {
+            "id": "no-terminal-label",
+            "event_status": null,
+            "competition_status": {
+              "type": {
+                "state": "post",
+                "completed": true
+              }
+            },
+            "home_score": 0,
+            "away_score": 0
+          },
+          {
+            "id": "unsupported-name",
+            "event_status": null,
+            "competition_status": {
+              "type": {
+                "state": "post",
+                "name": "STATUS_REVIEW_PENDING",
+                "description": "Final"
+              }
+            },
+            "home_score": "2",
+            "away_score": "1"
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "unfamiliar-terminal",
+            "state": "unknown",
+            "phase": "post",
+            "provider_state": "post",
+            "label": "Status unknown",
+            "played": false,
+            "final": false,
+            "void": false,
+            "reported_scores": {
+              "home": 2,
+              "away": 1
+            },
+            "scores": {
+              "home": null,
+              "away": null
+            }
+          },
+          {
+            "id": "no-terminal-label",
+            "state": "unknown",
+            "phase": "post",
+            "provider_state": "post",
+            "label": "Status unknown",
+            "played": false,
+            "final": false,
+            "void": false,
+            "reported_scores": {
+              "home": 0,
+              "away": 0
+            },
+            "scores": {
+              "home": null,
+              "away": null
+            }
+          },
+          {
+            "id": "unsupported-name",
+            "state": "unknown",
+            "phase": "post",
+            "provider_state": "post",
+            "label": "Status unknown",
+            "played": false,
+            "final": false,
+            "void": false,
+            "reported_scores": {
+              "home": 2,
+              "away": 1
+            },
+            "scores": {
+              "home": null,
+              "away": null
+            }
+          }
+        ]
+      },
+      "because": "A post phase is placement evidence, not proof of a completed match or final score."
+    },
+    {
+      "id": "missing-and-unrecognized-phase",
+      "request": {
+        "version": 1,
+        "operation": "espn_status",
+        "cases": [
+          {
+            "id": "missing",
+            "event_status": null,
+            "competition_status": null,
+            "home_score": 0,
+            "away_score": 0
+          },
+          {
+            "id": "unrecognized",
+            "event_status": null,
+            "competition_status": {
+              "type": {
+                "state": "delayed",
+                "description": "Scheduled"
+              }
+            },
+            "home_score": 0,
+            "away_score": null
+          },
+          {
+            "id": "named-final-without-phase",
+            "event_status": null,
+            "competition_status": {
+              "type": {
+                "name": "STATUS_FULL_TIME",
+                "description": "Final"
+              }
+            },
+            "home_score": 2,
+            "away_score": 1
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "missing",
+            "state": "unknown",
+            "phase": "unknown",
+            "provider_state": "",
+            "label": "Status unknown",
+            "played": false,
+            "final": false,
+            "void": false,
+            "reported_scores": {
+              "home": 0,
+              "away": 0
+            },
+            "scores": {
+              "home": null,
+              "away": null
+            }
+          },
+          {
+            "id": "unrecognized",
+            "state": "unknown",
+            "phase": "unknown",
+            "provider_state": "delayed",
+            "label": "Status unknown",
+            "played": false,
+            "final": false,
+            "void": false,
+            "reported_scores": {
+              "home": 0,
+              "away": null
+            },
+            "scores": {
+              "home": null,
+              "away": null
+            }
+          },
+          {
+            "id": "named-final-without-phase",
+            "state": "unknown",
+            "phase": "unknown",
+            "provider_state": "",
+            "label": "Status unknown",
+            "played": false,
+            "final": false,
+            "void": false,
+            "reported_scores": {
+              "home": 2,
+              "away": 1
+            },
+            "scores": {
+              "home": null,
+              "away": null
+            }
+          }
+        ]
+      },
+      "because": "Missing phase does not invent scheduled; unsupported phases remain diagnostic strings and cannot create progress."
+    },
+    {
+      "id": "status-identity-conflicts",
+      "request": {
+        "version": 1,
+        "operation": "espn_status",
+        "cases": [
+          {
+            "id": "final-versus-cancel",
+            "event_status": null,
+            "competition_status": {
+              "type": {
+                "state": "post",
+                "name": "STATUS_FULL_TIME",
+                "description": "Canceled"
+              }
+            },
+            "home_score": 2,
+            "away_score": 1
+          },
+          {
+            "id": "cancel-versus-postpone",
+            "event_status": null,
+            "competition_status": {
+              "type": {
+                "state": "post",
+                "description": "Cancelled",
+                "abbreviation": "PPD"
+              }
+            },
+            "home_score": 0,
+            "away_score": 0
+          },
+          {
+            "id": "live-versus-scheduled",
+            "event_status": null,
+            "competition_status": {
+              "type": {
+                "state": "in",
+                "name": "STATUS_FIRST_HALF",
+                "shortDetail": "Scheduled"
+              }
+            },
+            "home_score": 2,
+            "away_score": 1
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "final-versus-cancel",
+            "state": "unknown",
+            "phase": "post",
+            "provider_state": "post",
+            "label": "Status unknown",
+            "played": false,
+            "final": false,
+            "void": false,
+            "reported_scores": {
+              "home": 2,
+              "away": 1
+            },
+            "scores": {
+              "home": null,
+              "away": null
+            }
+          },
+          {
+            "id": "cancel-versus-postpone",
+            "state": "unknown",
+            "phase": "post",
+            "provider_state": "post",
+            "label": "Status unknown",
+            "played": false,
+            "final": false,
+            "void": false,
+            "reported_scores": {
+              "home": 0,
+              "away": 0
+            },
+            "scores": {
+              "home": null,
+              "away": null
+            }
+          },
+          {
+            "id": "live-versus-scheduled",
+            "state": "unknown",
+            "phase": "unknown",
+            "provider_state": "in",
+            "label": "Status unknown",
+            "played": false,
+            "final": false,
+            "void": false,
+            "reported_scores": {
+              "home": 2,
+              "away": 1
+            },
+            "scores": {
+              "home": null,
+              "away": null
+            }
+          }
+        ]
+      },
+      "because": "Recognized identities must agree. A final/cancelled contradiction never becomes either an ordinary final or live progress."
+    },
+    {
+      "id": "phase-and-completion-conflicts",
+      "request": {
+        "version": 1,
+        "operation": "espn_status",
+        "cases": [
+          {
+            "id": "final-in-phase",
+            "event_status": null,
+            "competition_status": {
+              "type": {
+                "state": "in",
+                "description": "Final"
+              }
+            },
+            "home_score": 2,
+            "away_score": 1
+          },
+          {
+            "id": "final-not-completed",
+            "event_status": null,
+            "competition_status": {
+              "type": {
+                "state": "post",
+                "description": "Final",
+                "completed": false
+              }
+            },
+            "home_score": 2,
+            "away_score": 1
+          },
+          {
+            "id": "live-completed",
+            "event_status": null,
+            "competition_status": {
+              "type": {
+                "state": "in",
+                "description": "In Progress",
+                "completed": true
+              }
+            },
+            "home_score": 2,
+            "away_score": 1
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "final-in-phase",
+            "state": "unknown",
+            "phase": "unknown",
+            "provider_state": "in",
+            "label": "Status unknown",
+            "played": false,
+            "final": false,
+            "void": false,
+            "reported_scores": {
+              "home": 2,
+              "away": 1
+            },
+            "scores": {
+              "home": null,
+              "away": null
+            }
+          },
+          {
+            "id": "final-not-completed",
+            "state": "unknown",
+            "phase": "post",
+            "provider_state": "post",
+            "label": "Status unknown",
+            "played": false,
+            "final": false,
+            "void": false,
+            "reported_scores": {
+              "home": 2,
+              "away": 1
+            },
+            "scores": {
+              "home": null,
+              "away": null
+            }
+          },
+          {
+            "id": "live-completed",
+            "state": "unknown",
+            "phase": "unknown",
+            "provider_state": "in",
+            "label": "Status unknown",
+            "played": false,
+            "final": false,
+            "void": false,
+            "reported_scores": {
+              "home": 2,
+              "away": 1
+            },
+            "scores": {
+              "home": null,
+              "away": null
+            }
+          }
+        ]
+      },
+      "because": "Generic phase and completion booleans constrain ordinary status identities; completed alone never establishes a final."
+    },
+    {
+      "id": "ordinary-phase-fallback",
+      "request": {
+        "version": 1,
+        "operation": "espn_status",
+        "cases": [
+          {
+            "id": "pre-no-identity",
+            "event_status": null,
+            "competition_status": {
+              "type": {
+                "state": "pre"
+              }
+            },
+            "home_score": 0,
+            "away_score": 0
+          },
+          {
+            "id": "in-no-identity",
+            "event_status": null,
+            "competition_status": {
+              "type": {
+                "state": "in"
+              }
+            },
+            "home_score": 0,
+            "away_score": 1
+          },
+          {
+            "id": "in-text-halftime",
+            "event_status": null,
+            "competition_status": {
+              "type": {
+                "state": "in",
+                "shortDetail": "HT"
+              }
+            },
+            "home_score": 0,
+            "away_score": 0
+          },
+          {
+            "id": "unknown-explicit-live-name",
+            "event_status": null,
+            "competition_status": {
+              "type": {
+                "state": "in",
+                "name": "STATUS_UNRECOGNIZED"
+              }
+            },
+            "home_score": 2,
+            "away_score": 1
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "pre-no-identity",
+            "state": "scheduled",
+            "phase": "pre",
+            "provider_state": "pre",
+            "label": "",
+            "played": false,
+            "final": false,
+            "void": false,
+            "reported_scores": {
+              "home": 0,
+              "away": 0
+            },
+            "scores": {
+              "home": null,
+              "away": null
+            }
+          },
+          {
+            "id": "in-no-identity",
+            "state": "live",
+            "phase": "in",
+            "provider_state": "in",
+            "label": "Live",
+            "played": true,
+            "final": false,
+            "void": false,
+            "reported_scores": {
+              "home": 0,
+              "away": 1
+            },
+            "scores": {
+              "home": 0,
+              "away": 1
+            }
+          },
+          {
+            "id": "in-text-halftime",
+            "state": "live",
+            "phase": "in",
+            "provider_state": "in",
+            "label": "HT",
+            "played": true,
+            "final": false,
+            "void": false,
+            "reported_scores": {
+              "home": 0,
+              "away": 0
+            },
+            "scores": {
+              "home": 0,
+              "away": 0
+            }
+          },
+          {
+            "id": "unknown-explicit-live-name",
+            "state": "unknown",
+            "phase": "unknown",
+            "provider_state": "in",
+            "label": "Status unknown",
+            "played": false,
+            "final": false,
+            "void": false,
+            "reported_scores": {
+              "home": 2,
+              "away": 1
+            },
+            "scores": {
+              "home": null,
+              "away": null
+            }
+          }
+        ]
+      },
+      "because": "Pre/in can stand alone when no explicit identity contradicts them. Halftime is still recognized through text without a named status."
+    },
+    {
+      "id": "source-selection-without-field-merging",
+      "request": {
+        "version": 1,
+        "operation": "espn_status",
+        "cases": [
+          {
+            "id": "competition-wins",
+            "event_status": {
+              "type": {
+                "state": "pre",
+                "description": "Scheduled"
+              }
+            },
+            "competition_status": {
+              "type": {
+                "state": "post",
+                "description": "Final"
+              }
+            },
+            "home_score": 2,
+            "away_score": 1
+          },
+          {
+            "id": "empty-falls-back",
+            "event_status": {
+              "type": {
+                "state": "in"
+              },
+              "displayClock": "9'"
+            },
+            "competition_status": {},
+            "home_score": 0,
+            "away_score": 1
+          },
+          {
+            "id": "malformed-falls-back",
+            "event_status": {
+              "type": {
+                "state": "in"
+              }
+            },
+            "competition_status": "not an object",
+            "home_score": 0,
+            "away_score": 1
+          },
+          {
+            "id": "nonempty-blocks-fallback",
+            "event_status": {
+              "type": {
+                "state": "in"
+              }
+            },
+            "competition_status": {
+              "clock": 0
+            },
+            "home_score": 0,
+            "away_score": 1
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "competition-wins",
+            "state": "finished",
+            "phase": "post",
+            "provider_state": "post",
+            "label": "FT",
+            "played": true,
+            "final": true,
+            "void": false,
+            "reported_scores": {
+              "home": 2,
+              "away": 1
+            },
+            "scores": {
+              "home": 2,
+              "away": 1
+            }
+          },
+          {
+            "id": "empty-falls-back",
+            "state": "live",
+            "phase": "in",
+            "provider_state": "in",
+            "label": "9'",
+            "played": true,
+            "final": false,
+            "void": false,
+            "reported_scores": {
+              "home": 0,
+              "away": 1
+            },
+            "scores": {
+              "home": 0,
+              "away": 1
+            }
+          },
+          {
+            "id": "malformed-falls-back",
+            "state": "live",
+            "phase": "in",
+            "provider_state": "in",
+            "label": "Live",
+            "played": true,
+            "final": false,
+            "void": false,
+            "reported_scores": {
+              "home": 0,
+              "away": 1
+            },
+            "scores": {
+              "home": 0,
+              "away": 1
+            }
+          },
+          {
+            "id": "nonempty-blocks-fallback",
+            "state": "unknown",
+            "phase": "unknown",
+            "provider_state": "",
+            "label": "Status unknown",
+            "played": false,
+            "final": false,
+            "void": false,
+            "reported_scores": {
+              "home": 0,
+              "away": 1
+            },
+            "scores": {
+              "home": null,
+              "away": null
+            }
+          }
+        ]
+      },
+      "because": "The selected whole status object owns interpretation; an empty or non-object competition status falls back, a nonempty unusable object does not."
+    },
+    {
+      "id": "score-shape-and-zero",
+      "request": {
+        "version": 1,
+        "operation": "espn_status",
+        "cases": [
+          {
+            "id": "object-zero",
+            "event_status": null,
+            "competition_status": {
+              "type": {
+                "state": "in"
+              }
+            },
+            "home_score": {
+              "displayValue": "0"
+            },
+            "away_score": null
+          },
+          {
+            "id": "object-value-is-not-display",
+            "event_status": null,
+            "competition_status": {
+              "type": {
+                "state": "in"
+              }
+            },
+            "home_score": {
+              "value": 2
+            },
+            "away_score": {
+              "displayValue": 1,
+              "value": 9
+            }
+          },
+          {
+            "id": "mathematical-integer",
+            "event_status": null,
+            "competition_status": {
+              "type": {
+                "state": "post",
+                "description": "Final"
+              }
+            },
+            "home_score": 2.0,
+            "away_score": "100"
+          },
+          {
+            "id": "nested-and-array",
+            "event_status": null,
+            "competition_status": {
+              "type": {
+                "state": "in"
+              }
+            },
+            "home_score": {
+              "displayValue": {
+                "displayValue": "2"
+              }
+            },
+            "away_score": [
+              1
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "object-zero",
+            "state": "live",
+            "phase": "in",
+            "provider_state": "in",
+            "label": "Live",
+            "played": true,
+            "final": false,
+            "void": false,
+            "reported_scores": {
+              "home": 0,
+              "away": null
+            },
+            "scores": {
+              "home": 0,
+              "away": null
+            }
+          },
+          {
+            "id": "object-value-is-not-display",
+            "state": "live",
+            "phase": "in",
+            "provider_state": "in",
+            "label": "Live",
+            "played": true,
+            "final": false,
+            "void": false,
+            "reported_scores": {
+              "home": null,
+              "away": 1
+            },
+            "scores": {
+              "home": null,
+              "away": 1
+            }
+          },
+          {
+            "id": "mathematical-integer",
+            "state": "finished",
+            "phase": "post",
+            "provider_state": "post",
+            "label": "FT",
+            "played": true,
+            "final": true,
+            "void": false,
+            "reported_scores": {
+              "home": 2,
+              "away": 100
+            },
+            "scores": {
+              "home": 2,
+              "away": 100
+            }
+          },
+          {
+            "id": "nested-and-array",
+            "state": "live",
+            "phase": "in",
+            "provider_state": "in",
+            "label": "Live",
+            "played": true,
+            "final": false,
+            "void": false,
+            "reported_scores": {
+              "home": null,
+              "away": null
+            },
+            "scores": {
+              "home": null,
+              "away": null
+            }
+          }
+        ]
+      },
+      "because": "The same parser accepts scalar and displayValue zeros, preserves absent sides and never substitutes value for missing displayValue."
+    },
+    {
+      "id": "score-rejection-boundaries",
+      "request": {
+        "version": 1,
+        "operation": "espn_status",
+        "cases": [
+          {
+            "id": "boolean-negative",
+            "event_status": null,
+            "competition_status": {
+              "type": {
+                "state": "in"
+              }
+            },
+            "home_score": true,
+            "away_score": -1
+          },
+          {
+            "id": "fraction-oversize",
+            "event_status": null,
+            "competition_status": {
+              "type": {
+                "state": "in"
+              }
+            },
+            "home_score": 1.5,
+            "away_score": 101
+          },
+          {
+            "id": "composite-penalties",
+            "event_status": null,
+            "competition_status": {
+              "type": {
+                "state": "post",
+                "description": "Final"
+              }
+            },
+            "home_score": "2-1",
+            "away_score": "2 (4)"
+          },
+          {
+            "id": "whitespace-decimal",
+            "event_status": null,
+            "competition_status": {
+              "type": {
+                "state": "in"
+              }
+            },
+            "home_score": " 0",
+            "away_score": "2.0"
+          },
+          {
+            "id": "four-digits-and-known-zero",
+            "event_status": null,
+            "competition_status": {
+              "type": {
+                "state": "in"
+              }
+            },
+            "home_score": "0000",
+            "away_score": "0"
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "boolean-negative",
+            "state": "live",
+            "phase": "in",
+            "provider_state": "in",
+            "label": "Live",
+            "played": true,
+            "final": false,
+            "void": false,
+            "reported_scores": {
+              "home": null,
+              "away": null
+            },
+            "scores": {
+              "home": null,
+              "away": null
+            }
+          },
+          {
+            "id": "fraction-oversize",
+            "state": "live",
+            "phase": "in",
+            "provider_state": "in",
+            "label": "Live",
+            "played": true,
+            "final": false,
+            "void": false,
+            "reported_scores": {
+              "home": null,
+              "away": null
+            },
+            "scores": {
+              "home": null,
+              "away": null
+            }
+          },
+          {
+            "id": "composite-penalties",
+            "state": "finished",
+            "phase": "post",
+            "provider_state": "post",
+            "label": "FT",
+            "played": true,
+            "final": true,
+            "void": false,
+            "reported_scores": {
+              "home": null,
+              "away": null
+            },
+            "scores": {
+              "home": null,
+              "away": null
+            }
+          },
+          {
+            "id": "whitespace-decimal",
+            "state": "live",
+            "phase": "in",
+            "provider_state": "in",
+            "label": "Live",
+            "played": true,
+            "final": false,
+            "void": false,
+            "reported_scores": {
+              "home": null,
+              "away": null
+            },
+            "scores": {
+              "home": null,
+              "away": null
+            }
+          },
+          {
+            "id": "four-digits-and-known-zero",
+            "state": "live",
+            "phase": "in",
+            "provider_state": "in",
+            "label": "Live",
+            "played": true,
+            "final": false,
+            "void": false,
+            "reported_scores": {
+              "home": null,
+              "away": 0
+            },
+            "scores": {
+              "home": null,
+              "away": 0
+            }
+          }
+        ]
+      },
+      "because": "Contract-bound independent sides reject non-scores without inventing zeros or accepting presentation strings."
+    },
+    {
+      "id": "non-status-facts-do-not-invent-results",
+      "request": {
+        "version": 1,
+        "operation": "espn_status",
+        "cases": [
+          {
+            "id": "clock-is-not-final",
+            "event_status": null,
+            "competition_status": {
+              "type": {
+                "state": "post",
+                "detail": "Final after penalties"
+              },
+              "displayClock": "FT",
+              "aggregate": "3-1",
+              "shootout": {
+                "home": 4,
+                "away": 3
+              }
+            },
+            "home_score": 2,
+            "away_score": 2
+          },
+          {
+            "id": "known-final-with-extra-fields",
+            "event_status": null,
+            "competition_status": {
+              "type": {
+                "state": "post",
+                "description": "Final"
+              },
+              "aggregate": "3-1",
+              "shootout": {
+                "home": 4,
+                "away": 3
+              }
+            },
+            "home_score": 2,
+            "away_score": 2
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "clock-is-not-final",
+            "state": "unknown",
+            "phase": "post",
+            "provider_state": "post",
+            "label": "Status unknown",
+            "played": false,
+            "final": false,
+            "void": false,
+            "reported_scores": {
+              "home": 2,
+              "away": 2
+            },
+            "scores": {
+              "home": null,
+              "away": null
+            }
+          },
+          {
+            "id": "known-final-with-extra-fields",
+            "state": "finished",
+            "phase": "post",
+            "provider_state": "post",
+            "label": "FT",
+            "played": true,
+            "final": true,
+            "void": false,
+            "reported_scores": {
+              "home": 2,
+              "away": 2
+            },
+            "scores": {
+              "home": 2,
+              "away": 2
+            }
+          }
+        ]
+      },
+      "because": "Display clock, detail and raw extra score/status fields do not establish completion or manufacture shootout/aggregate mappings."
+    },
+    {
+      "id": "malformed-source-values",
+      "request": {
+        "version": 1,
+        "operation": "espn_status",
+        "cases": [
+          {
+            "id": "bad-type",
+            "event_status": null,
+            "competition_status": {
+              "type": "in"
+            },
+            "home_score": false,
+            "away_score": {}
+          },
+          {
+            "id": "nonstring-name",
+            "event_status": null,
+            "competition_status": {
+              "type": {
+                "state": "in",
+                "name": 7
+              }
+            },
+            "home_score": 2,
+            "away_score": 1
+          },
+          {
+            "id": "nonstring-state",
+            "event_status": null,
+            "competition_status": {
+              "type": {
+                "state": true
+              }
+            },
+            "home_score": 0,
+            "away_score": 0
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "bad-type",
+            "state": "unknown",
+            "phase": "unknown",
+            "provider_state": "",
+            "label": "Status unknown",
+            "played": false,
+            "final": false,
+            "void": false,
+            "reported_scores": {
+              "home": null,
+              "away": null
+            },
+            "scores": {
+              "home": null,
+              "away": null
+            }
+          },
+          {
+            "id": "nonstring-name",
+            "state": "unknown",
+            "phase": "unknown",
+            "provider_state": "in",
+            "label": "Status unknown",
+            "played": false,
+            "final": false,
+            "void": false,
+            "reported_scores": {
+              "home": 2,
+              "away": 1
+            },
+            "scores": {
+              "home": null,
+              "away": null
+            }
+          },
+          {
+            "id": "nonstring-state",
+            "state": "unknown",
+            "phase": "unknown",
+            "provider_state": "",
+            "label": "Status unknown",
+            "played": false,
+            "final": false,
+            "void": false,
+            "reported_scores": {
+              "home": 0,
+              "away": 0
+            },
+            "scores": {
+              "home": null,
+              "away": null
+            }
+          }
+        ]
+      },
+      "because": "Malformed source JSON remains a per-case unknown rather than a protocol exception; malformed scores remain absent."
+    },
+    {
+      "id": "fixture-seam-normal-and-exception",
+      "request": {
+        "version": 1,
+        "operation": "fixture_status",
+        "cases": [
+          {
+            "id": "scheduled",
+            "phase": "pre",
+            "label": "",
+            "home_score": 0,
+            "away_score": 0
+          },
+          {
+            "id": "clock",
+            "phase": "in",
+            "label": "63'",
+            "home_score": 0,
+            "away_score": 1
+          },
+          {
+            "id": "halftime",
+            "phase": "in",
+            "label": "HT",
+            "home_score": 0,
+            "away_score": 0
+          },
+          {
+            "id": "final",
+            "phase": "post",
+            "label": "FT",
+            "home_score": 0,
+            "away_score": 1
+          },
+          {
+            "id": "cancelled",
+            "phase": "post",
+            "label": "Canceled",
+            "home_score": 0,
+            "away_score": 0
+          },
+          {
+            "id": "abandoned",
+            "phase": "post",
+            "label": "Abandoned",
+            "home_score": 2,
+            "away_score": 1
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "scheduled",
+            "state": "scheduled",
+            "phase": "pre",
+            "provider_state": "pre",
+            "label": "",
+            "played": false,
+            "final": false,
+            "void": false,
+            "reported_scores": {
+              "home": 0,
+              "away": 0
+            },
+            "scores": {
+              "home": null,
+              "away": null
+            }
+          },
+          {
+            "id": "clock",
+            "state": "live",
+            "phase": "in",
+            "provider_state": "in",
+            "label": "63'",
+            "played": true,
+            "final": false,
+            "void": false,
+            "reported_scores": {
+              "home": 0,
+              "away": 1
+            },
+            "scores": {
+              "home": 0,
+              "away": 1
+            }
+          },
+          {
+            "id": "halftime",
+            "state": "live",
+            "phase": "in",
+            "provider_state": "in",
+            "label": "HT",
+            "played": true,
+            "final": false,
+            "void": false,
+            "reported_scores": {
+              "home": 0,
+              "away": 0
+            },
+            "scores": {
+              "home": 0,
+              "away": 0
+            }
+          },
+          {
+            "id": "final",
+            "state": "finished",
+            "phase": "post",
+            "provider_state": "post",
+            "label": "FT",
+            "played": true,
+            "final": true,
+            "void": false,
+            "reported_scores": {
+              "home": 0,
+              "away": 1
+            },
+            "scores": {
+              "home": 0,
+              "away": 1
+            }
+          },
+          {
+            "id": "cancelled",
+            "state": "cancelled",
+            "phase": "post",
+            "provider_state": "post",
+            "label": "Canceled",
+            "played": false,
+            "final": false,
+            "void": true,
+            "reported_scores": {
+              "home": 0,
+              "away": 0
+            },
+            "scores": {
+              "home": null,
+              "away": null
+            }
+          },
+          {
+            "id": "abandoned",
+            "state": "abandoned",
+            "phase": "post",
+            "provider_state": "post",
+            "label": "Abandoned",
+            "played": false,
+            "final": false,
+            "void": true,
+            "reported_scores": {
+              "home": 2,
+              "away": 1
+            },
+            "scores": {
+              "home": null,
+              "away": null
+            }
+          }
+        ]
+      },
+      "because": "Direct/rehydrated Match values use the same classifier and parser, with canonical exception labels preserving meaning through the seam."
+    },
+    {
+      "id": "fixture-seam-unknown-and-conflict",
+      "request": {
+        "version": 1,
+        "operation": "fixture_status",
+        "cases": [
+          {
+            "id": "unknown-terminal",
+            "phase": "post",
+            "label": "Awaiting Official Ruling",
+            "home_score": 2,
+            "away_score": 1
+          },
+          {
+            "id": "missing-phase",
+            "phase": null,
+            "label": null,
+            "home_score": 0,
+            "away_score": 0
+          },
+          {
+            "id": "unknown-phase",
+            "phase": "unknown",
+            "label": "Status unknown",
+            "home_score": 0,
+            "away_score": 0
+          },
+          {
+            "id": "final-live-conflict",
+            "phase": "in",
+            "label": "FT",
+            "home_score": 2,
+            "away_score": 1
+          },
+          {
+            "id": "object-zero",
+            "phase": "in",
+            "label": "12'",
+            "home_score": {
+              "displayValue": "0"
+            },
+            "away_score": null
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "unknown-terminal",
+            "state": "unknown",
+            "phase": "post",
+            "provider_state": "post",
+            "label": "Status unknown",
+            "played": false,
+            "final": false,
+            "void": false,
+            "reported_scores": {
+              "home": 2,
+              "away": 1
+            },
+            "scores": {
+              "home": null,
+              "away": null
+            }
+          },
+          {
+            "id": "missing-phase",
+            "state": "unknown",
+            "phase": "unknown",
+            "provider_state": "",
+            "label": "Status unknown",
+            "played": false,
+            "final": false,
+            "void": false,
+            "reported_scores": {
+              "home": 0,
+              "away": 0
+            },
+            "scores": {
+              "home": null,
+              "away": null
+            }
+          },
+          {
+            "id": "unknown-phase",
+            "state": "unknown",
+            "phase": "unknown",
+            "provider_state": "unknown",
+            "label": "Status unknown",
+            "played": false,
+            "final": false,
+            "void": false,
+            "reported_scores": {
+              "home": 0,
+              "away": 0
+            },
+            "scores": {
+              "home": null,
+              "away": null
+            }
+          },
+          {
+            "id": "final-live-conflict",
+            "state": "unknown",
+            "phase": "unknown",
+            "provider_state": "in",
+            "label": "Status unknown",
+            "played": false,
+            "final": false,
+            "void": false,
+            "reported_scores": {
+              "home": 2,
+              "away": 1
+            },
+            "scores": {
+              "home": null,
+              "away": null
+            }
+          },
+          {
+            "id": "object-zero",
+            "state": "live",
+            "phase": "in",
+            "provider_state": "in",
+            "label": "12'",
+            "played": true,
+            "final": false,
+            "void": false,
+            "reported_scores": {
+              "home": 0,
+              "away": null
+            },
+            "scores": {
+              "home": 0,
+              "away": null
+            }
+          }
+        ]
+      },
+      "because": "The normalized seam does not infer final from post or preserve a contradictory live phase; reporting scores stays independent."
+    },
+    {
+      "id": "bounded-source-display-fields",
+      "request": {
+        "version": 1,
+        "operation": "espn_status",
+        "cases": [
+          {
+            "id": "long-phase",
+            "event_status": null,
+            "competition_status": {
+              "type": {
+                "state": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                "description": "Final"
+              }
+            },
+            "home_score": 2,
+            "away_score": 1
+          },
+          {
+            "id": "long-clock",
+            "event_status": null,
+            "competition_status": {
+              "type": {
+                "state": "in",
+                "shortDetail": "9'"
+              },
+              "displayClock": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            },
+            "home_score": 0,
+            "away_score": 1
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "long-phase",
+            "state": "unknown",
+            "phase": "unknown",
+            "provider_state": "",
+            "label": "Status unknown",
+            "played": false,
+            "final": false,
+            "void": false,
+            "reported_scores": {
+              "home": 2,
+              "away": 1
+            },
+            "scores": {
+              "home": null,
+              "away": null
+            }
+          },
+          {
+            "id": "long-clock",
+            "state": "live",
+            "phase": "in",
+            "provider_state": "in",
+            "label": "9'",
+            "played": true,
+            "final": false,
+            "void": false,
+            "reported_scores": {
+              "home": 0,
+              "away": 1
+            },
+            "scores": {
+              "home": 0,
+              "away": 1
+            }
+          }
+        ]
+      },
+      "because": "A source phase beyond the existing100-character feed limit supplies no recognized phase; an overlong display clock falls back without truncation or fabricating elapsed time."
+    },
+    {
+      "id": "raw-live-display-is-not-status-identity",
+      "request": {
+        "version": 1,
+        "operation": "espn_status",
+        "cases": [
+          {
+            "id": "raw-live-clock-ft",
+            "event_status": null,
+            "competition_status": {
+              "type": {
+                "state": "in",
+                "name": "STATUS_IN_PROGRESS"
+              },
+              "displayClock": "FT"
+            },
+            "home_score": 1,
+            "away_score": 0
+          },
+          {
+            "id": "raw-live-clock-postponed",
+            "event_status": null,
+            "competition_status": {
+              "type": {
+                "state": "in",
+                "name": "STATUS_IN_PROGRESS"
+              },
+              "displayClock": "Postponed"
+            },
+            "home_score": 1,
+            "away_score": 0
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "raw-live-clock-ft",
+            "state": "live",
+            "phase": "in",
+            "provider_state": "in",
+            "label": "FT",
+            "played": true,
+            "final": false,
+            "void": false,
+            "reported_scores": {
+              "home": 1,
+              "away": 0
+            },
+            "scores": {
+              "home": 1,
+              "away": 0
+            }
+          },
+          {
+            "id": "raw-live-clock-postponed",
+            "state": "live",
+            "phase": "in",
+            "provider_state": "in",
+            "label": "Postponed",
+            "played": true,
+            "final": false,
+            "void": false,
+            "reported_scores": {
+              "home": 1,
+              "away": 0
+            },
+            "scores": {
+              "home": 1,
+              "away": 0
+            }
+          }
+        ]
+      },
+      "because": "Accepted raw live displayClock text does not participate in identity classification, including text which would be a terminal token in an identity field."
+    },
+    {
+      "id": "bound-normalized-state-survives-display-collision",
+      "request": {
+        "version": 1,
+        "operation": "fixture_status",
+        "cases": [
+          {
+            "id": "bound-live-ft",
+            "phase": "in",
+            "label": "FT",
+            "home_score": 1,
+            "away_score": 0,
+            "state": "live"
+          },
+          {
+            "id": "bound-live-postponed",
+            "phase": "in",
+            "label": "Postponed",
+            "home_score": 1,
+            "away_score": 0,
+            "state": "live"
+          },
+          {
+            "id": "bound-unknown-post",
+            "phase": "post",
+            "label": "FT",
+            "home_score": 1,
+            "away_score": 0,
+            "state": "unknown"
+          },
+          {
+            "id": "bound-unknown-pending",
+            "phase": "unknown",
+            "label": "Live",
+            "home_score": 1,
+            "away_score": 0,
+            "state": "unknown"
+          },
+          {
+            "id": "bound-inconsistent",
+            "phase": "post",
+            "label": "12'",
+            "home_score": 1,
+            "away_score": 0,
+            "state": "live"
+          },
+          {
+            "id": "bound-invalid",
+            "phase": "in",
+            "label": "12'",
+            "home_score": 1,
+            "away_score": 0,
+            "state": "other"
+          },
+          {
+            "id": "null-legacy-cancel",
+            "phase": "in",
+            "label": "Canceled",
+            "home_score": 1,
+            "away_score": 0,
+            "state": null
+          },
+          {
+            "id": "absent-legacy-cancel",
+            "phase": "in",
+            "label": "Canceled",
+            "home_score": 1,
+            "away_score": 0
+          },
+          {
+            "id": "bound-final",
+            "phase": "post",
+            "label": "Postponed",
+            "home_score": 1,
+            "away_score": 0,
+            "state": "finished"
+          },
+          {
+            "id": "bound-cancelled",
+            "phase": "post",
+            "label": "FT",
+            "home_score": 1,
+            "away_score": 0,
+            "state": "cancelled"
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "bound-live-ft",
+            "state": "live",
+            "phase": "in",
+            "provider_state": "in",
+            "label": "FT",
+            "played": true,
+            "final": false,
+            "void": false,
+            "reported_scores": {
+              "home": 1,
+              "away": 0
+            },
+            "scores": {
+              "home": 1,
+              "away": 0
+            }
+          },
+          {
+            "id": "bound-live-postponed",
+            "state": "live",
+            "phase": "in",
+            "provider_state": "in",
+            "label": "Postponed",
+            "played": true,
+            "final": false,
+            "void": false,
+            "reported_scores": {
+              "home": 1,
+              "away": 0
+            },
+            "scores": {
+              "home": 1,
+              "away": 0
+            }
+          },
+          {
+            "id": "bound-unknown-post",
+            "state": "unknown",
+            "phase": "post",
+            "provider_state": "post",
+            "label": "Status unknown",
+            "played": false,
+            "final": false,
+            "void": false,
+            "reported_scores": {
+              "home": 1,
+              "away": 0
+            },
+            "scores": {
+              "home": null,
+              "away": null
+            }
+          },
+          {
+            "id": "bound-unknown-pending",
+            "state": "unknown",
+            "phase": "unknown",
+            "provider_state": "unknown",
+            "label": "Status unknown",
+            "played": false,
+            "final": false,
+            "void": false,
+            "reported_scores": {
+              "home": 1,
+              "away": 0
+            },
+            "scores": {
+              "home": null,
+              "away": null
+            }
+          },
+          {
+            "id": "bound-inconsistent",
+            "state": "unknown",
+            "phase": "post",
+            "provider_state": "post",
+            "label": "Status unknown",
+            "played": false,
+            "final": false,
+            "void": false,
+            "reported_scores": {
+              "home": 1,
+              "away": 0
+            },
+            "scores": {
+              "home": null,
+              "away": null
+            }
+          },
+          {
+            "id": "bound-invalid",
+            "state": "unknown",
+            "phase": "unknown",
+            "provider_state": "in",
+            "label": "Status unknown",
+            "played": false,
+            "final": false,
+            "void": false,
+            "reported_scores": {
+              "home": 1,
+              "away": 0
+            },
+            "scores": {
+              "home": null,
+              "away": null
+            }
+          },
+          {
+            "id": "null-legacy-cancel",
+            "state": "cancelled",
+            "phase": "post",
+            "provider_state": "in",
+            "label": "Canceled",
+            "played": false,
+            "final": false,
+            "void": true,
+            "reported_scores": {
+              "home": 1,
+              "away": 0
+            },
+            "scores": {
+              "home": null,
+              "away": null
+            }
+          },
+          {
+            "id": "absent-legacy-cancel",
+            "state": "cancelled",
+            "phase": "post",
+            "provider_state": "in",
+            "label": "Canceled",
+            "played": false,
+            "final": false,
+            "void": true,
+            "reported_scores": {
+              "home": 1,
+              "away": 0
+            },
+            "scores": {
+              "home": null,
+              "away": null
+            }
+          },
+          {
+            "id": "bound-final",
+            "state": "finished",
+            "phase": "post",
+            "provider_state": "post",
+            "label": "FT",
+            "played": true,
+            "final": true,
+            "void": false,
+            "reported_scores": {
+              "home": 1,
+              "away": 0
+            },
+            "scores": {
+              "home": 1,
+              "away": 0
+            }
+          },
+          {
+            "id": "bound-cancelled",
+            "state": "cancelled",
+            "phase": "post",
+            "provider_state": "post",
+            "label": "Canceled",
+            "played": false,
+            "final": false,
+            "void": true,
+            "reported_scores": {
+              "home": 1,
+              "away": 0
+            },
+            "scores": {
+              "home": null,
+              "away": null
+            }
+          }
+        ]
+      },
+      "because": "Canonical state survives raw-to-normalized serialization without reinterpreting display text. Phase inconsistency or unsupported bound state fails to unknown; absent/null state retains legacy inference."
+    }
+  ]
+}

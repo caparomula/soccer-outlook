@@ -1,0 +1,80 @@
+{
+  "version": 1,
+  "reviewed_date": "2026-10-23",
+  "completed": true,
+  "scope": "Independent offline source and targeted adapter review after bounded retention/metadata repairs",
+  "production_edits": false,
+  "remaining_findings": [],
+  "source_hashes": {
+    "build.py": "e04f649cd8742e5fb7efd22a9b1010ca63d29e7913ee96822cbb9085e1bf8336",
+    "broadcast_listings.py": "d0cd4b3051676337fe663a843b59024f97e154420fbeff93a1ed069aacd547a6",
+    "companion_export.py": "899d29cb2e7a482f062aabf23c86d58c34840a923cb20160f92d12d438b55a87",
+    "provider_utils.py": "8044c9170049d31ea2492047dfe68652fb4ca4d7d81777f9a0cb01f0a1605d05",
+    "outlook_runtime.py": "1a200b8c1253be6984594543aec45fec5772c086edf9ae14d30487ad12aaa871",
+    "contracts/outlook/v1/common.schema.json": "cefd310005b0d456b9541cd906ad114f94682247a244ee08cf45610edc343514",
+    "docs/companion/rules/route-validity.md": "5c555c766ad833309a3832b49b004a100e902d61cb70f3bdc59bbf4bc43c4159"
+  },
+  "current_source_mismatches": [],
+  "resolved_findings": [
+    {
+      "id": "same-channel-retention-deadline",
+      "initial_observation": "Earlier duplicate records were dropped, changing verification16:00 to17:00 and expiry18:05 to23:00.",
+      "resolution": "Source-qualified records are grouped before aggregate expiry filtering, including expired records, and original minimum timing is retained.",
+      "independent_proof": "earliest_deadline cases cover record order and already-expired shortest record."
+    },
+    {
+      "id": "malformed-retained-page-feed",
+      "initial_observation": "A missing retained verification could borrow a fresh same-channel timestamp, while export overrode retained metadata and disagreed with the page.",
+      "resolution": "Shared aggregation refuses to invent verification; contract-unrepresentable retained claims export unknown with no eligible plans or invented interval.",
+      "independent_proof": "Focused implementation regression validates the contract-valid projection; source review confirms coherent shared facts."
+    },
+    {
+      "id": "malformed-retained-outage-revival",
+      "initial_observation": "On the first candidate, a mixed retained checked_at-empty plus fresh17:00 ledger denied access at18:00, but unavailable/fetch_failed retention discarded the malformed record and restored yttv until23:00. Missing-host, credential-bearing and invalid-IPv6 URLs reproduced the same issue.",
+      "resolution": "After source/outcome/country/kind/channel qualification, malformed retained records block same-channel reuse. Rejected sources do not constrain qualified independent sources; fresh independent channels survive.",
+      "independent_proof": "Eight malformed-outage probes pass, plus definitive-rejection and independent fresh-channel checks."
+    },
+    {
+      "id": "duplicate-route-evidence-ids",
+      "initial_observation": "Two observations identical except explicit expiry retained correctly, but repeated route evidence IDs failed complete artifact validation with non-unique elements.",
+      "resolution": "Linked evidence IDs are deduplicated without discarding temporal constraints.",
+      "independent_proof": "Identical observation/distinct deadline probe validates complete artifacts and retains18:05 cutoff."
+    }
+  ],
+  "probe": {
+    "command": [
+      "env",
+      "PYTHONDONTWRITEBYTECODE=1",
+      "work/companion-venv/bin/python",
+      "work/p2-validity-aggregation-review-2026-10-23/review.py"
+    ],
+    "exit_code": 0,
+    "passed_cases": 14,
+    "script": "work/p2-validity-aggregation-review-2026-10-23/review.py",
+    "script_sha256": "2c30dfe9491f193f37bf619f4117e126b1fbb479a181aae5ca167f1478b66aef",
+    "report": "work/p2-validity-aggregation-review-2026-10-23/candidate-review.json",
+    "report_sha256": "e71d414dc5c3089758470e2d680ff92fcb0f9c797089d81028f6b84adf240ff6"
+  },
+  "retained_evidence": [
+    {
+      "path": "work/p2-validity-edge-review-2026-10-23/report.json",
+      "sha256": "120db04a30e6e1d0c07752a5503ee5feceebd693c9c06dff38e99f371f08026c"
+    },
+    {
+      "path": "work/p2-validity-aggregation-before-2026-10-23.log",
+      "sha256": "8e4091b619529d3fb1c2ba82c6150b4b14107c29cf25a577d1801d521651ac19"
+    },
+    {
+      "path": "work/p2-validity-review-repair-before-2026-10-23.log",
+      "sha256": "934fa48ffdbb8896c44bf8e25ac97f6c4978cc5112e50728c33d96390df416b5"
+    },
+    {
+      "path": "work/p2-validity-review-repair-passed-2026-10-23.log",
+      "sha256": "9135813f03144985c3314787f11518826c09443c3ab11c5bf0692f6e94809959"
+    }
+  ],
+  "limits": [
+    "Targeted local probes and source review only; broad Python/browser and full/lightweight replay acceptance belong to separate reports.",
+    "Original direct probes reproduced both follow-up findings in tool output; implementation agent separately retained failing-first tests before each repair."
+  ]
+}

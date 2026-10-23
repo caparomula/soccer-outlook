@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://soccer-outlook.invalid/contracts/outlook/v1/manifest.schema.json",
+  "title": "Draft P0 manifest",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "kind": {
+      "const": "outlook_manifest"
+    },
+    "content_revision": {
+      "$ref": "common.schema.json#/$defs/id"
+    },
+    "publication_revision": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "published_at": {
+      "$ref": "common.schema.json#/$defs/utc"
+    },
+    "producer_revision": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "artifacts": {
+      "type": "object",
+      "properties": {
+        "catalog": {
+          "$ref": "common.schema.json#/$defs/descriptor"
+        },
+        "schedule": {
+          "$ref": "common.schema.json#/$defs/descriptor"
+        },
+        "policy": {
+          "$ref": "common.schema.json#/$defs/descriptor"
+        },
+        "editorial": {
+          "anyOf": [
+            {
+              "$ref": "common.schema.json#/$defs/descriptor"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "catalog",
+        "schedule",
+        "policy",
+        "editorial"
+      ],
+      "additionalProperties": true,
+      "maxProperties": 100
+    },
+    "viewer_preferences": false,
+    "personal_ai": false,
+    "final_pick_score": false,
+    "rating_dots": false,
+    "personalized_picks": false
+  },
+  "required": [
+    "schema_version",
+    "kind",
+    "content_revision",
+    "publication_revision",
+    "published_at",
+    "producer_revision",
+    "artifacts"
+  ],
+  "additionalProperties": true,
+  "maxProperties": 100
+}

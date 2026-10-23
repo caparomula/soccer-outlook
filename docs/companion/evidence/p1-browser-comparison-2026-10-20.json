@@ -1,0 +1,130 @@
+{
+  "date": "2026-10-20",
+  "base_commit": "9b977bb2b779b55bea84472e81f4ab00da423f1a",
+  "playwright": "1.62.0",
+  "source_hashes": {
+    "build.py": {
+      "head_sha256": "88d2545fe68b2ccb47766f4738935ff36dd1e344449ece35b94610095efee2af",
+      "working_sha256": "502cba2d4366c57aabbb72323dcfd8d59d06c57c108592310bfcee27b5eb065a",
+      "unchanged_from_head": false
+    },
+    "tests/browser.py": {
+      "head_sha256": "6495563fb03450bc7bded0eac76b7b284a00b2a7e69724a72f4043c8a305d9fe",
+      "working_sha256": "6495563fb03450bc7bded0eac76b7b284a00b2a7e69724a72f4043c8a305d9fe",
+      "unchanged_from_head": true
+    },
+    "tests/browser_schedule.py": {
+      "head_sha256": "efa9a0f1790cec0f7d8f469c5743ebd54e8b188a70fdd7d70a2d72a4a880470f",
+      "working_sha256": "efa9a0f1790cec0f7d8f469c5743ebd54e8b188a70fdd7d70a2d72a4a880470f",
+      "unchanged_from_head": true
+    },
+    "web/app.js": {
+      "head_sha256": "495707eaf6c00b1ae725464e10fa1cef45498336b417c37c0c4b8ca29fc7d0e4",
+      "working_sha256": "495707eaf6c00b1ae725464e10fa1cef45498336b417c37c0c4b8ca29fc7d0e4",
+      "unchanged_from_head": true
+    },
+    "web/styles.css": {
+      "head_sha256": "79b0b52d58901ac6f7a89638307d690545b385a9c43bbbda824220d2c514cd3a",
+      "working_sha256": "79b0b52d58901ac6f7a89638307d690545b385a9c43bbbda824220d2c514cd3a",
+      "unchanged_from_head": true
+    },
+    "web/page.html": {
+      "head_sha256": "831b09afce61c61376280b33b7756fc32e91293bdcb5ab6ceca633b0c0cc3d70",
+      "working_sha256": "831b09afce61c61376280b33b7756fc32e91293bdcb5ab6ceca633b0c0cc3d70",
+      "unchanged_from_head": true
+    },
+    "schedule_data.py": {
+      "head_sha256": "b23dcef37e56cbd4eef9714b78ec17e19da24c363b2c99de3c986ce1a42167ae",
+      "working_sha256": "b23dcef37e56cbd4eef9714b78ec17e19da24c363b2c99de3c986ce1a42167ae",
+      "unchanged_from_head": true
+    }
+  },
+  "fixture_render_comparison": {
+    "description": "HEAD build.py and working build.py render exact failing league-vitals fixture using the same current runtime marker/config/assets; web assets and config are unchanged by P1.",
+    "baseline_bytes": 354870,
+    "baseline_sha256": "9378f84db3441570e8b14006d7e80a36ecfffe829c0dc792bf9d4e295601a3f3",
+    "working_sha256": "9378f84db3441570e8b14006d7e80a36ecfffe829c0dc792bf9d4e295601a3f3",
+    "identical": true
+  },
+  "narrow_reproductions": [
+    {
+      "run": "baseline",
+      "engine": "webkit",
+      "tests": 3,
+      "failures": 5,
+      "errors": 2,
+      "seconds": 63.108,
+      "action_timeout_ms": 30000,
+      "log": "baseline.log"
+    },
+    {
+      "run": "current",
+      "engine": "webkit",
+      "tests": 3,
+      "failures": 5,
+      "errors": 2,
+      "seconds": 13.011,
+      "action_timeout_ms": 5000,
+      "log": "current.log"
+    }
+  ],
+  "failures": [
+    {
+      "test": "test_league_emblems_show_vitals_in_each_role_without_changing_filters",
+      "widths": [
+        1280,
+        320
+      ],
+      "evidence": "After Tab, modal open=true while document.activeElement is BODY outside the modal."
+    },
+    {
+      "test": "test_details_dialog_mouse_touch_keyboard_and_focus_without_reflow",
+      "widths": [
+        1280,
+        390,
+        320
+      ],
+      "evidence": "After Tab, modal open=true while document.activeElement is BODY outside the modal."
+    },
+    {
+      "test": "test_watch_links_follow_service_access_in_schedule_and_featured_cards",
+      "widths": [
+        1280,
+        390
+      ],
+      "javascript": true,
+      "evidence": "page.expect_popup times out after native target=_blank link click."
+    }
+  ],
+  "temporary_mime_probe": {
+    "change": "Ignored diagnostic script returned text/html instead of text/css for mocked document navigation. No tracked test changes.",
+    "outcome": "Both WebKit popup timeouts remained. Hypothesis not supported.",
+    "log": "mime-probe.log"
+  },
+  "disposition": "Baseline WebKit limitations reproduced; no production/browser-test changes made for P1.",
+  "schedule_checks": [
+    {
+      "engine": "chromium",
+      "tests": 11,
+      "passed": 11,
+      "seconds": 16.068,
+      "exit_code": 0,
+      "log": "schedule-chromium.log"
+    },
+    {
+      "engine": "webkit",
+      "tests": 11,
+      "passed": 11,
+      "seconds": 18.926,
+      "exit_code": 0,
+      "log": "schedule-webkit.log"
+    }
+  ],
+  "evidence_sha256": {
+    "baseline.log": "cc98fbc1fd19321eb6695a9e933e2fb6f58a420e7b961fae00d99f8cb1903ef0",
+    "current.log": "4b2c633d6d4c6d998b1de9830dbf4523beccff25f20cd76b5ef8ccd0c0c1670f",
+    "mime-probe.log": "0c1b76191d0d439cb5040469c291e7ca88ba92b44e042a0a9f8e0d37ad88f5ee",
+    "schedule-chromium.log": "719efc663843d52754278d63a70e9386fe54988462b6583877bb668ee0f579b7",
+    "schedule-webkit.log": "caf1094e6f21b858ebdb4ee94eb4090e21bad83595c168eac15ba5bde3cda91e"
+  }
+}

@@ -11,6 +11,8 @@ import os
 from pathlib import Path
 import subprocess
 
+import outlook_runtime
+
 
 def json_value(value):
     if isinstance(value, dict):
@@ -23,6 +25,7 @@ def json_value(value):
 
 
 def source_version(root):
+    root = Path(root)
     revision = os.environ.get("GITHUB_SHA") or None
     if revision is None:
         try:
@@ -33,8 +36,9 @@ def source_version(root):
             pass
     # Fingerprints also identify locally edited code whose HEAD alone would be misleading.
     files = {name: hashlib.sha256((root / name).read_bytes()).hexdigest()
-             for name in ("build.py", "metrics.py", "history.py", "story.py", "settings.toml", "rights.toml")
+             for name in ("build.py", "metrics.py", "history.py", "story.py", "settings.toml", "rights.toml", "outlook_runtime.py")
              if (root / name).is_file()}
+    files.update(outlook_runtime.source_manifest(root))
     return revision, files
 
 
@@ -53,10 +57,6 @@ def snapshot(api, matches, raw_events, observed_at, *, build_started_at=None, so
         event = raw_events.get(match.league, {}).get(match.id, {})
         comp = (api.dicts(event.get("competitions")) or [{}])[0]
         raw_status = event.get("status") or comp.get("status") or {}
-        status_type = raw_status.get("type") or {}
-        void = match.status.lower() in api.VOID_STATUSES or any(
-            str(status_type.get(key, "")).lower() in api.VOID_STATUSES
-            for key in ("description", "shortDetail", "detail"))
         parts = api.outlook_parts(match)
         attendance_raw = comp.get("attendance")
         # ESPN's absent/zero placeholders do not establish an empty stadium.
@@ -68,17 +68,16 @@ def snapshot(api, matches, raw_events, observed_at, *, build_started_at=None, so
         capacity = int(capacity_value) if capacity_value is not None and capacity_value > 0 and capacity_value.is_integer() else None
         competitors = {item.get("homeAway"): item for item in api.dicts(comp.get("competitors"))}
         raw_scores = {side: competitors.get(side, {}).get("score") for side in ("home", "away")}
-        def actual_score(side):
-            value = api.finite_number(raw_scores[side])
-            if match.state not in ("in", "post") or void:
-                return None
-            return int(value) if value is not None and value >= 0 and value.is_integer() else None
+        # The current Match carries the canonical source verdict (competition
+        # status wins). Keep the historical event-first archive intact, but never
+        # let it override a corrected/replaced Match's shared classification.
+        status_facts = api.match_status(match, scores=raw_scores)
         record = {
             "id": match.id, "league_id": match.league, "competition": match.comp,
             "kickoff_utc": match.utc.isoformat(), "time_confirmed": match.time_valid,
             "state": match.state, "status": match.status, "status_raw": raw_status,
             "forecast_eligible": bool(match.time_valid and match.state == "pre"
-                                      and match.utc > observed_at and not void),
+                                      and match.utc > observed_at and not status_facts["void"]),
             "home": team(match.home), "away": team(match.away), "stage": match.stage,
             "note": match.note, "venue": match.venue,
             "venue_details": venue,
@@ -115,8 +114,8 @@ def snapshot(api, matches, raw_events, observed_at, *, build_started_at=None, so
                 "stadium_capacity": capacity, "capacity_raw": capacity_raw,
                 "occupancy": attendance / capacity if attendance is not None and capacity is not None else None,
                 "viewership": None, "viewership_status": "no_data_source",
-                "home_score": actual_score("home"), "away_score": actual_score("away"), "scores_raw": raw_scores,
-                "score_is_final": match.state == "post" and not void,
+                "home_score": status_facts["scores"]["home"], "away_score": status_facts["scores"]["away"], "scores_raw": raw_scores,
+                "score_is_final": status_facts["final"],
                 "goals": match.goals,
             },
         }

@@ -30,7 +30,7 @@ on:
         default: refresh
   push:
     branches: [main]
-    paths: ["**/*.py", "settings.toml", "rights.toml", "watch-links.toml", "content/shared-ai.json", "content/match-observations.json", "web/**", "tests/**", ".github/workflows/**", ".github/scripts/**"]
+    paths: ["**/*.py", "settings.toml", "rights.toml", "watch-links.toml", "content/shared-ai.json", "content/match-observations.json", "web/**", "tests/**", "companion-toolchain.json", "packages/outlook_core/**", "packages/outlook_data/**", "tool/outlook_bridge/**", "tool/companion_p0_limits.json", ".github/workflows/**", ".github/scripts/**", ".github/actions/outlook-runtime/**"]
 
 permissions:
   contents: write
@@ -53,6 +53,10 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
+      - uses: ./.github/actions/outlook-runtime
+
+      - name: Install test dependencies
+        run: python3 -m pip install -r tests/requirements-companion.txt
 
       - name: Unit tests
         run: python3 -m unittest -v
@@ -67,7 +71,7 @@ jobs:
         timeout-minutes: 10
         run: |
           if ! { python3 -m venv .browser-venv &&
-                 timeout 180 .browser-venv/bin/pip install --quiet -r tests/requirements-browser.txt &&
+                 timeout 180 .browser-venv/bin/pip install --quiet -r tests/requirements-browser.txt -r tests/requirements-companion.txt &&
                  timeout 300 .browser-venv/bin/python -m playwright install chromium; }; then
             echo "::warning::Couldn't install the browser for the checks; publishing without them."
             exit 0
@@ -92,22 +96,46 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
-      - name: Read previous broadcast evidence
+      - name: Read previous broadcast evidence and companion history
         run: |
           mkdir -p work
           if git fetch -q --no-tags --depth=1 origin gh-pages; then
+            python3 .github/scripts/restore-outlook-runtime.py --ref FETCH_HEAD --out site
             git show FETCH_HEAD:schedule-context.json > work/previous-context.json || rm -f work/previous-context.json
+            if git cat-file -e FETCH_HEAD:api 2>/dev/null; then
+              mkdir -p work/previous-publication site
+              git archive FETCH_HEAD api | tar -x -C work/previous-publication
+              cp -R work/previous-publication/api site/api
+            fi
+          else
+            # A disabled exporter must also retain a previously published API.
+            # Only a conclusive absent branch permits a first publication.
+            status=0
+            git ls-remote --exit-code origin refs/heads/gh-pages > /dev/null || status=$?
+            if [ "$status" -ne 2 ]; then
+              echo "::error::Cannot read durable published history; keeping the published site."
+              exit 1
+            fi
           fi
 
       - name: Build the page
         env:
+          COMPANION_FEED_ENABLED: ${{ vars.COMPANION_FEED_ENABLED }}
           SITE_URL: ${{ vars.SITE_URL || format('https://{0}.github.io/{1}/', github.repository_owner, github.event.repository.name) }}
           GOOGLE_SITE_VERIFICATION: ${{ vars.GOOGLE_SITE_VERIFICATION }}
           BING_SITE_VERIFICATION: ${{ vars.BING_SITE_VERIFICATION }}
           INDEXNOW_KEY: ${{ vars.INDEXNOW_KEY }}
         run: |
           bash .github/scripts/check-current-revision.sh
-          python3 build.py --out site/index.html --site-url "$SITE_URL" --facts work/facts.json --metrics work/metrics.json --warnings work/mapping-report.txt --report work/build-report.json --previous-context work/previous-context.json
+          companion=()
+          if [ "$COMPANION_FEED_ENABLED" = true ]; then
+            previous_api=none
+            if [ -d work/previous-publication/api ]; then
+              previous_api=work/previous-publication/api/v1
+            fi
+            companion=(--companion-feed --companion-previous-api "$previous_api" --companion-producer-revision "$GITHUB_SHA" --companion-stage work/companion-stage.json)
+          fi
+          python3 build.py --out site/index.html --site-url "$SITE_URL" --facts work/facts.json --metrics work/metrics.json --warnings work/mapping-report.txt --report work/build-report.json --previous-context work/previous-context.json "${companion[@]}"
 
       - name: Check the page
         run: python3 .github/scripts/check-build.py --page site/index.html --report work/build-report.json
@@ -116,6 +144,7 @@ jobs:
         continue-on-error: true
         timeout-minutes: 90
         env:
+          COMPANION_FEED_ENABLED: ${{ vars.COMPANION_FEED_ENABLED }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
@@ -144,6 +173,9 @@ jobs:
           # Save a compatible, fresh result before setup or generation: even a timeout leaves it
           # publishable. These planning operations make no API requests and need no SDK.
           story_args=(--facts work/facts.json --out site/story.json "${previous[@]}" --mode "$mode")
+          if [ "$COMPANION_FEED_ENABLED" = true ]; then
+            story_args+=(--companion-bindings)
+          fi
           python3 story.py "${story_args[@]}" --fallback-only
           sdk=$(python3 story.py "${story_args[@]}" --needs-sdk)
           story_python=python3
@@ -153,6 +185,12 @@ jobs:
             story_python=.venv/bin/python
           fi
           "$story_python" story.py "${story_args[@]}" --usage-out work/usage.json
+
+      - name: Finalize opt-in companion publication
+        if: vars.COMPANION_FEED_ENABLED == 'true'
+        run: |
+          bash .github/scripts/check-current-revision.sh
+          python3 .github/scripts/companion-feed.py --stage work/companion-stage.json --api-dir site/api/v1 --automatic site/story.json --shared site/shared-ai.json
 
       - name: Archive match metrics and ratings
         run: |
@@ -193,5 +231,6 @@ jobs:
             work/mapping-report.txt
             work/build-report.json
             work/usage.json
+            work/companion-stage.json
           if-no-files-found: ignore
           retention-days: 14

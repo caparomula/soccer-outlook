@@ -108,7 +108,10 @@ class MetricCapture(unittest.TestCase):
         self.assertTrue(result["score_is_final"])
         self.event["status"] = {"type": {"state": "pre", "description": "Postponed"}}
         row = self.capture()["matches"][0]
-        self.assertFalse(row["forecast_eligible"])
+        # The event-first raw archive is preserved, but cannot override the
+        # current Match's canonical competition-first scheduled verdict.
+        self.assertTrue(row["forecast_eligible"])
+        self.assertEqual(row["status_raw"], self.event["status"])
         result = self.capture([replace(finished, status="Postponed")])["matches"][0]["observed"]
         self.assertIsNone(result["away_score"])
         self.assertFalse(result["score_is_final"])

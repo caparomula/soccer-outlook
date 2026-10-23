@@ -1,10 +1,11 @@
-"""Pure window and reuse rules for AI generation; no provider calls or file writes."""
-from datetime import datetime, time, timedelta
+"""AI window/reuse rules; calendar boundaries come from the shared Dart owner."""
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
+
+import outlook_runtime
 
 ET = ZoneInfo("America/New_York")
 WINDOW_DAYS = 3
-DAY_START_HOUR = 4
 MIN_GAP_HOURS = 3
 MAX_AGE_HOURS = 30
 BLURB_CANDIDATES = 6  # The top three plus room for different league priorities or a live card.
@@ -13,8 +14,7 @@ COMPONENTS = ("popularity", "gameplay", "impact")
 
 def window_end(built):
     """4 am Eastern after today and the three following days; days start at 4 am."""
-    day = (built.astimezone(ET) - timedelta(hours=DAY_START_HOUR)).date()
-    return datetime.combine(day + timedelta(days=WINDOW_DAYS + 1), time(DAY_START_HOUR), tzinfo=ET)
+    return outlook_runtime.calendar_shift(built, "America/New_York", WINDOW_DAYS + 1).astimezone(ET)
 
 
 def rating_window(facts):

@@ -1,0 +1,409 @@
+{
+  "schema_version": 1,
+  "recorded_at": "2026-10-20T20:38:35.353302+00:00",
+  "status": "passed",
+  "scope": "P2 viewer-eligibility increment; P2 as a whole remains in progress",
+  "base_commit": "9b977bb2b779b55bea84472e81f4ab00da423f1a",
+  "uncommitted": true,
+  "environment": {
+    "python": "3.13.16",
+    "playwright": "1.62.0",
+    "dart": "Dart SDK version: 3.13.3 (stable) (Tue Sep 1 01:07:17 2026 -0700) on \"macos_arm64\"",
+    "browsers": {
+      "chromium": "151.0.7922.34",
+      "webkit": "26.5"
+    }
+  },
+  "source_sha256": {
+    ".github/workflows/companion.yml": "382e60adf5f2abf32afd40aa76d75308e76a2cfd20b32386e7b697fb26065d4b",
+    "apple_listings.py": "cc71d0a39665efc547a8bcf2b6be8ee3d1d8a0e0d421f4a3fbb9a4c7a745d965",
+    "bein_listings.py": "6597807cfc4a18c80a951d8f011e4bcf9f24ef63caeef2fc3fc76ebfe18cf853",
+    "broadcast_listings.py": "962eba2ed9856414b6b99603bf6ca2f08b0c534899e0db0c691d84ddc4ccbad4",
+    "build.py": "f8d1b46d64c3137e4f7332ad6135e65e7769b498b78d3b9831ea3c0f92410d58",
+    "companion-toolchain.json": "6f22792346a0b9c9430ce5cb054eea4b236a88f66f556e35695fa38ffd433c99",
+    "companion_build.py": "f0eb155104610424cc4dc4c402617e0279b30c1b2f5c596376637a027704b2a8",
+    "companion_contract.py": "ff6f0a24e8e15fdab356a4e3c7b81185207e67138b2310473c453a2c03ad6b2a",
+    "companion_export.py": "86e2a8cfd922cb26e6f7eb59cb4fe75afdf870923a1e4a248165a2d70aba4dfa",
+    "companion_publication.py": "eea1708afd041182c1bd3b0683616d9c8730d539e34f4fead4ef4004aca25c1c",
+    "contracts/outlook/network-ids.json": "c8998ab1c2161b8a88301a8a433885f097caa7ba9690c0cf002470a1f54faae3",
+    "contracts/outlook/v1/catalog.schema.json": "a79e216d861f1faf95293f75b7fc8311a530150e0e959129f8c0d5d3db026adc",
+    "contracts/outlook/v1/common.schema.json": "cefd310005b0d456b9541cd906ad114f94682247a244ee08cf45610edc343514",
+    "contracts/outlook/v1/editorial.schema.json": "63ea3aa8e6e17ac58939c676479e6403d84fef4d80fbe4a74591e6b0b12b6ea5",
+    "contracts/outlook/v1/examples/manifest.json": "5c27d8cc0a4dee13b015f6ac3c4853ed052a620114335ec20587a797d27c0af3",
+    "contracts/outlook/v1/examples/objects/36e90825ab56b9ddf5239355823acb49f130c2b67528226be5a9e27a8224d41d.json": "36e90825ab56b9ddf5239355823acb49f130c2b67528226be5a9e27a8224d41d",
+    "contracts/outlook/v1/examples/objects/8b547672a665b551247207731df5b10e27bb26eab33aefd4dc6f96fe07aa1776.json": "8b547672a665b551247207731df5b10e27bb26eab33aefd4dc6f96fe07aa1776",
+    "contracts/outlook/v1/examples/objects/9df9a52d303c2474728605bba8b6fad191b660f35d1f8ed372d513f3891fcbb3.json": "9df9a52d303c2474728605bba8b6fad191b660f35d1f8ed372d513f3891fcbb3",
+    "contracts/outlook/v1/examples/objects/c350221a1e3f032a3248be49600be58dfad79752c355fe8cca44bf00aaabb530.json": "c350221a1e3f032a3248be49600be58dfad79752c355fe8cca44bf00aaabb530",
+    "contracts/outlook/v1/manifest.schema.json": "51977485b6bb5c2fb9cfa3cb6a4914aee8ddc2fc22772a5c4baa2598d1d8aa2a",
+    "contracts/outlook/v1/policy.schema.json": "7e5e1f35746836bc1afb21713fb0e6cd6ebde8ce08f5487da9315230f4d9f899",
+    "contracts/outlook/v1/schedule.schema.json": "020426ccab1e662a7b9d994d84758467d440df74c7d1022a47c59c14a677a62d",
+    "discovery.py": "de0b358e4038c6fc4aaa85ac587f522215ee9f7aabe9b7510e236a877f8b31e3",
+    "docs/companion/implementation-plan.md": "fc971c7831781bf23b5109924fc8c59d99077b64e1186a3ae4bb9bd124a71488",
+    "docs/companion/p2-eligibility-evidence.md": "728b309525a05f19fb2370ca91d99162f2ca198fe370b60e202098c2db40e7c7",
+    "docs/companion/rules/README.md": "3f01b647a76f497c1693391655d0f46c372cae41f6b543ba89d113e1bd05f1d8",
+    "docs/companion/rules/eligibility-examples.json": "3bd72c6dcafe137b688000f0a6ae69d0a0ddd418e0bcbe9c35cc1e71f6ca1d58",
+    "docs/companion/rules/later-families.md": "1d12ba401d5fe96fa9f922095c8f61d39fb631125e8e9b01ecd99ad1f69c0520",
+    "docs/companion/rules/route-examples.json": "830ae7e65c053a0bbf27ad424623fed07a35d797dec541ef131eb1e4efe5f9e9",
+    "docs/companion/rules/sports-day-examples.json": "5e82e6c8564fb7ff14ccc4db02bbe1df5a17b27f41114aae9728c4c949dc9db3",
+    "docs/companion/rules/sports-day.md": "6aa7ad02e125d97316fb98db06c3fa77a82032e3f110d5a50f5b15ed2c7402b6",
+    "docs/companion/rules/viewer-eligibility.md": "f6f3127f783132d34e95642c37c47a3f7730e26b98d71d2a6e025cf894c7ffb0",
+    "docs/companion/rules/watch-routes.md": "6ad549b8d99c801bb33c9339f269f70c77b96cfab95dd9a047f893a06506f8eb",
+    "espn_listings.py": "b8b7c1ab5c441893fa22d502e760a7529a7511763614d61a0520cd01bf813368",
+    "fandango_listings.py": "e92c21b752226abc108b67baba56cd219f8a964a6f009b54567c243e883fa22d",
+    "fixture_comparison.py": "5bce960d165dde18bb9541ac3a80987f065959118c5a837c6c44d5df33615b60",
+    "fox_listings.py": "ce03c26e4e53b7d1b954905e3bc17b0b8dd20e16c3f509ff17b27b5afba2af8a",
+    "history.py": "636e210744374b3d12391fd3dc82438976114b73f70456218f4867315f1e3193",
+    "history_report.py": "4187c87c0b4627ae35456b0ea4d114e9349b4463f5065e57074a61288ef72573",
+    "metrics.py": "d642af0f602bbc9b878505a9bb7e07449c9d463dea77ccfe55c1023e0d5149c9",
+    "observations.py": "e8e4f3776cd55f407b45747b9d5c3c5524dbba148ddab7780f94116b05f21f92",
+    "outlook_runtime.py": "863be980954178a95125c433251272683ce65e7df8cf5004dad7038728825b17",
+    "packages/outlook_core/analysis_options.yaml": "9d8678dc8c46856d2400175deef7deae8c83bb99f7608594c6d5d804ca726efa",
+    "packages/outlook_core/lib/outlook_core.dart": "b38917ffabe7e24b48ee284bc1279bb80f502cd86534fb716c005a0b23bf891b",
+    "packages/outlook_core/lib/src/eligibility.dart": "cae707fe6160016c810a3a4421cd5800a5a634dd8bec145cb9139d2844aaf7bd",
+    "packages/outlook_core/lib/src/outlook.dart": "66e9bf82845ee19bd2b30e70ddc0c59d742ee9739e955cf08492e909e5801273",
+    "packages/outlook_core/lib/src/routes.dart": "a59fcf262ceb3e4bb3ea37a1088b5efa74da06ecd55a59c7d533f271cd9225d4",
+    "packages/outlook_core/lib/src/sports_day.dart": "2be3ea939a1d73391394ce1d87c920a45b5e627f8b338a8865291c146dc193dd",
+    "packages/outlook_core/pubspec.lock": "951af870a0c95fbed5678225bc6c259298c75e4ba18de1ea93a23ca842851cdb",
+    "packages/outlook_core/pubspec.yaml": "d61828f0302735a3c5fe84b9b767df630f89711f106b244d9cba1ede1a32fd89",
+    "packages/outlook_core/test/eligibility_test.dart": "0a0ca101abeeb14a8c4113b09ce481d0fc84205cc714d1b9f2984873b30c1971",
+    "packages/outlook_core/test/outlook_test.dart": "ef913f74b00ba47a90e81fa38fd7cb2aab864a4aa264f16cd690bcb941bc3c6f",
+    "packages/outlook_core/test/route_calendar_examples_test.dart": "9843063e84d99107a2e1dc3acaedba095ebb711a71c635d1741d18b18d5fdfcc",
+    "packages/outlook_core/test/sports_day_test.dart": "39705115cb951e9b606a0866348497e4b09dde841af3dea4bac57d03ffcf1fc7",
+    "packages/outlook_data/lib/outlook_data.dart": "b5082b245214ae56ac2ac37d0458833b7194240864eff208fc7d36c69bf44b87",
+    "packages/outlook_data/lib/src/feed_reader.dart": "87eefcb88dd58dc6d4f8ddf3cbdd118da6f7a8897c2252f0a75fa0cf16b167d9",
+    "packages/outlook_data/lib/src/schema_registry.dart": "27b4b6c0124101112f63fefa05699cd1970c64ed45093aa10cc1320fbe92a218",
+    "packages/outlook_data/lib/src/strict_json.dart": "5ada91b93d3417c340a14522d8e284fc855de502a5233b416b643da0218ca66b",
+    "paramount_listings.py": "bfc87e42faf92da71eab8e0f0bec35423824c918285a2a9d915ce55eb7fd1bda",
+    "peacock_listings.py": "453f5f96c033e748000ab91330dd5e10bc331ec3d203ee2d5bc7c98f12e4cbe5",
+    "provider_utils.py": "527b8574ca8f8a6a818b83a14cd509a5320749722aa9446e9eea6a69dac93827",
+    "providers.py": "3693bac082aa6901c2e0988daf327c1805388e30c5497f0dfd19c468c15121fc",
+    "rights.toml": "792b0fd83100d9b50c36e41fe3ab57bbaf39af89e46a6aa06d8f124492d13a67",
+    "schedule_data.py": "829e502b0a709c7272336825b4151bc915f0edd6d7757d9a5bcded6573708b0e",
+    "settings.toml": "f2f9d16b5d7b8e7de61fa9858b7c2445f0d01331e959b1a07c5197e545ee4a23",
+    "story.py": "63bb33d94341fded79a5c0c72dc70e16032e79b5c4475164487ecc91f5c156c0",
+    "story_state.py": "d6577383bba4f0ac5f620e8fd6e7bd0478eb5ce3338030aed8930f1fdf1bed35",
+    "tests/browser.py": "5e464a4a903912f330c84a7da89d97137715354638add3518d436bdb73b31955",
+    "tests/browser_schedule.py": "e26b2203c84d0653dc7e8fc3a201e85a1b1af0c3964e964b87464cf8c1c73fd8",
+    "tests/contracts/p2/eligibility-baseline-2026-10-20.json": "095eddced84c7516cda9b4ee51c2132b0c0fa2d243f01a4605d5c907452e8d2c",
+    "tests/contracts/p2/legacy-route-selection-2026-10-20.json": "2ca5997f44a7c272a79aad32ac4c9c39a5ef56d218a87e1cd60f31803d5e307a",
+    "tests/page_fixture.py": "23025cf527011754fd4496ca30f606eb93f960c446176773cd887e4ab31fa529",
+    "tests/test_companion_eligibility.py": "f01a761ad494896ba496836b1497356086edc67b3462dd8b504a8e13c2b326f1",
+    "tool/build_outlook_runtime.py": "ae4abba2dc259dc018335f77241a21510b3a4d1fc500bbc92441783c82960d93",
+    "tool/companion_collection_capture.py": "d855cb817833259cd7629347151547363c7de0910c8552293bb0612ac94345bc",
+    "tool/companion_collection_replay.py": "9334d29d735f8c95fc0a2df474dd7e9ae3d64a9f4d6b19d26de83672eede4fbb",
+    "tool/companion_eligibility_verify.py": "3cbd2685d67fe0b91fb1c0c00d9efa0496b6163fdb51469cc219563f4359295a",
+    "tool/companion_feed_reader/bin/read.dart": "879d7a377ac8a5c81bcb1ad68db9d6dff3fbe1fee36f38ce86315cdd921f64be",
+    "tool/companion_feed_reader/lib/local_files.dart": "c4246a33a9a0c4c4be8f2640542c7258136296c1fded41411f57b4f53c0ae2da",
+    "tool/companion_p0_limits.json": "c9434036444ebe62b1bea925d62267fe0122e0dc496c60ee873b5ed53a3260e3",
+    "tool/companion_p2_verify.py": "b8001d7051f3352de2cf04aa06cb0e5c11a71f6f82c0f8325426f04953bc7c4c",
+    "tool/outlook_bridge/README.md": "f0918bf8f5a8153fbf7215cb6d371ae79a5ec9771700e331dae0d9741f3136b1",
+    "tool/outlook_bridge/analysis_options.yaml": "81e0446176a695d2d1ace5d585a59bcb5ee97addd27f33a9a478f19136c56cca",
+    "tool/outlook_bridge/bin/outlook.dart": "15122da81d462636246dee13f86fd27d33d30390dea52abd28b93d9595ff6394",
+    "tool/outlook_bridge/cases/sports_day.json": "2560660ecf523f2e254b69cb2b063f5d28caeb0ecab94407d616672ef320dd93",
+    "tool/outlook_bridge/lib/protocol.dart": "47d69028dc63e44a1b0fb3fc74dc5c9d0e26362bc66f587a200203a831e42a6e",
+    "tool/outlook_bridge/pubspec.lock": "6f4dfc7b699e87acf07633f65c9d7db1a3d1e26dbcfed57835b7a3660f1969f0",
+    "tool/outlook_bridge/pubspec.yaml": "40b1313380cd2adf347e957c8eeba45803e81ed51a3b614d318e79121e4911a5",
+    "tool/outlook_bridge/web/bridge.dart": "b2388aad6fb078ff91e00bfbf31a168df746d272420817f1a8fec4bfc806912e",
+    "tool/outlook_bridge/web/demo.js": "a352cc0a51638cb38965adfd4788305943872abb8fb4285ac6ca5b0a8b0467d4",
+    "tool/outlook_bridge/web/index.html": "cdd8573ca5c611140b45099718f9bdc775df7d1b49a03eca6daa30b19708040c",
+    "tudn_listings.py": "8bf69100a8d3feb4a1c3cc7f93d3386c4837a323320fc5a0d9bfa61b0a9851f0",
+    "vix_listings.py": "49c428db74c99fe827b31d81bc32892aa1e91824a65fd6c2c1c7ee0da2ce4d14",
+    "watch-links.toml": "f214e47052326610358e59cfa37b26b871c2ef846d5d9350d7e3e44f8393087c",
+    "watch_links.py": "b486e5eb001ba6e4e9c73b88edb679edad5e8dddde546c427ed3fc846132b14b",
+    "web/app.js": "4d5fa5c29e24c096741e8429b8abddeb163d953a7890490deb995ea934a36c13",
+    "web/discovery.css": "7bd3ef98d3f80639991eef44a1f41ce61661e2904a95a2bc31276ca637f72291",
+    "web/favicon.png": "de2ddfd9b2067116b5855579bc59dd822487a45f5966ee1990800df380da9d98",
+    "web/favicon.svg": "7a22dbda89c1a8f7de5fd67e1e098c4d6e9c72ecb98826aa0dbe2abac4480921",
+    "web/github-publish.js": "c8e5611fcd6612441ab34f727fcb84fc1d2876c8e80596711180ee4e80a2c113",
+    "web/indexnow-key.txt": "1e3088a376434b4ce236bcd6364841eedcc6685c6d79b09e8dbdb4bcf9ae43aa",
+    "web/live.js": "fa25890d5ee0885ed859fba200ff926209c6c32ef5b3ae65e9d66af9441c3dee",
+    "web/page.html": "831b09afce61c61376280b33b7756fc32e91293bdcb5ab6ceca633b0c0cc3d70",
+    "web/personal-ai.js": "779efc4d21f91961216749737fc37590a9029db3be338bb7e9846d84b5a4ddb6",
+    "web/schedule.js": "1ba127784a06e821b8a37b5f05409b3e011760d251987dd1d912256977e173eb",
+    "web/styles.css": "79b0b52d58901ac6f7a89638307d690545b385a9c43bbbda824220d2c514cd3a",
+    "web/teams.js": "84d47ebe6c5f81a9ae221cb6d5d474e1ad4fcb5a3a18774ecad99e4501fec548",
+    "work/companion-p2-replay/run.py": "2eebd57011ef3f5d0a0c198cd72a7caa359ff8c30bbfad23280b4f7c0efad45f",
+    "work/outlook-runtime/outlook": "5c2eedae505699ae38a7c9a3b99927d8cd1c1beaaf129e3168b05ac639e13aa3",
+    "work/outlook-runtime/outlook.js": "1f1d531e733182d61649c4c6245ede29fab4910d0eaf12eaede6b2949f2e86c5",
+    "work/outlook-runtime/runtime.json": "2f85b77a4b806b22dd87eecc88d4600ca7d8d44837a89b0303a04414b4086a87"
+  },
+  "runtime_artifacts": {
+    "runtime.json": "2f85b77a4b806b22dd87eecc88d4600ca7d8d44837a89b0303a04414b4086a87",
+    "outlook": "5c2eedae505699ae38a7c9a3b99927d8cd1c1beaaf129e3168b05ac639e13aa3",
+    "outlook.js": "1f1d531e733182d61649c4c6245ede29fab4910d0eaf12eaede6b2949f2e86c5"
+  },
+  "checks": {
+    "python": {
+      "path": "work/p2-eligibility-python-final.log",
+      "sha256": "67e7ef8b3c4d610b5172a35f2d504f7b79ba04bd49d0decf977083e510dbbcd2",
+      "tests": 701,
+      "elapsed_seconds": 34.334,
+      "result": "pass"
+    },
+    "chromium_full": {
+      "path": "work/p2-eligibility-browser-chromium-final.log",
+      "sha256": "747ab21584187d9ba76074ae6822888d0083c5ac884335b0f2ddb882018d9f52",
+      "tests": 112,
+      "elapsed_seconds": 388.162,
+      "result": "pass",
+      "browser_test_source_sha256": "04a8f838ea23bad34db20b8a2300668d85f0ae33571d3cf093878c2644145cf1",
+      "harness_scope": "Full suite loaded the source preceding the test-only checkpoint waiter repair; the repaired method and automatic-headlines test separately pass on final source. Production source is identical in these runs."
+    },
+    "webkit_smoke": {
+      "path": "work/p2-eligibility-browser-webkit-clean.log",
+      "sha256": "0e1ee263782f166b3f9db197380f061b3ad0793041cc42f67b29f5b246c5cacb",
+      "tests": 40,
+      "elapsed_seconds": 190.034,
+      "result": "pass",
+      "browser_test_source_sha256": "5e464a4a903912f330c84a7da89d97137715354638add3518d436bdb73b31955"
+    },
+    "chromium_schedule": {
+      "path": "work/p2-eligibility-schedule-chromium-final.log",
+      "sha256": "b7c373385f440e15852065c136da628d8a76a3ac8109f7160e0804f708ca0e4e",
+      "tests": 11,
+      "elapsed_seconds": 45.874,
+      "result": "pass"
+    },
+    "webkit_schedule": {
+      "path": "work/p2-eligibility-schedule-webkit-final.log",
+      "sha256": "5607543d535a6cd1882549a77721cb74d33225527bd41138c4b7bcb114526b86",
+      "tests": 11,
+      "elapsed_seconds": 53.017,
+      "result": "pass"
+    },
+    "chromium_fixed_waiter": {
+      "path": "work/p2-browser-diagnosis/chromium-fixed.log",
+      "sha256": "5f44f8c22163f2ede6f06a5ba2baeca9cd424bc2302e85ebc154bb27f659020d",
+      "tests": 2,
+      "elapsed_seconds": 34.744,
+      "result": "pass"
+    },
+    "webkit_fixed_waiter": {
+      "path": "work/p2-browser-diagnosis/webkit-fixed.log",
+      "sha256": "22435a438b3c6814dea91f7fa578cb5adb6b8e79085a6e9a9e43dd8c4e03bc58",
+      "tests": 2,
+      "elapsed_seconds": 56.059,
+      "result": "pass"
+    }
+  },
+  "browser_regression_tests": 174,
+  "core_tests": 78,
+  "reports": {
+    "eligibility": {
+      "path": "docs/companion/evidence/p2-eligibility-2026-10-20.json",
+      "sha256": "91ea98f982c96a3e02d7d9f1091d3cd2715766580c419bb86da7ed66281da5cf"
+    },
+    "core": {
+      "path": "docs/companion/evidence/p2-eligibility-core-2026-10-20.json",
+      "sha256": "71726a3afe50b6a179a046bd66071955553d990032db55d4e83e0aaf2d20aaf9"
+    },
+    "route-calendar": {
+      "path": "docs/companion/evidence/p2-eligibility-route-calendar-2026-10-20.json",
+      "sha256": "d45ea9f0e2ab29864fb31382a96dcfcb1594a2e180027cff2d900fceca2b3545"
+    },
+    "replay": {
+      "path": "docs/companion/evidence/p2-eligibility-replay-2026-10-20.json",
+      "sha256": "ca65d7b5ec3044655ddd92f57650c9eefe1e0fa621d21a3cc5e0235797402ea3"
+    }
+  },
+  "documentation_checks": {
+    "markdown_files": 26,
+    "relative_file_links": 338,
+    "yaml_files_parsed": 8,
+    "yaml_parser": "System Ruby YAML/Psych",
+    "git_diff_check": "pass"
+  },
+  "fold_regression": {
+    "finding": "Full-catalog visibility keys collapsed expanded results after fixture-free Select all or reordered paused leagues despite unchanged visible rows.",
+    "repair": "Keep the complete core projection; key fold state by sorted hidden leagues represented by current schedule pills.",
+    "failing_first_and_passing_evidence": [
+      {
+        "path": "work/p2-fold-review/report.json",
+        "sha256": "47ed887b05e16e360a55652946c36f6ea938fe07afe9d8ce5266403da5106f33"
+      },
+      {
+        "path": "work/p2-fold-review/failing-first-chromium.log",
+        "sha256": "2ab0198e5dd6aa431e766965df67d2987d26e7687b03be95f274a6cb1814bb3e"
+      },
+      {
+        "path": "work/p2-fold-review/failing-first-hashes.json",
+        "sha256": "7de2cc0dd87e8176806d20478276035af3b2f158812dcbc6e2787ec202be254f"
+      },
+      {
+        "path": "work/p2-fold-review/passing-chromium.log",
+        "sha256": "f307ac5c7a0af67b2a863a84f5a7e6f736434ce9152350462427ee9915ac9329"
+      },
+      {
+        "path": "work/p2-fold-review/passing-webkit.log",
+        "sha256": "5e76a173b9508c4fd907f9b5f2c3d73205de3a278110b260bc65efd41662db70"
+      },
+      {
+        "path": "work/p2-fold-review/passing-hashes.json",
+        "sha256": "33559e2bdf3a7219c632ace2116b7961fdfac1e3397d6f7ed5a30dde9da1faef"
+      }
+    ]
+  },
+  "browser_timeout_investigation": {
+    "record": {
+      "path": "work/p2-browser-diagnosis/report.json",
+      "sha256": "23da6cc74c866a6cea6b4f40e897872effba8af710af1990e371fe56580d0603"
+    },
+    "details": {
+      "version": 1,
+      "status": "complete",
+      "source_hashes": {
+        "original_browser_test": "04a8f838ea23bad34db20b8a2300668d85f0ae33571d3cf093878c2644145cf1",
+        "fixed_browser_test": "5e464a4a903912f330c84a7da89d97137715354638add3518d436bdb73b31955",
+        "current_browser_test": "5e464a4a903912f330c84a7da89d97137715354638add3518d436bdb73b31955",
+        "production_app_before": "4d5fa5c29e24c096741e8429b8abddeb163d953a7890490deb995ea934a36c13",
+        "production_app_fixed": "4d5fa5c29e24c096741e8429b8abddeb163d953a7890490deb995ea934a36c13",
+        "production_app_current": "4d5fa5c29e24c096741e8429b8abddeb163d953a7890490deb995ea934a36c13"
+      },
+      "production_unchanged": true,
+      "checkpoint_diagnosis": {
+        "finding": "The response waiter wall deadline expires before simulated-clock advancement finishes; the expected story fetch is issued and fulfilled successfully afterward.",
+        "waiter_start_ms": 25937.046,
+        "waiter_end_ms": 56035.166,
+        "waiter_error": "Timeout 30000ms exceeded while waiting for event \"response\"",
+        "clock_advance_fake_ms": 600000,
+        "clock_advance_wall_ms": 41199.466,
+        "story_route_fulfilled_ms": 67227.563,
+        "trace": "webkit-both/context-3.zip",
+        "fetch_trace": "webkit-both/context-3.json",
+        "production_changes": false
+      },
+      "first_fix_attempt": "A new event waiter installed after clock advancement could miss a response during the handoff. WebKit trace context-3.zip in webkit-both-harness-fixed shows HTTP200 completion before the second waiter starts. Final code uses only the original listener with a bounded monotonic loop.",
+      "harness_fix": "Register response tracking before advancing all 600 simulated seconds; pump the already-registered listener in a bounded 30-second monotonic loop after advancement if no response was observed. Require both a new received response and an increased story request count. No request injection, unbounded timeout or skipped timer callbacks.",
+      "focused_runs": {
+        "chromium.log": {
+          "path": "work/p2-browser-diagnosis/chromium.log",
+          "sha256": "80023ed91782a872f6c648f2b44c53e69d77d38d2e2557e63dbd16e932529c45",
+          "tests": 2,
+          "seconds": 34.835,
+          "status": "passed"
+        },
+        "webkit.log": {
+          "path": "work/p2-browser-diagnosis/webkit.log",
+          "sha256": "6472e0a63b73559efb355d5186b7a229819514268b5c2c038f0a14a6415f572c",
+          "tests": 2,
+          "seconds": 69.251,
+          "status": "failed"
+        },
+        "chromium-fixed-attempt1.log": {
+          "path": "work/p2-browser-diagnosis/chromium-fixed-attempt1.log",
+          "sha256": "ee733b320e4568cc793a79366a18b2ecd77cea8f998e92212fdea0e57dc32b78",
+          "tests": 2,
+          "seconds": 34.1,
+          "status": "passed"
+        },
+        "webkit-fixed-attempt1.log": {
+          "path": "work/p2-browser-diagnosis/webkit-fixed-attempt1.log",
+          "sha256": "46a199c544f487f7a6827176514135e0d643bc2c1cc7d17100319b6f8071ac62",
+          "tests": 2,
+          "seconds": 51.183,
+          "status": "failed"
+        },
+        "chromium-fixed.log": {
+          "path": "work/p2-browser-diagnosis/chromium-fixed.log",
+          "sha256": "5f44f8c22163f2ede6f06a5ba2baeca9cd424bc2302e85ebc154bb27f659020d",
+          "tests": 2,
+          "seconds": 34.744,
+          "status": "passed"
+        },
+        "webkit-fixed.log": {
+          "path": "work/p2-browser-diagnosis/webkit-fixed.log",
+          "sha256": "22435a438b3c6814dea91f7fa578cb5adb6b8e79085a6e9a9e43dd8c4e03bc58",
+          "tests": 2,
+          "seconds": 56.059,
+          "status": "passed"
+        }
+      },
+      "broader_failures": [
+        {
+          "log": {
+            "path": "work/p2-eligibility-browser-chromium.log",
+            "sha256": "9a1aa670d1e57958270506dd3a62926df9dc305f4610ed56ccaa3e1dcba21e04",
+            "tests": 111,
+            "seconds": 312.199,
+            "status": "failed"
+          },
+          "test": "test_story_checkpoints_refresh_details_ratings_and_headlines_without_extending_expiry",
+          "stage": "poll response waiter",
+          "diagnosis": "Same response-wait timeout class as the traced focused reproduction; the original broad run has no trace to establish its exact timing."
+        },
+        {
+          "log": {
+            "path": "work/p2-eligibility-browser-webkit-final.log",
+            "sha256": "898d55b3a406c96cbd50c4615a74960ccd03f8b54fb93540bdac8116c305d7a9",
+            "tests": 40,
+            "seconds": 341.947,
+            "status": "failed"
+          },
+          "test": "test_automatic_league_headlines_share_filters_toggle_and_match_news",
+          "subcase": {
+            "width": 1280
+          },
+          "stage": "BrowserChecks.page initial networkidle wait before entering the test body",
+          "diagnosis": "Initial-navigation network-idle timeout; cause unknown. No original full trace, so this is not attributed to the checkpoint clock issue. Focused automatic-headlines runs passed in both engines."
+        }
+      ],
+      "trace_artifacts": {
+        "work/p2-browser-diagnosis/chromium-both/context-1.zip": "3b784e2a50067e354049afbed4ee287b31ed9360e225ef1ab797e1b7ddc6d05d",
+        "work/p2-browser-diagnosis/chromium-both/context-2.zip": "9f8ff2d24069639dc44b8ddc7f9b57fa0413cd3b959f944b046752916d37e014",
+        "work/p2-browser-diagnosis/chromium-both/context-3.zip": "83d23488a1a6e7fec76129fd814feacfa2df073e48c8b60850f24b96fe08e9fc",
+        "work/p2-browser-diagnosis/chromium-both-harness-fixed/context-1.zip": "26880fa05f7878b32edd583957466d116628930076981eb27cf8c206ac193141",
+        "work/p2-browser-diagnosis/chromium-both-harness-fixed/context-2.zip": "6e27cb91068306fc6efe160209f4eacd590adfeaac0a7174496d1aa9a244fe6c",
+        "work/p2-browser-diagnosis/chromium-both-harness-fixed/context-3.zip": "3fc5fb1377a161ceadf4c1e54feb5de0985953e3cc67b09a6e6981ff8abd753d",
+        "work/p2-browser-diagnosis/chromium-both-harness-fixed-v2/context-1.zip": "c29dc410271958980a7fce9288dde1f17428dcd0d99e2816d940ef93e39455a5",
+        "work/p2-browser-diagnosis/chromium-both-harness-fixed-v2/context-2.zip": "e232c2b3341c4d73984b95f9a334f59dc88bd5d196ac05d97343194c7bb66788",
+        "work/p2-browser-diagnosis/chromium-both-harness-fixed-v2/context-3.zip": "8429ef0ab8fe5a35db025b8d92162f028a4a8a56fdc46f2b7a00187be19a41d0",
+        "work/p2-browser-diagnosis/webkit-both/context-1.zip": "8d0241608004bf391bb55b46ef03f269cf5d01b094e251ecb4f7c5772a195479",
+        "work/p2-browser-diagnosis/webkit-both/context-2.zip": "4f87fbb236ac6e11f932d65d89b3f43d8777e2defead68a0f5be33fe4cac1897",
+        "work/p2-browser-diagnosis/webkit-both/context-3.zip": "bab3520aaca72a6b44f5fcb4ad493b33a3f5f4aedafc2b3824f2fef0146b0f56",
+        "work/p2-browser-diagnosis/webkit-both-harness-fixed/context-1.zip": "882a1f0de2334ae03eff7b36893b20964b2784c1c1e47ff869c866e7bc297f23",
+        "work/p2-browser-diagnosis/webkit-both-harness-fixed/context-2.zip": "8c76038784845bb5ca0bdeea296b3232a4e21f9b868ed28ddaa05bf10fdd9950",
+        "work/p2-browser-diagnosis/webkit-both-harness-fixed/context-3.zip": "53f45453bfdf26ea3cdce3d1b96c61d8564eeefcf7b3d264b4c1badae41203cc",
+        "work/p2-browser-diagnosis/webkit-both-harness-fixed-v2/context-1.zip": "c88f7678cd941296e2cdab67ed45f952779128670ba877819fe881145ff889a0",
+        "work/p2-browser-diagnosis/webkit-both-harness-fixed-v2/context-2.zip": "7e0209055779fddf37c395403efbbc1e69ec12023bdfac84fac00802f85c5bdb",
+        "work/p2-browser-diagnosis/webkit-both-harness-fixed-v2/context-3.zip": "ac23046153c77b103f2f0729d87c4fbba8342dd45f5ca8660b777c3830c49fbf"
+      }
+    },
+    "intermediate_logs": [
+      {
+        "path": "work/p2-eligibility-browser-chromium.log",
+        "sha256": "9a1aa670d1e57958270506dd3a62926df9dc305f4610ed56ccaa3e1dcba21e04"
+      },
+      {
+        "path": "work/p2-eligibility-browser-webkit-final.log",
+        "sha256": "898d55b3a406c96cbd50c4615a74960ccd03f8b54fb93540bdac8116c305d7a9"
+      }
+    ],
+    "resolution": "Checkpoint response deadline now starts after simulated-clock advancement while recording responses throughout. Production polling is unchanged. The separate startup network-idle timeout did not reproduce in focused runs or the clean WebKit smoke run; its root cause remains unknown."
+  },
+  "preserved_start": {
+    "files": 177,
+    "archive": {
+      "path": "work/p2-eligibility-start/files.tar.gz",
+      "sha256": "07f42da70ca69fba44f4ecf7fcc7f666e2d34de0bbb994d3aab8c168fe344a1c"
+    },
+    "manifest": {
+      "path": "work/p2-eligibility-start/manifest.json",
+      "sha256": "631031b8caad802c0de2cb53199d8dd39b597101a4f5047dba74538ef8bd3124"
+    },
+    "tracked_patch": {
+      "path": "work/p2-eligibility-start/tracked.patch",
+      "sha256": "f16e7d821fd58b00471af6208737492931638492ff03bc8d8ae91fa9f3d1f03d"
+    },
+    "all_archived_bytes_match_manifest": true,
+    "head_unchanged": true,
+    "index_empty": true
+  },
+  "limitations": [
+    "Source permission and specific publication authorization still gate distribution; no push, deployment, remote workflow or native distribution occurred.",
+    "Route-evidence expiry, shared status/live freshness/window classification, ranking/surface selection and editorial semantics remain P2 work.",
+    "P3 persistence/coordinated refresh, native product integration and physical/minimum-OS/performance acceptance remain pending.",
+    "Static HTML still contains all fetched rows; its fallback behavior was not redesigned.",
+    "All new source replays were offline; local prompt construction and mock AI tests made no live AI generation calls.",
+    "The complete browser core uses 192798 of the unchanged 204800 gzip-byte budget, leaving 12002 bytes."
+  ]
+}

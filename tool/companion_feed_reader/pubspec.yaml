@@ -1,0 +1,11 @@
+name: companion_feed_reader
+description: Offline P1 feed reader and producer round-trip adapter.
+publish_to: none
+version: 0.0.1
+environment:
+  sdk: '>=3.13.3 <3.14.0'
+dependencies:
+  outlook_data:
+    path: ../../packages/outlook_data
+dev_dependencies:
+  test: 1.33.0

@@ -1,0 +1,17 @@
+{
+  "status": "P0 spike pin; plugin smoke verified on iOS 26.5 simulator and Android 16 API 36 emulator",
+  "flutter": "3.47.4",
+  "flutter_revision": "9584c6713b324636289d067944a46fd6b49df14b",
+  "dart": "3.13.3",
+  "timezone": "0.11.2",
+  "native_plugins": {
+    "sqflite": "2.4.4+2",
+    "path_provider": "2.1.6",
+    "flutter_timezone": "5.1.1"
+  },
+  "deployment_floors": {
+    "ios": "15.0",
+    "android_api": 24,
+    "minimum_os_execution": "unverified"
+  }
+}

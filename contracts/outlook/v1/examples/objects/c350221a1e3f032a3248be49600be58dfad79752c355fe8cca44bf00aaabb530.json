@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "kind": "outlook_catalog",
+  "content_revision": "catalog-example-1",
+  "leagues": [
+    {
+      "id": "eng.1",
+      "name": "Example competition",
+      "source_refs": [
+        {
+          "source": "espn",
+          "id": "eng.1"
+        }
+      ],
+      "asset_id": null
+    }
+  ],
+  "teams": [
+    {
+      "id": "espn:team:example-home",
+      "name": "Example home",
+      "abbreviation": "home",
+      "source_refs": [
+        {
+          "source": "espn",
+          "id": "example-home"
+        }
+      ],
+      "asset_id": null
+    },
+    {
+      "id": "espn:team:example-away",
+      "name": "Example away",
+      "abbreviation": "away",
+      "source_refs": [
+        {
+          "source": "espn",
+          "id": "example-away"
+        }
+      ],
+      "asset_id": null
+    }
+  ],
+  "networks": [
+    {
+      "id": "network:usa",
+      "name": "USA Network",
+      "aliases": [],
+      "asset_id": null
+    },
+    {
+      "id": "network:universo",
+      "name": "Universo",
+      "aliases": [],
+      "asset_id": null
+    }
+  ],
+  "service_plans": [
+    {
+      "id": "yttv",
+      "name": "YouTube TV main plan",
+      "notes": [],
+      "retired": false
+    },
+    {
+      "id": "yttvspanishplus",
+      "name": "YouTube TV Spanish Plus",
+      "notes": [],
+      "retired": false
+    }
+  ],
+  "assets": [],
+  "service_plan_migrations": []
+}

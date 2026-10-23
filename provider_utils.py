@@ -2,7 +2,9 @@
 from datetime import datetime, timezone
 from html.parser import HTMLParser
 import json
+import re
 import unicodedata
+from urllib.parse import urlsplit
 import xml.etree.ElementTree as ET
 
 
@@ -11,6 +13,17 @@ MAX_BYTES = 2_000_000
 
 class WrongCountryError(ValueError):
     """An explicit foreign catalogue cannot justify reusing US broadcast evidence."""
+
+
+def public_https(value):
+    """Keep the existing public evidence URL qualification shared by publishers."""
+    if not isinstance(value, str) or re.search(r"[\x00-\x20\x7f]", value):
+        return None
+    try:
+        url = urlsplit(value)
+        return value if url.scheme == "https" and url.hostname and not url.username and not url.password else None
+    except ValueError:
+        return None
 
 
 def name(value):

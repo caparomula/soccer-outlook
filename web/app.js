@@ -1,14 +1,17 @@
 (function () {
   'use strict';
-  var DAY_START = 4;                 // a day changes at 4 am local time, not midnight, so a late game stays with its evening (README)
-  var WINDOW_DAYS = 3;               // the page shows today and the three days after it (story.py's WINDOW_DAYS)
-  var HISTORY_DAYS = 3;              // backward browsing stops after the three previous sports days
   var FOCUS_MS = 24 * 60 * 60000;
   var HEADLINE_MIN = 60;            // absolute editorial interest: routine fixture notices stay out
   var HEADLINE_LEAGUE_WEIGHT = 0.2; // headline selection: 80% editorial interest, 20% saved league priority
-  var LIVE_MS = 125 * 60000;
   var LS = { mode: 'ssg2-mode', have: 'ssg3-have', leagues: 'ssg5-leagues', compOff: 'ssg2-comp-off', paused: 'ssg1-league-paused', priority: 'ssg4-league-order', services: 'ssg4-service-order', aiBlurbs: 'ssg3-ai-blurbs' };
   var app = document.getElementById('app');
+  if (typeof window.outlookDecisions !== 'function') {
+    var runtimeNote = document.createElement('p');
+    runtimeNote.id = 'runtime-note'; runtimeNote.className = 'fresh';
+    runtimeNote.textContent = 'Interactive features could not load. The saved schedule is still available. Reload to try again.';
+    app.insertBefore(runtimeNote, app.firstChild);
+    return;
+  }
   var body = document.getElementById('outlook-body');
   var rows = Array.prototype.slice.call(document.querySelectorAll('li.row'));
   var ROW_BY_ID = Object.create(null);
@@ -31,16 +34,50 @@
   var AI_ON = app.getAttribute('data-ai') !== 'off';
   var PERSONAL = null;              // optional, private ratings/text imported by this visitor
   var SHARED = null, PUBLISHER = null; // repository-published manual response and optional owner connection
-  function rankOf(id) { var i = serviceOrder().indexOf(id); return i < 0 ? 99 : i; }
+  function coreDecision(request) {
+    var result = JSON.parse(window.outlookDecisions(JSON.stringify(request)));
+    if (result.error || result.version !== 1) throw new Error('Shared Outlook decision rejected');
+    return result.results;
+  }
   function escHtml(t) { return String(t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
-  // The schedule's sections: matches in progress, one per sports day of the window (WINDOW_DAYS + 1
-  // of them: Today and Tomorrow, then the later days by their dates), and recent results, folded.
+  // Presentation labels for the shared window owner's buckets, plus folded recent results.
   var DAYS = ['today', 'tomorrow', 'day2', 'day3'];
   var PAST = ['yesterday', 'dayminus2', 'dayminus3'];
   var ORDER = ['live'].concat(DAYS, ['earlier'], PAST);
   var TITLES = { live: 'Live now', today: 'Today', tomorrow: 'Tomorrow', earlier: 'Earlier today', yesterday: 'Yesterday' };
   var FOLDED = { earlier: true, yesterday: true, dayminus2: true, dayminus3: true };
 
+  // Saved markup carries normalized facts, including old snapshots without a
+  // status-kind attribute. Read their meaning through the same source decoder.
+  function projectRowStatuses(fixtureRows) {
+    var cases = fixtureRows.map(function (r) {
+      var scores = r.querySelectorAll('.team .score'), label = r.querySelector('.row__status');
+      return { id: r.getAttribute('data-id'), phase: r.getAttribute('data-state'),
+        state: r.getAttribute('data-status-kind'),
+        label: label ? label.textContent : '', home_score: scores[0] ? scores[0].textContent : null,
+        away_score: scores[1] ? scores[1].textContent : null };
+    }), projected = [];
+    for (var start = 0; start < cases.length; start += 1000) {
+      var batch = cases.slice(start, start + 1000);
+      var decisions = coreDecision({ version: 1, operation: 'fixture_status', cases: batch });
+      if (!Array.isArray(decisions) || decisions.length !== batch.length ||
+          decisions.some(function (value, i) { return value.id !== batch[i].id; })) throw new Error('Shared Outlook status identity mismatch');
+      projected = projected.concat(decisions);
+    }
+    // Do not install a partial projection if a later batch fails.
+    fixtureRows.forEach(function (r, i) {
+      var value = projected[i], label = r.querySelector('.row__status');
+      r._sourceStatus = value;
+      r.setAttribute('data-state', value.phase); r.setAttribute('data-status-kind', value.state);
+      if (label) { label.textContent = value.label; label.hidden = !value.label; }
+      r.querySelectorAll('.team .score').forEach(function (el, side) {
+        var score = value.scores[side === 0 ? 'home' : 'away'];
+        el.textContent = score === null ? '' : String(score); el.hidden = score === null;
+      });
+      var goals = r.querySelector('.row__goals');
+      if (goals && !value.played) goals.remove();
+    });
+  }
   function initializeRow(r, card) {
     r._card = card || new MatchCard(r);
     r._card.row = r;
@@ -53,12 +90,14 @@
     var outlook = parseFloat(r.getAttribute('data-outlook'));
     r._outlook = isFinite(outlook) ? outlook : null;   // the page's own score, from fixture and broadcast data
     r._state = r.getAttribute('data-state');
+    r._statusKind = r._sourceStatus.state;
     try { r._o = JSON.parse(r.getAttribute('data-o') || '[]'); } catch (e) { r._o = []; }
     r._unk = r._o.some(function (o) { return o.u; });   // a channel the page doesn't recognize
     try { r._r = r.hasAttribute('data-r') ? JSON.parse(r.getAttribute('data-r')) : null; } catch (e) { r._r = null; }
     try { r._watch = JSON.parse(r.getAttribute('data-watch') || '{}'); } catch (e) { r._watch = {}; }
     try { r._facts = JSON.parse(r.getAttribute('data-ai-facts') || '{}'); } catch (e) { r._facts = {}; }
   }
+  projectRowStatuses(rows);
   rows.forEach(function (r) { initializeRow(r); });
 
   function read(key) { try { var v = localStorage.getItem(key); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
@@ -162,7 +201,6 @@
       old.forEach(function (k) { if (typeof k === 'string') compChoice[k] = false; });
     }
   })();
-  function hasChoice(id) { return Object.prototype.hasOwnProperty.call(compChoice, id); }
   // A league is followed (enabled in the panel, and in the bar's strip) by the viewer's choice, else
   // by its default. A followed league can also be paused from the strip: hidden for now, still
   // followed, and still paused on the next visit until the viewer taps it again. Its matches are
@@ -173,14 +211,44 @@
     var saved = read(LS.paused);
     (Array.isArray(saved) ? saved : []).forEach(function (k) { if (typeof k === 'string') paused[k] = true; });
   })();
-  function followed(id) { return hasChoice(id) ? compChoice[id] : !DEFAULT_OFF[id]; }
-  // Solo is a temporary view over the saved selection, including its paused leagues.
-  function hiddenByStrip(id) { return soloLeague ? id !== soloLeague : !!paused[id]; }
-  function applyCompChoices() {
-    compOff = {};
-    drawer.querySelectorAll('[data-kind="comp"]').forEach(function (b) {
-      var k = b.getAttribute('data-key');
-      if (!followed(k) || hiddenByStrip(k)) compOff[k] = true;
+  var leagueProjection = null, leagueDecisions = Object.create(null), eligibilityKey = '';
+  function followed(id) { return !!(leagueDecisions[id] && leagueDecisions[id].followed); }
+  function hiddenByStrip(id) { return !leagueDecisions[id] || leagueDecisions[id].hidden_by_strip; }
+  function applyCompChoices(now) {
+    if (now === undefined) now = nowMs();
+    var ids = leagueOrder(), choices = Object.create(null);
+    ids.forEach(function (id) {
+      if (Object.prototype.hasOwnProperty.call(compChoice, id)) choices[id] = compChoice[id];
+    });
+    updateFixtureWindows(rows, now);
+    // Window membership and route access are shared decisions. Preferences and
+    // policy include leagues without a DOM pill; do not trim saved choices to
+    // this week's fixtures.
+    var input = { id: 'viewer',
+      leagues: ids.map(function (id) { return { id: id, default_followed: !DEFAULT_OFF[id] }; }),
+      preferences: { choices: choices, paused: ids.filter(function (id) { return !!paused[id]; }), solo_id: soloLeague || null },
+      has_selected_services: Object.keys(HAVE).length > 0,
+      fixtures: rows.map(function (r) {
+        r._b = r._timeWindow.bucket;
+        return { id: r.getAttribute('data-id'), league_id: r._lg, has_route: onSvc(r), in_window: r._timeWindow.in_window };
+      }) };
+    var key = JSON.stringify(input);
+    if (key !== eligibilityKey) {
+      var results = coreDecision({ version: 1, operation: 'viewer_eligibility', cases: [input] });
+      if (results.length !== 1 || results[0].id !== input.id) throw new Error('Shared Outlook viewer mismatch');
+      leagueProjection = results[0]; eligibilityKey = key;
+      leagueDecisions = Object.create(null); compOff = {};
+      leagueProjection.leagues.forEach(function (decision) {
+        leagueDecisions[decision.id] = decision;
+        if (!decision.visible) compOff[decision.id] = true;
+      });
+    }
+    if (leagueProjection.fixtures.length !== rows.length) throw new Error('Shared Outlook fixture count mismatch');
+    // A schedule refresh can replace DOM rows without changing these inputs.
+    // Install the cached decisions on the new rows too.
+    leagueProjection.fixtures.forEach(function (decision, i) {
+      if (decision.id !== rows[i].getAttribute('data-id')) throw new Error('Shared Outlook fixture mismatch');
+      rows[i]._eligibility = decision;
     });
   }
   function saveCompChoices() {
@@ -190,10 +258,8 @@
     write(LS.paused, Object.keys(paused));
     try { localStorage.removeItem(LS.compOff); } catch (e) {}
   }
-  applyCompChoices();
   function compHidden(r) {
-    if (soloLeague) return r._lg !== soloLeague;
-    return !!compOff[r._lg];
+    return !leagueDecisions[r._lg] || !leagueDecisions[r._lg].visible;
   }
   var storedPriority = read(LS.priority);
   var storedServiceOrder = read(LS.services);
@@ -340,10 +406,24 @@
     applyFilterUI(); render(true); pill.focus({ preventScroll: true });
   });
 
-  function firstHave(via) { var hits = via.filter(function (x) { return HAVE[x]; }); hits.sort(function (a, b) { return rankOf(a) - rankOf(b); }); return hits[0] || ''; }
+  var routeEvaluatedAt = null, routeNextAt = Infinity, routeTimer = null, routeSuspended = false;
+  function routeInput(o) {
+    if (!o.t) throw new Error('Missing viewing-route lifetime');
+    return { label: o.l, service_ids: o.v, spanish: !!o.e, unknown: !!o.u, validity: o.t };
+  }
+  function validityFor(r, o, usual) {
+    return usual ? r._routes.usual_validity : r._routes.listed_validity[r._o.indexOf(o)];
+  }
+  function providersFor(r, o, usual) {
+    return usual ? r._routes.usual_providers : r._routes.listed_providers[r._o.indexOf(o)] || [];
+  }
   function networkProviders(r, o, usual) {
     if (o.u) return "<p>ESPN lists this channel, but the page doesn't know yet which services carry it</p>";
-    var services = o.v.filter(function (sid) { return HAVE[sid]; }).sort(function (a, b) { return rankOf(a) - rankOf(b); });
+    var validity = validityFor(r, o, usual);
+    if (!validity.usable) return '<p>' + (validity.reason === 'expired' ?
+      (usual ? 'This usual-coverage claim has expired.' : 'This listing has expired.') :
+      'Coverage is not currently verified.') + '</p>';
+    var services = providersFor(r, o, usual);
     if (!services.length) return '<p>Not in your selected services.</p>';
     var links = !usual && r._watch[o.l] || {};
     return '<p>' + (usual ? 'Usually available with' : 'Available with') + '</p><ul>' + services.map(function (sid) {
@@ -354,23 +434,26 @@
     }).join('') + '</ul>' + (usual ? '<p>Usual coverage; this match is not confirmed yet.</p>' : '');
   }
   function updateNetworks(r) {
+    // A replacement row can receive its newer live overlay before the full
+    // route batch is installed. evaluateAll renders its new broadcast facts.
+    if (!r._routes) return;
     r.querySelectorAll('.network').forEach(function (network) {
       var usual = network.hasAttribute('data-rule'), o = usual ? r._r : r._o[+network.dataset.i];
       if (!o) return;
-      var sid = firstHave(o.v), pill = network.querySelector('summary');
+      var sid = providersFor(r, o, usual)[0], pill = network.querySelector('summary');
       pill.className = usual ? 'pill pill--rule' + (sid ? ' svc-' + sid : ' pill--rule-off') :
-        'pill' + (o.u ? ' pill--unk' : sid ? ' pill--mine svc-' + sid : (o.f ? ' pill--free' : ''));
+        'pill' + (o.u ? ' pill--unk' : sid ? ' pill--mine svc-' + sid : (o.f && validityFor(r, o, usual).usable ? ' pill--free' : ''));
       network.querySelector('.network__providers').innerHTML = networkProviders(r, o, usual);
     });
   }
 
   // Network disclosures stay out of the card flow. Native details also work without JavaScript;
   // here mouse hover previews them, while tap/Enter pins them until dismissed.
-  var openNetwork = null, networkPinned = false, networkCloseTimer = null;
+  var openNetwork = null, networkPinned = false, networkCloseTimer = null, networkMouseDown = false;
   function closeNetwork() {
     clearTimeout(networkCloseTimer);
     if (!openNetwork) return;
-    var network = openNetwork; openNetwork = null; networkPinned = false;
+    var network = openNetwork; openNetwork = null; networkPinned = false; networkMouseDown = false;
     if (network.querySelector('.network__providers').contains(document.activeElement)) network.querySelector('summary').focus({ preventScroll: true });
     network.open = false;
   }
@@ -411,8 +494,19 @@
     else showNetwork(network, true);
   });
   document.addEventListener('pointerdown', function (ev) { if (openNetwork && !openNetwork.contains(ev.target)) closeNetwork(); });
-  document.addEventListener('focusin', function (ev) { if (openNetwork && !openNetwork.contains(ev.target)) closeNetwork(); });
+  // WebKit focuses a focusable ancestor when a link is clicked, including the carousel track.
+  // Keep the disclosure through that mouse/touch compatibility sequence so its native link still
+  // receives mouseup and click. Keyboard focus leaving it and outside pointer presses still close it.
+  document.addEventListener('mousedown', function (ev) { networkMouseDown = openNetwork && openNetwork.contains(ev.target); });
+  document.addEventListener('mouseup', function () { networkMouseDown = false; });
+  document.addEventListener('pointercancel', function () { networkMouseDown = false; });
+  window.addEventListener('blur', function () { networkMouseDown = false; });
+  document.addEventListener('focusin', function (ev) { if (openNetwork && !networkMouseDown && !openNetwork.contains(ev.target)) closeNetwork(); });
+  document.addEventListener('focusout', function (ev) {
+    if (openNetwork && !networkMouseDown && openNetwork.contains(ev.target) && !ev.relatedTarget) closeNetwork();
+  });
   document.addEventListener('keydown', function (ev) {
+    networkMouseDown = false;
     if (ev.key === 'Escape' && openNetwork) { ev.preventDefault(); closeNetwork(); }
   });
   document.addEventListener('scroll', function (ev) {
@@ -421,22 +515,68 @@
   window.addEventListener('resize', positionNetwork);
   // Decide, for this viewer's lineup, which service carries each match, and restyle the row to match.
   function evaluateRow(r) {
-    var best = null;
-    r._o.forEach(function (o) {
-      o.v.forEach(function (sid) {
-        if (!HAVE[sid]) return;
-        var key = rankOf(sid) * 4 + (o.l === SERVICE_NAMES[sid] ? 0 : 2) + (o.e ? 1 : 0);
-        if (!best || key < best.key) best = { key: key, sid: sid, label: o.l };
-      });
-    });
-    if (best) { r._svc = best.sid; r._basis = 'listed'; r._outlet = best.label; }
-    else if (r._r && firstHave(r._r.v)) { r._svc = firstHave(r._r.v); r._basis = 'rule'; r._outlet = r._r.l; }
-    else { r._svc = 'none'; r._basis = 'none'; r._outlet = ''; }
+    r._svc = r._routes.service_id || 'none';
+    r._basis = r._routes.basis; r._outlet = r._routes.outlet;
     r.classList.toggle('row--on', r._svc !== 'none'); r.classList.toggle('row--off', r._svc === 'none'); r.classList.toggle('row--rule', r._basis === 'rule');
     r.setAttribute('data-svc', r._svc); r.setAttribute('data-basis', r._basis); r.setAttribute('data-outlet', r._outlet);
     updateNetworks(r);
   }
-  function evaluateAll() { closeNetwork(); rows.forEach(evaluateRow); }
+  // The protocol retains microseconds. Date.now() has millisecond precision, so
+  // schedule at the first representable instant at or after the exact cutoff.
+  function routeTransitionMs(value) {
+    if (!value) return Infinity;
+    var instant = Date.parse(value), fraction = /\.(\d{4,6})Z$/.exec(value);
+    return instant + (fraction && /[1-9]/.test(fraction[1].slice(3)) ? 1 : 0);
+  }
+  function scheduleRouteCheck(now) {
+    clearTimeout(routeTimer); routeTimer = null;
+    if (routeSuspended || document.hidden || !isFinite(routeNextAt) || /^#at-\d{8}-\d{4}$/.test(location.hash || '')) return;
+    routeTimer = setTimeout(function () { routeTimer = null; render(false); },
+      Math.max(1, Math.min(2147483647, routeNextAt - now)));
+  }
+  function evaluateAll(now) {
+    if (now === undefined) now = nowMs();
+    closeNetwork();
+    routeNextAt = Infinity;
+    // Publish each complete batch before rendering any consumer. No per-widget rule copies.
+    for (var start = 0; start < rows.length; start += 1000) {
+      var batch = rows.slice(start, start + 1000);
+      var decisions = coreDecision({ version: 1, operation: 'route_selection', now_utc: new Date(now).toISOString(),
+        lineup: { selected_service_ids: Object.keys(HAVE), service_order: serviceOrder(), service_names: SERVICE_NAMES },
+        cases: batch.map(function (r) { return { id: r.getAttribute('data-id'), listed: r._o.map(routeInput), usual: r._r ? routeInput(r._r) : null }; }) });
+      decisions.forEach(function (decision, i) {
+        if (decision.id !== batch[i].getAttribute('data-id')) throw new Error('Shared Outlook fixture mismatch');
+        var row = batch[i];
+        if (!decision.listed_validity || decision.listed_validity.length !== row._o.length ||
+            decision.listed_validity.some(function (v) { return !v; }) || row._r && !decision.usual_validity)
+          throw new Error('Shared Outlook lifetime mismatch');
+        function transition(validity, facts) {
+          if (!validity) return;
+          var cutoff = routeTransitionMs(validity.expires_at);
+          if (cutoff > now) routeNextAt = Math.min(routeNextAt, cutoff);
+          if (validity.reason === 'future_verification') {
+            var verification = routeTransitionMs(facts.verified_at);
+            if (verification > now) routeNextAt = Math.min(routeNextAt, verification);
+          }
+        }
+        decision.listed_validity.forEach(function (v, index) { transition(v, row._o[index].t); });
+        transition(decision.usual_validity, row._r && row._r.t);
+        batch[i]._routes = decision;
+      });
+    }
+    rows.forEach(evaluateRow);
+    routeEvaluatedAt = now;
+    applyCompChoices(now);
+    scheduleRouteCheck(now);
+  }
+  function refreshRouteValidity(now) {
+    if (routeEvaluatedAt === null || now < routeEvaluatedAt || now >= routeNextAt) {
+      evaluateAll(now);
+      return true;
+    }
+    scheduleRouteCheck(now);
+    return false;
+  }
 
   function applyFilterUI() {
     renderFilterGroups();
@@ -453,12 +593,7 @@
     });
   }
   function passes(r) {
-    // The schedule promises availability: a match shows when one of the viewer's services carries it
-    // (listed, or its usual home). One on other services shows under Elsewhere when a broadcaster is
-    // listed; one with unconfirmed coverage doesn't show.
-    if (!onSvc(r)) return false;
-    if (compHidden(r)) return false;
-    return true;
+    return !!(r._eligibility && r._eligibility.eligible);
   }
   // One nonmodal Settings pane keeps filter controls and the AI workflow together. Switching tabs
   // only changes visibility, so a draft response or prompt is never lost during a filter adjustment.
@@ -561,14 +696,12 @@
   var stripFocus = '', stripShape = '';
   function renderStrip(now) {
     if (!strip) return;
-    var pills = {}, scheduled = {};
+    var pills = {};
     filterPills.comp.forEach(function (pill) { pills[pill.dataset.key] = pill; });
-    // Include folded results, and ignore pause/solo here so their restore controls stay available.
-    rows.forEach(function (r) { if (onSvc(r) && bucketOf(r, now)) scheduled[r._lg] = true; });
-    var ids = leagueOrder().filter(function (id) { return pills[id] && followed(id) && scheduled[id]; });
-    if (soloLeague && ids.indexOf(soloLeague) < 0) {
+    var ids = leagueProjection.strip_league_ids;
+    if (soloLeague !== (leagueProjection.active_solo_id || '')) {
       var ended = soloLeague;
-      clearStripView(); applyFilterUI();
+      soloLeague = leagueProjection.active_solo_id || ''; hideNote(); applyFilterUI();
       stripStatus.textContent = leagueNames[ended] + ' is no longer in this schedule; previous selection restored';
     }
     var focused = stripList.contains(document.activeElement);
@@ -774,6 +907,9 @@
 
   // ---- time helpers --------------------------------------------------------------------------
   var tz = null; try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone; } catch (e) {}
+  // Some Intl implementations expose GMT as a zero-offset identifier. Give
+  // the calendar its equivalent named zone; unsupported zones still reject.
+  if (/^[+-]00:00$/.test(tz)) tz = 'UTC';
   var showET = tz && tz !== 'America/New_York';
   var fmtTime = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' });
   var fmtET = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' });
@@ -786,32 +922,50 @@
     parts.forEach(function (p) { if (p.type === 'hour') h = p.value; else if (p.type === 'minute') m = p.value; else if (p.type === 'dayPeriod') ap = p.value.toLowerCase(); });
     return { t: m ? h + ':' + m : h, ap: ap };
   }
-  function sportsDayStart(d) { var s = new Date(d); s.setHours(DAY_START, 0, 0, 0); if (d < s) s.setDate(s.getDate() - 1); return s; }
-  function dayIndex(k, now) { return Math.round((sportsDayStart(new Date(k)) - sportsDayStart(new Date(now))) / 86400000); }
-  function inFocus(r, now) {
-    return r._state !== 'post' && r._k < now + FOCUS_MS &&
-      (r._k >= now || (r._k >= now - LIVE_MS && (r._state === 'in' || r._tv)) ||
-       (r._state === 'in' && Date.now() - (r._seen || 0) < 10 * 60000));
-  }
-  // A row's section, or null when it is outside the page's window: today and the three days after it
-  // (Thursday shows Thursday to Sunday), and the previous three sports days.
-  function bucketOf(r, now) {
-    var idx = dayIndex(r._k, now);
-    if (idx > WINDOW_DAYS || idx < -HISTORY_DAYS) return null;
-    // A live match can cross midnight or the 4 am sports-day boundary.
-    if (inFocus(r, now) && r._tv && r._k <= now) return 'live';
-    if (idx < 0) return PAST[-idx - 1];
-    if (idx === 0) {
-      if (r._state === 'post') return 'earlier';
-      if (r._state === 'in' && (now < r._k + LIVE_MS + 30 * 60000 || Date.now() - (r._seen || 0) < 10 * 60000)) return 'live';
-      if (r._tv && now >= r._k && now < r._k + LIVE_MS) return 'live';
-      if (r._tv && now >= r._k + LIVE_MS) return 'earlier';
+  var calendarCache = new Map();
+  function calendarDecision(operation, instant, reference, offset) {
+    var key = [operation, instant, reference, offset, tz].join('|');
+    if (!calendarCache.has(key)) {
+      var input = { id: 'day', instant: new Date(instant).toISOString(), time_zone: tz };
+      if (operation === 'sports_day') input.reference = new Date(reference).toISOString();
+      else input.offset_days = offset;
+      var result = coreDecision({ version: 1, operation: operation, cases: [input] })[0];
+      if (calendarCache.size >= 2048) calendarCache.clear();
+      calendarCache.set(key, result);
     }
-    return DAYS[idx];
+    return calendarCache.get(key);
   }
+  function sportsDayStart(d) { return new Date(calendarDecision('sports_day', d.getTime(), d.getTime()).start_utc); }
+  function dayIndex(k, now) { return calendarDecision('sports_day', k, now).day_index; }
+  function updateFixtureWindows(fixtureRows, now) {
+    var pending = [];
+    fixtureRows.forEach(function (r) {
+      var input = { id: r.getAttribute('data-id'), now_utc: new Date(now).toISOString(), time_zone: tz,
+        kickoff_utc: new Date(r._k).toISOString(), time_confirmed: r._tv, source_state: r._state,
+        // This is accepted-response receipt, not a provider observation time.
+        received_at: typeof r._seen === 'number' && isFinite(r._seen) ? new Date(r._seen).toISOString() : null };
+      var key = JSON.stringify(input);
+      if (key !== r._timeWindowKey) pending.push({ row: r, input: input, key: key });
+    });
+    for (var start = 0; start < pending.length; start += 1000) {
+      var batch = pending.slice(start, start + 1000);
+      var decisions = coreDecision({ version: 1, operation: 'fixture_window', cases: batch.map(function (entry) { return entry.input; }) });
+      if (!Array.isArray(decisions) || decisions.length !== batch.length) throw new Error('Shared Outlook window count mismatch');
+      decisions.forEach(function (decision, i) {
+        if (decision.id !== batch[i].input.id) throw new Error('Shared Outlook window identity mismatch');
+        batch[i].decision = decision;
+      });
+    }
+    // Install only after every batch succeeds; replaced rows receive their own
+    // projection even when their fixture facts match the previous DOM objects.
+    pending.forEach(function (entry) { entry.row._timeWindow = entry.decision; entry.row._timeWindowKey = entry.key; });
+  }
+  function fixtureWindow(r, now) { updateFixtureWindows([r], now); return r._timeWindow; }
+  function inFocus(r, now) { return fixtureWindow(r, now).in_focus; }
+  function bucketOf(r, now) { return fixtureWindow(r, now).bucket; }
   // The start of the sports day `idx` days after now's, for its heading: a 1 am kickoff belongs to the
   // day before its calendar date, so the date comes from the day, not from its first match.
-  function dayDate(idx, now) { var d = sportsDayStart(new Date(now)); d.setDate(d.getDate() + idx); return d; }
+  function dayDate(idx, now) { return new Date(calendarDecision('calendar_shift', now, null, idx).start_utc); }
 
   // Write local kickoff times into the rows once (static markup carries Eastern time).
   rows.forEach(function (r) {
@@ -869,6 +1023,8 @@
   }
   function draw(force) {
     var now = nowMs();
+    force = refreshRouteValidity(now) || force;
+    applyCompChoices(now);
     renderStrip(now);
     renderFilterGroups();
     var groups = {}; ORDER.forEach(function (b) { groups[b] = []; });
@@ -876,8 +1032,8 @@
     sig += (PERSONAL && PERSONAL.active() ? 'personal' : SHARED && SHARED.active() ? 'shared' : 'site') + '|';
     var all = {}; ORDER.forEach(function (b) { all[b] = []; });
     rows.forEach(function (r) {
-      var b = bucketOf(r, now);
-      r._b = b; r.hidden = !(b && passes(r));
+      var b = r._b;
+      r.hidden = !r._eligibility.schedule_eligible;
       r._card.render('schedule', now);
       if (b) all[b].push(r);
       if (b && !r.hidden) groups[b].push(r);
@@ -920,7 +1076,11 @@
     return result;
   }
   function rebuild(groups, all, now) {
-    var context = Object.keys(HAVE).join(',') + '|' + Object.keys(compOff).join(',') + '|' + soloLeague;
+    // Fold state follows the current schedule's visibility, not fixture-free
+    // editorial choices or league priority. Eligibility still uses the full catalog.
+    var hiddenScheduleLeagues = filterPills.comp.map(function (pill) { return pill.dataset.key; })
+      .filter(function (id) { return compOff[id]; }).sort();
+    var context = Object.keys(HAVE).join(',') + '|' + hiddenScheduleLeagues.join(',') + '|' + soloLeague;
     if (context !== foldContext) { foldContext = context; foldChoices = {}; }
     var frag = document.createDocumentFragment();
     var anyUpcoming = false;
@@ -1223,7 +1383,7 @@
     }).sort(byTime);
     var nextRows = recent.concat(live, next);
     var active = nextupCarousel.current(), selectedId = nextupBrowsing && active && active.dataset.matchId;
-    if (active && ROW_BY_ID[selectedId] && ROW_BY_ID[selectedId]._state === 'post' && active.dataset.finished !== 'true') selectedId = null;
+    if (active && ROW_BY_ID[selectedId] && ROW_BY_ID[selectedId]._state === 'post' && active.dataset.terminal !== 'true') selectedId = null;
     nextupSection.hidden = !nextRows.length;
     var previous = Object.create(null);
     nextupCards().forEach(function (card) { previous[card.dataset.matchId] = card; });
@@ -1237,7 +1397,8 @@
         heading.appendChild(document.createElement('p')); group.appendChild(heading); groups.push(group);
       }
       var card = r._card.render('nextup', now, previous[r.dataset.id]);
-      card.dataset.timeLabel = time.label; card.dataset.finished = String(r._state === 'post'); group.appendChild(card);
+      card.dataset.timeLabel = time.label; card.dataset.finished = String(r._sourceStatus.final);
+      card.dataset.terminal = String(r._state === 'post'); group.appendChild(card);
     });
     groups.forEach(function (g) {
       var count = g.children.length - 1; g.style.setProperty('--match-count', count);
@@ -1387,11 +1548,17 @@
   window.addEventListener('resize', hideDetailPreview);
   document.getElementById('match-dialog-close').addEventListener('click', function () { detailDialog.close(); });
   detailDialog.addEventListener('keydown', function (ev) {
-    if (ev.key !== 'Tab') return;
-    var stops = Array.from(detailDialog.querySelectorAll('button:not(:disabled), a[href], summary')).filter(function (el) { return el.getClientRects().length; });
-    var first = stops[0], last = stops[stops.length - 1];
-    if (ev.shiftKey && document.activeElement === first) { ev.preventDefault(); last.focus(); }
-    else if (!ev.shiftKey && document.activeElement === last) { ev.preventDefault(); first.focus(); }
+    if (ev.key !== 'Tab' || ev.altKey || ev.ctrlKey || ev.metaKey) return;
+    var stops = Array.from(detailDialog.querySelectorAll('button:not(:disabled), a[href], summary')).filter(function (el) {
+      var folded = el.closest('details:not([open])');
+      return el.tabIndex >= 0 && el.getClientRects().length && !el.closest('[inert]') && (!folded || folded.querySelector('summary') === el);
+    });
+    if (!stops.length) return;
+    // Safari can exclude links from its native Tab order. Traverse our modal controls explicitly
+    // so every action remains reachable and focus cannot fall out to the browser chrome.
+    var current = stops.indexOf(document.activeElement), next = current < 0 ? (ev.shiftKey ? stops.length - 1 : 0) :
+      (current + (ev.shiftKey ? -1 : 1) + stops.length) % stops.length;
+    ev.preventDefault(); stops[next].focus();
   });
   function outsideDialog(ev) {
     var rect = detailDialog.getBoundingClientRect();
@@ -1430,8 +1597,13 @@
   }
 
   function setPickWhen(when, r, now) {
-    var live = r._b === 'live' && r._state === 'in', finished = r._state === 'post';
+    var live = r._b === 'live' && r._state === 'in', finished = r._sourceStatus.final;
     var st = r._tv ? splitTime(new Date(r._k)) : { t: 'TBD', ap: 'Time to be confirmed' };
+    if (r._sourceStatus.void || r._statusKind === 'unknown') {
+      setText(when.firstChild, r._sourceStatus.label);
+      setText(when.lastChild, r._tv ? st.t + (st.ap ? ' ' + st.ap : '') : st.ap);
+      return;
+    }
     var sc = live || finished ? scoreOf(r) : '';
     setText(when.firstChild, live || finished ? sc || (finished ? 'Final' : 'Live') : st.t);
     setText(when.lastChild, finished ? clockOf(r) || 'FT' : live ? (sc ? 'live ' + clockOf(r) : clockOf(r) || 'in progress') :
@@ -1689,7 +1861,7 @@
     var hidden = remaining.length - selected.length;
     if (!selected.length) return hidden ? matchCount(hidden) + ' hidden by competition filters.' : 'No remaining matches in the loaded schedule.';
     var live = selected.filter(function (r) { return r._state === 'in'; }).length;
-    var pending = selected.filter(function (r) { return r._state === 'pre' && r._tv && r._k <= now; }).length;
+    var pending = selected.filter(function (r) { return (r._state === 'pre' || r._state === 'unknown') && r._tv && r._k <= now; }).length;
     var scheduled = selected.length - live - pending, parts = [];
     if (live) parts.push(live + ' live');
     if (scheduled) parts.push(scheduled + ' upcoming');
@@ -1799,7 +1971,7 @@
     var found = ids.map(function (id) { return typeof id === 'string' ? ROW_BY_ID[id] : null; });
     return found.every(Boolean) ? found : null;
   }
-  function editorialPasses(r) { return onSvc(r) && !compHidden(r); }
+  function editorialPasses(r) { return passes(r); }
   function referencedRows(item) {
     if (!item || !Array.isArray(item.segments) || !item.segments.length) return [];
     var found = [], valid = item.segments.every(function (part) {
@@ -2180,13 +2352,6 @@
   }
 
   // ---- live scores: row presentation; transport and polling live in web/live.js ---------------
-  // The same reading of ESPN's status as build.py's interpret().
-  function liveStatus(st) {
-    var t = (st && st.type) || {}, desc = (t.description || '').toLowerCase();
-    if (t.state === 'in') return desc.indexOf('halftime') === 0 ? 'HT' : (st.displayClock || t.shortDetail || 'Live');
-    if (t.state === 'post') return /^(full time|final|full-time)$/.test(desc) ? 'FT' : (t.shortDetail || t.description || 'FT');
-    return '';
-  }
   function liveGoals(comp, side) {
     var by = {}, parts = [];
     (comp.details || []).forEach(function (d) {
@@ -2220,22 +2385,26 @@
   }
   // Brings one row up to date with ESPN's event, noting in `changed` what moved.
   function applyEvent(r, ev, first, changed) {
-    var comp = (ev.competitions || [])[0]; if (!comp) return;
-    var st = comp.status || ev.status || {}, state = (st.type || {}).state;
-    if (state !== 'pre' && state !== 'in' && state !== 'post') return;
-    var side = {};
-    (comp.competitors || []).forEach(function (c) { if (c && (c.homeAway === 'home' || c.homeAway === 'away')) side[c.homeAway] = c; });
-    if (!side.home || !side.away) return;
-    var status = liveStatus(st), off = state === 'post' && /^(canceled|cancelled|postponed)$/i.test(status);
-    var played = state !== 'pre' && !off;
-    var vals = [side.home, side.away].map(function (c) {
-      var v = c.score != null && typeof c.score === 'object' ? c.score.displayValue : c.score;
-      return played && /^\d{1,3}$/.test(String(v)) ? String(v) : '';
+    var comp = (Array.isArray(ev.competitions) ? ev.competitions : []).find(function (value) {
+      return value && typeof value === 'object' && !Array.isArray(value);
     });
+    if (!comp) return;
+    var side = {};
+    (Array.isArray(comp.competitors) ? comp.competitors : []).forEach(function (c) { if (c && (c.homeAway === 'home' || c.homeAway === 'away')) side[c.homeAway] = c; });
+    if (!side.home || !side.away) return;
+    var identity = r.getAttribute('data-id');
+    var decisions = coreDecision({ version: 1, operation: 'espn_status', cases: [{ id: identity,
+      event_status: ev.status == null ? null : ev.status, competition_status: comp.status == null ? null : comp.status,
+      home_score: side.home.score == null ? null : side.home.score, away_score: side.away.score == null ? null : side.away.score }] });
+    if (!Array.isArray(decisions) || decisions.length !== 1 || decisions[0].id !== identity) throw new Error('Shared Outlook live status identity mismatch');
+    var value = decisions[0], state = value.phase, status = value.label, off = value.void, played = value.played;
+    var vals = [value.scores.home, value.scores.away].map(function (score) { return score === null ? '' : String(score); });
     r._seen = Date.now();
     r._liveEvent = ev;
-    if (state !== r._state) {
+    r._sourceStatus = value;
+    if (state !== r._state || value.state !== r._statusKind) {
       r._state = state; r.setAttribute('data-state', state); changed.state = true;
+      r._statusKind = value.state; r.setAttribute('data-status-kind', value.state);
       closeNetwork();
       updateNetworks(r);
       if (off) { r._score = 0; r.setAttribute('data-score', '0'); }
@@ -2330,6 +2499,7 @@
   function applySchedule(snapshot) {
     // A pointer drag owns its pill until it ends. Retry this snapshot on the next poll.
     if (filterDrag) throw new Error('Filter reorder in progress');
+    projectRowStatuses(snapshot.rows);
     keepPlace(function () {
       keepFocus(function () {
         closeNetwork();
@@ -2380,11 +2550,11 @@
       eligible: passes(r) && r._state !== 'post' && DAYS.concat(['live']).indexOf(bucket) !== -1 };
   }
   function personalLeagueEligible(id) {
-    return Object.prototype.hasOwnProperty.call(SERVICES.leagues || {}, id) &&
-      followed(id) && !hiddenByStrip(id) && Object.keys(HAVE).length > 0;
+    return !!(leagueDecisions[id] && leagueDecisions[id].calendar_editorial_eligible);
   }
   function personalSnapshot() {
     var now = nowMs();
+    if (refreshRouteValidity(now)) render(true);
     return {
       now: new Date(now).toISOString(), built_at: app.getAttribute('data-schedule-built') || app.getAttribute('data-built'), timezone: tz || 'local time',
       league_order: leagueOrder().filter(personalLeagueEligible).map(function (id) {
@@ -2397,7 +2567,7 @@
           id: r.getAttribute('data-id'), kickoff: new Date(r._k).toISOString(), kickoff_confirmed: r._tv,
           league_id: r._lg, competition: r.getAttribute('data-comp'), home: r.getAttribute('data-home'),
           away: r.getAttribute('data-away'), state: r._state, outlook_score: r._outlook,
-          channels: r._o.filter(function (o) { return !o.u; }).map(function (o) { return o.l; }),
+          channels: r._o.filter(function (o) { return !o.u && validityFor(r, o, false).usable; }).map(function (o) { return o.l; }),
           service: SERVICE_NAMES[r._svc] || r._svc, coverage: r._basis
         });
       })
@@ -2425,5 +2595,12 @@
   if (scheduleUpdates) { setTimeout(scheduleUpdates.poll, 0); setInterval(scheduleUpdates.poll, scheduleUpdates.everyMs); }
   setInterval(function () { render(false); checkStale(); checkStory(); }, 60000);
   setInterval(liveScores.poll, liveScores.everyMs);
-  document.addEventListener('visibilitychange', function () { if (!document.hidden) { render(false); checkStale(); checkStory(); liveScores.poll(); if (scheduleUpdates) scheduleUpdates.poll(); } });
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) { clearTimeout(routeTimer); routeTimer = null; }
+    else { render(false); checkStale(); checkStory(); liveScores.poll(); if (scheduleUpdates) scheduleUpdates.poll(); }
+  });
+  function suspendRouteChecks() { routeSuspended = true; clearTimeout(routeTimer); routeTimer = null; }
+  window.addEventListener('beforeunload', suspendRouteChecks);
+  window.addEventListener('pagehide', suspendRouteChecks);
+  window.addEventListener('pageshow', function () { if (routeSuspended) { routeSuspended = false; render(false); } });
 })();

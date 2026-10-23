@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://soccer-outlook.invalid/contracts/outlook/v1/catalog.schema.json",
+  "title": "Draft P0 catalog",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "kind": {
+      "const": "outlook_catalog"
+    },
+    "content_revision": {
+      "$ref": "common.schema.json#/$defs/id"
+    },
+    "leagues": {
+      "type": "array",
+      "items": {
+        "$ref": "common.schema.json#/$defs/league"
+      },
+      "maxItems": 100,
+      "minItems": 0
+    },
+    "teams": {
+      "type": "array",
+      "items": {
+        "$ref": "common.schema.json#/$defs/team"
+      },
+      "maxItems": 6000,
+      "minItems": 0
+    },
+    "networks": {
+      "type": "array",
+      "items": {
+        "$ref": "common.schema.json#/$defs/network"
+      },
+      "maxItems": 500,
+      "minItems": 0
+    },
+    "service_plans": {
+      "type": "array",
+      "items": {
+        "$ref": "common.schema.json#/$defs/service_plan"
+      },
+      "maxItems": 500,
+      "minItems": 0
+    },
+    "assets": {
+      "type": "array",
+      "items": {
+        "$ref": "common.schema.json#/$defs/asset"
+      },
+      "maxItems": 10000,
+      "minItems": 0
+    },
+    "service_plan_migrations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "$ref": "common.schema.json#/$defs/id"
+          },
+          "to": {
+            "$ref": "common.schema.json#/$defs/id"
+          },
+          "equivalent": {
+            "const": true
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "equivalent"
+        ],
+        "additionalProperties": true,
+        "maxProperties": 100
+      },
+      "maxItems": 500,
+      "minItems": 0
+    },
+    "viewer_preferences": false,
+    "personal_ai": false,
+    "final_pick_score": false,
+    "rating_dots": false,
+    "personalized_picks": false
+  },
+  "required": [
+    "schema_version",
+    "kind",
+    "content_revision",
+    "leagues",
+    "teams",
+    "networks",
+    "service_plans",
+    "assets",
+    "service_plan_migrations"
+  ],
+  "additionalProperties": true,
+  "maxProperties": 100
+}

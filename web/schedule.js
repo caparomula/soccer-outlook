@@ -15,7 +15,7 @@
     if (!isFinite(generated) || generated > Date.now() + 5 * 60000 || generated < Date.now() - 30 * 3600000) throw new Error('Stale schedule');
     if (generated <= options.after) return null;
     if (!Array.isArray(payload.rows) || payload.rows.length > 5000) throw new Error('Invalid fixtures');
-    var ids = Object.create(null), total = 0;
+    var ids = Object.create(null), total = 0, routes = [];
     var rows = payload.rows.map(function (html) {
       if (typeof html !== 'string' || html.length > 150000 || (total += html.length) > 12000000) throw new Error('Invalid fixture markup');
       var template = document.createElement('template'); template.innerHTML = html;
@@ -34,16 +34,20 @@
       if (!/^[a-zA-Z0-9_-]{1,80}$/.test(id || '') || ids[id]) throw new Error('Invalid fixture identity');
       ids[id] = true;
       if (!Object.prototype.hasOwnProperty.call(options.leagues, row.dataset.lg) ||
-          !/^(pre|in|post)$/.test(row.dataset.state || '') || !/^[01]$/.test(row.dataset.tv || '') ||
+          !/^(pre|in|post|unknown)$/.test(row.dataset.state || '') || !/^[01]$/.test(row.dataset.tv || '') ||
           !isFinite(Date.parse(row.dataset.utc)) || !row.dataset.home || !row.dataset.away) throw new Error('Invalid fixture facts');
       if (row.querySelectorAll('.row__teams > .team').length !== 2 || !row.querySelector('.row__detail') ||
           !row.querySelector('.row__kickoff') || !row.querySelector('.row__footer .more')) throw new Error('Incomplete fixture');
       function outlet(value) {
         return object(value) && typeof value.l === 'string' && value.l.length > 0 && value.l.length <= 200 &&
-          Array.isArray(value.v) && value.v.every(function (service) { return options.services.indexOf(service) >= 0; });
+          object(value.t) && Array.isArray(value.v) && value.v.every(function (service) { return options.services.indexOf(service) >= 0; });
       }
       var outlets = JSON.parse(row.dataset.o || '[]'), rule = row.hasAttribute('data-r') ? JSON.parse(row.dataset.r) : null;
       if (!Array.isArray(outlets) || outlets.length > 50 || !outlets.every(outlet) || rule && !outlet(rule)) throw new Error('Invalid viewing routes');
+      function route(value) {
+        return { label: value.l, service_ids: value.v, spanish: !!value.e, unknown: !!value.u, validity: value.t };
+      }
+      routes.push({ id: id, listed: outlets.map(route), usual: rule ? route(rule) : null });
       var watch = JSON.parse(row.dataset.watch || '{}');
       if (!object(watch)) throw new Error('Invalid viewing links');
       Object.keys(watch).forEach(function (network) {
@@ -56,6 +60,20 @@
       if (!object(JSON.parse(row.dataset.aiFacts || '{}')) || !object(JSON.parse(row.dataset.outlookParts || '{}'))) throw new Error('Invalid fixture context');
       return row;
     });
+    // Let the shared owner validate temporal facts and candidate roles before
+    // replacing any visible row. An expired route is valid input; malformed
+    // dates or missing validity metadata must leave the saved schedule intact.
+    if (routes.length && typeof global.outlookDecisions !== 'function') throw new Error('Viewing rules unavailable');
+    var serviceNames = {};
+    options.services.forEach(function (id) { serviceNames[id] = id; });
+    var now = new Date().toISOString();
+    for (var offset = 0; offset < routes.length; offset += 1000) {
+      var batch = routes.slice(offset, offset + 1000);
+      var decisions = JSON.parse(global.outlookDecisions(JSON.stringify({ version: 1, operation: 'route_selection', now_utc: now,
+        lineup: { selected_service_ids: [], service_order: options.services, service_names: serviceNames }, cases: batch })));
+      if (decisions.error || decisions.version !== 1 || !Array.isArray(decisions.results) || decisions.results.length !== batch.length ||
+          decisions.results.some(function (result, i) { return result.id !== batch[i].id; })) throw new Error('Invalid viewing routes');
+    }
     var logos = payload.logos || {}, css = '';
     if (!object(logos) || Object.keys(logos).length > 5000) throw new Error('Invalid logo catalog');
     Object.keys(logos).forEach(function (key) {

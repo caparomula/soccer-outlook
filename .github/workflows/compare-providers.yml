@@ -55,6 +55,7 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
+      - uses: ./.github/actions/outlook-runtime
 
       - name: Build today's facts
         run: python3 build.py --out work/page.html --facts work/facts.json

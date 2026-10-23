@@ -1,0 +1,180 @@
+{
+  "schema_version": 1,
+  "kind": "outlook_schedule",
+  "content_revision": "schedule-unknown-kickoff",
+  "catalog_revision": "catalog-example-1",
+  "policy_id": "outlook-policy-p0-draft-1",
+  "fixture_sources_complete": true,
+  "source_scopes": [
+    {
+      "source": "espn",
+      "league_id": "eng.1",
+      "date_zone": "America/New_York",
+      "requested_dates": [
+        "2026-10-20"
+      ],
+      "covered_dates": [
+        "2026-10-20"
+      ],
+      "complete": true,
+      "attempted_at": "2026-10-20T12:00:00Z",
+      "validated_at": "2026-10-20T12:00:00Z"
+    }
+  ],
+  "confirmed_horizon": {
+    "start": "2026-10-20T04:00:00Z",
+    "end_exclusive": "2026-10-21T04:00:00Z"
+  },
+  "broadcast_sources": [
+    {
+      "source": "example-broadcaster",
+      "state": "ok",
+      "attempted_at": "2026-10-20T12:00:00Z",
+      "validated_at": "2026-10-20T12:00:00Z",
+      "observed_at": "2026-10-20T12:00:00Z",
+      "diagnostics": []
+    }
+  ],
+  "fixtures": [
+    {
+      "id": "espn:fixture:example-1",
+      "league_id": "eng.1",
+      "home_team_id": "espn:team:example-home",
+      "away_team_id": "espn:team:example-away",
+      "source_refs": [
+        {
+          "source": "espn",
+          "id": "example-1"
+        }
+      ],
+      "timing": {
+        "confirmed": false,
+        "kickoff": null,
+        "scheduled_date": "2026-10-20",
+        "scheduled_date_zone": null
+      },
+      "status": {
+        "state": "scheduled",
+        "provider_state": "STATUS_SCHEDULED",
+        "observation": {
+          "source": "espn",
+          "observed_at": "2026-10-20T12:00:00Z",
+          "provider_updated_at": null
+        },
+        "scores": {
+          "match": {
+            "home": null,
+            "away": null
+          },
+          "shootout": null,
+          "aggregate": null
+        },
+        "period": null,
+        "clock": null
+      },
+      "context": {
+        "stage": null,
+        "group": null,
+        "venue": null,
+        "place": null,
+        "notes": [],
+        "home_vitals_id": null,
+        "away_vitals_id": null
+      },
+      "network_ids": [
+        "network:usa"
+      ],
+      "routes": [
+        {
+          "id": "route:example-1",
+          "network_id": "network:usa",
+          "eligible_service_plan_ids": [
+            "yttv"
+          ],
+          "country": "US",
+          "scope": "linear_channel",
+          "basis": "listed",
+          "package_requirements": [],
+          "excluded_service_plan_ids": [],
+          "notes": [],
+          "evidence_ids": [
+            "evidence:example-1"
+          ],
+          "verified_at": "2026-10-20T12:00:00Z",
+          "retained": false,
+          "expires_at": null,
+          "rights_period": null,
+          "destination_ids": []
+        }
+      ],
+      "unresolved_channels": [],
+      "outlook": {
+        "total": 50,
+        "components": {
+          "stature": 0.5,
+          "close": null,
+          "stakes": null,
+          "goals": null
+        },
+        "raw_inputs": {
+          "stature": 75,
+          "home_win": null,
+          "away_win": null,
+          "goal_line": null,
+          "home_rank": null,
+          "away_rank": null,
+          "home_table_size": null,
+          "away_table_size": null,
+          "stage": null
+        },
+        "missing_inputs": [
+          "close",
+          "stakes",
+          "goals"
+        ],
+        "assumptions": [
+          "Missing components retain their weight with the configured 0.5 value."
+        ],
+        "effective_weights": {
+          "stature": 50,
+          "close": 25,
+          "stakes": 10,
+          "goals": 15
+        },
+        "calibration_id": "outlook-example-1"
+      },
+      "links": {
+        "match_page": null,
+        "table_league_id": "eng.1",
+        "destination_ids": []
+      }
+    }
+  ],
+  "team_vitals": [],
+  "evidence": [
+    {
+      "id": "evidence:example-1",
+      "source": "example-broadcaster",
+      "source_url": "https://example.org/listing",
+      "fixture_id": "espn:fixture:example-1",
+      "team_ids": [
+        "espn:team:example-home",
+        "espn:team:example-away"
+      ],
+      "kickoff": null,
+      "source_refs": [
+        {
+          "source": "example-broadcaster",
+          "id": "airing-1"
+        }
+      ],
+      "country": "US",
+      "package": null,
+      "observed_at": "2026-10-20T12:00:00Z",
+      "classification": "live_match",
+      "verdict": "accepted",
+      "reason": null
+    }
+  ],
+  "destinations": []
+}

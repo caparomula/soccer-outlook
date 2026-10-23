@@ -1,0 +1,2266 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://soccer-outlook.invalid/contracts/outlook/v1/common.schema.json",
+  "title": "Draft P0 shared types; no deployed API guarantee",
+  "$defs": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+    },
+    "utc": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$",
+      "maxLength": 32
+    },
+    "date": {
+      "type": "string",
+      "format": "date",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+    },
+    "zone": {
+      "type": "string",
+      "maxLength": 100,
+      "pattern": "^(?:UTC|[A-Za-z_]+(?:/[A-Za-z0-9_+-]+)+)$"
+    },
+    "https": {
+      "type": "string",
+      "format": "uri",
+      "maxLength": 2048,
+      "pattern": "^https://[^\\s/@?#:]+(?::[0-9]{1,5})?(?:[/?#][^\\s]*)?$"
+    },
+    "source_ref": {
+      "type": "object",
+      "properties": {
+        "source": {
+          "$ref": "common.schema.json#/$defs/id"
+        },
+        "id": {
+          "$ref": "common.schema.json#/$defs/id"
+        }
+      },
+      "required": [
+        "source",
+        "id"
+      ],
+      "additionalProperties": true,
+      "maxProperties": 100
+    },
+    "score_pair": {
+      "type": "object",
+      "properties": {
+        "home": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "away": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "home",
+        "away"
+      ],
+      "additionalProperties": true,
+      "maxProperties": 100
+    },
+    "utc_interval": {
+      "type": "object",
+      "properties": {
+        "start": {
+          "$ref": "common.schema.json#/$defs/utc"
+        },
+        "end_exclusive": {
+          "$ref": "common.schema.json#/$defs/utc"
+        }
+      },
+      "required": [
+        "start",
+        "end_exclusive"
+      ],
+      "additionalProperties": true,
+      "maxProperties": 100
+    },
+    "date_interval": {
+      "type": "object",
+      "properties": {
+        "start": {
+          "$ref": "common.schema.json#/$defs/date"
+        },
+        "end_inclusive": {
+          "$ref": "common.schema.json#/$defs/date"
+        }
+      },
+      "required": [
+        "start",
+        "end_inclusive"
+      ],
+      "additionalProperties": true,
+      "maxProperties": 100
+    },
+    "descriptor": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "pattern": "^objects/[0-9a-f]{64}\\.json$",
+          "maxLength": 77
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8388608
+        },
+        "schema_version": {
+          "const": 1
+        },
+        "content_revision": {
+          "$ref": "common.schema.json#/$defs/id"
+        }
+      },
+      "required": [
+        "path",
+        "sha256",
+        "bytes",
+        "schema_version",
+        "content_revision"
+      ],
+      "additionalProperties": true,
+      "maxProperties": 100
+    },
+    "components": {
+      "type": "object",
+      "properties": {
+        "stature": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "close": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "stakes": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "goals": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "stature",
+        "close",
+        "stakes",
+        "goals"
+      ],
+      "additionalProperties": true,
+      "maxProperties": 100
+    },
+    "weights": {
+      "type": "object",
+      "properties": {
+        "stature": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000
+        },
+        "close": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000
+        },
+        "stakes": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000
+        },
+        "goals": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000
+        }
+      },
+      "required": [
+        "stature",
+        "close",
+        "stakes",
+        "goals"
+      ],
+      "additionalProperties": true,
+      "maxProperties": 100
+    },
+    "observation": {
+      "type": "object",
+      "properties": {
+        "source": {
+          "$ref": "common.schema.json#/$defs/id"
+        },
+        "observed_at": {
+          "anyOf": [
+            {
+              "$ref": "common.schema.json#/$defs/utc"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "provider_updated_at": {
+          "anyOf": [
+            {
+              "$ref": "common.schema.json#/$defs/utc"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "received_at": {
+          "anyOf": [
+            {
+              "$ref": "common.schema.json#/$defs/utc"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "source",
+        "observed_at",
+        "provider_updated_at"
+      ],
+      "additionalProperties": true,
+      "maxProperties": 100
+    },
+    "timing": {
+      "type": "object",
+      "properties": {
+        "confirmed": {
+          "type": "boolean"
+        },
+        "kickoff": {
+          "anyOf": [
+            {
+              "$ref": "common.schema.json#/$defs/utc"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "scheduled_date": {
+          "anyOf": [
+            {
+              "$ref": "common.schema.json#/$defs/date"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "scheduled_date_zone": {
+          "anyOf": [
+            {
+              "$ref": "common.schema.json#/$defs/zone"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "confirmed",
+        "kickoff",
+        "scheduled_date",
+        "scheduled_date_zone"
+      ],
+      "additionalProperties": true,
+      "maxProperties": 100,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "confirmed": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "kickoff": {
+                "$ref": "common.schema.json#/$defs/utc"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "kickoff": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "scheduled_date": {
+                "type": "null"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "scheduled_date_zone": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "status": {
+      "type": "object",
+      "properties": {
+        "state": {
+          "enum": [
+            "scheduled",
+            "live",
+            "finished",
+            "postponed",
+            "cancelled",
+            "abandoned",
+            "unknown"
+          ]
+        },
+        "provider_state": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 100
+        },
+        "observation": {
+          "$ref": "common.schema.json#/$defs/observation"
+        },
+        "scores": {
+          "type": "object",
+          "properties": {
+            "match": {
+              "$ref": "common.schema.json#/$defs/score_pair"
+            },
+            "shootout": {
+              "anyOf": [
+                {
+                  "$ref": "common.schema.json#/$defs/score_pair"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "aggregate": {
+              "anyOf": [
+                {
+                  "$ref": "common.schema.json#/$defs/score_pair"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "match",
+            "shootout",
+            "aggregate"
+          ],
+          "additionalProperties": true,
+          "maxProperties": 100
+        },
+        "period": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 0,
+              "maxLength": 100
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "clock": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 0,
+              "maxLength": 100
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "state",
+        "provider_state",
+        "observation",
+        "scores",
+        "period",
+        "clock"
+      ],
+      "additionalProperties": true,
+      "maxProperties": 100
+    },
+    "destination": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "common.schema.json#/$defs/id"
+        },
+        "kind": {
+          "enum": [
+            "match",
+            "channel",
+            "service_home"
+          ]
+        },
+        "url": {
+          "$ref": "common.schema.json#/$defs/https"
+        },
+        "network_ids": {
+          "type": "array",
+          "items": {
+            "$ref": "common.schema.json#/$defs/id"
+          },
+          "maxItems": 100,
+          "minItems": 0,
+          "uniqueItems": true
+        },
+        "service_plan_ids": {
+          "type": "array",
+          "items": {
+            "$ref": "common.schema.json#/$defs/id"
+          },
+          "maxItems": 100,
+          "minItems": 0,
+          "uniqueItems": true
+        },
+        "country": {
+          "const": "US"
+        },
+        "fixture_id": {
+          "anyOf": [
+            {
+              "$ref": "common.schema.json#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "live_only": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "url",
+        "network_ids",
+        "service_plan_ids",
+        "country",
+        "fixture_id",
+        "live_only"
+      ],
+      "additionalProperties": true,
+      "maxProperties": 100
+    },
+    "evidence": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "common.schema.json#/$defs/id"
+        },
+        "source": {
+          "$ref": "common.schema.json#/$defs/id"
+        },
+        "source_url": {
+          "$ref": "common.schema.json#/$defs/https"
+        },
+        "fixture_id": {
+          "$ref": "common.schema.json#/$defs/id"
+        },
+        "team_ids": {
+          "type": "array",
+          "items": {
+            "$ref": "common.schema.json#/$defs/id"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "uniqueItems": true
+        },
+        "kickoff": {
+          "anyOf": [
+            {
+              "$ref": "common.schema.json#/$defs/utc"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "common.schema.json#/$defs/source_ref"
+          },
+          "maxItems": 20,
+          "minItems": 0
+        },
+        "country": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 2
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "package": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 0,
+              "maxLength": 200
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "observed_at": {
+          "$ref": "common.schema.json#/$defs/utc"
+        },
+        "classification": {
+          "enum": [
+            "live_match",
+            "replay",
+            "unknown"
+          ]
+        },
+        "verdict": {
+          "enum": [
+            "accepted",
+            "rejected",
+            "ambiguous"
+          ]
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 0,
+              "maxLength": 500
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "source",
+        "source_url",
+        "fixture_id",
+        "team_ids",
+        "kickoff",
+        "source_refs",
+        "country",
+        "package",
+        "observed_at",
+        "classification",
+        "verdict",
+        "reason"
+      ],
+      "additionalProperties": true,
+      "maxProperties": 100
+    },
+    "route": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "common.schema.json#/$defs/id"
+        },
+        "network_id": {
+          "$ref": "common.schema.json#/$defs/id"
+        },
+        "eligible_service_plan_ids": {
+          "type": "array",
+          "items": {
+            "$ref": "common.schema.json#/$defs/id"
+          },
+          "maxItems": 100,
+          "minItems": 0,
+          "uniqueItems": true
+        },
+        "country": {
+          "const": "US"
+        },
+        "scope": {
+          "enum": [
+            "linear_channel",
+            "provider_stream",
+            "separate_subscription"
+          ]
+        },
+        "basis": {
+          "enum": [
+            "listed",
+            "usual",
+            "unknown"
+          ]
+        },
+        "package_requirements": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "maxItems": 20,
+          "minItems": 0
+        },
+        "excluded_service_plan_ids": {
+          "type": "array",
+          "items": {
+            "$ref": "common.schema.json#/$defs/id"
+          },
+          "maxItems": 100,
+          "minItems": 0,
+          "uniqueItems": true
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 0,
+            "maxLength": 1000
+          },
+          "maxItems": 20,
+          "minItems": 0
+        },
+        "evidence_ids": {
+          "type": "array",
+          "items": {
+            "$ref": "common.schema.json#/$defs/id"
+          },
+          "maxItems": 100,
+          "minItems": 0,
+          "uniqueItems": true
+        },
+        "verified_at": {
+          "anyOf": [
+            {
+              "$ref": "common.schema.json#/$defs/utc"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "retained": {
+          "type": "boolean"
+        },
+        "expires_at": {
+          "anyOf": [
+            {
+              "$ref": "common.schema.json#/$defs/utc"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "rights_period": {
+          "anyOf": [
+            {
+              "$ref": "common.schema.json#/$defs/date_interval"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "destination_ids": {
+          "type": "array",
+          "items": {
+            "$ref": "common.schema.json#/$defs/id"
+          },
+          "maxItems": 30,
+          "minItems": 0,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "id",
+        "network_id",
+        "eligible_service_plan_ids",
+        "country",
+        "scope",
+        "basis",
+        "package_requirements",
+        "excluded_service_plan_ids",
+        "notes",
+        "evidence_ids",
+        "verified_at",
+        "retained",
+        "expires_at",
+        "rights_period",
+        "destination_ids"
+      ],
+      "additionalProperties": true,
+      "maxProperties": 100,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "basis": {
+                "const": "unknown"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "eligible_service_plan_ids": {
+                "maxItems": 0
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "basis": {
+                "const": "listed"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "evidence_ids": {
+                "minItems": 1
+              },
+              "verified_at": {
+                "$ref": "common.schema.json#/$defs/utc"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "basis": {
+                "const": "usual"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "rights_period": {
+                "$ref": "common.schema.json#/$defs/date_interval"
+              },
+              "verified_at": {
+                "$ref": "common.schema.json#/$defs/utc"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "retained": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "basis": {
+                "const": "listed"
+              },
+              "verified_at": {
+                "$ref": "common.schema.json#/$defs/utc"
+              },
+              "expires_at": {
+                "$ref": "common.schema.json#/$defs/utc"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "outlook": {
+      "type": "object",
+      "properties": {
+        "total": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "components": {
+          "$ref": "common.schema.json#/$defs/components"
+        },
+        "raw_inputs": {
+          "type": "object",
+          "properties": {
+            "stature": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 10000
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "home_win": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "away_win": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "goal_line": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 100
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "home_rank": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 1000
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "away_rank": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 1000
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "home_table_size": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 1000
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "away_table_size": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 1000
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "stage": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 0,
+                  "maxLength": 300
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "stature",
+            "home_win",
+            "away_win",
+            "goal_line",
+            "home_rank",
+            "away_rank",
+            "home_table_size",
+            "away_table_size",
+            "stage"
+          ],
+          "additionalProperties": true,
+          "maxProperties": 100
+        },
+        "missing_inputs": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "stature",
+              "close",
+              "stakes",
+              "goals"
+            ]
+          },
+          "maxItems": 4,
+          "minItems": 0,
+          "uniqueItems": true
+        },
+        "assumptions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 0,
+            "maxLength": 500
+          },
+          "maxItems": 30,
+          "minItems": 0
+        },
+        "effective_weights": {
+          "$ref": "common.schema.json#/$defs/weights"
+        },
+        "calibration_id": {
+          "$ref": "common.schema.json#/$defs/id"
+        },
+        "final_pick_score": false,
+        "rating_dots": false
+      },
+      "required": [
+        "total",
+        "components",
+        "raw_inputs",
+        "missing_inputs",
+        "assumptions",
+        "effective_weights",
+        "calibration_id"
+      ],
+      "additionalProperties": true,
+      "maxProperties": 100
+    },
+    "fixture": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "common.schema.json#/$defs/id"
+        },
+        "league_id": {
+          "$ref": "common.schema.json#/$defs/id"
+        },
+        "home_team_id": {
+          "$ref": "common.schema.json#/$defs/id"
+        },
+        "away_team_id": {
+          "$ref": "common.schema.json#/$defs/id"
+        },
+        "source_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "common.schema.json#/$defs/source_ref"
+          },
+          "maxItems": 20,
+          "minItems": 1
+        },
+        "timing": {
+          "$ref": "common.schema.json#/$defs/timing"
+        },
+        "status": {
+          "$ref": "common.schema.json#/$defs/status"
+        },
+        "context": {
+          "type": "object",
+          "properties": {
+            "stage": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 0,
+                  "maxLength": 300
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "group": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 0,
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "venue": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 0,
+                  "maxLength": 500
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "place": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 0,
+                  "maxLength": 500
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "notes": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 0,
+                "maxLength": 1000
+              },
+              "maxItems": 20,
+              "minItems": 0
+            },
+            "home_vitals_id": {
+              "anyOf": [
+                {
+                  "$ref": "common.schema.json#/$defs/id"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "away_vitals_id": {
+              "anyOf": [
+                {
+                  "$ref": "common.schema.json#/$defs/id"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "stage",
+            "group",
+            "venue",
+            "place",
+            "notes",
+            "home_vitals_id",
+            "away_vitals_id"
+          ],
+          "additionalProperties": true,
+          "maxProperties": 100
+        },
+        "network_ids": {
+          "type": "array",
+          "items": {
+            "$ref": "common.schema.json#/$defs/id"
+          },
+          "maxItems": 100,
+          "minItems": 0,
+          "uniqueItems": true
+        },
+        "routes": {
+          "type": "array",
+          "items": {
+            "$ref": "common.schema.json#/$defs/route"
+          },
+          "maxItems": 100,
+          "minItems": 0
+        },
+        "unresolved_channels": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 0,
+            "maxLength": 200
+          },
+          "maxItems": 100,
+          "minItems": 0
+        },
+        "outlook": {
+          "$ref": "common.schema.json#/$defs/outlook"
+        },
+        "links": {
+          "type": "object",
+          "properties": {
+            "match_page": {
+              "anyOf": [
+                {
+                  "$ref": "common.schema.json#/$defs/https"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "table_league_id": {
+              "anyOf": [
+                {
+                  "$ref": "common.schema.json#/$defs/id"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "destination_ids": {
+              "type": "array",
+              "items": {
+                "$ref": "common.schema.json#/$defs/id"
+              },
+              "maxItems": 30,
+              "minItems": 0,
+              "uniqueItems": true
+            }
+          },
+          "required": [
+            "match_page",
+            "table_league_id",
+            "destination_ids"
+          ],
+          "additionalProperties": true,
+          "maxProperties": 100
+        },
+        "final_pick_score": false,
+        "rating_dots": false,
+        "selected_service_plan_id": false
+      },
+      "required": [
+        "id",
+        "league_id",
+        "home_team_id",
+        "away_team_id",
+        "source_refs",
+        "timing",
+        "status",
+        "context",
+        "network_ids",
+        "routes",
+        "unresolved_channels",
+        "outlook",
+        "links"
+      ],
+      "additionalProperties": true,
+      "maxProperties": 100
+    },
+    "source_scope": {
+      "type": "object",
+      "properties": {
+        "source": {
+          "$ref": "common.schema.json#/$defs/id"
+        },
+        "league_id": {
+          "$ref": "common.schema.json#/$defs/id"
+        },
+        "date_zone": {
+          "$ref": "common.schema.json#/$defs/zone"
+        },
+        "requested_dates": {
+          "type": "array",
+          "items": {
+            "$ref": "common.schema.json#/$defs/date"
+          },
+          "maxItems": 31,
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "covered_dates": {
+          "type": "array",
+          "items": {
+            "$ref": "common.schema.json#/$defs/date"
+          },
+          "maxItems": 31,
+          "minItems": 0,
+          "uniqueItems": true
+        },
+        "complete": {
+          "type": "boolean"
+        },
+        "attempted_at": {
+          "$ref": "common.schema.json#/$defs/utc"
+        },
+        "validated_at": {
+          "anyOf": [
+            {
+              "$ref": "common.schema.json#/$defs/utc"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "source",
+        "league_id",
+        "date_zone",
+        "requested_dates",
+        "covered_dates",
+        "complete",
+        "attempted_at",
+        "validated_at"
+      ],
+      "additionalProperties": true,
+      "maxProperties": 100
+    },
+    "source_health": {
+      "type": "object",
+      "properties": {
+        "source": {
+          "$ref": "common.schema.json#/$defs/id"
+        },
+        "state": {
+          "enum": [
+            "ok",
+            "partial",
+            "unavailable",
+            "unsupported",
+            "unknown"
+          ]
+        },
+        "attempted_at": {
+          "$ref": "common.schema.json#/$defs/utc"
+        },
+        "validated_at": {
+          "anyOf": [
+            {
+              "$ref": "common.schema.json#/$defs/utc"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "observed_at": {
+          "anyOf": [
+            {
+              "$ref": "common.schema.json#/$defs/utc"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "diagnostics": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 0,
+            "maxLength": 500
+          },
+          "maxItems": 100,
+          "minItems": 0
+        }
+      },
+      "required": [
+        "source",
+        "state",
+        "attempted_at",
+        "validated_at",
+        "observed_at",
+        "diagnostics"
+      ],
+      "additionalProperties": true,
+      "maxProperties": 100
+    },
+    "vitals": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "common.schema.json#/$defs/id"
+        },
+        "team_id": {
+          "$ref": "common.schema.json#/$defs/id"
+        },
+        "league_id": {
+          "$ref": "common.schema.json#/$defs/id"
+        },
+        "observation": {
+          "$ref": "common.schema.json#/$defs/observation"
+        },
+        "form": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "W",
+              "D",
+              "L",
+              "unknown"
+            ]
+          },
+          "maxItems": 20,
+          "minItems": 0,
+          "description": "Source-reported results ordered oldest to newest. Ordering verification does not establish result accuracy, competition scope or an as-of time."
+        },
+        "raw_form": {
+          "anyOf": [
+            {"type": "string", "maxLength": 100},
+            {"type": "null"}
+          ]
+        },
+        "form_order": {
+          "enum": ["oldest_to_newest", "unverified"]
+        },
+        "form_provenance": {
+          "type": "object",
+          "properties": {
+            "source_order": {"enum": ["newest_to_oldest", null]},
+            "order_basis": {
+              "anyOf": [
+                {"type": "string", "maxLength": 160},
+                {"type": "null"}
+              ]
+            },
+            "values_verified": {"type": "boolean"},
+            "as_of": {
+              "anyOf": [
+                {"$ref": "common.schema.json#/$defs/utc"},
+                {"type": "null"}
+              ]
+            },
+            "competition_scope": {
+              "enum": ["all_competitions", "same_competition", null]
+            }
+          },
+          "required": ["source_order", "order_basis", "values_verified", "as_of", "competition_scope"],
+          "additionalProperties": true,
+          "maxProperties": 100
+        },
+        "record": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 0,
+              "maxLength": 100
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "rank": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "position": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 1000
+                },
+                "table_size": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 1000
+                },
+                "group": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 0,
+                      "maxLength": 200
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "position",
+                "table_size",
+                "group"
+              ],
+              "additionalProperties": true,
+              "maxProperties": 100
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "hometown": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 0,
+              "maxLength": 300
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "leader": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 300
+                },
+                "goals": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 1000
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "name",
+                "goals"
+              ],
+              "additionalProperties": true,
+              "maxProperties": 100
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "team_id",
+        "league_id",
+        "observation",
+        "form",
+        "record",
+        "rank",
+        "hometown",
+        "leader"
+      ],
+      "additionalProperties": true,
+      "maxProperties": 100
+    },
+    "asset": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "common.schema.json#/$defs/id"
+        },
+        "location": {
+          "anyOf": [
+            {
+              "$ref": "common.schema.json#/$defs/https"
+            },
+            {
+              "type": "string",
+              "maxLength": 500,
+              "pattern": "^assets/(?:[A-Za-z0-9_-]+/)*[A-Za-z0-9_-]+\\.[A-Za-z0-9]+$"
+            }
+          ]
+        },
+        "media_type": {
+          "enum": [
+            "image/png",
+            "image/jpeg",
+            "image/webp",
+            "image/svg+xml"
+          ]
+        },
+        "width": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "height": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "attribution": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 0,
+              "maxLength": 1000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "contrast": {
+          "anyOf": [
+            {
+              "enum": [
+                "none",
+                "light_backing",
+                "dark_backing"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "location",
+        "media_type",
+        "width",
+        "height",
+        "attribution",
+        "contrast"
+      ],
+      "additionalProperties": true,
+      "maxProperties": 100
+    },
+    "league": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "common.schema.json#/$defs/id"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "source_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "common.schema.json#/$defs/source_ref"
+          },
+          "maxItems": 20,
+          "minItems": 0
+        },
+        "asset_id": {
+          "anyOf": [
+            {
+              "$ref": "common.schema.json#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "source_refs",
+        "asset_id"
+      ],
+      "additionalProperties": true,
+      "maxProperties": 100
+    },
+    "team": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "common.schema.json#/$defs/id"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "abbreviation": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 0,
+              "maxLength": 30
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "common.schema.json#/$defs/source_ref"
+          },
+          "maxItems": 20,
+          "minItems": 1
+        },
+        "asset_id": {
+          "anyOf": [
+            {
+              "$ref": "common.schema.json#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "abbreviation",
+        "source_refs",
+        "asset_id"
+      ],
+      "additionalProperties": true,
+      "maxProperties": 100
+    },
+    "network": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "common.schema.json#/$defs/id"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "aliases": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "maxItems": 100,
+          "minItems": 0
+        },
+        "asset_id": {
+          "anyOf": [
+            {
+              "$ref": "common.schema.json#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "aliases",
+        "asset_id"
+      ],
+      "additionalProperties": true,
+      "maxProperties": 100
+    },
+    "service_plan": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "common.schema.json#/$defs/id"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 0,
+            "maxLength": 1000
+          },
+          "maxItems": 20,
+          "minItems": 0
+        },
+        "retired": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "notes",
+        "retired"
+      ],
+      "additionalProperties": true,
+      "maxProperties": 100
+    },
+    "source_link": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "url": {
+          "$ref": "common.schema.json#/$defs/https"
+        }
+      },
+      "required": [
+        "title",
+        "url"
+      ],
+      "additionalProperties": true,
+      "maxProperties": 100
+    },
+    "editorial_item": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "common.schema.json#/$defs/id"
+        },
+        "kind": {
+          "enum": [
+            "headline",
+            "match_story",
+            "rating"
+          ]
+        },
+        "league_id": {
+          "$ref": "common.schema.json#/$defs/id"
+        },
+        "headline": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 0,
+              "maxLength": 300
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 8000
+        },
+        "interest": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "$ref": "common.schema.json#/$defs/source_link"
+          },
+          "maxItems": 30,
+          "minItems": 0
+        },
+        "expires_at": {
+          "$ref": "common.schema.json#/$defs/utc"
+        },
+        "event_period": {
+          "anyOf": [
+            {
+              "$ref": "common.schema.json#/$defs/utc_interval"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "rating_total": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "automatic_components": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "popularity": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 100
+                },
+                "gameplay": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 100
+                },
+                "impact": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 100
+                }
+              },
+              "required": [
+                "popularity",
+                "gameplay",
+                "impact"
+              ],
+              "additionalProperties": true,
+              "maxProperties": 100
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "automatic_weights": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "popularity": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "gameplay": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "impact": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                }
+              },
+              "required": [
+                "popularity",
+                "gameplay",
+                "impact"
+              ],
+              "additionalProperties": true,
+              "maxProperties": 100
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "fixture_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "common.schema.json#/$defs/editorial_fixture_ref"
+          },
+          "maxItems": 100,
+          "minItems": 0,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "league_id",
+        "fixture_refs",
+        "headline",
+        "text",
+        "interest",
+        "sources",
+        "expires_at",
+        "event_period",
+        "rating_total",
+        "automatic_components",
+        "automatic_weights"
+      ],
+      "additionalProperties": true,
+      "maxProperties": 100,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "fixture_refs": {
+                "maxItems": 0
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "kind": {
+                "const": "headline"
+              },
+              "event_period": {
+                "$ref": "common.schema.json#/$defs/utc_interval"
+              },
+              "sources": {
+                "minItems": 1
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "headline"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "headline": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              }
+            }
+          }
+        }
+      ]
+    },
+    "editorial_slot": {
+      "type": "object",
+      "properties": {
+        "origin": {
+          "enum": [
+            "automatic",
+            "shared"
+          ]
+        },
+        "response_id": {
+          "$ref": "common.schema.json#/$defs/id"
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "$ref": "common.schema.json#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "generated_at": {
+          "anyOf": [
+            {
+              "$ref": "common.schema.json#/$defs/utc"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "prompted_at": {
+          "anyOf": [
+            {
+              "$ref": "common.schema.json#/$defs/utc"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "published_at": {
+          "anyOf": [
+            {
+              "$ref": "common.schema.json#/$defs/utc"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "expires_at": {
+          "$ref": "common.schema.json#/$defs/utc"
+        },
+        "focus_until": {
+          "anyOf": [
+            {
+              "$ref": "common.schema.json#/$defs/utc"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 0,
+              "maxLength": 200
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "effort": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 0,
+              "maxLength": 100
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "aggregation_id": {
+          "anyOf": [
+            {
+              "$ref": "common.schema.json#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "influence_weight": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "headlines": {
+          "type": "array",
+          "items": {
+            "$ref": "common.schema.json#/$defs/editorial_item"
+          },
+          "maxItems": 100,
+          "minItems": 0
+        },
+        "matches": {
+          "type": "array",
+          "items": {
+            "$ref": "common.schema.json#/$defs/editorial_item"
+          },
+          "maxItems": 3000,
+          "minItems": 0
+        }
+      },
+      "required": [
+        "origin",
+        "response_id",
+        "request_id",
+        "generated_at",
+        "prompted_at",
+        "published_at",
+        "expires_at",
+        "focus_until",
+        "model",
+        "effort",
+        "aggregation_id",
+        "influence_weight",
+        "headlines",
+        "matches"
+      ],
+      "additionalProperties": true,
+      "maxProperties": 100,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "origin": {
+                "const": "automatic"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "generated_at": {
+                "$ref": "common.schema.json#/$defs/utc"
+              },
+              "prompted_at": {
+                "type": "null"
+              },
+              "focus_until": {
+                "$ref": "common.schema.json#/$defs/utc"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "generated_at": {
+                "type": "null"
+              },
+              "prompted_at": {
+                "$ref": "common.schema.json#/$defs/utc"
+              },
+              "request_id": {
+                "$ref": "common.schema.json#/$defs/id"
+              },
+              "influence_weight": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100
+              }
+            }
+          }
+        }
+      ]
+    },
+    "editorial_fixture_ref": {
+      "type": "object",
+      "properties": {
+        "fixture_id": {
+          "$ref": "common.schema.json#/$defs/id"
+        },
+        "kickoff": {
+          "anyOf": [
+            {
+              "$ref": "common.schema.json#/$defs/utc"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "fixture_id",
+        "kickoff"
+      ],
+      "additionalProperties": true,
+      "maxProperties": 100,
+      "description": "Fixture identity and original referenced kickoff, including explicit unknown. Republishing must preserve this binding."
+    }
+  }
+}

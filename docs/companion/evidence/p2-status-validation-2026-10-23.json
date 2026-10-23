@@ -1,0 +1,693 @@
+{
+  "schema_version": 1,
+  "recorded_at": "2026-10-23T05:48:03.487169+00:00",
+  "status": "passed",
+  "scope": "Local STATUS-ESPN-1 shared source status/result decoder checkpoint; P2 overall remains in progress",
+  "base_commit": "6200140feb9b3fe63b2609d09340355c6458edd0",
+  "uncommitted": true,
+  "environment": {
+    "python": "3.13.16",
+    "playwright": "1.62.0",
+    "dart": "Dart SDK version: 3.13.3 (stable) (Tue Sep 1 01:07:17 2026 -0700) on \"macos_arm64\"",
+    "browsers": {
+      "chromium": "151.0.7922.34",
+      "webkit": "26.5"
+    }
+  },
+  "source_sha256": {
+    ".github/actions/outlook-runtime/action.yml": "897978e5482a64a0aa12ccd9ba1c05672d6db9e284e3709bf083fd5ab8421725",
+    ".github/workflows/browser.yml": "86aa5a6935b08e9fbb2de174afd59861e00ed9172109ccec1d846848248135b1",
+    ".github/workflows/companion.yml": "f988f1fca13753cf6a80e138b44aaadf2514528db51b61fc99cd22a92a701999",
+    ".github/workflows/compare-providers.yml": "3ca0041fbeb77fced0d21d39423c56639c2fce5f2ca147825dcd68900df58a97",
+    ".github/workflows/compare-storylines.yml": "683c08759fb4e2f5fec5a34d2ef0b175ce606d44d8951e7bbeb4495885dab13b",
+    ".github/workflows/discovery.yml": "bf720dfc2185f14537f0f897aef223b7bb1607f56e83aa4fa7f0d62e91fa2ce6",
+    ".github/workflows/refresh.yml": "eb4375542dcb137e6489543f1fed985c82340a7ee0891ebaefcb51647df97496",
+    ".github/workflows/schedule.yml": "7a1ead447501b9c611594bfc7fe9e2980757bfe261bad250cdd252b77cd4f47c",
+    "README.md": "624bb9b9f1422668e3669abc007c6359fa2442ad6fdbada6309b28adc7bdb13d",
+    "apple_listings.py": "cc71d0a39665efc547a8bcf2b6be8ee3d1d8a0e0d421f4a3fbb9a4c7a745d965",
+    "bein_listings.py": "6597807cfc4a18c80a951d8f011e4bcf9f24ef63caeef2fc3fc76ebfe18cf853",
+    "broadcast_listings.py": "d0cd4b3051676337fe663a843b59024f97e154420fbeff93a1ed069aacd547a6",
+    "build.py": "41be26f97901b9eae7b845aa9c90f68602c2611621e33982e0dd6d2fd48d8d07",
+    "companion-toolchain.json": "6f22792346a0b9c9430ce5cb054eea4b236a88f66f556e35695fa38ffd433c99",
+    "companion_build.py": "f0eb155104610424cc4dc4c402617e0279b30c1b2f5c596376637a027704b2a8",
+    "companion_contract.py": "ff6f0a24e8e15fdab356a4e3c7b81185207e67138b2310473c453a2c03ad6b2a",
+    "companion_export.py": "178a8e0c9a56e5965b96be6417e93ddcda065d99e8a7bdb3ef895224f8063d2e",
+    "companion_publication.py": "eea1708afd041182c1bd3b0683616d9c8730d539e34f4fead4ef4004aca25c1c",
+    "contracts/outlook/network-ids.json": "c8998ab1c2161b8a88301a8a433885f097caa7ba9690c0cf002470a1f54faae3",
+    "contracts/outlook/v1/catalog.schema.json": "a79e216d861f1faf95293f75b7fc8311a530150e0e959129f8c0d5d3db026adc",
+    "contracts/outlook/v1/common.schema.json": "cefd310005b0d456b9541cd906ad114f94682247a244ee08cf45610edc343514",
+    "contracts/outlook/v1/editorial.schema.json": "63ea3aa8e6e17ac58939c676479e6403d84fef4d80fbe4a74591e6b0b12b6ea5",
+    "contracts/outlook/v1/examples/manifest.json": "5c27d8cc0a4dee13b015f6ac3c4853ed052a620114335ec20587a797d27c0af3",
+    "contracts/outlook/v1/examples/objects/36e90825ab56b9ddf5239355823acb49f130c2b67528226be5a9e27a8224d41d.json": "36e90825ab56b9ddf5239355823acb49f130c2b67528226be5a9e27a8224d41d",
+    "contracts/outlook/v1/examples/objects/8b547672a665b551247207731df5b10e27bb26eab33aefd4dc6f96fe07aa1776.json": "8b547672a665b551247207731df5b10e27bb26eab33aefd4dc6f96fe07aa1776",
+    "contracts/outlook/v1/examples/objects/9df9a52d303c2474728605bba8b6fad191b660f35d1f8ed372d513f3891fcbb3.json": "9df9a52d303c2474728605bba8b6fad191b660f35d1f8ed372d513f3891fcbb3",
+    "contracts/outlook/v1/examples/objects/c350221a1e3f032a3248be49600be58dfad79752c355fe8cca44bf00aaabb530.json": "c350221a1e3f032a3248be49600be58dfad79752c355fe8cca44bf00aaabb530",
+    "contracts/outlook/v1/manifest.schema.json": "51977485b6bb5c2fb9cfa3cb6a4914aee8ddc2fc22772a5c4baa2598d1d8aa2a",
+    "contracts/outlook/v1/policy.schema.json": "7e5e1f35746836bc1afb21713fb0e6cd6ebde8ce08f5487da9315230f4d9f899",
+    "contracts/outlook/v1/schedule.schema.json": "020426ccab1e662a7b9d994d84758467d440df74c7d1022a47c59c14a677a62d",
+    "discovery.py": "0037717ed6751cc8a449d1f49bee3b1ae26ea5f276d60567ef3fa4cca9ada938",
+    "docs/companion/README.md": "be9ec7694c545010e92461da764180ad7add359be5a225596403a78de661d6eb",
+    "docs/companion/architecture.md": "8c279af9e02e19abbb90315af25545ce138549ec7d03d2cb9ef9976db8abd0e7",
+    "docs/companion/data-contract.md": "0b2194a06749c33579a9586e202dfd3ded2d74b3116c23626646254e8c043b24",
+    "docs/companion/engineering.md": "cd3765534b305c71170a9439bf921133283256e5140ffa98fca24e2d8db7092d",
+    "docs/companion/implementation-plan.md": "fc7fb4acbd7a0e05ea260df50b12875371e55448904462b9fd353b98f9e66b19",
+    "docs/companion/p0-android.md": "c4abcee9d5e67a32ca62576cda79f24b4028e415ec57e96b08a18590d8796fbf",
+    "docs/companion/p0-contract.md": "844bf23b43c46fbf69fc38f0e54cb9eca95a669b2157008b762043549a99b191",
+    "docs/companion/p0-decisions.md": "06a930996e2fa2d6de923e2336fc6e176ddf1aa86be5e3030a92d4971bc2278e",
+    "docs/companion/p0-evidence.md": "4b134a144e09d7642bb5cb0278c5a0b3c98990912e35d1eec9850dda68795e09",
+    "docs/companion/p0-ios.md": "410a1fb25de970d5952792852c1bc0f790ab7054d1b22cd228dcbdc4fbce7485",
+    "docs/companion/p0-live.md": "2a321610403a14310f1ba5ec38936a371a8c343224fb87863d630009cfb5e786",
+    "docs/companion/p0-ownership.md": "75ffab0002bd8abf1b574a5896d649ab1c714b8b585d0b3377e79d728351c598",
+    "docs/companion/p0-publication.md": "35513aefe0992c8af2a3193976fe930128a8609a6376d013d7e4e5b9086e61f0",
+    "docs/companion/p1-continuation-evidence.md": "923002d66789a70fca43d2af8cad73112828e6feb64ea9eaddc0b1f6c4418e12",
+    "docs/companion/p1-evidence.md": "e7ab89fde34f2c0bedc6c14c8b82655b91c4515c9faf9235236c472274aa6a00",
+    "docs/companion/p1-operation.md": "18e7ce47ab026ff7195e1d0a9a44def806ec777620bba01be6fcd76ce41206b5",
+    "docs/companion/p2-eligibility-evidence.md": "728b309525a05f19fb2370ca91d99162f2ca198fe370b60e202098c2db40e7c7",
+    "docs/companion/p2-evidence.md": "533d97160208d5316ac1709632aaf467b2ae9739d9e7f52b1747de1917b65bad",
+    "docs/companion/p2-status-evidence.md": "69577f8e2223bb511ae52865b838b2ce293a8b1e09275454b90475efa22ab821",
+    "docs/companion/p2-validity-evidence.md": "1da1bae527f39de6bea5fe07b23745b6cb141c97ef8e24d3732bacfe5fdedb78",
+    "docs/companion/p2-window-evidence.md": "50f6f2c62c9fb460a1e9ee559ee48e67bbc2c71480765755a8f66a009345f4e4",
+    "docs/companion/rules/README.md": "72b3e12f065a4ba1ff62cf6382bffc9f2e9bc94145033d03d3b5982dca687a87",
+    "docs/companion/rules/eligibility-examples.json": "3bd72c6dcafe137b688000f0a6ae69d0a0ddd418e0bcbe9c35cc1e71f6ca1d58",
+    "docs/companion/rules/espn-status-examples.json": "82dfc9d5c5534b5260752d4285c8e53db74fa23d1ce3f9be8d5a59ea489c0e6c",
+    "docs/companion/rules/espn-status.md": "ee6b0978515ec0f45b95b8be49bddb2ad8f37df129681fd3913108c7b51345c3",
+    "docs/companion/rules/fixture-window-examples.json": "64f6309645d391df0e639d107f6ffd2443143a5ee1b69d6e7087ff4cfdc112e4",
+    "docs/companion/rules/fixture-windows.md": "a3015a16d266c391bd1551a3457137bdfe8f8c768d41cf796c71b1004b4775a7",
+    "docs/companion/rules/later-families.md": "4c85454bc25397bb2bf1899f2133b1efe3c6b8ee9c7742516a7170c3fe8e337f",
+    "docs/companion/rules/route-examples.json": "830ae7e65c053a0bbf27ad424623fed07a35d797dec541ef131eb1e4efe5f9e9",
+    "docs/companion/rules/route-validity-examples.json": "4ddd06ed3fac1e48d1342110580a876ca66558aed828bf808aaef110266dff0c",
+    "docs/companion/rules/route-validity.md": "5c555c766ad833309a3832b49b004a100e902d61cb70f3bdc59bbf4bc43c4159",
+    "docs/companion/rules/sports-day-examples.json": "5e82e6c8564fb7ff14ccc4db02bbe1df5a17b27f41114aae9728c4c949dc9db3",
+    "docs/companion/rules/sports-day.md": "6aa7ad02e125d97316fb98db06c3fa77a82032e3f110d5a50f5b15ed2c7402b6",
+    "docs/companion/rules/viewer-eligibility.md": "b4e08838bf9ec115107e12db618e937ee887e6d228e43f80fccc0b58ff02d0e3",
+    "docs/companion/rules/watch-routes.md": "9bec059ecc749a3a9680f9ab44e81eb170e059f3dd5ad1fb8ce01fc43aa396bf",
+    "docs/companion/specification.md": "0bbe40fae89881010fb922e52f4039da2d2417da64117e8e5131f627a4ade4c0",
+    "docs/development.md": "5c9e51a673c29eaf2845918575466eac3773d91956a7899838b381b0f00c0939",
+    "espn_listings.py": "b8b7c1ab5c441893fa22d502e760a7529a7511763614d61a0520cd01bf813368",
+    "fandango_listings.py": "e92c21b752226abc108b67baba56cd219f8a964a6f009b54567c243e883fa22d",
+    "fixture_comparison.py": "5bce960d165dde18bb9541ac3a80987f065959118c5a837c6c44d5df33615b60",
+    "fox_listings.py": "ce03c26e4e53b7d1b954905e3bc17b0b8dd20e16c3f509ff17b27b5afba2af8a",
+    "history.py": "636e210744374b3d12391fd3dc82438976114b73f70456218f4867315f1e3193",
+    "history_report.py": "4187c87c0b4627ae35456b0ea4d114e9349b4463f5065e57074a61288ef72573",
+    "metrics.py": "7ee4a70699eb2ab4421a7c38d5139b262510c45aaf8b34ea1e268cf45c9848c7",
+    "observations.py": "e8e4f3776cd55f407b45747b9d5c3c5524dbba148ddab7780f94116b05f21f92",
+    "outlook_runtime.py": "01346d462a1cc45cea14d35d4511fd9b4f0519034fe6ca7bf04f252d293a7d41",
+    "packages/outlook_core/analysis_options.yaml": "9d8678dc8c46856d2400175deef7deae8c83bb99f7608594c6d5d804ca726efa",
+    "packages/outlook_core/lib/outlook_core.dart": "3a30cbfc6e863df9f7a8d3d61c53c7180d2320717e746769a0983a9642085bcc",
+    "packages/outlook_core/lib/src/eligibility.dart": "cae707fe6160016c810a3a4421cd5800a5a634dd8bec145cb9139d2844aaf7bd",
+    "packages/outlook_core/lib/src/fixture_window.dart": "0dc7a504c04054d23bc5bc51ab2d97cc53522a5b6ba24c5f52f68919807d7a00",
+    "packages/outlook_core/lib/src/outlook.dart": "6a31a694c27c4593cae58910a64c0903d6b16f03e7d02804bc548b4bc17006f6",
+    "packages/outlook_core/lib/src/route_basis.dart": "57726a60a6ec0d3e810a491234d44bceaf4beb94f80b4d395298091183fdf8c0",
+    "packages/outlook_core/lib/src/route_validity.dart": "4d685d13ce4e47eaebe780f73f4a7aa1a11eaf31d2ce2cf23fb98d184d9ef816",
+    "packages/outlook_core/lib/src/routes.dart": "6ec9184ea675d1fd51cbee7b778550ddb24260e03a013697b56d6361007649f7",
+    "packages/outlook_core/lib/src/sports_day.dart": "924107b44bbff1b10168b80beaf75a2eb50341a4303eed0cb55f1fa252657881",
+    "packages/outlook_core/pubspec.lock": "951af870a0c95fbed5678225bc6c259298c75e4ba18de1ea93a23ca842851cdb",
+    "packages/outlook_core/pubspec.yaml": "d61828f0302735a3c5fe84b9b767df630f89711f106b244d9cba1ede1a32fd89",
+    "packages/outlook_core/test/eligibility_test.dart": "52c9a29b44b758262ee33e1cf9dd978be27a4623f23b373fa237e8c08562e1e1",
+    "packages/outlook_core/test/fixture_window_test.dart": "a253f38861a9b7e39fd7e6622dac91f2f201b2bac58a3d02990b3ba4d6845f1a",
+    "packages/outlook_core/test/outlook_test.dart": "1d16b721a198654c1bbf54649485f212a57e975b1753157c2ead31320e6c1761",
+    "packages/outlook_core/test/route_calendar_examples_test.dart": "9843063e84d99107a2e1dc3acaedba095ebb711a71c635d1741d18b18d5fdfcc",
+    "packages/outlook_core/test/route_validity_test.dart": "c44440141f14c3ddf34f03283d23f2ff45d1d6a461266b2fa395c23f93164260",
+    "packages/outlook_core/test/sports_day_test.dart": "39705115cb951e9b606a0866348497e4b09dde841af3dea4bac57d03ffcf1fc7",
+    "packages/outlook_data/analysis_options.yaml": "ce712fc2cd21216e43142033539deab3c9ba5237c26fcec9616149da01268bcd",
+    "packages/outlook_data/lib/espn_decoder.dart": "d529b45213584396cb37cab0ac73cfd6a7fad47f1004a6bed0012799feb72a1f",
+    "packages/outlook_data/lib/outlook_data.dart": "78ce0f87033a6816d7942622c6c6484992ba9c1f5aad903cc1737da76d93fdb1",
+    "packages/outlook_data/lib/src/espn_decoder.dart": "31247752321e74e5f2bc5e6e95e4cbb4a8d7d565c343f199374d35526a6270cc",
+    "packages/outlook_data/lib/src/feed_reader.dart": "87eefcb88dd58dc6d4f8ddf3cbdd118da6f7a8897c2252f0a75fa0cf16b167d9",
+    "packages/outlook_data/lib/src/schema_registry.dart": "27b4b6c0124101112f63fefa05699cd1970c64ed45093aa10cc1320fbe92a218",
+    "packages/outlook_data/lib/src/strict_json.dart": "5ada91b93d3417c340a14522d8e284fc855de502a5233b416b643da0218ca66b",
+    "packages/outlook_data/pubspec.lock": "8830b415b54adba67d5b2d1c1cceefc6c0ad4555909bb44f554de71c53b14288",
+    "packages/outlook_data/pubspec.yaml": "33b8971c5b1837bc38b827bf280e96e816759c5d0e9b981b87031d1df6627062",
+    "packages/outlook_data/test/espn_decoder_test.dart": "253b70a350e5bbdc657ee281efbc8a6efe76e39dced7547d67c35b2b6552524d",
+    "packages/outlook_data/test/feed_reader_test.dart": "ac10f08e99d9cf485c949a399f6a7bcdec256adb79eeabaed76eb78134b2104d",
+    "paramount_listings.py": "bfc87e42faf92da71eab8e0f0bec35423824c918285a2a9d915ce55eb7fd1bda",
+    "peacock_listings.py": "453f5f96c033e748000ab91330dd5e10bc331ec3d203ee2d5bc7c98f12e4cbe5",
+    "provider_utils.py": "8044c9170049d31ea2492047dfe68652fb4ca4d7d81777f9a0cb01f0a1605d05",
+    "providers.py": "3693bac082aa6901c2e0988daf327c1805388e30c5497f0dfd19c468c15121fc",
+    "rights.toml": "792b0fd83100d9b50c36e41fe3ab57bbaf39af89e46a6aa06d8f124492d13a67",
+    "schedule_data.py": "e947e44b8dbb2238867229066b958211395e6058b217b4f668b3437174529b68",
+    "settings.toml": "f2f9d16b5d7b8e7de61fa9858b7c2445f0d01331e959b1a07c5197e545ee4a23",
+    "story.py": "63bb33d94341fded79a5c0c72dc70e16032e79b5c4475164487ecc91f5c156c0",
+    "story_state.py": "d6577383bba4f0ac5f620e8fd6e7bd0478eb5ce3338030aed8930f1fdf1bed35",
+    "tests/__init__.py": "d287ff665a5df063fa9f129293a4fdb0a1b7bff5e07aec4d3c5730bd2171a3cb",
+    "tests/browser.py": "5e464a4a903912f330c84a7da89d97137715354638add3518d436bdb73b31955",
+    "tests/browser_schedule.py": "e26b2203c84d0653dc7e8fc3a201e85a1b1af0c3964e964b87464cf8c1c73fd8",
+    "tests/contracts/p2/eligibility-baseline-2026-10-20.json": "095eddced84c7516cda9b4ee51c2132b0c0fa2d243f01a4605d5c907452e8d2c",
+    "tests/contracts/p2/legacy-espn-status-2026-10-23.json": "76fb3c86389d78cf28142b5e88bcf5ca2d2f9808111b1e24dac65ba108b8e5f3",
+    "tests/contracts/p2/legacy-espn-status-functions-2026-10-23.js": "8ca0de08826b47c8ac1da7ffc0c9aefce1cdb92d4dd931cfe8fa0cb7f3237d19",
+    "tests/contracts/p2/legacy-fixture-windows-2026-10-23.json": "238b2cb41153202968fa57c7fb57fec8bfad52e060504dfcbf7dfe2e90ded757",
+    "tests/contracts/p2/legacy-fixture-windows-functions-2026-10-23.js": "d546b20d41552a347e23922291c979f1e3816ade130b337a75717dbae592fbf7",
+    "tests/contracts/p2/legacy-route-selection-2026-10-20.json": "2ca5997f44a7c272a79aad32ac4c9c39a5ef56d218a87e1cd60f31803d5e307a",
+    "tests/page_fixture.py": "23025cf527011754fd4496ca30f606eb93f960c446176773cd887e4ab31fa529",
+    "tests/test_broadcast_listings.py": "98697c11339f393f4f7a7f4203468e871a46a1ce6c3e6534dc3eec06ad04e8ec",
+    "tests/test_build.py": "d9d1312795d04d1ca801f83a65b9c403bcb2aca9f4c883216a21b272b1ea6273",
+    "tests/test_companion_boundaries.py": "cf237d2affab1f6269c5c3d5baacbe77df6fd05e3c56d021f2e06d6504d3a47f",
+    "tests/test_companion_collection.py": "5c6d32b7fb1cb4522c92535d9bc92d08df0be0bba055b290ca9883653224fb6c",
+    "tests/test_companion_contracts.py": "343fbe58abebd7203a02732b1348997559e7fc42d5968b07c8a69ac463dfff1e",
+    "tests/test_companion_eligibility.py": "f01a761ad494896ba496836b1497356086edc67b3462dd8b504a8e13c2b326f1",
+    "tests/test_companion_export.py": "78da0b6be50b4d4817917155c4389713044852eefb68f087ded8ba79ba9320c0",
+    "tests/test_companion_export_review.py": "41ad4e79554984d6a9124d7e9c1b178c67881f8c02775559ead4a53ceba26314",
+    "tests/test_companion_form_evidence.py": "5a53af9be269c78bdb6f86b899ce090c7590a9b4d9e8e16c834e497ee751dba0",
+    "tests/test_companion_integration.py": "0702ef3008e41321603e9c4c24f83185b7e27a5cf119c80a529fec2c59496780",
+    "tests/test_companion_native_evidence.py": "275420517e32d6d8679ac8990ef01fe999eb4f7317c867254894811508cf9050",
+    "tests/test_companion_p2.py": "08b1e4a89acd63b59e36b6f7a61d89edfe32c061adeb40f5ab0843172cad3399",
+    "tests/test_companion_publication.py": "2e635367df11e99f279c85218f6ec0f74d848a1a3a17ad6d5b0d0596f13b828d",
+    "tests/test_companion_publication_capture.py": "2bee36335ee02429e92ac63d29454a6a5521222f6216b42f70daf9b470aa244a",
+    "tests/test_companion_spike_limits.py": "cfca0ed985c5229fe8984f880392ae54b097760c972f61881a9104b30be75b65",
+    "tests/test_companion_status.py": "05e46dca2d3eaba0f856972cd04af929d9bf1d409d9788a75876d8bee627ffa6",
+    "tests/test_companion_story_bindings.py": "0fd9a81f424eb47a881ba993a5df29659b59f44a2a319deedf09d272a9d2ea83",
+    "tests/test_companion_validity.py": "856099709ab0812276272bd23829b0d89c75b4fdbb11b7b4b5b1a4a47cfaf71e",
+    "tests/test_companion_windows.py": "e3f5a5305e5377eca99dc283f251cc18fcccba6743e7396fa66c0a6e8fb57053",
+    "tests/test_compare.py": "86751a2fed345ecac46ee37bcfdec556b6c3665716764ca6456677587953c950",
+    "tests/test_country_retention.py": "f834612f96c2f734fae02e623ce9ca1167c467e7be563502adfd1c6d96f96e02",
+    "tests/test_coverage_details.py": "2f333d4a1a900015574b063873ee18877e9babf47034cd3d640d14e21d0f1ea2",
+    "tests/test_discovery.py": "e3cf2a51fafaf0696f95b7e2b23c141f91f312d9b53f0df1bf063a29347ad612",
+    "tests/test_discovery_build.py": "5bd43cf1a97ea378d0600f71d8ea02a054f7dc80c786e6168df88a5bc915596b",
+    "tests/test_espn_listings.py": "e8d9c136be1b3f5bf4b744685f26e4d6cdf12ce2a0337f57de5e2e0e2c94f25e",
+    "tests/test_espn_status_adapters.py": "48581b9269763d1dab08b7fb3e9e0c74e25ccfd8d73b613f60dd0d77dcb3103b",
+    "tests/test_fixture_comparison.py": "d3530abe260cb63f1db9a0ace2ef6fcf432b67aa76d17f6c600d7657c6b972b8",
+    "tests/test_fixture_window_adapters.py": "0a1c85de044e0441e04c82bdf156b31704f4bc0bd6e9f473f5d9f5f2b45bc1df",
+    "tests/test_fox_listings.py": "3c3e79146ddf2114cd599ac9127a4541adc7d97ea6d3d376e1a8c40efee62dc3",
+    "tests/test_history.py": "cb4ecbf188dc8b0bbc0f3502cffc456208e681039d20a36117d5dee8ec926ec5",
+    "tests/test_history_report.py": "d20b576aeb0177804e5ee7f855cd3344dcf09f21e01bb619960540e84ab5aaf1",
+    "tests/test_indexnow.py": "9dbe2ca403e40698dbf4af8e34abbd4516dbb562f8d079ad8f7025b3e4433f8e",
+    "tests/test_ligamx_discovery.py": "afed835f4608e0e9e88574677941948e16c950c134fec1f7459e0e82afec73f8",
+    "tests/test_ligamx_listings.py": "78275bb1aaecbfdb81b8f7200286ad78c6596a14e1aba86f34c4ed1633113d77",
+    "tests/test_metrics.py": "29aef47313b9fdef67d29955893a3222b9c35217292fff6a2203daaf42307dbe",
+    "tests/test_observations.py": "a57ec9701fb6bb26d0996b98622d80117b8935d8d2668e1ee7bdef37ecab487a",
+    "tests/test_other_listings.py": "fff2c4c9c074f8410c36a253003502b76b6bea4a832bea9720354fa524b6c8ad",
+    "tests/test_outlook_asset_retention.py": "caf275a1a6c4320d68d842d90a6986b073b15bc1a373d494fbc9a0669361936e",
+    "tests/test_outlook_runtime.py": "f5a6fa5f6e14c0a64ec9dd5e4d00afc8a7073421e2df182ab935477216c634ba",
+    "tests/test_paramount_listings.py": "5d7b6ffa3e6aec691e52ca7f806dbde77ba01ca9215af53a428861a20beb403b",
+    "tests/test_providers.py": "74283dfdfdb7627716b91943d0bd6b886834645296c8cacb5b23aed7c3b0e210",
+    "tests/test_render.py": "81e1391e145b9e0139bce0206e8ee0e7cc7b8e2f681d7cbe6c431575267226f4",
+    "tests/test_rights.py": "fc665927aa29fb784c959a4617c6af3469bc795e6c94356199293a2cf2a20c31",
+    "tests/test_route_validity_adapters.py": "60c05f83784cfc761231e025ef773a83a79a7bf9225e393558561e193d2c7c9b",
+    "tests/test_schedule_data.py": "92016b69a8c979d6d3244b4f316529f08ebce63d4ab35834749b5a8e96d6700e",
+    "tests/test_scoring.py": "0d15f2a7f1acb31362fac7484cc3254860bbfda79395de1e3fcd469e871ea93a",
+    "tests/test_shared_ai.py": "ee0dba6bf3f955ba47382e6580bf234b0b7f5b11eb5a084c6c7401569cb69d6f",
+    "tests/test_story.py": "1b921bf24e07007fd3e395046edc1a901d942f9e808d49630d40c29bcfb833af",
+    "tests/test_story_recovery.py": "09b422903bd3d37b77d0f6f8aaf8daa0f405ad7e00e4228eedbce2cea5ba9a8d",
+    "tests/test_tudn_listings.py": "eb99bb6cd1b721fe565ce53f87a3c3afee34700a29aa4a111244048ff5e50971",
+    "tests/test_watch_links.py": "2f7d04ee0358703e3336eef3e55f3dfa91a6c030cb58ef4e4a7f380ea0848cfe",
+    "tests/test_workflows.py": "13ec712b36201e8ddeb8d70c0a833c1dfb9c9cdc3da7a628c62dbac8a8163c4c",
+    "tests/test_youtube_rights.py": "2e089844e25e5ba6640e7eb553192b8c07507621d76df228a3116dab363e6d2d",
+    "tool/build_outlook_runtime.py": "44f252927293d52e6a2803b473be177fdae525a5be8d832397ecfec6f31991c7",
+    "tool/companion_collection_capture.py": "d855cb817833259cd7629347151547363c7de0910c8552293bb0612ac94345bc",
+    "tool/companion_collection_replay.py": "9334d29d735f8c95fc0a2df474dd7e9ae3d64a9f4d6b19d26de83672eede4fbb",
+    "tool/companion_eligibility_verify.py": "3cbd2685d67fe0b91fb1c0c00d9efa0496b6163fdb51469cc219563f4359295a",
+    "tool/companion_feed_reader/bin/read.dart": "879d7a377ac8a5c81bcb1ad68db9d6dff3fbe1fee36f38ce86315cdd921f64be",
+    "tool/companion_feed_reader/lib/local_files.dart": "c4246a33a9a0c4c4be8f2640542c7258136296c1fded41411f57b4f53c0ae2da",
+    "tool/companion_feed_reader/test/local_files_test.dart": "09ad2972d77dad1ef0e58569f6f8fd07e5433debdbb52909330e08ef5314e67f",
+    "tool/companion_feed_verify.py": "88711341d1a79926bf54c440d8c611ce9ef59c54f15f7e8cfb87c60f9079690f",
+    "tool/companion_form_verify.py": "0c5286f6ed8b2def23e31ad6f5656c6f9328430ac3c32755f77d4ebc88e62d11",
+    "tool/companion_live_probe/android-run-harness.py": "63785b7c974806696f0a43cc2e49c4f53f691435ebbf3ace90e4d827fca440c0",
+    "tool/companion_live_probe/bin/capture.dart": "153c844cfda5dbab29118c0b2cd68113bbadf8738fc379b59a1522bc7ad56175",
+    "tool/companion_live_probe/flutter/main.dart": "02215dee90d2e6f7e6414d1530388d5f30a494c4b2f394da88cbb1212545b8dd",
+    "tool/companion_live_probe/ios-native-main.dart": "a07bb4fba1861a3abda3a1d85d6ace08fdedda4eb608b03096752719f934570d",
+    "tool/companion_live_probe/ios-run-harness.py": "88b8c2f00e44f27f9c11831d5bc80e2c41f6b08d03df83ae54dbee4c99127eee",
+    "tool/companion_live_probe/lib/probe.dart": "39dcff2e933a162ec6e529ad730d04e9f42e67a3900ddc96bde489f992c078ad",
+    "tool/companion_live_probe/test/probe_test.dart": "45014f55e3378dba26367e52335332cc584c7c89aa1f0ac1db634d528648ace5",
+    "tool/companion_live_probe/verify_native_evidence.py": "39046257188fc64485415cacc9e982f83ab35e6efbd16bf0faa94c272fb4e41f",
+    "tool/companion_p0_limits.json": "c9434036444ebe62b1bea925d62267fe0122e0dc496c60ee873b5ed53a3260e3",
+    "tool/companion_p2_verify.py": "fe6a84a061b0690664e7011169816f67b702fefc3e759ab6147d736bf6a5c486",
+    "tool/companion_publication_capture/capture.py": "02f7145396b9ed75c037ce15d78602cce886950aaf6143b5258fb896e5b6d6d6",
+    "tool/companion_status_verify.py": "adaf29a323e85d787975762d72d5575a1c8027470db36f5a39c1514dd4e74b77",
+    "tool/companion_validity_verify.py": "8ab60a6706dca3e2a3abb09f0bedf5ad923c0abc024d478e35bc96a29ff9ca5a",
+    "tool/companion_window_verify.py": "e3f1f41d5fb1de2986a6f0345ea09c5657eb6645e057e1a92fae8baf7a5981bb",
+    "tool/outlook_bridge/README.md": "fc3a2370bda5158fdc7585cc08ea606c8d30e69ab1f3e0d42f19047740a622dd",
+    "tool/outlook_bridge/analysis_options.yaml": "81e0446176a695d2d1ace5d585a59bcb5ee97addd27f33a9a478f19136c56cca",
+    "tool/outlook_bridge/bin/outlook.dart": "15122da81d462636246dee13f86fd27d33d30390dea52abd28b93d9595ff6394",
+    "tool/outlook_bridge/lib/protocol.dart": "f14c4fb69a1d649ef577fb6c22f3998c4d126185ede4d6dfa295277a7b9ec5bd",
+    "tool/outlook_bridge/pubspec.lock": "dfef25ed7c1f5d2b6d3463cc99a02e01ea354c905d88c56761a5e836322b9111",
+    "tool/outlook_bridge/pubspec.yaml": "eba5cbfd82d05f3733570cbab0f05ce63ae4b8d8b379a75552bb23a01754a208",
+    "tool/outlook_bridge/verify.py": "f324a698e5647a7df91dd70db9af70a5967349ac06cef57d71283f25e2c87863",
+    "tool/outlook_bridge/web/bridge.dart": "b2388aad6fb078ff91e00bfbf31a168df746d272420817f1a8fec4bfc806912e",
+    "tool/outlook_bridge/web/demo.js": "a352cc0a51638cb38965adfd4788305943872abb8fb4285ac6ca5b0a8b0467d4",
+    "tool/outlook_bridge/web/index.html": "cdd8573ca5c611140b45099718f9bdc775df7d1b49a03eca6daa30b19708040c",
+    "tudn_listings.py": "8bf69100a8d3feb4a1c3cc7f93d3386c4837a323320fc5a0d9bfa61b0a9851f0",
+    "vix_listings.py": "49c428db74c99fe827b31d81bc32892aa1e91824a65fd6c2c1c7ee0da2ce4d14",
+    "watch-links.toml": "f214e47052326610358e59cfa37b26b871c2ef846d5d9350d7e3e44f8393087c",
+    "watch_links.py": "b486e5eb001ba6e4e9c73b88edb679edad5e8dddde546c427ed3fc846132b14b",
+    "web/app.js": "f90e3c2c4a77ff77295f17ad1aa29400cb49a7de920cff21feba5dd79646e01d",
+    "web/discovery.css": "7bd3ef98d3f80639991eef44a1f41ce61661e2904a95a2bc31276ca637f72291",
+    "web/favicon.png": "de2ddfd9b2067116b5855579bc59dd822487a45f5966ee1990800df380da9d98",
+    "web/favicon.svg": "7a22dbda89c1a8f7de5fd67e1e098c4d6e9c72ecb98826aa0dbe2abac4480921",
+    "web/github-publish.js": "c8e5611fcd6612441ab34f727fcb84fc1d2876c8e80596711180ee4e80a2c113",
+    "web/indexnow-key.txt": "1e3088a376434b4ce236bcd6364841eedcc6685c6d79b09e8dbdb4bcf9ae43aa",
+    "web/live.js": "fa25890d5ee0885ed859fba200ff926209c6c32ef5b3ae65e9d66af9441c3dee",
+    "web/page.html": "831b09afce61c61376280b33b7756fc32e91293bdcb5ab6ceca633b0c0cc3d70",
+    "web/personal-ai.js": "779efc4d21f91961216749737fc37590a9029db3be338bb7e9846d84b5a4ddb6",
+    "web/schedule.js": "92dd1f79339d7915e3badd3ddcac7557942b334c286fe0c666d5c981b5269a8d",
+    "web/styles.css": "79b0b52d58901ac6f7a89638307d690545b385a9c43bbbda824220d2c514cd3a",
+    "web/teams.js": "84d47ebe6c5f81a9ae221cb6d5d474e1ad4fcb5a3a18774ecad99e4501fec548",
+    "work/companion-p2-replay/run.py": "2eebd57011ef3f5d0a0c198cd72a7caa359ff8c30bbfad23280b4f7c0efad45f",
+    "work/outlook-runtime/outlook": "9760436f616fdbf22274ec440be2c9f9d89ac0dfcacd51849b4a2fa2f69b6810",
+    "work/outlook-runtime/outlook.js": "c88996f8228a040db199a69be136237ee44be5895b026938496e8ccef9c69bf6",
+    "work/outlook-runtime/runtime.json": "2a352d6caf188775d94dec207b9ff1c135836a2db2466db824b8666030945d36",
+    "work/p2-status-capture-2026-10-23.py": "e63eb39aee6d39f6e5eeaa5ce4dce65a1b0b33054685564caa78dd90bfa4ddfe",
+    "work/p2-status-legacy-2026-10-23/browser.cjs": "ef75e3558436c73f332030abdb4f336cfb4c414ef54a00f9f229b637eca9c66f",
+    "work/p2-status-regressions-2026-10-23/nonbrowser.py": "81d92bbc8d601be976b50210b5e8609eac43bab5634dc1b3643ba512068efe19",
+    "work/p2-status-regressions-2026-10-23/run.py": "dc94bd54f0d39ac9d9953ddd20e48aef8f609da0b47f212510e06d3df6bd3ace",
+    "work/p2-status-review-bundle-2026-10-23.py": "e988e2348c53eaaaf495031bc83f92122670ea2366942d2502adb16111e3ee32",
+    "work/p2-status-validation-2026-10-23.py": "058298ac7b4d2eee94908d334f2bac6ae3a23178667beb9e3684a2a0d0ba2297"
+  },
+  "runtime_artifacts": {
+    "runtime.json": "2a352d6caf188775d94dec207b9ff1c135836a2db2466db824b8666030945d36",
+    "outlook": "9760436f616fdbf22274ec440be2c9f9d89ac0dfcacd51849b4a2fa2f69b6810",
+    "outlook.js": "c88996f8228a040db199a69be136237ee44be5895b026938496e8ccef9c69bf6"
+  },
+  "checks": {
+    "python_full": {
+      "driver_report": {
+        "path": "work/p2-status-regressions-2026-10-23/python_full.json",
+        "sha256": "f7a48b492f5c7b09a036e0a49e923ffca31a06ae9f1684b2e5f9d7cc8a8ce35a"
+      },
+      "log": {
+        "path": "work/p2-status-regressions-2026-10-23/python_full.log",
+        "sha256": "faf5bae2790aed598cea0c74063c7a4f49b954b6b249c1caacfbadab777acf8e"
+      },
+      "elapsed_seconds": 8.817,
+      "result": "pass",
+      "unittest": {
+        "path": "work/p2-status-regressions-2026-10-23/python_full.log",
+        "sha256": "faf5bae2790aed598cea0c74063c7a4f49b954b6b249c1caacfbadab777acf8e",
+        "tests": 760,
+        "elapsed_seconds": 8.668,
+        "result": "pass"
+      }
+    },
+    "replay": {
+      "driver_report": {
+        "path": "work/p2-status-regressions-2026-10-23/replay.json",
+        "sha256": "412ff580c0c314d4bbf72afa7081f31942ce45344e173c527b499b6de5d59ab1"
+      },
+      "log": {
+        "path": "work/p2-status-regressions-2026-10-23/replay.log",
+        "sha256": "f1d32aac172170de9b52db6bb6720e54dde72996b0ee4aea4990ebb5b5440aa0"
+      },
+      "elapsed_seconds": 8.771,
+      "result": "pass"
+    },
+    "chromium_full": {
+      "driver_report": {
+        "path": "work/p2-status-regressions-2026-10-23/chromium_full.json",
+        "sha256": "5c348f5736a5c0d935435ac3bb0f98c7ba1e040c11cfc0b9db3139bc5ae7943c"
+      },
+      "log": {
+        "path": "work/p2-status-regressions-2026-10-23/chromium_full.log",
+        "sha256": "8a4eeaccef2ce5fc85b8b48b2b005961b45a7f3b57f3934d94aeee9d5693585e"
+      },
+      "elapsed_seconds": 223.717,
+      "result": "pass",
+      "unittest": {
+        "path": "work/p2-status-regressions-2026-10-23/chromium_full.log",
+        "sha256": "8a4eeaccef2ce5fc85b8b48b2b005961b45a7f3b57f3934d94aeee9d5693585e",
+        "tests": 112,
+        "elapsed_seconds": 222.89,
+        "result": "pass"
+      }
+    },
+    "webkit_smoke": {
+      "driver_report": {
+        "path": "work/p2-status-regressions-2026-10-23/webkit_smoke.json",
+        "sha256": "2c916aff886ecf54609b8c702d4ac94bc28e37da8b227f9c3cbf00e20531d638"
+      },
+      "log": {
+        "path": "work/p2-status-regressions-2026-10-23/webkit_smoke.log",
+        "sha256": "0957862b8e89733e8e5330b989ce8c7bbdba73605b126d6ddb3d0284afb923a3"
+      },
+      "elapsed_seconds": 177.02,
+      "result": "pass",
+      "unittest": {
+        "path": "work/p2-status-regressions-2026-10-23/webkit_smoke.log",
+        "sha256": "0957862b8e89733e8e5330b989ce8c7bbdba73605b126d6ddb3d0284afb923a3",
+        "tests": 40,
+        "elapsed_seconds": 176.269,
+        "result": "pass"
+      }
+    },
+    "chromium_schedule": {
+      "driver_report": {
+        "path": "work/p2-status-regressions-2026-10-23/chromium_schedule.json",
+        "sha256": "3c0ff5f0d03779c1b85ce900ae5ee8f49c43412a6a27c7bfa557ff1f38023f81"
+      },
+      "log": {
+        "path": "work/p2-status-regressions-2026-10-23/chromium_schedule.log",
+        "sha256": "31c5ee6f7f1f7f3d07df9c0844ed2e2b3d7c6c2d8e8282cd54ce418f16a22c5b"
+      },
+      "elapsed_seconds": 19.425,
+      "result": "pass",
+      "unittest": {
+        "path": "work/p2-status-regressions-2026-10-23/chromium_schedule.log",
+        "sha256": "31c5ee6f7f1f7f3d07df9c0844ed2e2b3d7c6c2d8e8282cd54ce418f16a22c5b",
+        "tests": 11,
+        "elapsed_seconds": 18.49,
+        "result": "pass"
+      }
+    },
+    "webkit_schedule": {
+      "driver_report": {
+        "path": "work/p2-status-regressions-2026-10-23/webkit_schedule.json",
+        "sha256": "eac1ff0586879f87c44c903c059771372672887e28058467024f0615ec8ee47b"
+      },
+      "log": {
+        "path": "work/p2-status-regressions-2026-10-23/webkit_schedule.log",
+        "sha256": "7d1baffc87b2c674d5c1dc63b5f286c369df2e95776976551540660036f00385"
+      },
+      "elapsed_seconds": 23.558,
+      "result": "pass",
+      "unittest": {
+        "path": "work/p2-status-regressions-2026-10-23/webkit_schedule.log",
+        "sha256": "7d1baffc87b2c674d5c1dc63b5f286c369df2e95776976551540660036f00385",
+        "tests": 11,
+        "elapsed_seconds": 22.759,
+        "result": "pass"
+      }
+    },
+    "route_calendar": {
+      "driver_report": {
+        "path": "work/p2-status-regressions-2026-10-23/route_calendar.json",
+        "sha256": "279b397fda13371288a5ce03cc527ec43bf77b196df758e50f66309607537255"
+      },
+      "log": {
+        "path": "work/p2-status-regressions-2026-10-23/route_calendar.log",
+        "sha256": "8fe65193ac945a7ecb6748cdee533a31d1435cdb67e90607440bd0c0003fbd9c"
+      },
+      "elapsed_seconds": 19.703,
+      "result": "pass"
+    },
+    "validity": {
+      "driver_report": {
+        "path": "work/p2-status-regressions-2026-10-23/validity.json",
+        "sha256": "30d01318a1617ff29095e5b36c9af1af796e3b6128f4b4a117b8d0e94458ce27"
+      },
+      "log": {
+        "path": "work/p2-status-regressions-2026-10-23/validity.log",
+        "sha256": "b9cc4ed72dbcec99e0c64ba2c2b251630fb3b8c07448aba278f4ceedab9b9c93"
+      },
+      "elapsed_seconds": 9.808,
+      "result": "pass"
+    },
+    "eligibility": {
+      "driver_report": {
+        "path": "work/p2-status-regressions-2026-10-23/eligibility.json",
+        "sha256": "176cf0e292b7036ec5f8aa7acd3ca54bc2b1805a177859593959ad1540aacc24"
+      },
+      "log": {
+        "path": "work/p2-status-regressions-2026-10-23/eligibility.log",
+        "sha256": "d21cdaf862e9dd144f1009636bf48ffa22eb265040eea84172511a41a1b1851b"
+      },
+      "elapsed_seconds": 5.681,
+      "result": "pass"
+    },
+    "windows": {
+      "driver_report": {
+        "path": "work/p2-status-regressions-2026-10-23/windows.json",
+        "sha256": "69f1e47f2d18e8bcf16c2ed8a7239b106af46313316911338b2c45dad61dbb40"
+      },
+      "log": {
+        "path": "work/p2-status-regressions-2026-10-23/windows.log",
+        "sha256": "99faf9d013fae85c8526524c7155922eb469a3409667fd217523672e51c796d0"
+      },
+      "elapsed_seconds": 6.021,
+      "result": "pass"
+    }
+  },
+  "focused_python_adapters": {
+    "path": "work/p2-status-python-2026-10-23/focused-final-binding.log",
+    "sha256": "c71c8da5306c4cc19069e9ba985d6fd36997df2185596e94f6ef87a71df32fe4",
+    "tests": 160,
+    "elapsed_seconds": 3.927,
+    "result": "pass"
+  },
+  "python_regression_tests": 760,
+  "browser_regression_tests": 174,
+  "fresh_dart_tests": {
+    "core_tests": 128,
+    "data_tests": 49,
+    "rerun_this_increment": true,
+    "protocol_groups": 96,
+    "semantic_invalid_frames": 51,
+    "transport_invalid_frames": 2
+  },
+  "status_proof": {
+    "groups": 21,
+    "independent_literal_decisions": 67,
+    "legacy_parity_decisions": 360,
+    "declared_corrections": 9,
+    "unknown_window_seam": 1,
+    "generated_page_lifecycles_per_engine": 5,
+    "actual_wrapper_orchestration_probes": 23
+  },
+  "reports": {
+    "status": {
+      "path": "docs/companion/evidence/p2-status-2026-10-23.json",
+      "sha256": "4fadea89b628a6c326317c2ed8e514ec80de45250604244b84e32320d70668eb",
+      "origin": {
+        "path": "work/companion-status-2026-10-23-attempt3/report.json",
+        "sha256": "4fadea89b628a6c326317c2ed8e514ec80de45250604244b84e32320d70668eb"
+      },
+      "classification": "fresh_candidate_evidence"
+    },
+    "core": {
+      "path": "docs/companion/evidence/p2-status-core-2026-10-23.json",
+      "sha256": "9bd09c1ea642d856bc5a3e3e0d213a5dbc5ffb7de8231483454ccee9150037bb",
+      "origin": {
+        "path": "work/p2-status-core-final-2026-10-23/report.json",
+        "sha256": "9bd09c1ea642d856bc5a3e3e0d213a5dbc5ffb7de8231483454ccee9150037bb"
+      },
+      "classification": "fresh_candidate_evidence"
+    },
+    "web-review": {
+      "path": "docs/companion/evidence/p2-status-web-review-2026-10-23.json",
+      "sha256": "153f042306b8dc1ec968485c0311fb80ba7541a7884b193b555173cf3b53855a",
+      "origin": {
+        "path": "work/p2-status-web-review-2026-10-23/report.json",
+        "sha256": "153f042306b8dc1ec968485c0311fb80ba7541a7884b193b555173cf3b53855a"
+      },
+      "classification": "fresh_candidate_evidence"
+    },
+    "python": {
+      "path": "docs/companion/evidence/p2-status-python-2026-10-23.json",
+      "sha256": "267716b05d1a8ebae0b5dc7fffecaddcea99cc780b6413a649d4daf9d0d6539c",
+      "origin": {
+        "path": "work/p2-status-python-2026-10-23/report.json",
+        "sha256": "267716b05d1a8ebae0b5dc7fffecaddcea99cc780b6413a649d4daf9d0d6539c"
+      },
+      "classification": "fresh_candidate_evidence"
+    },
+    "route-calendar": {
+      "path": "docs/companion/evidence/p2-status-route-calendar-2026-10-23.json",
+      "sha256": "b57057ced17d58b3d7684724e286b57ba0c783eef0d10fbdb57599c5b093df57",
+      "origin": {
+        "path": "work/p2-status-regressions-2026-10-23/route-calendar/report.json",
+        "sha256": "b57057ced17d58b3d7684724e286b57ba0c783eef0d10fbdb57599c5b093df57"
+      },
+      "classification": "fresh_candidate_evidence"
+    },
+    "eligibility": {
+      "path": "docs/companion/evidence/p2-status-eligibility-2026-10-23.json",
+      "sha256": "81a4f3ae1884174faf3e4ebffab2f145b07a8c2141005972b8d69e28b4a7bf54",
+      "origin": {
+        "path": "work/p2-status-regressions-2026-10-23/eligibility/report.json",
+        "sha256": "81a4f3ae1884174faf3e4ebffab2f145b07a8c2141005972b8d69e28b4a7bf54"
+      },
+      "classification": "fresh_candidate_evidence"
+    },
+    "validity": {
+      "path": "docs/companion/evidence/p2-status-validity-2026-10-23.json",
+      "sha256": "eded4340904ee32f908ff5cc0a899fd90cddbd794f1cd87c5cdd4bf65b9d1167",
+      "origin": {
+        "path": "work/p2-status-regressions-2026-10-23/validity/report.json",
+        "sha256": "eded4340904ee32f908ff5cc0a899fd90cddbd794f1cd87c5cdd4bf65b9d1167"
+      },
+      "classification": "fresh_candidate_evidence"
+    },
+    "windows": {
+      "path": "docs/companion/evidence/p2-status-windows-2026-10-23.json",
+      "sha256": "89067c042d02742e87dca799b00d2bcdb95e41ccd14a16144c162dadb689844d",
+      "origin": {
+        "path": "work/p2-status-regressions-2026-10-23/windows/report.json",
+        "sha256": "89067c042d02742e87dca799b00d2bcdb95e41ccd14a16144c162dadb689844d"
+      },
+      "classification": "fresh_candidate_evidence"
+    },
+    "replay": {
+      "path": "docs/companion/evidence/p2-status-replay-2026-10-23.json",
+      "sha256": "e53ae64abc316d35c3c2991a57e79ec5929062bfc26261f06cd1d11c6ab8b2fd",
+      "origin": {
+        "path": "work/companion-status-replay-2026-10-23/report.json",
+        "sha256": "e53ae64abc316d35c3c2991a57e79ec5929062bfc26261f06cd1d11c6ab8b2fd"
+      },
+      "classification": "fresh_candidate_evidence"
+    }
+  },
+  "historical_failure_and_intermediate_logs": [
+    {
+      "path": "work/p2-status-verifier-attempt1.log",
+      "sha256": "5ffb0c5d074dbeb0ea7b7e943f484d67cbcdc8e7949381c5894e1f58dc847603"
+    },
+    {
+      "path": "work/p2-status-verifier-attempt2-fixture-restore-failed.log",
+      "sha256": "053c014a0289e0fd520b67d45085b7eeed8541df88875c9c7d3ddd1b33617fb3"
+    },
+    {
+      "path": "work/p2-status-verifier-attempt3.log",
+      "sha256": "e486bd7f88bbcd5088ab038e9cdb3d71d1a66f5153c280f5e8467f5e969b821e"
+    },
+    {
+      "path": "work/p2-status-compile-2026-10-23.log",
+      "sha256": "a78c26a2f984ccf620e1488486b0e5e7be43177d98e5236cb9504cb8eed408bd"
+    },
+    {
+      "path": "work/p2-status-compile-final-2026-10-23.log",
+      "sha256": "c697e41160ad0d47308bc7506bfeb9b5f37cfd60a8a0e4aaf806a0b80f53d2f3"
+    },
+    {
+      "path": "work/p2-status-regressions-2026-10-23/python_full-before-verifier-fix.log",
+      "sha256": "34d61d8f9085c886a7ae4f0b4e6fe337a217c8db88be92a5a769f638f2da0c95"
+    },
+    {
+      "path": "work/p2-status-regressions-2026-10-23/python_full-before-verifier-fix.json",
+      "sha256": "18b600076c39bd785704a6176444d6bb39ca37b37e1fd8ddd790f54fc0feaf1b"
+    },
+    {
+      "path": "work/companion-status-2026-10-23-attempt1/report.json",
+      "sha256": "f364285806cfead058196174abcc0aeadb6907252d10ea6aea160a3fe3553dbe"
+    }
+  ],
+  "legacy_provenance": {
+    "baseline": {
+      "path": "tests/contracts/p2/legacy-espn-status-2026-10-23.json",
+      "sha256": "76fb3c86389d78cf28142b5e88bcf5ca2d2f9808111b1e24dac65ba108b8e5f3"
+    },
+    "functions": {
+      "path": "tests/contracts/p2/legacy-espn-status-functions-2026-10-23.js",
+      "sha256": "8ca0de08826b47c8ac1da7ffc0c9aefce1cdb92d4dd931cfe8fa0cb7f3237d19"
+    },
+    "original_capture": {
+      "path": "work/p2-status-legacy-2026-10-23/baseline.json",
+      "sha256": "76fb3c86389d78cf28142b5e88bcf5ca2d2f9808111b1e24dac65ba108b8e5f3"
+    },
+    "origin": {
+      "snapshot": "work/p2-status-start-2026-10-23",
+      "head": "6200140feb9b3fe63b2609d09340355c6458edd0",
+      "build_sha256": "e04f649cd8742e5fb7efd22a9b1010ca63d29e7913ee96822cbb9085e1bf8336",
+      "app_sha256": "754329fe5da0710e543e2181a9e4bc5aef4eb297d72f37b618169efc804e2f06",
+      "source_ledger_sha256": "1f3c888196d2592358a88aee36577e756355e009dc5041dee475ad504b06858b",
+      "legacy_functions_sha256": "8ca0de08826b47c8ac1da7ffc0c9aefce1cdb92d4dd931cfe8fa0cb7f3237d19",
+      "capture_script_sha256": "e63eb39aee6d39f6e5eeaa5ce4dce65a1b0b33054685564caa78dd90bfa4ddfe"
+    },
+    "capture_runner": {
+      "path": "work/p2-status-capture-2026-10-23.py",
+      "sha256": "e63eb39aee6d39f6e5eeaa5ce4dce65a1b0b33054685564caa78dd90bfa4ddfe"
+    },
+    "browser_runner": {
+      "path": "work/p2-status-legacy-2026-10-23/browser.cjs",
+      "sha256": "ef75e3558436c73f332030abdb4f336cfb4c414ef54a00f9f229b637eca9c66f"
+    },
+    "source_ledger": {
+      "path": "work/companion-p1-fresh/requests.json",
+      "sha256": "1f3c888196d2592358a88aee36577e756355e009dc5041dee475ad504b06858b"
+    },
+    "previous_runtime": {
+      "outlook": {
+        "path": "work/p2-status-start-2026-10-23/runtime/outlook",
+        "sha256": "b3acf2f4435d013467f1944f99c9657b72bcf9b8e7225936fcfe1184ef0a2db5"
+      },
+      "outlook.js": {
+        "path": "work/p2-status-start-2026-10-23/runtime/outlook.js",
+        "sha256": "df6ca962284ff0cefa81d07232e6ce21fedfcd8606599995245e28ed2dfa21d2"
+      },
+      "runtime.json": {
+        "path": "work/p2-status-start-2026-10-23/runtime/runtime.json",
+        "sha256": "2a740fe238b9e5cf73910dbb2b65fbf4a58f9971f69530168f799bcae1d03bef"
+      }
+    }
+  },
+  "documentation_checks": {
+    "markdown_files": 33,
+    "relative_file_links": 466,
+    "yaml_files_parsed": 8,
+    "yaml_parser": "System Ruby YAML/Psych",
+    "git_diff_check": "pass"
+  },
+  "preserved_start": {
+    "files": 234,
+    "archive": {
+      "path": "work/p2-status-start-2026-10-23/files.tar.gz",
+      "sha256": "7ab14697d858ab279f991b74c2dd7155d575390f2b55bcb29d66db729111abf9"
+    },
+    "manifest": {
+      "path": "work/p2-status-start-2026-10-23/manifest.json",
+      "sha256": "320991be2e6fbfcaaaa11e6bbfb47ebae0a2211f9e87b7a698fbc55a7bd732d2"
+    },
+    "tracked_patch": {
+      "path": "work/p2-status-start-2026-10-23/tracked.patch",
+      "sha256": "98375870b53ee528187316a646b8b659d21051d2d599d3015e869f6ee8c60799"
+    },
+    "index_patch": {
+      "path": "work/p2-status-start-2026-10-23/index.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "status": {
+      "path": "work/p2-status-start-2026-10-23/status.z",
+      "sha256": "39d9d7afe140d526c5f954e325ebb3f497df5114e2843bb6536055e0f714e6ee"
+    },
+    "all_archived_bytes_match_manifest": true,
+    "intentional_changed_start_paths": [
+      ".github/actions/outlook-runtime/action.yml",
+      ".github/workflows/companion.yml",
+      ".github/workflows/refresh.yml",
+      "build.py",
+      "companion_export.py",
+      "docs/companion/README.md",
+      "docs/companion/architecture.md",
+      "docs/companion/data-contract.md",
+      "docs/companion/engineering.md",
+      "docs/companion/implementation-plan.md",
+      "docs/companion/p0-ownership.md",
+      "docs/companion/rules/README.md",
+      "docs/companion/rules/fixture-windows.md",
+      "docs/companion/rules/later-families.md",
+      "outlook_runtime.py",
+      "packages/outlook_core/lib/src/fixture_window.dart",
+      "packages/outlook_core/test/fixture_window_test.dart",
+      "packages/outlook_data/README.md",
+      "packages/outlook_data/lib/outlook_data.dart",
+      "tests/test_companion_boundaries.py",
+      "tests/test_fixture_window_adapters.py",
+      "tests/test_render.py",
+      "tool/build_outlook_runtime.py",
+      "tool/companion_p2_verify.py",
+      "tool/companion_window_verify.py",
+      "tool/outlook_bridge/README.md",
+      "tool/outlook_bridge/lib/protocol.dart",
+      "tool/outlook_bridge/pubspec.lock",
+      "tool/outlook_bridge/pubspec.yaml",
+      "web/app.js",
+      "web/schedule.js"
+    ],
+    "newly_dirty_tracked_paths": [
+      "discovery.py",
+      "metrics.py",
+      "tests/test_metrics.py"
+    ],
+    "unrelated_start_paths_unchanged": true,
+    "head_unchanged": true,
+    "index_unchanged": true,
+    "index_empty": true
+  },
+  "limitations": [
+    "Distribution remains gated on source-usage permission and specific publication authorization; no push, deployment or native distribution occurred.",
+    "Dart core/data tests and protocol groups in the bound final core report were freshly run for this increment; earlier reports are not fresh reruns.",
+    "Full/lightweight replay uses retained October 20 source bytes and original clocks; it is not a new live-source freshness claim.",
+    "The independent web review uses extracted production-function orchestration; compiled browser and generated-page checks are separate evidence.",
+    "Provider observation freshness, transport identity/order, goals parsing, kickoff confirmation and new shootout/aggregate mapping remain outside this decoder.",
+    "The shared played verdict gates existing scores, scorers and result claims, while independently valid routes remain separately owned.",
+    "The 360 ordinary captured cases contain no exceptional status, TBD or contradictory status metadata; independent literals and synthetic production pages cover declared corrections.",
+    "P2 remains incomplete; editorial/ranking selection, P3 persistence/coordinated refresh, native product integration and physical/minimum-OS/performance acceptance remain pending.",
+    "Complete browser core is 198162 gzip bytes within the unchanged 204800-byte budget."
+  ]
+}

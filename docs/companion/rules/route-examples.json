@@ -1,0 +1,852 @@
+{
+  "version": 1,
+  "description": "Independent WATCH-ROUTES-1 examples, authored before consumer replacement; expected outputs are literals, not implementation-generated.",
+  "cases": [
+    {
+      "id": "empty-lineup",
+      "request": {
+        "version": 1,
+        "operation": "route_selection",
+        "lineup": {
+          "selected_service_ids": [],
+          "service_order": [
+            "alpha",
+            "beta"
+          ],
+          "service_names": {
+            "alpha": "Alpha",
+            "beta": "Beta"
+          }
+        },
+        "cases": [
+          {
+            "id": "empty-lineup",
+            "listed": [
+              {
+                "label": "Alpha",
+                "service_ids": [
+                  "alpha"
+                ],
+                "spanish": false
+              }
+            ],
+            "usual": {
+              "label": "Beta",
+              "service_ids": [
+                "beta"
+              ],
+              "spanish": false
+            }
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "empty-lineup",
+            "service_id": null,
+            "basis": "none",
+            "outlet": "",
+            "listed_providers": [
+              []
+            ],
+            "usual_providers": []
+          }
+        ]
+      },
+      "because": "An explicit empty selection is not missing preferences and must not restore defaults."
+    },
+    {
+      "id": "empty-facts",
+      "request": {
+        "version": 1,
+        "operation": "route_selection",
+        "lineup": {
+          "selected_service_ids": [
+            "alpha"
+          ],
+          "service_order": [
+            "alpha",
+            "beta"
+          ],
+          "service_names": {
+            "alpha": "Alpha",
+            "beta": "Beta"
+          }
+        },
+        "cases": [
+          {
+            "id": "empty-facts",
+            "listed": [],
+            "usual": null
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "empty-facts",
+            "service_id": null,
+            "basis": "none",
+            "outlet": "",
+            "listed_providers": [],
+            "usual_providers": []
+          }
+        ]
+      },
+      "because": "A selected service alone does not create a listed or usual route."
+    },
+    {
+      "id": "package-excluded",
+      "request": {
+        "version": 1,
+        "operation": "route_selection",
+        "lineup": {
+          "selected_service_ids": [
+            "yttv"
+          ],
+          "service_order": [
+            "yttv",
+            "yttvspanishplus"
+          ],
+          "service_names": {
+            "yttv": "YouTube TV",
+            "yttvspanishplus": "YouTube TV Spanish Plus"
+          }
+        },
+        "cases": [
+          {
+            "id": "package-excluded",
+            "listed": [
+              {
+                "label": "Universo",
+                "service_ids": [
+                  "yttvspanishplus"
+                ],
+                "spanish": true
+              }
+            ],
+            "usual": null
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "package-excluded",
+            "service_id": null,
+            "basis": "none",
+            "outlet": "",
+            "listed_providers": [
+              []
+            ],
+            "usual_providers": []
+          }
+        ]
+      },
+      "because": "The main plan is not in the already-qualified Universo route; a shared brand grants nothing."
+    },
+    {
+      "id": "package-selected",
+      "request": {
+        "version": 1,
+        "operation": "route_selection",
+        "lineup": {
+          "selected_service_ids": [
+            "yttv",
+            "yttvspanishplus"
+          ],
+          "service_order": [
+            "yttv",
+            "yttvspanishplus"
+          ],
+          "service_names": {
+            "yttv": "YouTube TV",
+            "yttvspanishplus": "YouTube TV Spanish Plus"
+          }
+        },
+        "cases": [
+          {
+            "id": "package-selected",
+            "listed": [
+              {
+                "label": "Universo",
+                "service_ids": [
+                  "yttvspanishplus"
+                ],
+                "spanish": true
+              }
+            ],
+            "usual": null
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "package-selected",
+            "service_id": "yttvspanishplus",
+            "basis": "listed",
+            "outlet": "Universo",
+            "listed_providers": [
+              [
+                "yttvspanishplus"
+              ]
+            ],
+            "usual_providers": []
+          }
+        ]
+      },
+      "because": "Adding the explicitly qualified package makes only that package eligible."
+    },
+    {
+      "id": "listed-before-usual",
+      "request": {
+        "version": 1,
+        "operation": "route_selection",
+        "lineup": {
+          "selected_service_ids": [
+            "alpha",
+            "beta"
+          ],
+          "service_order": [
+            "alpha",
+            "beta"
+          ],
+          "service_names": {
+            "alpha": "Alpha",
+            "beta": "Beta"
+          }
+        },
+        "cases": [
+          {
+            "id": "listed-before-usual",
+            "listed": [
+              {
+                "label": "Beta Sports",
+                "service_ids": [
+                  "beta"
+                ],
+                "spanish": false
+              }
+            ],
+            "usual": {
+              "label": "Alpha",
+              "service_ids": [
+                "alpha"
+              ],
+              "spanish": false
+            }
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "listed-before-usual",
+            "service_id": "beta",
+            "basis": "listed",
+            "outlet": "Beta Sports",
+            "listed_providers": [
+              [
+                "beta"
+              ]
+            ],
+            "usual_providers": [
+              "alpha"
+            ]
+          }
+        ]
+      },
+      "because": "A lower-preference listed route outranks a higher-preference usual route."
+    },
+    {
+      "id": "service-order-before-language-or-name",
+      "request": {
+        "version": 1,
+        "operation": "route_selection",
+        "lineup": {
+          "selected_service_ids": [
+            "alpha",
+            "beta"
+          ],
+          "service_order": [
+            "alpha",
+            "beta"
+          ],
+          "service_names": {
+            "alpha": "Alpha",
+            "beta": "Beta"
+          }
+        },
+        "cases": [
+          {
+            "id": "service-order-before-language-or-name",
+            "listed": [
+              {
+                "label": "Beta",
+                "service_ids": [
+                  "beta"
+                ],
+                "spanish": false
+              },
+              {
+                "label": "Deportes",
+                "service_ids": [
+                  "alpha"
+                ],
+                "spanish": true
+              }
+            ],
+            "usual": null
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "service-order-before-language-or-name",
+            "service_id": "alpha",
+            "basis": "listed",
+            "outlet": "Deportes",
+            "listed_providers": [
+              [
+                "beta"
+              ],
+              [
+                "alpha"
+              ]
+            ],
+            "usual_providers": []
+          }
+        ]
+      },
+      "because": "Viewer service preference is compared before direct-name or language preference."
+    },
+    {
+      "id": "direct-name-before-language",
+      "request": {
+        "version": 1,
+        "operation": "route_selection",
+        "lineup": {
+          "selected_service_ids": [
+            "alpha"
+          ],
+          "service_order": [
+            "alpha",
+            "beta"
+          ],
+          "service_names": {
+            "alpha": "Alpha",
+            "beta": "Beta"
+          }
+        },
+        "cases": [
+          {
+            "id": "direct-name-before-language",
+            "listed": [
+              {
+                "label": "English Sports",
+                "service_ids": [
+                  "alpha"
+                ],
+                "spanish": false
+              },
+              {
+                "label": "Alpha",
+                "service_ids": [
+                  "alpha"
+                ],
+                "spanish": true
+              }
+            ],
+            "usual": null
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "direct-name-before-language",
+            "service_id": "alpha",
+            "basis": "listed",
+            "outlet": "Alpha",
+            "listed_providers": [
+              [
+                "alpha"
+              ],
+              [
+                "alpha"
+              ]
+            ],
+            "usual_providers": []
+          }
+        ]
+      },
+      "because": "The direct service outlet wins within one service even when its feed is Spanish."
+    },
+    {
+      "id": "english-before-spanish",
+      "request": {
+        "version": 1,
+        "operation": "route_selection",
+        "lineup": {
+          "selected_service_ids": [
+            "alpha"
+          ],
+          "service_order": [
+            "alpha",
+            "beta"
+          ],
+          "service_names": {
+            "alpha": "Alpha",
+            "beta": "Beta"
+          }
+        },
+        "cases": [
+          {
+            "id": "english-before-spanish",
+            "listed": [
+              {
+                "label": "Deportes",
+                "service_ids": [
+                  "alpha"
+                ],
+                "spanish": true
+              },
+              {
+                "label": "English Sports",
+                "service_ids": [
+                  "alpha"
+                ],
+                "spanish": false
+              }
+            ],
+            "usual": null
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "english-before-spanish",
+            "service_id": "alpha",
+            "basis": "listed",
+            "outlet": "English Sports",
+            "listed_providers": [
+              [
+                "alpha"
+              ],
+              [
+                "alpha"
+              ]
+            ],
+            "usual_providers": []
+          }
+        ]
+      },
+      "because": "Language breaks the tie only after service order and direct-name preference agree."
+    },
+    {
+      "id": "equal-keys-preserve-input-order",
+      "request": {
+        "version": 1,
+        "operation": "route_selection",
+        "lineup": {
+          "selected_service_ids": [
+            "alpha"
+          ],
+          "service_order": [
+            "alpha",
+            "beta"
+          ],
+          "service_names": {
+            "alpha": "Alpha",
+            "beta": "Beta"
+          }
+        },
+        "cases": [
+          {
+            "id": "equal-keys-preserve-input-order",
+            "listed": [
+              {
+                "label": "Zeta Sports",
+                "service_ids": [
+                  "alpha"
+                ],
+                "spanish": false
+              },
+              {
+                "label": "Aardvark Sports",
+                "service_ids": [
+                  "alpha"
+                ],
+                "spanish": false
+              }
+            ],
+            "usual": null
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "equal-keys-preserve-input-order",
+            "service_id": "alpha",
+            "basis": "listed",
+            "outlet": "Zeta Sports",
+            "listed_providers": [
+              [
+                "alpha"
+              ],
+              [
+                "alpha"
+              ]
+            ],
+            "usual_providers": []
+          }
+        ]
+      },
+      "because": "Exact ties preserve first-listed order; alphabetical sorting would change the answer."
+    },
+    {
+      "id": "provider-list-follows-viewer-order",
+      "request": {
+        "version": 1,
+        "operation": "route_selection",
+        "lineup": {
+          "selected_service_ids": [
+            "alpha",
+            "beta"
+          ],
+          "service_order": [
+            "beta",
+            "alpha"
+          ],
+          "service_names": {
+            "alpha": "Alpha",
+            "beta": "Beta"
+          }
+        },
+        "cases": [
+          {
+            "id": "provider-list-follows-viewer-order",
+            "listed": [
+              {
+                "label": "Shared Network",
+                "service_ids": [
+                  "alpha",
+                  "beta"
+                ],
+                "spanish": false
+              }
+            ],
+            "usual": null
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "provider-list-follows-viewer-order",
+            "service_id": "beta",
+            "basis": "listed",
+            "outlet": "Shared Network",
+            "listed_providers": [
+              [
+                "beta",
+                "alpha"
+              ]
+            ],
+            "usual_providers": []
+          }
+        ]
+      },
+      "because": "A disclosure retains every selected qualified service in viewer order, not input route order."
+    },
+    {
+      "id": "usual-fallback-preference",
+      "request": {
+        "version": 1,
+        "operation": "route_selection",
+        "lineup": {
+          "selected_service_ids": [
+            "alpha",
+            "beta"
+          ],
+          "service_order": [
+            "beta",
+            "alpha"
+          ],
+          "service_names": {
+            "alpha": "Alpha",
+            "beta": "Beta"
+          }
+        },
+        "cases": [
+          {
+            "id": "usual-fallback-preference",
+            "listed": [
+              {
+                "label": "Unselected Network",
+                "service_ids": [],
+                "spanish": false
+              }
+            ],
+            "usual": {
+              "label": "Usual Sports",
+              "service_ids": [
+                "alpha",
+                "beta"
+              ],
+              "spanish": false
+            }
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "usual-fallback-preference",
+            "service_id": "beta",
+            "basis": "rule",
+            "outlet": "Usual Sports",
+            "listed_providers": [
+              []
+            ],
+            "usual_providers": [
+              "beta",
+              "alpha"
+            ]
+          }
+        ]
+      },
+      "because": "Usual coverage qualifies only as usual and chooses its first selected service in preference order."
+    },
+    {
+      "id": "standalone-is-independent",
+      "request": {
+        "version": 1,
+        "operation": "route_selection",
+        "lineup": {
+          "selected_service_ids": [
+            "provider"
+          ],
+          "service_order": [
+            "provider",
+            "standalone"
+          ],
+          "service_names": {
+            "provider": "Provider sign-in",
+            "standalone": "Standalone app"
+          }
+        },
+        "cases": [
+          {
+            "id": "standalone-is-independent",
+            "listed": [
+              {
+                "label": "Standalone app",
+                "service_ids": [
+                  "standalone"
+                ],
+                "spanish": false
+              }
+            ],
+            "usual": null
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "standalone-is-independent",
+            "service_id": null,
+            "basis": "none",
+            "outlet": "",
+            "listed_providers": [
+              []
+            ],
+            "usual_providers": []
+          }
+        ]
+      },
+      "because": "A provider-authentication plan cannot satisfy a separate standalone subscription route."
+    },
+    {
+      "id": "unknown-channel-no-qualified-services",
+      "request": {
+        "version": 1,
+        "operation": "route_selection",
+        "lineup": {
+          "selected_service_ids": [
+            "alpha"
+          ],
+          "service_order": [
+            "alpha",
+            "beta"
+          ],
+          "service_names": {
+            "alpha": "Alpha",
+            "beta": "Beta"
+          }
+        },
+        "cases": [
+          {
+            "id": "unknown-channel-no-qualified-services",
+            "listed": [
+              {
+                "label": "Unknown Channel",
+                "service_ids": [],
+                "spanish": false,
+                "unknown": true
+              }
+            ],
+            "usual": null
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "unknown-channel-no-qualified-services",
+            "service_id": null,
+            "basis": "none",
+            "outlet": "",
+            "listed_providers": [
+              []
+            ],
+            "usual_providers": []
+          }
+        ]
+      },
+      "because": "An unresolved channel is diagnostic data, not an inferred route."
+    },
+    {
+      "id": "unknown-channel-contradiction-suppressed",
+      "request": {
+        "version": 1,
+        "operation": "route_selection",
+        "lineup": {
+          "selected_service_ids": [
+            "alpha",
+            "beta"
+          ],
+          "service_order": [
+            "alpha",
+            "beta"
+          ],
+          "service_names": {
+            "alpha": "Alpha",
+            "beta": "Beta"
+          }
+        },
+        "cases": [
+          {
+            "id": "unknown-channel-contradiction-suppressed",
+            "listed": [
+              {
+                "label": "Unknown Channel",
+                "service_ids": [
+                  "alpha"
+                ],
+                "spanish": false,
+                "unknown": true
+              },
+              {
+                "label": "Beta",
+                "service_ids": [
+                  "beta"
+                ],
+                "spanish": false
+              }
+            ],
+            "usual": null
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "unknown-channel-contradiction-suppressed",
+            "service_id": "beta",
+            "basis": "listed",
+            "outlet": "Beta",
+            "listed_providers": [
+              [],
+              [
+                "beta"
+              ]
+            ],
+            "usual_providers": []
+          }
+        ]
+      },
+      "because": "Explicit unknown=true suppresses contradictory service IDs. This is a defensive delta from legacy evaluate.",
+      "intentional_delta": true
+    },
+    {
+      "id": "unknown-usual-contradiction-suppressed",
+      "request": {
+        "version": 1,
+        "operation": "route_selection",
+        "lineup": {
+          "selected_service_ids": [
+            "alpha"
+          ],
+          "service_order": [
+            "alpha",
+            "beta"
+          ],
+          "service_names": {
+            "alpha": "Alpha",
+            "beta": "Beta"
+          }
+        },
+        "cases": [
+          {
+            "id": "unknown-usual-contradiction-suppressed",
+            "listed": [],
+            "usual": {
+              "label": "Unknown Usual",
+              "service_ids": [
+                "alpha"
+              ],
+              "spanish": false,
+              "unknown": true
+            }
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "unknown-usual-contradiction-suppressed",
+            "service_id": null,
+            "basis": "none",
+            "outlet": "",
+            "listed_providers": [],
+            "usual_providers": []
+          }
+        ]
+      },
+      "because": "An unknown usual outlet also cannot grant access through contradictory service IDs; explicit defensive delta.",
+      "intentional_delta": true
+    }
+  ]
+}

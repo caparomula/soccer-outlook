@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "kind": "outlook_policy",
+  "content_revision": "policy-example-1",
+  "policy_id": "outlook-policy-p0-draft-1",
+  "defaults": {
+    "league_order": [
+      "eng.1"
+    ],
+    "enabled_league_ids": [
+      "eng.1"
+    ],
+    "service_plan_order": [
+      "yttv",
+      "yttvspanishplus"
+    ],
+    "enabled_service_plan_ids": [
+      "yttv"
+    ],
+    "ai_text": false
+  },
+  "rules": {
+    "eligibility": "watch-routes-v1-draft",
+    "sports_day": "local-sports-day-v1-draft",
+    "ranking": "personal-ranking-v1-draft",
+    "editorial": "editorial-lifetime-v1-draft",
+    "rating_dots": "six-dot-rounding-v1-draft",
+    "freshness": "source-freshness-v1-draft"
+  },
+  "blend": {
+    "ai": 70,
+    "outlook": 30,
+    "interest": 95,
+    "league_priority": 5
+  },
+  "window": {
+    "boundary_hour": 4,
+    "past_days": 3,
+    "future_days": 3
+  },
+  "freshness": {
+    "retained_evidence_max_seconds": 21600,
+    "personal_shared_max_seconds": 86400,
+    "automatic_max_seconds": 108000
+  }
+}

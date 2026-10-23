@@ -202,10 +202,13 @@
       (visible(trigger) ? trigger : options.fallbackFocus).focus({ preventScroll: true });
     });
     dialog.addEventListener('keydown', function (ev) {
-      if (ev.key !== 'Tab') return;
-      var stops = Array.from(dialog.querySelectorAll('button, a[href]')).filter(visible), first = stops[0], last = stops[stops.length - 1];
-      if (ev.shiftKey && document.activeElement === first) { ev.preventDefault(); last.focus(); }
-      else if (!ev.shiftKey && document.activeElement === last) { ev.preventDefault(); first.focus(); }
+      if (ev.key !== 'Tab' || ev.altKey || ev.ctrlKey || ev.metaKey) return;
+      var stops = Array.from(dialog.querySelectorAll('button:not(:disabled), a[href]')).filter(function (el) { return el.tabIndex >= 0 && visible(el); });
+      if (!stops.length) return;
+      // Safari may skip links in the native Tab order; every modal action must stay reachable.
+      var current = stops.indexOf(document.activeElement), next = current < 0 ? (ev.shiftKey ? stops.length - 1 : 0) :
+        (current + (ev.shiftKey ? -1 : 1) + stops.length) % stops.length;
+      ev.preventDefault(); stops[next].focus();
     });
     function outside(ev) {
       var r = dialog.getBoundingClientRect(); return ev.clientX < r.left || ev.clientX > r.right || ev.clientY < r.top || ev.clientY > r.bottom;

@@ -1,0 +1,336 @@
+{
+  "version": 1,
+  "description": "Independent TIME-1 calendar_shift examples. All expected dates and UTC boundaries were authored directly before consumer replacement.",
+  "cases": [
+    {
+      "id": "eastern-before-four",
+      "request": {
+        "version": 1,
+        "operation": "calendar_shift",
+        "cases": [
+          {
+            "id": "eastern-before-four",
+            "instant": "2026-10-21T07:59:59Z",
+            "time_zone": "America/New_York",
+            "offset_days": 0
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "eastern-before-four",
+            "date": "2026-10-20",
+            "start_utc": "2026-10-20T08:00:00.000Z",
+            "end_utc": "2026-10-21T08:00:00.000Z",
+            "year": 2026,
+            "month": 10,
+            "day": 20
+          }
+        ]
+      },
+      "because": "03:59:59 EDT still belongs to the October 20 sports day."
+    },
+    {
+      "id": "eastern-at-four",
+      "request": {
+        "version": 1,
+        "operation": "calendar_shift",
+        "cases": [
+          {
+            "id": "eastern-at-four",
+            "instant": "2026-10-21T08:00:00Z",
+            "time_zone": "America/New_York",
+            "offset_days": 0
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "eastern-at-four",
+            "date": "2026-10-21",
+            "start_utc": "2026-10-21T08:00:00.000Z",
+            "end_utc": "2026-10-22T08:00:00.000Z",
+            "year": 2026,
+            "month": 10,
+            "day": 21
+          }
+        ]
+      },
+      "because": "The exact 04:00 boundary is included in the new sports day."
+    },
+    {
+      "id": "pacific-same-instant",
+      "request": {
+        "version": 1,
+        "operation": "calendar_shift",
+        "cases": [
+          {
+            "id": "pacific-same-instant",
+            "instant": "2026-10-21T08:00:00Z",
+            "time_zone": "America/Los_Angeles",
+            "offset_days": 0
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "pacific-same-instant",
+            "date": "2026-10-20",
+            "start_utc": "2026-10-20T11:00:00.000Z",
+            "end_utc": "2026-10-21T11:00:00.000Z",
+            "year": 2026,
+            "month": 10,
+            "day": 20
+          }
+        ]
+      },
+      "because": "The same instant is 01:00 PDT and still October 20; source Eastern date must not replace viewer zone."
+    },
+    {
+      "id": "spring-forward-one-calendar-day",
+      "request": {
+        "version": 1,
+        "operation": "calendar_shift",
+        "cases": [
+          {
+            "id": "spring-forward-one-calendar-day",
+            "instant": "2026-03-07T17:00:00Z",
+            "time_zone": "America/New_York",
+            "offset_days": 1
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "spring-forward-one-calendar-day",
+            "date": "2026-03-08",
+            "start_utc": "2026-03-08T08:00:00.000Z",
+            "end_utc": "2026-03-09T08:00:00.000Z",
+            "year": 2026,
+            "month": 3,
+            "day": 8
+          }
+        ]
+      },
+      "because": "March 7 starts at 09:00Z; the next local 04:00 is only 23 elapsed hours later, at 08:00Z."
+    },
+    {
+      "id": "spring-back-one-calendar-day",
+      "request": {
+        "version": 1,
+        "operation": "calendar_shift",
+        "cases": [
+          {
+            "id": "spring-back-one-calendar-day",
+            "instant": "2026-03-08T16:00:00Z",
+            "time_zone": "America/New_York",
+            "offset_days": -1
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "spring-back-one-calendar-day",
+            "date": "2026-03-07",
+            "start_utc": "2026-03-07T09:00:00.000Z",
+            "end_utc": "2026-03-08T08:00:00.000Z",
+            "year": 2026,
+            "month": 3,
+            "day": 7
+          }
+        ]
+      },
+      "because": "The preceding sports day is 23 hours long; subtracting a fixed day from a boundary would be wrong."
+    },
+    {
+      "id": "spring-forward-three-calendar-days",
+      "request": {
+        "version": 1,
+        "operation": "calendar_shift",
+        "cases": [
+          {
+            "id": "spring-forward-three-calendar-days",
+            "instant": "2026-03-07T17:00:00Z",
+            "time_zone": "America/New_York",
+            "offset_days": 3
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "spring-forward-three-calendar-days",
+            "date": "2026-03-10",
+            "start_utc": "2026-03-10T08:00:00.000Z",
+            "end_utc": "2026-03-11T08:00:00.000Z",
+            "year": 2026,
+            "month": 3,
+            "day": 10
+          }
+        ]
+      },
+      "because": "Three local date labels pass although the boundary-to-boundary duration is 71 hours."
+    },
+    {
+      "id": "autumn-forward-one-calendar-day",
+      "request": {
+        "version": 1,
+        "operation": "calendar_shift",
+        "cases": [
+          {
+            "id": "autumn-forward-one-calendar-day",
+            "instant": "2026-10-31T16:00:00Z",
+            "time_zone": "America/New_York",
+            "offset_days": 1
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "autumn-forward-one-calendar-day",
+            "date": "2026-11-01",
+            "start_utc": "2026-11-01T09:00:00.000Z",
+            "end_utc": "2026-11-02T09:00:00.000Z",
+            "year": 2026,
+            "month": 11,
+            "day": 1
+          }
+        ]
+      },
+      "because": "October 31 starts at 08:00Z; November 1 starts at 09:00Z after 25 elapsed hours."
+    },
+    {
+      "id": "autumn-back-one-calendar-day",
+      "request": {
+        "version": 1,
+        "operation": "calendar_shift",
+        "cases": [
+          {
+            "id": "autumn-back-one-calendar-day",
+            "instant": "2026-11-01T17:00:00Z",
+            "time_zone": "America/New_York",
+            "offset_days": -1
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "autumn-back-one-calendar-day",
+            "date": "2026-10-31",
+            "start_utc": "2026-10-31T08:00:00.000Z",
+            "end_utc": "2026-11-01T09:00:00.000Z",
+            "year": 2026,
+            "month": 10,
+            "day": 31
+          }
+        ]
+      },
+      "because": "The prior sports-day interval spans both repeated autumn hours and is 25 hours long."
+    },
+    {
+      "id": "year-back-three-calendar-days",
+      "request": {
+        "version": 1,
+        "operation": "calendar_shift",
+        "cases": [
+          {
+            "id": "year-back-three-calendar-days",
+            "instant": "2027-01-01T12:00:00Z",
+            "time_zone": "Etc/UTC",
+            "offset_days": -3
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "year-back-three-calendar-days",
+            "date": "2026-12-29",
+            "start_utc": "2026-12-29T04:00:00.000Z",
+            "end_utc": "2026-12-30T04:00:00.000Z",
+            "year": 2026,
+            "month": 12,
+            "day": 29
+          }
+        ]
+      },
+      "because": "Calendar shifting crosses the year while retaining the 04:00 boundary."
+    },
+    {
+      "id": "leap-forward-one-calendar-day",
+      "request": {
+        "version": 1,
+        "operation": "calendar_shift",
+        "cases": [
+          {
+            "id": "leap-forward-one-calendar-day",
+            "instant": "2028-02-28T12:00:00Z",
+            "time_zone": "Etc/UTC",
+            "offset_days": 1
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "leap-forward-one-calendar-day",
+            "date": "2028-02-29",
+            "start_utc": "2028-02-29T04:00:00.000Z",
+            "end_utc": "2028-03-01T04:00:00.000Z",
+            "year": 2028,
+            "month": 2,
+            "day": 29
+          }
+        ]
+      },
+      "because": "Leap-day normalization follows the calendar rather than a hard-coded February length."
+    },
+    {
+      "id": "kolkata-forward-one-calendar-day",
+      "request": {
+        "version": 1,
+        "operation": "calendar_shift",
+        "cases": [
+          {
+            "id": "kolkata-forward-one-calendar-day",
+            "instant": "2026-10-20T17:00:00Z",
+            "time_zone": "Asia/Kolkata",
+            "offset_days": 1
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "results": [
+          {
+            "id": "kolkata-forward-one-calendar-day",
+            "date": "2026-10-21",
+            "start_utc": "2026-10-20T22:30:00.000Z",
+            "end_utc": "2026-10-21T22:30:00.000Z",
+            "year": 2026,
+            "month": 10,
+            "day": 21
+          }
+        ]
+      },
+      "because": "The half-hour zone offset remains present in UTC boundary instants."
+    }
+  ]
+}

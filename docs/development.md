@@ -6,17 +6,38 @@ For how the page works, see the [user guide](user-guide.md). For the ranking for
 
 ## Run it locally
 
-The schedule builder needs **Python 3.11 or newer**, `curl`, and network access to ESPN. It also requests public broadcaster schedules to discover confirmed channels and missing simulcasts; an unavailable broadcaster source leaves that coverage unconfirmed. It uses Python's standard library; no API key or Python package installation is needed to build the schedule or run unit tests.
+The schedule builder needs **Python 3.11 or newer**, the Dart SDK pinned in
+[`companion-toolchain.json`](../companion-toolchain.json), `curl`, and network
+access to ESPN. It also requests public broadcaster schedules to discover
+confirmed channels and missing simulcasts; an unavailable broadcaster source
+leaves that coverage unconfirmed. The publisher uses Python's standard library
+and a compiled Dart process for shared service-selection rules. No API key is
+needed to build the schedule or run unit tests.
 
 From the repository root:
 
 ```sh
-python3 -m unittest -v
+python3 -m venv .venv
+.venv/bin/python -m pip install -r tests/requirements-companion.txt
+dart --suppress-analytics pub get --enforce-lockfile --directory packages/outlook_core
+dart --suppress-analytics pub get --enforce-lockfile --directory tool/outlook_bridge
+python3 tool/build_outlook_runtime.py --dart dart
+.venv/bin/python -m unittest -v
 python3 build.py --out site/index.html --facts work/facts.json --warnings work/mapping-report.txt
 python3 -m http.server 8000 --bind 127.0.0.1 --directory site
 ```
 
 Open <http://127.0.0.1:8000/>. Stop the server with Ctrl+C. Serving the directory over HTTP lets the page load `story.json` if one exists beside `index.html`.
+
+Prepare the runtime before importing the builder or running its tests. Recompile
+after changing its Dart sources, lockfiles, toolchain pin or compilation tool.
+The ignored `work/outlook-runtime/` directory contains the native publisher
+executable, browser script and source/artifact hashes. The adapter rejects
+missing, stale or altered artifacts; it has no alternate Python decision path.
+Dependency acquisition is explicit above; compilation resolves packages offline.
+The website loads one content-addressed, integrity-checked script beside its
+HTML; the visitor needs no Dart installation. CI prepares the same runtime
+through [the local action](../.github/actions/outlook-runtime/action.yml).
 
 By default, the builder fetches nine Eastern calendar dates: the previous four dates, today and the following four days. Three prior dates provide recent matches; the fourth is a buffer for visitors whose local 4 a.m. sports-day boundary falls on the preceding Eastern date. That buffer is needed after 4 a.m. Eastern too, so it is always fetched. The forward buffer supports a page left open across a day change. The browser displays exactly three previous sports days, today and the following three days; see the user guide for the 4 a.m. day boundary. The AI's upcoming window uses Eastern time, while the browser groups matches using the visitor's local time.
 
@@ -31,7 +52,7 @@ Useful build options:
 | `--lightweight` | Refresh fixtures and broadcasts using compatible standings cached less than 30 hours ago; no AI generation. Run a full build first. |
 | `--previous-context PATH` | Read previous `schedule-context.json` for cached standings and bounded broadcast-evidence retention. Defaults to the output directory. |
 | `--site-url https://example.com/soccer/` | Set the public directory URL used by the canonical link, sharing metadata and sitemap. Defaults to the published Soccer Outlook URL. |
-| `--date YYYY-MM-DD` | Choose the Eastern date used to fetch fixtures, evaluate rights and date the public static schedules. The configured calendar range is exact, without the additional timezone buffer. It does not change the build timestamp or the browser's clock. |
+| `--date YYYY-MM-DD` | Choose the Eastern date used to fetch fixtures, initially qualify usual rights and date the public static schedules. The configured calendar range is exact, without the additional timezone buffer. Final route validity uses the actual output clock; a historical date cannot revive expired coverage. It does not change the build timestamp or the browser's clock. |
 | `--days-back N --days-ahead N` | Change the dates fetched; defaults are three back and four ahead. One additional prior date is fetched unless `--date` is set. This does not change the browser's display window. |
 | `--no-logos` | Build without team or league images. |
 | `--embed-images --logos logos.json` | Embed images instead of linking to ESPN; cache downloaded images in the named file. |
@@ -39,11 +60,21 @@ Useful build options:
 
 For a browser preview at a chosen local time, append a fragment such as `#at-20261009-1300` to the page URL. The fixtures still come from the build; the fragment does not fetch a historical schedule. Use `python3 build.py --help` for all options.
 
+Qualified route lifetime decisions use the shared core in publisher outputs and
+the browser. Retained listings keep their original verification and earlier
+cutoff; usual rights expire at the following Eastern midnight. Browser access,
+editorial eligibility and provider links refresh at that deadline and on resume.
+A reload or schedule refresh does not renew the evidence. See
+[WATCH-VALIDITY-1](companion/rules/route-validity.md) for exact boundaries and the
+deliberately unchanged fresh-listing policy.
+
 ## Where to make changes
 
 | File or directory | Responsibility |
 | --- | --- |
 | [`build.py`](../build.py) | Fetch and interpret ESPN data, validate configuration, calculate the Outlook score and generate HTML. Also defines tracked leagues, their short descriptions, default selection and order, default services, and teams receiving an occasion-score bonus. |
+| [`packages/outlook_core/`](../packages/outlook_core/) | Shared route preference/provider selection, named-zone sports-day calendar and viewer league/fixture eligibility; later P2 rule families are still being migrated. |
+| [`outlook_runtime.py`](../outlook_runtime.py) and [`tool/outlook_bridge/`](../tool/outlook_bridge/) | Verified publisher process and browser protocol adapters; they carry inputs/results without repeating shared decisions. |
 | [`discovery.py`](../discovery.py) | Generate public league and service schedule pages, their links, and search-discovery metadata. |
 | [`broadcast_listings.py`](../broadcast_listings.py) and the provider `*_listings.py` modules | Discover supported US broadcast routes, merge confirmed channels, retain per-channel evidence and record every source check. |
 | [`schedule_data.py`](../schedule_data.py) and [`web/schedule.js`](../web/schedule.js) | Publish versioned schedule snapshots, reuse public standings, and safely refresh an open page. |
@@ -73,7 +104,15 @@ For a browser preview at a chosen local time, append a fragment such as `#at-202
 | [`.github/workflows/`](../.github/workflows/) | Automated builds, browser checks and optional AI comparisons. |
 | [`.github/scripts/`](../.github/scripts/) | Durable history archiving, mapping-issue maintenance and AI comparison reports. |
 
-The generator inlines the HTML, CSS and JavaScript assets into the page. Rebuild after editing them. Full builds copy `web/favicon.png` beside the HTML; the PNG works in browsers that do not support SVG favicons. If the SVG artwork changes, re-export the PNG at 64 × 64 with a transparent background. Fragment builds leave the icon to the host page.
+The generator inlines its presentation HTML, CSS and JavaScript. The compiled
+shared core is a separate `outlook-core-<sha256>.js` file, loaded before the
+browser adapter and checked with script integrity. This preserves the HTML
+size budget and logo coverage. Full refreshes retain the previous page's core
+asset so cached pages can still load it; lightweight refreshes retain published
+assets. If loading fails, the page keeps its static schedule and offers reload.
+Fragment hosts must serve the generated core asset beside the fragment too.
+Rebuild after editing source assets. Full builds copy `web/favicon.png` beside
+the HTML; fragment builds leave the icon to the host page.
 
 Rating dots use `Math.round(score * 6 / 100)` for both overall and component scores. The former `[dots]` threshold table is no longer used; remove it from older copies of `settings.toml`. Scores and ranking weights are unchanged by this display rule.
 
@@ -81,7 +120,13 @@ Team links embed the schedule's existing team facts and open an accessible modal
 
 Each request has an eight-second timeout. Failures leave the schedule snapshot available, with a retry button. Successful profiles are stored under `soccer-team-vitals-v1` for six hours, limited to 30 entries; storage failures fall back to memory. Partial results are not persisted. Requests omit credentials and referrers, and only happen on opening a sheet; there is no build-time profile crawl or AI dependency. Browser tests cover card roles, touch/keyboard dismissal, record separation, failures, stale responses, cache expiry and blocked storage.
 
-Deployment consists of `index.html`, `favicon.png`, `sitemap.xml`, `schedule.json`, `coverage.json`, `schedule-context.json`, the `premier-league/`, `mls/` and `paramount-plus/` schedule pages, optional `shared-ai.json` and `story.json`, an optional IndexNow key file and a `.nojekyll` file; there is no application server or JavaScript bundler. Generated files in `site/` and test artifacts in `work/` are ignored by Git.
+Deployment consists of `index.html`, its `outlook-core-<sha256>.js` asset,
+`favicon.png`, `sitemap.xml`, `schedule.json`, `coverage.json`,
+`schedule-context.json`, the `premier-league/`, `mls/` and `paramount-plus/`
+schedule pages, optional `shared-ai.json` and `story.json`, an optional IndexNow
+key file and `.nojekyll`. There is no application server. Dart compilation
+happens before publication. Generated files in `site/` and test artifacts in
+`work/` are ignored by Git.
 
 Full pages allow search indexing and include a descriptive title, summary, canonical URL and sharing metadata in the document head. Each build writes three focused league/service schedules and a sitemap listing the homepage and those pages, dated with the schedule rebuild time. These public schedules use Eastern time and do not apply personal browser filters. Fragment builds leave search metadata and discovery files to the host. The workflows use the repository's GitHub Pages URL by default; for a custom domain, set the repository Actions variable `SITE_URL` to its public directory URL. This keeps generation and IndexNow submission aligned. Use `--site-url` for other public deployments so their canonical links point to the correct site.
 
@@ -93,11 +138,20 @@ Indexing and search placement are decided by search engines. A `robots.txt` file
 
 ## Test changes
 
-Run the unit tests from the repository root:
+Prepare the shared runtime as described above, then run the unit tests from the
+repository root in an isolated Python environment:
 
 ```sh
-python3 -m unittest -v
+python3 -m venv .venv
+.venv/bin/python -m pip install -r tests/requirements-companion.txt
+.venv/bin/python -m unittest -v
 ```
+
+The complete test suite requires the pinned `jsonschema` dependency, including
+adapter checks used when `COMPANION_FEED_ENABLED` is false. CI installs these
+requirements before testing in every unit-test job. This test setup does not
+enable the companion feed: the default builder still needs no third-party
+Python packages, and companion validation is loaded only for an opted-in export.
 
 They cover rights and settings validation, ESPN parsing, source-health publication checks, scoring, rendering, provider responses and AI reuse/failure behavior. Tests use fixtures and mocked requests; they do not spend API credits. Small sanitized ESPN examples in [`tests/fixtures/`](../tests/fixtures/) preserve real IDs and feed shapes alongside the synthetic cases. Most rendering and scoring tests use fixed settings so changing a valid production weight does not change their expected results. Separate tests validate the real configuration files.
 
@@ -105,12 +159,13 @@ For browser checks, create a virtual environment and install the test dependenci
 
 ```sh
 python3 -m venv .venv
-.venv/bin/python -m pip install -r tests/requirements-browser.txt
+.venv/bin/python -m pip install -r tests/requirements-browser.txt -r tests/requirements-companion.txt
 .venv/bin/python -m playwright install chromium webkit
 .venv/bin/python -m tests.browser
 .venv/bin/python -m tests.browser --browser webkit --smoke
 .venv/bin/python -m tests.browser_schedule
 .venv/bin/python -m tests.browser_schedule --browser webkit
+.venv/bin/python -m tests.browser_publication_capture
 ```
 
 On Linux, missing system libraries can be installed with `.venv/bin/python -m playwright install --with-deps chromium webkit`. This may require administrator access. The harness uses Playwright's Chromium by default; set `BROWSER_EXECUTABLE` to an existing compatible browser executable only when you intend to override it.
@@ -317,7 +372,7 @@ To update a mapping:
 
 1. Check the current rights or carriage agreement against a reliable source.
 2. Edit the relevant entry, including its source, `checked` date and any season end date.
-3. Run `python3 -m unittest -v`.
+3. Run `.venv/bin/python -m unittest -v` after the [test setup](#test-changes).
 4. Build with `--warnings work/mapping-report.txt` and review the report.
 
 Validation catches unknown keys, invalid service/channel references, ambiguous aliases and missing required metadata. Each build also reports unmapped ESPN names, missing club mappings, suspicious disagreement with listed coverage, usual homes nearing or past expiry, and facts unchecked for more than 180 days. A usual home lapses after its `until` date; the page then stops relying on it.

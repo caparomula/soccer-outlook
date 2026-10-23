@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "kind": "outlook_schedule",
+  "content_revision": "schedule-empty",
+  "catalog_revision": "catalog-example-1",
+  "policy_id": "outlook-policy-p0-draft-1",
+  "fixture_sources_complete": true,
+  "source_scopes": [
+    {
+      "source": "espn",
+      "league_id": "eng.1",
+      "date_zone": "America/New_York",
+      "requested_dates": [
+        "2026-10-20"
+      ],
+      "covered_dates": [
+        "2026-10-20"
+      ],
+      "complete": true,
+      "attempted_at": "2026-10-20T12:00:00Z",
+      "validated_at": "2026-10-20T12:00:00Z"
+    }
+  ],
+  "confirmed_horizon": {
+    "start": "2026-10-20T04:00:00Z",
+    "end_exclusive": "2026-10-21T04:00:00Z"
+  },
+  "broadcast_sources": [
+    {
+      "source": "example-broadcaster",
+      "state": "ok",
+      "attempted_at": "2026-10-20T12:00:00Z",
+      "validated_at": "2026-10-20T12:00:00Z",
+      "observed_at": "2026-10-20T12:00:00Z",
+      "diagnostics": []
+    }
+  ],
+  "fixtures": [],
+  "team_vitals": [],
+  "evidence": [],
+  "destinations": []
+}

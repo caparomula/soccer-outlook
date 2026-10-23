@@ -112,11 +112,14 @@ def _match_html(builder, match, coverage):
     teams = f"{match.home.name} v {match.away.name}"
     meta = " · ".join(part for part in (match.comp, match.stage, match.venue) if part)
     status = ""
-    if match.state in {"in", "post"}:
-        scores = f"{match.home.score}–{match.away.score}" if match.home.score != "" and match.away.score != "" else ""
-        label = "In progress at last update" if match.state == "in" else "Final"
-        if match.status and match.status not in {"FT", "Final", "Live"}:
-            label += f" · {match.status}"
+    status_facts = builder.match_status(match)
+    if status_facts["state"] != "scheduled":
+        home, away = status_facts["scores"]["home"], status_facts["scores"]["away"]
+        scores = f"{home}–{away}" if home is not None and away is not None else ""
+        label = "Final" if status_facts["final"] else "In progress at last update" if status_facts["state"] == "live" else status_facts["label"]
+        detail = status_facts["label"]
+        if status_facts["played"] and detail and detail not in {"FT", "Final", "Live"}:
+            label += f" · {detail}"
         status = f'<p class="match-status">{esc(" · ".join(part for part in (label, scores) if part))}</p>'
     note = f'<p class="match-note">{esc(match.note)}</p>' if match.note else ""
     source = _safe_link(match.link)
@@ -155,7 +158,7 @@ def pages(builder, matches, cache, built_at, site_url, failed=(), skipped=(), he
         unknown = 0
         for match in sorted(matches, key=lambda m: (m.utc, m.comp, m.home.name, m.id)):
             day = sports_day(match.utc, builder.ET)
-            if not first_day <= day <= last_day or builder.called_off(match.state, match.status):
+            if not first_day <= day <= last_day or builder.match_status(match)["void"]:
                 continue
             if route.league and match.league != route.league:
                 continue

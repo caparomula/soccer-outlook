@@ -1,0 +1,1173 @@
+{
+  "version": 1,
+  "status": "passed",
+  "source_hashes": {
+    "build.py": "316b630536a88ec6bf926bb561d5d4cd38c6588e01554ae7d599324478211a0f",
+    "companion-toolchain.json": "6f22792346a0b9c9430ce5cb054eea4b236a88f66f556e35695fa38ffd433c99",
+    "docs/companion/rules/README.md": "30726ccf9f648167062a1c36930891d5fc5010790ee522a4fab179fdb3fc3e73",
+    "docs/companion/rules/later-families.md": "8fcfd39ddd29fa4d67322229dbec3c912f59540c64b82ad953e08e998d51e8a2",
+    "docs/companion/rules/route-examples.json": "830ae7e65c053a0bbf27ad424623fed07a35d797dec541ef131eb1e4efe5f9e9",
+    "docs/companion/rules/sports-day-examples.json": "5e82e6c8564fb7ff14ccc4db02bbe1df5a17b27f41114aae9728c4c949dc9db3",
+    "docs/companion/rules/sports-day.md": "6aa7ad02e125d97316fb98db06c3fa77a82032e3f110d5a50f5b15ed2c7402b6",
+    "docs/companion/rules/watch-routes.md": "6ad549b8d99c801bb33c9339f269f70c77b96cfab95dd9a047f893a06506f8eb",
+    "outlook_runtime.py": "d829a98186a60f55fc9fcd8a9bff10951460d958f5dd749df91d56fc9cbec346",
+    "packages/outlook_core/lib/outlook_core.dart": "0183774b156f4d697c795abe759fcfd57c768663d9d11a9a5d71cca586014f6c",
+    "packages/outlook_core/lib/src/outlook.dart": "1cb13da0f96ac5a18ba8339191fa690ddb1c496e73dbeaa103e3c9071f9156a8",
+    "packages/outlook_core/lib/src/routes.dart": "a59fcf262ceb3e4bb3ea37a1088b5efa74da06ecd55a59c7d533f271cd9225d4",
+    "packages/outlook_core/lib/src/sports_day.dart": "2be3ea939a1d73391394ce1d87c920a45b5e627f8b338a8865291c146dc193dd",
+    "rights.toml": "792b0fd83100d9b50c36e41fe3ab57bbaf39af89e46a6aa06d8f124492d13a67",
+    "schedule_data.py": "829e502b0a709c7272336825b4151bc915f0edd6d7757d9a5bcded6573708b0e",
+    "settings.toml": "f2f9d16b5d7b8e7de61fa9858b7c2445f0d01331e959b1a07c5197e545ee4a23",
+    "story_state.py": "d6577383bba4f0ac5f620e8fd6e7bd0478eb5ce3338030aed8930f1fdf1bed35",
+    "tests/contracts/p2/legacy-route-selection-2026-10-20.json": "2ca5997f44a7c272a79aad32ac4c9c39a5ef56d218a87e1cd60f31803d5e307a",
+    "tests/page_fixture.py": "23025cf527011754fd4496ca30f606eb93f960c446176773cd887e4ab31fa529",
+    "tool/companion_p0_limits.json": "c9434036444ebe62b1bea925d62267fe0122e0dc496c60ee873b5ed53a3260e3",
+    "tool/companion_p2_verify.py": "b8001d7051f3352de2cf04aa06cb0e5c11a71f6f82c0f8325426f04953bc7c4c",
+    "tool/outlook_bridge/bin/outlook.dart": "15122da81d462636246dee13f86fd27d33d30390dea52abd28b93d9595ff6394",
+    "tool/outlook_bridge/lib/protocol.dart": "fc75c57f795c9dd11f767bc690fb8ee32901543f6a8cb7fa5ac052c45e3611dd",
+    "tool/outlook_bridge/web/bridge.dart": "b2388aad6fb078ff91e00bfbf31a168df746d272420817f1a8fec4bfc806912e",
+    "tool/outlook_bridge/web/demo.js": "a352cc0a51638cb38965adfd4788305943872abb8fb4285ac6ca5b0a8b0467d4",
+    "tool/outlook_bridge/web/index.html": "cdd8573ca5c611140b45099718f9bdc775df7d1b49a03eca6daa30b19708040c",
+    "watch-links.toml": "f214e47052326610358e59cfa37b26b871c2ef846d5d9350d7e3e44f8393087c",
+    "watch_links.py": "b486e5eb001ba6e4e9c73b88edb679edad5e8dddde546c427ed3fc846132b14b",
+    "web/app.js": "f6a49fd53e8b77bbd1b8aa1324733a3ac0bd7cefb80996e127315e44b425a2e0",
+    "web/discovery.css": "7bd3ef98d3f80639991eef44a1f41ce61661e2904a95a2bc31276ca637f72291",
+    "web/favicon.png": "de2ddfd9b2067116b5855579bc59dd822487a45f5966ee1990800df380da9d98",
+    "web/favicon.svg": "7a22dbda89c1a8f7de5fd67e1e098c4d6e9c72ecb98826aa0dbe2abac4480921",
+    "web/github-publish.js": "c8e5611fcd6612441ab34f727fcb84fc1d2876c8e80596711180ee4e80a2c113",
+    "web/indexnow-key.txt": "1e3088a376434b4ce236bcd6364841eedcc6685c6d79b09e8dbdb4bcf9ae43aa",
+    "web/live.js": "fa25890d5ee0885ed859fba200ff926209c6c32ef5b3ae65e9d66af9441c3dee",
+    "web/page.html": "831b09afce61c61376280b33b7756fc32e91293bdcb5ab6ceca633b0c0cc3d70",
+    "web/personal-ai.js": "779efc4d21f91961216749737fc37590a9029db3be338bb7e9846d84b5a4ddb6",
+    "web/schedule.js": "1ba127784a06e821b8a37b5f05409b3e011760d251987dd1d912256977e173eb",
+    "web/styles.css": "79b0b52d58901ac6f7a89638307d690545b385a9c43bbbda824220d2c514cd3a",
+    "web/teams.js": "84d47ebe6c5f81a9ae221cb6d5d474e1ad4fcb5a3a18774ecad99e4501fec548"
+  },
+  "sources_unchanged": true,
+  "dart_version": "Dart SDK version: 3.13.3 (stable) (Tue Sep 1 01:07:17 2026 -0700) on \"macos_arm64\"",
+  "runtime_artifact_hashes": {
+    "outlook": "0a952d9f8a0ead60f8847596836b12648b27d9769d64a38dd35bdb207935f00d",
+    "outlook.js": "287e93c32a65cd4ddc3dc4afef6cb5afc0ab076400d7a39dbdfdc1b4a0297d2a",
+    "runtime.json": "4787ab5aaf5898f8e731d6a33cb56863703962a406eba189c23cf8367299f292"
+  },
+  "independent_requests": 27,
+  "legacy_route_fixtures": 360,
+  "legacy_lineups": 4,
+  "legacy_route_comparisons": 1440,
+  "dart_vm": {
+    "checks": 31,
+    "stream_elapsed_ms": 477.9608331155032,
+    "rejected_inputs": 3
+  },
+  "compiled_cli": {
+    "checks": 31,
+    "stream_elapsed_ms": 31.027334043756127,
+    "rejected_inputs": 3
+  },
+  "browsers": {
+    "chromium": {
+      "version": "151.0.7922.34",
+      "checks": 31,
+      "frozen_calendar_cases": 17,
+      "strict_csp": true,
+      "page_errors": [],
+      "warm_host_page_start": {
+        "samples": [
+          16.699999809265137,
+          15.599999904632568,
+          14.700000047683716,
+          15.799999952316284,
+          13.900000095367432,
+          14.399999856948853,
+          15.900000095367432,
+          14.400000095367432,
+          12.900000095367432,
+          13.099999904632568,
+          17.699999809265137,
+          13,
+          13.099999904632568,
+          13.899999856948853,
+          14.5,
+          13.400000095367432,
+          13.899999856948853,
+          13.5,
+          12.599999904632568,
+          15.600000143051147
+        ],
+        "median_ms": 14.149999976158142,
+        "p95_ms": 16.699999809265137
+      },
+      "first_360_route_evaluation": {
+        "samples": [
+          5.700000047683716,
+          5.299999952316284,
+          5.5,
+          5.799999952316284,
+          5.200000047683716,
+          5.200000047683716,
+          6.200000047683716,
+          4.5,
+          4.799999952316284,
+          6.1000001430511475,
+          4.799999952316284,
+          5,
+          6.099999904632568,
+          4.599999904632568,
+          4.799999952316284,
+          5.8999998569488525,
+          5.1000001430511475,
+          4.699999809265137,
+          5.900000095367432,
+          5.1000001430511475
+        ],
+        "median_ms": 5.200000047683716,
+        "p95_ms": 6.1000001430511475
+      },
+      "actual_generated_page": {
+        "cases": 36,
+        "results": [
+          {
+            "time_zone": "America/New_York",
+            "resolved_time_zone": "America/New_York",
+            "lineup": "defaults",
+            "visible_fixture_ids": [
+              "p2-direct",
+              "p2-listed",
+              "p2-usual"
+            ],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "America/New_York",
+            "resolved_time_zone": "America/New_York",
+            "lineup": "selected_subset",
+            "visible_fixture_ids": [
+              "p2-listed",
+              "p2-usual"
+            ],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "America/New_York",
+            "resolved_time_zone": "America/New_York",
+            "lineup": "reordered",
+            "visible_fixture_ids": [
+              "p2-listed",
+              "p2-usual"
+            ],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "America/New_York",
+            "resolved_time_zone": "America/New_York",
+            "lineup": "empty",
+            "visible_fixture_ids": [],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 2,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "America/Los_Angeles",
+            "resolved_time_zone": "America/Los_Angeles",
+            "lineup": "defaults",
+            "visible_fixture_ids": [
+              "p2-direct",
+              "p2-listed",
+              "p2-usual"
+            ],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "America/Los_Angeles",
+            "resolved_time_zone": "America/Los_Angeles",
+            "lineup": "selected_subset",
+            "visible_fixture_ids": [
+              "p2-listed",
+              "p2-usual"
+            ],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "America/Los_Angeles",
+            "resolved_time_zone": "America/Los_Angeles",
+            "lineup": "reordered",
+            "visible_fixture_ids": [
+              "p2-listed",
+              "p2-usual"
+            ],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "America/Los_Angeles",
+            "resolved_time_zone": "America/Los_Angeles",
+            "lineup": "empty",
+            "visible_fixture_ids": [],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 2,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "UTC",
+            "resolved_time_zone": "UTC",
+            "lineup": "defaults",
+            "visible_fixture_ids": [
+              "p2-direct",
+              "p2-listed",
+              "p2-usual"
+            ],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "UTC",
+            "resolved_time_zone": "UTC",
+            "lineup": "selected_subset",
+            "visible_fixture_ids": [
+              "p2-listed",
+              "p2-usual"
+            ],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "UTC",
+            "resolved_time_zone": "UTC",
+            "lineup": "reordered",
+            "visible_fixture_ids": [
+              "p2-listed",
+              "p2-usual"
+            ],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "UTC",
+            "resolved_time_zone": "UTC",
+            "lineup": "empty",
+            "visible_fixture_ids": [],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 2,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "Asia/Calcutta",
+            "resolved_time_zone": "Asia/Calcutta",
+            "lineup": "defaults",
+            "visible_fixture_ids": [
+              "p2-direct",
+              "p2-listed",
+              "p2-usual"
+            ],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "Asia/Calcutta",
+            "resolved_time_zone": "Asia/Calcutta",
+            "lineup": "selected_subset",
+            "visible_fixture_ids": [
+              "p2-listed",
+              "p2-usual"
+            ],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "Asia/Calcutta",
+            "resolved_time_zone": "Asia/Calcutta",
+            "lineup": "reordered",
+            "visible_fixture_ids": [
+              "p2-listed",
+              "p2-usual"
+            ],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "Asia/Calcutta",
+            "resolved_time_zone": "Asia/Calcutta",
+            "lineup": "empty",
+            "visible_fixture_ids": [],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 2,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "Asia/Katmandu",
+            "resolved_time_zone": "Asia/Katmandu",
+            "lineup": "defaults",
+            "visible_fixture_ids": [
+              "p2-direct",
+              "p2-listed",
+              "p2-usual"
+            ],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "Asia/Katmandu",
+            "resolved_time_zone": "Asia/Katmandu",
+            "lineup": "selected_subset",
+            "visible_fixture_ids": [
+              "p2-listed",
+              "p2-usual"
+            ],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "Asia/Katmandu",
+            "resolved_time_zone": "Asia/Katmandu",
+            "lineup": "reordered",
+            "visible_fixture_ids": [
+              "p2-listed",
+              "p2-usual"
+            ],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "Asia/Katmandu",
+            "resolved_time_zone": "Asia/Katmandu",
+            "lineup": "empty",
+            "visible_fixture_ids": [],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 2,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "Europe/Kiev",
+            "resolved_time_zone": "Europe/Kiev",
+            "lineup": "defaults",
+            "visible_fixture_ids": [
+              "p2-direct",
+              "p2-listed",
+              "p2-usual"
+            ],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "Europe/Kiev",
+            "resolved_time_zone": "Europe/Kiev",
+            "lineup": "selected_subset",
+            "visible_fixture_ids": [
+              "p2-listed",
+              "p2-usual"
+            ],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "Europe/Kiev",
+            "resolved_time_zone": "Europe/Kiev",
+            "lineup": "reordered",
+            "visible_fixture_ids": [
+              "p2-listed",
+              "p2-usual"
+            ],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "Europe/Kiev",
+            "resolved_time_zone": "Europe/Kiev",
+            "lineup": "empty",
+            "visible_fixture_ids": [],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 2,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "Etc/GMT+5",
+            "resolved_time_zone": "Etc/GMT+5",
+            "lineup": "defaults",
+            "visible_fixture_ids": [
+              "p2-direct",
+              "p2-listed",
+              "p2-usual"
+            ],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "Etc/GMT+5",
+            "resolved_time_zone": "Etc/GMT+5",
+            "lineup": "selected_subset",
+            "visible_fixture_ids": [
+              "p2-listed",
+              "p2-usual"
+            ],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "Etc/GMT+5",
+            "resolved_time_zone": "Etc/GMT+5",
+            "lineup": "reordered",
+            "visible_fixture_ids": [
+              "p2-listed",
+              "p2-usual"
+            ],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "Etc/GMT+5",
+            "resolved_time_zone": "Etc/GMT+5",
+            "lineup": "empty",
+            "visible_fixture_ids": [],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 2,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "Etc/GMT-9",
+            "resolved_time_zone": "Etc/GMT-9",
+            "lineup": "defaults",
+            "visible_fixture_ids": [
+              "p2-direct",
+              "p2-listed",
+              "p2-usual"
+            ],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "Etc/GMT-9",
+            "resolved_time_zone": "Etc/GMT-9",
+            "lineup": "selected_subset",
+            "visible_fixture_ids": [
+              "p2-listed",
+              "p2-usual"
+            ],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "Etc/GMT-9",
+            "resolved_time_zone": "Etc/GMT-9",
+            "lineup": "reordered",
+            "visible_fixture_ids": [
+              "p2-listed",
+              "p2-usual"
+            ],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "Etc/GMT-9",
+            "resolved_time_zone": "Etc/GMT-9",
+            "lineup": "empty",
+            "visible_fixture_ids": [],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 2,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "GMT",
+            "resolved_time_zone": "+00:00",
+            "lineup": "defaults",
+            "visible_fixture_ids": [
+              "p2-direct",
+              "p2-listed",
+              "p2-usual"
+            ],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "GMT",
+            "resolved_time_zone": "+00:00",
+            "lineup": "selected_subset",
+            "visible_fixture_ids": [
+              "p2-listed",
+              "p2-usual"
+            ],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "GMT",
+            "resolved_time_zone": "+00:00",
+            "lineup": "reordered",
+            "visible_fixture_ids": [
+              "p2-listed",
+              "p2-usual"
+            ],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "GMT",
+            "resolved_time_zone": "+00:00",
+            "lineup": "empty",
+            "visible_fixture_ids": [],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          }
+        ],
+        "core_asset": "outlook-core-287e93c32a65cd4ddc3dc4afef6cb5afc0ab076400d7a39dbdfdc1b4a0297d2a.js",
+        "integrity": "sha256-KH6TwyplzU3cPcSv72y1r8CrB2QA16Odvf3BtKApfSo=",
+        "asset_sha256": "287e93c32a65cd4ddc3dc4afef6cb5afc0ab076400d7a39dbdfdc1b4a0297d2a",
+        "core_failure_cases": [
+          {
+            "failure": "request_failed",
+            "static_fixture_ids": [
+              "p2-direct",
+              "p2-listed",
+              "p2-unknown",
+              "p2-usual"
+            ],
+            "field_bindings_preserved": true,
+            "corrupt_code_executed": false,
+            "fallback_notice_visible": true,
+            "page_errors": []
+          },
+          {
+            "failure": "corrupt_asset",
+            "static_fixture_ids": [
+              "p2-direct",
+              "p2-listed",
+              "p2-unknown",
+              "p2-usual"
+            ],
+            "field_bindings_preserved": true,
+            "corrupt_code_executed": false,
+            "fallback_notice_visible": true,
+            "page_errors": []
+          }
+        ],
+        "csp_scope": "Core artifact is checked under strict CSP separately; this actual generated page retains its existing inline scripts/styles."
+      }
+    },
+    "webkit": {
+      "version": "26.5",
+      "checks": 31,
+      "frozen_calendar_cases": 17,
+      "strict_csp": true,
+      "page_errors": [],
+      "warm_host_page_start": {
+        "samples": [
+          56,
+          20,
+          17,
+          13,
+          12,
+          14,
+          12,
+          13,
+          13,
+          15,
+          13,
+          12,
+          14,
+          10,
+          12,
+          11,
+          14,
+          15,
+          18,
+          15
+        ],
+        "median_ms": 13.5,
+        "p95_ms": 20
+      },
+      "first_360_route_evaluation": {
+        "samples": [
+          8,
+          8,
+          7,
+          6,
+          6,
+          6,
+          6,
+          7,
+          8,
+          7,
+          5,
+          6,
+          7,
+          6,
+          7,
+          7,
+          8,
+          6,
+          6,
+          8
+        ],
+        "median_ms": 7.0,
+        "p95_ms": 8
+      },
+      "actual_generated_page": {
+        "cases": 36,
+        "results": [
+          {
+            "time_zone": "America/New_York",
+            "resolved_time_zone": "America/New_York",
+            "lineup": "defaults",
+            "visible_fixture_ids": [
+              "p2-direct",
+              "p2-listed",
+              "p2-usual"
+            ],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "America/New_York",
+            "resolved_time_zone": "America/New_York",
+            "lineup": "selected_subset",
+            "visible_fixture_ids": [
+              "p2-listed",
+              "p2-usual"
+            ],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "America/New_York",
+            "resolved_time_zone": "America/New_York",
+            "lineup": "reordered",
+            "visible_fixture_ids": [
+              "p2-listed",
+              "p2-usual"
+            ],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "America/New_York",
+            "resolved_time_zone": "America/New_York",
+            "lineup": "empty",
+            "visible_fixture_ids": [],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "America/Los_Angeles",
+            "resolved_time_zone": "America/Los_Angeles",
+            "lineup": "defaults",
+            "visible_fixture_ids": [
+              "p2-direct",
+              "p2-listed",
+              "p2-usual"
+            ],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "America/Los_Angeles",
+            "resolved_time_zone": "America/Los_Angeles",
+            "lineup": "selected_subset",
+            "visible_fixture_ids": [
+              "p2-listed",
+              "p2-usual"
+            ],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "America/Los_Angeles",
+            "resolved_time_zone": "America/Los_Angeles",
+            "lineup": "reordered",
+            "visible_fixture_ids": [
+              "p2-listed",
+              "p2-usual"
+            ],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "America/Los_Angeles",
+            "resolved_time_zone": "America/Los_Angeles",
+            "lineup": "empty",
+            "visible_fixture_ids": [],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "UTC",
+            "resolved_time_zone": "UTC",
+            "lineup": "defaults",
+            "visible_fixture_ids": [
+              "p2-direct",
+              "p2-listed",
+              "p2-usual"
+            ],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "UTC",
+            "resolved_time_zone": "UTC",
+            "lineup": "selected_subset",
+            "visible_fixture_ids": [
+              "p2-listed",
+              "p2-usual"
+            ],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "UTC",
+            "resolved_time_zone": "UTC",
+            "lineup": "reordered",
+            "visible_fixture_ids": [
+              "p2-listed",
+              "p2-usual"
+            ],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "UTC",
+            "resolved_time_zone": "UTC",
+            "lineup": "empty",
+            "visible_fixture_ids": [],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "Asia/Calcutta",
+            "resolved_time_zone": "Asia/Kolkata",
+            "lineup": "defaults",
+            "visible_fixture_ids": [
+              "p2-direct",
+              "p2-listed",
+              "p2-usual"
+            ],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "Asia/Calcutta",
+            "resolved_time_zone": "Asia/Kolkata",
+            "lineup": "selected_subset",
+            "visible_fixture_ids": [
+              "p2-listed",
+              "p2-usual"
+            ],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "Asia/Calcutta",
+            "resolved_time_zone": "Asia/Kolkata",
+            "lineup": "reordered",
+            "visible_fixture_ids": [
+              "p2-listed",
+              "p2-usual"
+            ],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "Asia/Calcutta",
+            "resolved_time_zone": "Asia/Kolkata",
+            "lineup": "empty",
+            "visible_fixture_ids": [],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "Asia/Katmandu",
+            "resolved_time_zone": "Asia/Kathmandu",
+            "lineup": "defaults",
+            "visible_fixture_ids": [
+              "p2-direct",
+              "p2-listed",
+              "p2-usual"
+            ],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "Asia/Katmandu",
+            "resolved_time_zone": "Asia/Kathmandu",
+            "lineup": "selected_subset",
+            "visible_fixture_ids": [
+              "p2-listed",
+              "p2-usual"
+            ],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "Asia/Katmandu",
+            "resolved_time_zone": "Asia/Kathmandu",
+            "lineup": "reordered",
+            "visible_fixture_ids": [
+              "p2-listed",
+              "p2-usual"
+            ],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "Asia/Katmandu",
+            "resolved_time_zone": "Asia/Kathmandu",
+            "lineup": "empty",
+            "visible_fixture_ids": [],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "Europe/Kiev",
+            "resolved_time_zone": "Europe/Kyiv",
+            "lineup": "defaults",
+            "visible_fixture_ids": [
+              "p2-direct",
+              "p2-listed",
+              "p2-usual"
+            ],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "Europe/Kiev",
+            "resolved_time_zone": "Europe/Kyiv",
+            "lineup": "selected_subset",
+            "visible_fixture_ids": [
+              "p2-listed",
+              "p2-usual"
+            ],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "Europe/Kiev",
+            "resolved_time_zone": "Europe/Kyiv",
+            "lineup": "reordered",
+            "visible_fixture_ids": [
+              "p2-listed",
+              "p2-usual"
+            ],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "Europe/Kiev",
+            "resolved_time_zone": "Europe/Kyiv",
+            "lineup": "empty",
+            "visible_fixture_ids": [],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "Etc/GMT+5",
+            "resolved_time_zone": "Etc/GMT+5",
+            "lineup": "defaults",
+            "visible_fixture_ids": [
+              "p2-direct",
+              "p2-listed",
+              "p2-usual"
+            ],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "Etc/GMT+5",
+            "resolved_time_zone": "Etc/GMT+5",
+            "lineup": "selected_subset",
+            "visible_fixture_ids": [
+              "p2-listed",
+              "p2-usual"
+            ],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "Etc/GMT+5",
+            "resolved_time_zone": "Etc/GMT+5",
+            "lineup": "reordered",
+            "visible_fixture_ids": [
+              "p2-listed",
+              "p2-usual"
+            ],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "Etc/GMT+5",
+            "resolved_time_zone": "Etc/GMT+5",
+            "lineup": "empty",
+            "visible_fixture_ids": [],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "Etc/GMT-9",
+            "resolved_time_zone": "Etc/GMT-9",
+            "lineup": "defaults",
+            "visible_fixture_ids": [
+              "p2-direct",
+              "p2-listed",
+              "p2-usual"
+            ],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "Etc/GMT-9",
+            "resolved_time_zone": "Etc/GMT-9",
+            "lineup": "selected_subset",
+            "visible_fixture_ids": [
+              "p2-listed",
+              "p2-usual"
+            ],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "Etc/GMT-9",
+            "resolved_time_zone": "Etc/GMT-9",
+            "lineup": "reordered",
+            "visible_fixture_ids": [
+              "p2-listed",
+              "p2-usual"
+            ],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "Etc/GMT-9",
+            "resolved_time_zone": "Etc/GMT-9",
+            "lineup": "empty",
+            "visible_fixture_ids": [],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 2,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "GMT",
+            "resolved_time_zone": "UTC",
+            "lineup": "defaults",
+            "visible_fixture_ids": [
+              "p2-direct",
+              "p2-listed",
+              "p2-usual"
+            ],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "GMT",
+            "resolved_time_zone": "UTC",
+            "lineup": "selected_subset",
+            "visible_fixture_ids": [
+              "p2-listed",
+              "p2-usual"
+            ],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "GMT",
+            "resolved_time_zone": "UTC",
+            "lineup": "reordered",
+            "visible_fixture_ids": [
+              "p2-listed",
+              "p2-usual"
+            ],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          },
+          {
+            "time_zone": "GMT",
+            "resolved_time_zone": "UTC",
+            "lineup": "empty",
+            "visible_fixture_ids": [],
+            "field_bindings_preserved": true,
+            "page_errors": [],
+            "intercepted_requests": 3,
+            "core_requests": 1
+          }
+        ],
+        "core_asset": "outlook-core-287e93c32a65cd4ddc3dc4afef6cb5afc0ab076400d7a39dbdfdc1b4a0297d2a.js",
+        "integrity": "sha256-KH6TwyplzU3cPcSv72y1r8CrB2QA16Odvf3BtKApfSo=",
+        "asset_sha256": "287e93c32a65cd4ddc3dc4afef6cb5afc0ab076400d7a39dbdfdc1b4a0297d2a",
+        "core_failure_cases": [
+          {
+            "failure": "request_failed",
+            "static_fixture_ids": [
+              "p2-direct",
+              "p2-listed",
+              "p2-unknown",
+              "p2-usual"
+            ],
+            "field_bindings_preserved": true,
+            "corrupt_code_executed": false,
+            "fallback_notice_visible": true,
+            "page_errors": []
+          },
+          {
+            "failure": "corrupt_asset",
+            "static_fixture_ids": [
+              "p2-direct",
+              "p2-listed",
+              "p2-unknown",
+              "p2-usual"
+            ],
+            "field_bindings_preserved": true,
+            "corrupt_code_executed": false,
+            "fallback_notice_visible": true,
+            "page_errors": []
+          }
+        ],
+        "csp_scope": "Core artifact is checked under strict CSP separately; this actual generated page retains its existing inline scripts/styles."
+      }
+    }
+  },
+  "browser_size": {
+    "javascript_bytes": 1563950,
+    "gzip_bytes": 191264,
+    "limit_bytes": 204800,
+    "passed": true
+  },
+  "limitations": [
+    "No source network requests, source freshness renewal, AI calls, publication or device validation.",
+    "The captured route corpus is migration evidence; independent worked examples are a separate oracle.",
+    "Playwright interception disables HTTP caching; page starts are warm-host observations, not cached-device budgets.",
+    "Timing covers 360 route selections; it is not a complete future buildOutlook snapshot or physical performance acceptance."
+  ]
+}

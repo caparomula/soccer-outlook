@@ -1,0 +1,79 @@
+{
+  "status": "P1 local producer/independent parser checkpoint; no deployment",
+  "source_revision": "9b977bb2b779b55bea84472e81f4ab00da423f1a",
+  "sample_fixture_count": 8,
+  "publication_revisions": [
+    1,
+    2
+  ],
+  "source_times_preserved": true,
+  "required_corruption_rejected": true,
+  "optional_corruption_isolated": true,
+  "editorial": {
+    "automatic_accepted": true,
+    "shared_accepted": true,
+    "original_item_generation": "2026-10-20T12:00:00Z",
+    "original_item_expiry": "2026-10-21T12:00:00Z",
+    "original_shared_prompt": "2026-10-20T17:00:00Z",
+    "original_shared_expiry": "2026-10-21T17:00:00Z",
+    "unknown_shared_publication_time": null,
+    "republished_editorial_bytes_unchanged": true,
+    "evidence": "Exact original times checked in exported and published artifact; independent Dart reader accepted its integrity-checked descriptor before and after republish."
+  },
+  "sample_artifact_bytes": {
+    "catalog": 18367,
+    "schedule": 26380,
+    "policy": 1782,
+    "editorial": 2791
+  },
+  "coverage_note": "Synthetic tests supply explicit complete request scopes; no network collection was run",
+  "historical_projection": {
+    "fixtures": 360,
+    "source_sha256": "d334aa0bc0f50e52ea1fc7438b44c13fa04a0bdb84fcc066477a830e17637bd2",
+    "bytes": {
+      "catalog": 221449,
+      "schedule": 1277799,
+      "policy": 1782
+    },
+    "limitation": "Captured Match facts only. Explicit synthetic per-league date scopes; not proof of original request coverage, renderer equivalence, or a deployable historical feed."
+  },
+  "source_hashes": {
+    "build.py": "502cba2d4366c57aabbb72323dcfd8d59d06c57c108592310bfcee27b5eb065a",
+    "companion-toolchain.json": "6f22792346a0b9c9430ce5cb054eea4b236a88f66f556e35695fa38ffd433c99",
+    "companion_build.py": "f0eb155104610424cc4dc4c402617e0279b30c1b2f5c596376637a027704b2a8",
+    "companion_contract.py": "ff6f0a24e8e15fdab356a4e3c7b81185207e67138b2310473c453a2c03ad6b2a",
+    "companion_export.py": "b0ba602ba2caabdd8b4edf11914c480d9a70ee7063ecac6deb0bfe3cabe5c980",
+    "companion_publication.py": "eea1708afd041182c1bd3b0683616d9c8730d539e34f4fead4ef4004aca25c1c",
+    "contracts/outlook/network-ids.json": "c8998ab1c2161b8a88301a8a433885f097caa7ba9690c0cf002470a1f54faae3",
+    "contracts/outlook/v1/catalog.schema.json": "a79e216d861f1faf95293f75b7fc8311a530150e0e959129f8c0d5d3db026adc",
+    "contracts/outlook/v1/common.schema.json": "7efd78f8bb820d6472fa81a3f1e9f11d2768903e969692c96dac0c30166a8a4e",
+    "contracts/outlook/v1/editorial.schema.json": "63ea3aa8e6e17ac58939c676479e6403d84fef4d80fbe4a74591e6b0b12b6ea5",
+    "contracts/outlook/v1/examples/manifest.json": "5c27d8cc0a4dee13b015f6ac3c4853ed052a620114335ec20587a797d27c0af3",
+    "contracts/outlook/v1/examples/objects/36e90825ab56b9ddf5239355823acb49f130c2b67528226be5a9e27a8224d41d.json": "36e90825ab56b9ddf5239355823acb49f130c2b67528226be5a9e27a8224d41d",
+    "contracts/outlook/v1/examples/objects/8b547672a665b551247207731df5b10e27bb26eab33aefd4dc6f96fe07aa1776.json": "8b547672a665b551247207731df5b10e27bb26eab33aefd4dc6f96fe07aa1776",
+    "contracts/outlook/v1/examples/objects/9df9a52d303c2474728605bba8b6fad191b660f35d1f8ed372d513f3891fcbb3.json": "9df9a52d303c2474728605bba8b6fad191b660f35d1f8ed372d513f3891fcbb3",
+    "contracts/outlook/v1/examples/objects/c350221a1e3f032a3248be49600be58dfad79752c355fe8cca44bf00aaabb530.json": "c350221a1e3f032a3248be49600be58dfad79752c355fe8cca44bf00aaabb530",
+    "contracts/outlook/v1/manifest.schema.json": "51977485b6bb5c2fb9cfa3cb6a4914aee8ddc2fc22772a5c4baa2598d1d8aa2a",
+    "contracts/outlook/v1/policy.schema.json": "7e5e1f35746836bc1afb21713fb0e6cd6ebde8ce08f5487da9315230f4d9f899",
+    "contracts/outlook/v1/schedule.schema.json": "020426ccab1e662a7b9d994d84758467d440df74c7d1022a47c59c14a677a62d",
+    "packages/outlook_data/lib/outlook_data.dart": "b5082b245214ae56ac2ac37d0458833b7194240864eff208fc7d36c69bf44b87",
+    "packages/outlook_data/lib/src/feed_reader.dart": "87eefcb88dd58dc6d4f8ddf3cbdd118da6f7a8897c2252f0a75fa0cf16b167d9",
+    "packages/outlook_data/lib/src/schema_registry.dart": "27b4b6c0124101112f63fefa05699cd1970c64ed45093aa10cc1320fbe92a218",
+    "packages/outlook_data/lib/src/strict_json.dart": "5ada91b93d3417c340a14522d8e284fc855de502a5233b416b643da0218ca66b",
+    "packages/outlook_data/pubspec.lock": "8830b415b54adba67d5b2d1c1cceefc6c0ad4555909bb44f554de71c53b14288",
+    "packages/outlook_data/pubspec.yaml": "33b8971c5b1837bc38b827bf280e96e816759c5d0e9b981b87031d1df6627062",
+    "rights.toml": "792b0fd83100d9b50c36e41fe3ab57bbaf39af89e46a6aa06d8f124492d13a67",
+    "settings.toml": "f2f9d16b5d7b8e7de61fa9858b7c2445f0d01331e959b1a07c5197e545ee4a23",
+    "story.py": "57dfba13084e3114ea5638027f31cf58b40ee2133c282840a267e998ffd42cc0",
+    "story_state.py": "5cc5cf5bb5a6ddc5ccd841795d16a5d148de679dbc50c0172fa3a755f408cf46",
+    "tests/test_discovery.py": "e3cf2a51fafaf0696f95b7e2b23c141f91f312d9b53f0df1bf063a29347ad612",
+    "tool/companion_feed_reader/bin/read.dart": "879d7a377ac8a5c81bcb1ad68db9d6dff3fbe1fee36f38ce86315cdd921f64be",
+    "tool/companion_feed_reader/lib/local_files.dart": "c4246a33a9a0c4c4be8f2640542c7258136296c1fded41411f57b4f53c0ae2da",
+    "tool/companion_feed_reader/pubspec.lock": "00df2272d01ca27ca0887d13060044b7900c3c01e6f473059d28ca1f1a68ccb2",
+    "tool/companion_feed_reader/pubspec.yaml": "4d94062ad2a71afb4a3e7661fc92dfdb8614663e340011fc0540a196afac1eaf",
+    "tool/companion_feed_reader/test/local_files_test.dart": "09ad2972d77dad1ef0e58569f6f8fd07e5433debdbb52909330e08ef5314e67f",
+    "tool/companion_feed_verify.py": "88711341d1a79926bf54c440d8c611ce9ef59c54f15f7e8cfb87c60f9079690f",
+    "watch-links.toml": "f214e47052326610358e59cfa37b26b871c2ef846d5d9350d7e3e44f8393087c",
+    "watch_links.py": "b486e5eb001ba6e4e9c73b88edb679edad5e8dddde546c427ed3fc846132b14b"
+  }
+}

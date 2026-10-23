@@ -10,6 +10,8 @@ import json
 from pathlib import Path
 import re
 
+import outlook_runtime
+
 
 VERSION = 1
 MAX_CONTEXT_BYTES = 8 * 1024 * 1024
@@ -29,7 +31,8 @@ def timestamp(value):
 def runtime_revision(root):
     """Reject updates that need a different renderer, rights table or score model."""
     root = Path(root)
-    names = ["build.py", "rights.toml", "settings.toml", "watch-links.toml", "watch_links.py", "story_state.py"]
+    names = ["build.py", "rights.toml", "settings.toml", "watch-links.toml", "watch_links.py", "story_state.py", "provider_utils.py"]
+    names += ["outlook_runtime.py", *outlook_runtime.source_manifest(root)]
     names += sorted(str(path.relative_to(root)) for path in (root / "web").glob("*")
                     if path.suffix in (".js", ".css", ".html"))
     digest = hashlib.sha256()
@@ -96,7 +99,7 @@ def publish(builder, output_dir, matches, logos, built_at, report, *, standings_
     revision = builder.RUNTIME_REVISION
     snapshot = dict(version=VERSION, generated_at=built_at.isoformat(), runtime_revision=revision,
                     complete=report.get("complete") is True,
-                    rows=[builder.row_html(match, logos) for match in matches], logos=logos)
+                    rows=[builder.row_html(match, logos, now=built_at) for match in matches], logos=logos)
     write_json(output_dir / "schedule.json", snapshot)
     write_json(output_dir / "coverage.json", public_health(report, built_at))
     # Do not renew the standings timestamp when only schedules have been fetched.
