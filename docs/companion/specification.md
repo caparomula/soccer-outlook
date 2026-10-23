@@ -4,6 +4,8 @@ The companion app helps a person answer two questions: “What can I watch now?�
 
 This is a proposed specification; the companion app has not been implemented.
 
+The initial implementation is for the owner's personal use, as clarified on October 23, 2026. The platform and behavior requirements below guide development; publishing an app or a new public data feed is deferred. Source-permission inquiries and paid-feed selection do not block this personal prototype.
+
 Start with the [planning guide](README.md) for the document map. The [architecture](architecture.md) assigns responsibilities, the [data contract](data-contract.md) defines the information the app consumes, and the [implementation plan](implementation-plan.md) sequences the work.
 
 ## Purpose and first release
@@ -173,9 +175,9 @@ Exclude downloaded caches and private prompt/response records from automatic clo
 
 ## Release acceptance
 
-A release is ready only when the implementation plan's gates pass and the requirements above have named automated or manual checks. Use identical published facts, saved preferences, time zone and clock to compare the website and companion decisions; visual differences are expected, contradictory eligibility or ranking is not.
+A complete personal build is ready when P0–P5 of the implementation plan pass and the requirements above have named automated or manual checks. Optional P6 applies only if distribution is later requested. Use identical published facts, saved preferences, time zone and clock to compare the website and companion decisions; visual differences are expected, contradictory eligibility or ranking is not.
 
-Release testing must include both mobile platforms on real devices, foreground/background transitions, offline restart, failed persistence, an upgrade retaining preferences, malformed publication rejection, expiry boundaries, source outages, large text and assistive technology. Native signing, distribution accounts, supported OS versions and package versions are recorded before release; this document does not claim those arrangements already exist.
+Testing must include foreground/background transitions, offline restart, failed persistence, an upgrade retaining preferences, malformed publication rejection, expiry boundaries, source outages, large text and assistive technology. Exercise personal builds on the owner's devices; verify both mobile platforms on real devices before claiming support for both. Record the signing and platform setup needed for personal installation. Distribution accounts and release-channel arrangements belong to optional P6; this document does not claim those arrangements already exist.
 
 User-facing help ships with the behavior it describes. Terms such as **usually**, **last checked**, **observed**, and **Your AI** need short explanations at the point where they help a viewing decision. Internal architecture terminology belongs in developer documents, not the home screen.
 

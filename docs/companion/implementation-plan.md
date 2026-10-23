@@ -4,6 +4,8 @@ Build the companion in small, reviewable stages, beginning with the contracts an
 
 This is a proposed plan. Writing it does not implement the app or authorize distribution.
 
+**Current scope, October 23, 2026:** build the companion for the owner's personal use. Data-permission inquiries and paid-feed selection do not block P0 or local development. P1 produces a local/private feed; it does not add a public endpoint. P0–P5 lead to a usable personal build. P6 is optional future distribution work.
+
 ## Scope and sequence
 
 The first release targets iOS and Android phones and tablets. It includes local preferences, the filtered schedule, the live/upcoming carousel, top picks, optional league headlines and match stories, details/vitals, manual AI import and useful cached operation. The website remains available and indexable.
@@ -12,12 +14,12 @@ No new account system, paid AI connection, push service, watch-history collectio
 
 ```mermaid
 flowchart LR
-    P0["P0: Prove boundaries"] --> P1["P1: Publish facts"]
+    P0["P0: Prove boundaries"] --> P1["P1: Export local facts"]
     P1 --> P2["P2: Share decisions"]
     P2 --> P3["P3: Persist and coordinate"]
     P3 --> P4["P4: Build native experience"]
     P4 --> P5["P5: AI and hardening"]
-    P5 --> P6["P6: Pilot and release"]
+    P5 -. if distribution is requested .-> P6["P6: Pilot and release"]
     P1 -. fixtures enable UI prototyping .-> P4
 ```
 
@@ -27,40 +29,42 @@ The arrows indicate completion dependencies, not a requirement for one person to
 
 **Purpose:** resolve the expensive uncertainties before a broad rewrite.
 
-1. Resolve the [source-permission and paid-feed options](../data-licensing.md) for the intended production uses. Record authority to access and display data, public JSON delivery, cache/history retention, AI inference and artwork separately. Use the [inquiry drafts](../data-permission-requests.md); obtaining a working API key or buying an evaluation plan is not this gate's evidence. Synthetic or expressly permitted fixtures can support independent prototyping while commercial questions are unresolved.
-2. Inventory current production rule owners across Python and JavaScript, including the Python default-view calculation, duplicated ESPN status/result interpretation, and AI expiry checks in `story_state.py`, `build.py` and browser handlers. Map the specification's requirement IDs to current owners, proposed owners, tests and consumers. Capture representative permitted data and browser outputs, with no personal data.
+1. Define the personal development setup: local feed export, device access to that feed and replaceable source adapters. Start from the existing source pipeline and deterministic fixtures. Keep the [source-permission and paid-feed research](../data-licensing.md) as reference for later supplier or distribution decisions, outside this stage's exit criteria.
+2. Inventory current production rule owners across Python and JavaScript, including the Python default-view calculation, duplicated ESPN status/result interpretation, and AI expiry checks in `story_state.py`, `build.py` and browser handlers. Map the specification's requirement IDs to current owners, proposed owners, tests and consumers. Capture representative data and browser outputs locally, with no personal data.
 3. Pin a supported Flutter/Dart toolchain and record the Android and iOS build environments. Reuse Pit Dash's conventions where useful, but check current plugin requirements rather than inheriting its exact versions. Linux can run shared/package checks; iOS build/signing checks need macOS and Xcode.
 4. Spike one pure Dart eligibility/ranking/time operation, exposed through a small JavaScript interface and a publisher CLI. Exercise identical inputs in Dart VM, compiled browser code and Python-to-CLI invocation. Test named time zones and daylight-saving boundaries. Include browser artifact size, startup overhead, CSP compatibility and static-site integration.
-5. Spike an approved foreground live-data path on iOS and Android. Direct ESPN access is conditional on permission; a licensed replacement may need server-held credentials and different source IDs. Verify fixture identity, status, score, stale data, timeouts and resume behavior using permitted captures and a limited live check. Do not infer that browser CORS success guarantees every platform's access or grants reuse rights.
-6. Draft the v1 JSON Schemas, representative examples, policy identifiers and compatibility decisions from the [contract](data-contract.md). Separate factual publication from personalized views, and limit delivery/retention to the agreed scope.
+5. Spike the current ESPN foreground live-data path on iOS and Android behind a replaceable adapter. Verify fixture identity, status, score, stale data, timeouts and resume behavior using local captures and a limited live check. Browser connectivity does not prove native transport behavior. Record platform limitations explicitly; a future supplier may need server-held credentials and different source IDs.
+6. Draft the v1 JSON Schemas, representative examples, policy identifiers and compatibility decisions from the [contract](data-contract.md). Separate factual publication from personalized views, and document local delivery and bounded retention.
 7. Record decisions, measurements and any changed assumptions in these documents. Decide minimum OS versions, reference devices, size/startup budgets, cache limits and supported client-version policy before proceeding beyond the spike.
 
-**Exit evidence:** the selected data source's permitted production uses are documented; a small reproducible demo runs the same input through all three rule consumers; browser overhead is measured against the existing page; native live transport is proven or a limitation is explicitly resolved; the schemas and ownership map are reviewed. An unexplained parity difference, unproven live path or unresolved permission for the planned publication is not a pass.
+**Exit evidence:** a small reproducible demo runs the same input through all three rule consumers; browser overhead is measured against the existing page; native live transport is proven or a limitation is explicitly resolved; the schemas, local delivery plan and ownership map are reviewed. Unexplained parity differences and unproven live behavior remain technical blockers. Permission inquiries and supplier quotes are not exit requirements.
 
 **If a gate fails:** revise the architecture before implementing the dependent layer. Separate Dart and JavaScript implementations are controlled duplication, not the promised one-owner design. A hosted live proxy would change operating scope. Neither fallback should appear silently in later work.
 
 **Delivery:** architecture decision records, spike evidence, initial schema and rule examples. The current site remains unchanged.
 
-## P1: Publish a stable feed
+## P1: Build a stable local feed
 
 **Purpose:** make the existing pipeline a reliable producer for an independent client.
 
-1. Add the versioned exporter alongside the existing HTML and cache outputs within the P0 license scope. Export canonical fixture identities, teams, competitions, status, venue, form, networks, service-plan routes, evidence, source health, base score components, policy/defaults and editorial references. If public JSON/history is not permitted, revise the delivery and storage architecture before publishing; a hidden URL is not a substitute for permission.
-2. Publish a manifest and immutable, integrity-checked artifacts. Allocate publication sequence numbers from durable published state; serialize writers and keep the existing superseded-main checks. Do not renew source ages or AI lifetimes when republishing.
-3. Integrate both full and lightweight workflows. A coherent publication must survive incomplete upstream fixture data, optional editorial failure and simultaneous builds. Preserve the existing website outputs and historical metric archive.
+1. Add an opt-in versioned exporter alongside the existing HTML and cache outputs, writing to a local/private output directory. Export canonical fixture identities, teams, competitions, status, venue, form, networks, service-plan routes, evidence, source health, base score components, policy/defaults and editorial references. Keep companion artifacts out of the public Pages deployment and repository history.
+2. Write a manifest and immutable, integrity-checked artifacts, then atomically activate the complete generation. Allocate publication sequence numbers from durable local state and serialize writers. Do not renew source ages or AI lifetimes when exporting again.
+3. Exercise both full and lightweight build paths locally. A coherent publication must survive incomplete upstream fixture data, optional editorial failure and simultaneous builds. Preserve the existing public website outputs, deployment checks and historical metric archive.
 4. Define the requested/observed source scope and local-time boundary coverage explicitly. Compare the feed to the actual rendered site and source diagnostics, including fixtures that fail the owner's default filters.
 5. Add production-exporter fixtures and schema checks. Include complete empty schedules, partial failures, missing scores, unknown kickoff times, alternate channels, package exclusions, replays and unknown fields.
 6. Document feed operation, retention, support lifetime and rollback in the maintenance guide.
 
-**Exit evidence:** both build paths publish a coherent v1 feed; an independent parser accepts real exporter output; every fixture/route/reference reconciles with source evidence; injected build failures leave the prior publication usable. Existing Python and affected browser checks pass.
+**Exit evidence:** both build paths produce a coherent local v1 feed; an independent parser accepts real exporter output; every fixture/route/reference reconciles with source evidence; injected build failures leave the prior publication usable. Existing Python and affected browser checks pass.
 
-**Delivery:** feed URL and schema, sample captured publication, coverage report and producer tests. No app or website reader switches yet.
+**Delivery:** local feed directory and schema, a documented private device-access method, sample captured publication, coverage report and producer tests. No app or website reader switches yet.
 
 **Recovery:** disable the new export while retaining the old website artifacts. Once clients use v1, use a new publication sequence pointing to validated prior content for rollback, not a rewound counter.
 
 ## P2: Establish the shared domain
 
 **Purpose:** make one set of decisions serve the website and native client.
+
+Prove the website integration in local development builds. Deploying the browser migration to the public site is separate from making the personal companion usable; keep the local integration coherent so eventual deployment does not introduce competing rule owners.
 
 1. Create the pure domain package and boundary checks. Add immutable inputs and `buildOutlook`, with supplied time and named time zone. Keep factual Outlook calculation and automatic AI component aggregation in Python.
 2. Move behavior in coherent families: viewer eligibility and valid viewing routes; sports-day/status handling; rating provenance, blending and dot rounding; carousel/top-pick selection; headline/story eligibility and expiry.
@@ -69,7 +73,7 @@ The arrows indicate completion dependencies, not a requirement for one person to
 5. Integrate the browser adapter and publisher CLI. Replace the affected JavaScript decisions, Python default-view decisions, semantic AI expiry checks and duplicated ESPN status/result decoding with calls to their shared owners. Keep wire-shape validation schema-driven. Preserve static HTML, accessible fallback content, URL behavior, saved browser preferences and the browser's current live-update path.
 6. Add rule-owner and consumer checks. Start executable examples with eligibility and sports days, then cover the migrated rating and editorial rules. Add review fingerprints only when the review/stamping workflow is in place.
 
-**Exit evidence:** native/compiled/CLI results agree on the recorded corpus and independent examples; the website passes affected Chromium/WebKit checks; production duplicates for migrated decisions are removed; each rule has a documented owner, consumers and tests. Scoring calibration, package boundaries and AI expiry remain intact.
+**Exit evidence:** native/compiled/CLI results agree on the recorded corpus and independent examples; the locally integrated website passes affected Chromium/WebKit checks; duplicates for migrated decisions are removed from that integration; each rule has a documented owner, consumers and tests. Scoring calibration, package boundaries and AI expiry remain intact.
 
 **Delivery:** shared core, browser/CLI adapters and rule catalog. A developer can inspect a decision without opening a widget.
 
@@ -81,7 +85,7 @@ The arrows indicate completion dependencies, not a requirement for one person to
 
 1. Implement feed validation, DTO mapping, application repository ports and a transactional snapshot cache. Implement separate versioned persistence for preferences and personal AI imports.
 2. Install updates atomically, persist before success notification, and retain a bounded previous valid generation. Handle unsupported schema/policy, missing artifacts, corrupt storage, quota failure and complete authoritative empty data.
-3. Add the approved foreground live adapter and shared parser/reconciliation. Preserve newer accepted live observations through schedule refresh; reject obsolete identity/kickoff batches; allow later authoritative corrections. Keep licensed API secrets on a server when required; do not embed them in public JavaScript or the mobile binary.
+3. Add the foreground live adapter proven in P0 and shared parser/reconciliation. Preserve newer accepted live observations through schedule refresh; reject obsolete identity/kickoff batches; allow later authoritative corrections. If a later supplier requires server-held API secrets, do not embed them in public JavaScript or the mobile binary.
 4. Implement a session with injected clock, explicit snapshot identity, single-flight refresh, bounded concurrency/backoff, no-op detection and pause/resume/dispose handling.
 5. Keep navigation and carousel browsing state separate. Provide pure view-model builders and small observable slices so one clock update does not rebuild every screen.
 6. Build a minimal developer screen showing one filtered match, freshness and a saved preference. Reopen it offline to prove the entire production path before expanding the UI.
@@ -123,11 +127,13 @@ The arrows indicate completion dependencies, not a requirement for one person to
 
 **Exit evidence:** all first-release requirement IDs have passing automated or recorded manual evidence; affected Python, Dart, Flutter and browser suites pass; no unresolved defect misstates entitlement, live freshness, score provenance or persistence. Performance meets the budgets recorded in P0.
 
-**Delivery:** a release candidate and concise evidence report. The app still does not call a user's paid AI service or publish shared defaults.
+**Delivery:** a usable personal build and concise evidence report, exercised on the owner's device through a busy match day, a quiet day and offline reopening. The app still does not call a user's paid AI service or publish shared defaults. Public distribution is not needed to complete this milestone.
 
-## P6: Pilot and distribute
+## P6: Optional pilot and distribution
 
 **Purpose:** validate operation before inviting a wider audience.
+
+This stage is deferred unless the owner later requests sharing or public distribution. Before adding a public feed or distributing the app, revisit the [licensing research](../data-licensing.md), intended delivery model, retention and artwork scope. These decisions do not hold up P0–P5.
 
 1. Confirm package/bundle identifiers, signing ownership, developer accounts, supported OS versions and intended distribution channels. These are release prerequisites, not reasons to block earlier development.
 2. Build reproducibly from an exact reviewed commit, with pinned dependencies, production configuration and no development secrets. Record checksums, build versions and matching feed/policy compatibility.
@@ -165,7 +171,7 @@ Home-screen widgets, reminders, push notifications, background score delivery, a
 
 A full temporal database, developer replay UI and independent source-collection daemon are also deferred. Bounded recordings, deterministic replay tests and a persistent last-good snapshot provide the initial diagnostic value without replicating Pit Dash's whole operating environment.
 
-Do not set calendar dates from this document alone. Estimate P1–P6 after P0 identifies the browser migration and native transport costs; then schedule reviewed increments. The immediate implementation task is the P0 spike and ownership/contract work, not building screens against unstable HTML.
+Do not set calendar dates from this document alone. Estimate P1–P5 after P0 identifies the browser migration and native transport costs; then schedule reviewed increments. Estimate P6 only if distribution becomes a goal. The immediate implementation task is the P0 spike and ownership/contract work, not building screens against unstable HTML.
 
 ## About this document
 

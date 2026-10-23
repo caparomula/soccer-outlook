@@ -10,7 +10,7 @@ The website is a Python-generated static site with JavaScript for preferences, r
 
 Neither format is the companion API. Add a versioned publication containing normalized facts and policy, leaving both existing formats in place during migration. Keep the static website, its indexable pages and its URLs. Flutter is the native presentation technology, not a replacement for the public site.
 
-Publication, live transport, caching and archival choices depend on the selected data license. [Data licensing research](../data-licensing.md) is a P0 input: public JSON on Pages and direct ESPN access are proposed paths, not established permissions. A supplier that allows app display but requires protected delivery may require a backend. The layer boundaries remain useful with either delivery model.
+The current target is a personal-use companion, with a local or private versioned feed and development builds on the owner's devices. Source-permission research does not block this prototype. [Data licensing research](../data-licensing.md) remains reference material for a future decision to share the app or publish a new public feed. Keep source and delivery adapters replaceable so that a later supplier change does not require changing domain rules or widgets.
 
 ## Layers and dependency direction
 
@@ -26,8 +26,8 @@ The application declares the ports it needs; data adapters implement them. This 
 
 ```mermaid
 flowchart TD
-    Python["Python source collection and publication"] --> Pages["Versioned public feed"]
-    Pages --> Data["Data adapters and cache"]
+    Python["Python source collection and export"] --> Feed["Versioned local/private feed"]
+    Feed --> Data["Data adapters and cache"]
     ESPN["ESPN foreground live responses"] --> Data
     Data -->|implements repository ports| Application["Application session"]
     Application --> Core["Pure Dart domain core"]
@@ -89,6 +89,8 @@ Likewise, JSON Schema checks can run in both languages from one schema, but sema
 
 ### Migration boundary
 
+Exercise the shared core, browser bridge and publisher CLI in local development first. Updating the public website or deploying a public companion feed is not a prerequisite for the personal app. The production migration rules below apply when those existing consumers are switched to the shared implementation.
+
 First capture current answers, including unusual but intentional behavior described in the [scoring guide](../scoring.md). Extract one rule family at a time. Compare the old and new implementation on independent examples and real fixtures before switching its consumers. Remove the old production decision in the same migration stage, and record any intentional behavior change separately.
 
 For a short migration period the old browser and shared core will coexist behind an adapter. A parity harness is useful evidence during that period; it is not the permanent ownership model. If the compiled bridge or publisher CLI is impractical, stop at P0/P2 and record a replacement architecture. Do not quietly leave independent Dart and JavaScript rules in production.
@@ -145,9 +147,9 @@ Preference changes follow the same write-before-success rule, coalesce into one 
 
 ## Refreshing and live scores
 
-The published schedule changes on the existing full and lightweight workflow cadence. Foreground clients check the publication manifest conditionally, with bounded concurrency, timeouts and backoff. HTTP success, payload publication time and source observation time are separate fields.
+The existing website publishes schedule changes through full and lightweight workflows. The personal prototype uses the same producer paths to generate its local/private feed; it does not add a public deployment. Foreground clients check the configured feed manifest conditionally, with bounded concurrency, timeouts and backoff. HTTP success, payload publication time and source observation time are separate fields.
 
-A half-hour publication cannot provide the existing website's approximately minute-level live updates. The first release therefore needs an approved foreground live-data path, validated on both mobile platforms in P0. Direct ESPN access requires permission; a licensed alternative can use its own adapter and server-held credentials. Share the selected source parser and status reconciliation with the browser; keep HTTP and lifecycle platform-specific. It updates only identified fixtures' score/status/clock events. It cannot add broadcast rights, derive provider access or turn a replay into a live fixture.
+A half-hour publication cannot provide the existing website's approximately minute-level live updates. P0 therefore validates foreground live transport on the target mobile platforms, starting with the current ESPN source behind a replaceable adapter. A future supplier may need a different transport and server-held credentials. Share the selected source parser and status reconciliation with the browser; keep HTTP and lifecycle platform-specific. It updates only identified fixtures' score/status/clock events. It cannot add broadcast rights, derive provider access or turn a replay into a live fixture.
 
 Use the existing poll windows as the initial behavior baseline, then move their policy values to one owner. Include successful final-score catch-up after sleep. Cancel or invalidate obsolete batches with a generation token; a late response for an old fixture identity or kickoff must not overwrite the current snapshot. A newer accepted live observation survives an older aggregate publication. Corrections need explicit ordering/provenance; a “final” result is not immune to a later authoritative correction.
 
@@ -161,7 +163,7 @@ Published and imported AI can supply ratings and commentary, not schedule truth.
 
 Preserve the existing distinction between disabling AI text and disabling automatic AI generation. The normal text toggle hides both headlines and stories while ratings can still contribute. Personal/shared/automatic precedence and the explicit empty-headline behavior are governed by the [product specification](specification.md) and existing import contract.
 
-Render text as text and validate external HTTPS links. No API key, owner GitHub token or service password belongs in the public feed, app bundle, logs, prompts or backups. Opening a provider link is an external navigation action; possession of a link is not proof of subscription access. The consumer app does not authenticate to broadcasters or publish shared site defaults in this release.
+Render text as text and validate external HTTPS links. No API key, owner GitHub token or service password belongs in feed artifacts, app bundles, logs, prompts or backups. Opening a provider link is an external navigation action; possession of a link is not proof of subscription access. The consumer app does not authenticate to broadcasters or publish shared site defaults in this release.
 
 ## Responsive presentation
 
@@ -177,16 +179,17 @@ Use stable fixture IDs as widget keys. Keep navigation and scroll state separate
 | --- | --- | --- |
 | Client technology | Flutter iOS/Android, phones/tablets | P0 platform/toolchain and plugin compatibility |
 | Shared rules | Pure Dart, browser adapter and publisher CLI | P0 compiled size/startup, interop, time zones and deployment spike |
-| Live transport | Approved source adapter; ESPN only with permission | P0 data license, device/backend access, parser and freshness proof |
+| Live transport | Current ESPN source behind a replaceable adapter | P0 device access, parser, ordering and freshness proof |
 | Storage | Transactional snapshot cache; separate preferences/imports | P3 crash, migration and persistence tests |
 | Repository | One monorepo initially | Separate-repo needs, if any, reviewed before moving consumers |
-| Distribution | Pilot before public stores | P6 signing, developer accounts, device testing and explicit release authorization |
+| Distribution | Personal development builds; public distribution deferred | Device installation/signing checks; P6 only if sharing is later requested |
 
 The [implementation plan](implementation-plan.md) records stage exits and alternatives when a gate fails. There is no requirement to reproduce Pit Dash's full temporal database, daemon infrastructure or historical replay interface.
 
 ## About this document
 
 - Status: proposed, October 20, 2026.
+- Scope updated October 23, 2026: personal use first; source-permission research is not a development gate.
 - Sources: current [development guide](../development.md), [schedule behavior](../schedule-data.md), [ranking behavior](../scoring.md), and Pit Dash's [architecture](https://github.com/caparomula/pit-dash/blob/865fa263062b0870b9ae71555132d4ace894dccf/README.md#architecture).
 - Pit Dash places its sole data-to-domain factory inside the domain package and intentionally imports data models there. This design instead puts wire mapping in data adapters; the stricter boundary is an adaptation, not a description of Pit Dash's implementation.
 - Related: [product requirements](specification.md), [data contract](data-contract.md), [engineering practices](engineering.md).

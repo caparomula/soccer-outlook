@@ -4,6 +4,8 @@ These documents describe how to build a phone and tablet companion to Soccer Out
 
 This is a proposed development baseline; the companion app and its new data feed are not implemented.
 
+The current target is a personal-use prototype, as clarified on October 23, 2026. Build and test it locally without waiting for data-permission inquiries or supplier selection. A new public feed and app distribution are outside this phase.
+
 ## Read the plan
 
 | Document | What it answers |
@@ -19,13 +21,13 @@ The [current user guide](../user-guide.md), [scoring guide](../scoring.md) and [
 
 ## Recommended direction
 
-Use Flutter for iOS and Android, with separate data, domain, application and presentation responsibilities. Keep source collection and daily AI generation in the existing Python/GitHub pipeline where the chosen license permits it. Publish a documented JSON feed on GitHub Pages only if the data agreement permits public machine-readable distribution; otherwise evaluate approved backend delivery. Do not make the app parse website markup or depend on the internal build cache.
+Use Flutter for iOS and Android, with separate data, domain, application and presentation responsibilities. Reuse the existing Python collection and AI pipeline, adding a documented JSON export for local or private use by the companion. Keep source adapters replaceable so a future supplier change does not require rewriting the app. Do not make the app parse website markup or depend on the internal build cache.
 
 Give the app and website one owner for preference-dependent rules. The proposed owner is a pure Dart core used directly by Flutter and compiled behind a small JavaScript interface for the existing website. First prove that interface works within acceptable browser size, startup and compatibility limits. This is a feasibility gate, not a claim that compiling Dart automatically makes the integration straightforward.
 
 Keep Python's existing ownership of source reconciliation, broadcast evidence, rights configuration and the base Outlook score. The shared core consumes those facts and owns eligibility, personalized ranking, AI selection and expiry, and time grouping. It must not recalculate the base score independently.
 
-Start with a complete viewing experience: saved preferences, live and upcoming matches, top picks, optional AI content, details and useful offline behavior. Account connections, reminders, home-screen widgets and cross-device synchronization can follow separately. The first release needs no new AI subscription; whether existing hosting is sufficient depends on the approved data-delivery model.
+Start with a complete viewing experience: saved preferences, live and upcoming matches, top picks, optional AI content, details and useful offline behavior. Account connections, reminders, home-screen widgets and cross-device synchronization can follow separately. The personal prototype needs no new AI subscription or public hosting. Revisit the [licensing research](../data-licensing.md) and delivery model if public distribution becomes a goal.
 
 ## What we are taking from Pit Dash
 

@@ -4,9 +4,11 @@ Soccer Outlook needs permission for the way it obtains and presents data, not ju
 
 Official pages were checked on October 20, 2026. This is procurement research, not a legal clearance or a complete audit of every source. No companies were contacted, accounts opened or subscriptions purchased. The owner is open to higher pricing when needed; coverage and usable rights take priority over the lowest subscription price.
 
+**Scope update, October 23, 2026:** the companion is currently being built for personal use. This research remains a reference for future source or distribution decisions; inquiries, quotes and permission responses are not prerequisites for its local development.
+
 ## Recommended shortlist
 
-Start with these inquiries in parallel:
+When supplier evaluation resumes, start with these inquiries in parallel:
 
 1. **Gracenote On Sports:** the closest documented fit to the whole discovery problem. It combines sports and video metadata, linear/streaming availability and viewing links. Ask for an end-to-end quote and a demonstration of US package distinctions.
 2. **Sportmonks:** the strongest affordable lead with explicit permission to distribute and store API data, plus fixture-specific TV stations. First verify Liga MX coverage, US station completeness and the exact scope for our public JSON/history and native apps.
@@ -129,7 +131,7 @@ League artwork is a separate workstream. The [artwork inventory](../web/logos/RE
 
 ## What changes in the companion plan
 
-Source rights are a P0 dependency, alongside technical feasibility. The intended direct ESPN live path is conditional on permission; a licensed replacement may require server-held credentials and a different transport.
+The current personal-use roadmap begins with technical feasibility and local/private feed development. Source permissions are no longer a P0 gate. Keep data adapters replaceable; a future licensed replacement may require server-held credentials and a different transport. Revisit the delivery, retention and distribution choices below before expanding the companion to public use.
 
 The existing GitHub publisher can still be useful if the chosen agreement permits the feed we publish. If a contract permits approved website/app display but prohibits a general public feed, credentials cannot simply be embedded in JavaScript or the mobile binary. Evaluate a backend and appropriate access controls, or obtain a broader feed license. A hidden URL is not access control, and moving collection to a server does not independently create permission.
 
@@ -139,7 +141,7 @@ The manual AI workflow exports facts for a visitor to paste into a service of th
 
 Nothing in this research changes running collectors, deletes existing history or purchases a feed. Before a supplier switch, test the sample matrix in the inquiry draft, identify source-ID migration needs and have the actual permission/license reviewed. Record operational requirements without committing confidential agreements to this public repository.
 
-## A practical next step
+## When pursuing permissions or quotes
 
 Send the prepared requests only after the owner chooses recipients and supplies the sender/contracting details. Prioritize **Gracenote, Sportmonks, SportsDataIO and Sportradar**; add **TV Media** if the combined offers cannot demonstrate US airing/package detail. Direct-source referrals can proceed alongside those quotes, especially ESPN, FOX, Apple and beIN, without making app development depend on an unanswered consumer-support ticket.
 

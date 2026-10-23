@@ -2,6 +2,8 @@
 
 These drafts explain Soccer Outlook accurately and separate ordinary app display from broader data distribution. Use them with the official routes in [Data licensing research](data-licensing.md). They have not been sent, and no provider has approved the project.
 
+**Scope update, October 23, 2026:** companion development now targets personal use. These drafts cover the existing public website and possible future distribution; sending them is not a prerequisite for the personal prototype. Update the requested companion scope before using them.
+
 Replace the bracketed contact details before sending. Do not include API keys, account passwords, private AI responses or subscriber information. A support reply should identify the person authorized to grant the requested rights; a helpful technical answer is not necessarily a license.
 
 ## Project description to attach
@@ -14,7 +16,7 @@ Replace the bracketed contact details before sending. Do not include API keys, a
 >
 > The current implementation collects public source data in GitHub Actions, publishes schedule facts in rendered pages and browser-update files, and stores selected match inputs/results in a public GitHub history branch. Full builds run three times daily, lighter schedule updates twice hourly, and open browsers check relevant live scoreboards approximately once a minute. Actual request volume depends on league/date scope and concurrent visitors; we can provide measured volume before finalizing an agreement and adjust acquisition to agreed limits.
 >
-> The proposed companion would use a versioned schedule feed, cached last-good data and a foreground live-score path. The architecture can change to meet an agreed license; permission for public machine-readable delivery is a separate question from permission to display information in our app.
+> The proposed companion initially targets personal use, with a local/private versioned schedule feed, cached last-good data and a foreground live-score path. Please quote any future public app or feed distribution separately. The architecture can change to meet an agreed license; permission for public machine-readable delivery is a separate question from permission to display information in our app.
 
 If a recipient needs an audience estimate, supply measured traffic and a clearly labelled forecast. Do not invent user counts to fit a pricing tier. The current code license is zlib; that does not purport to license any third-party data or marks.
 

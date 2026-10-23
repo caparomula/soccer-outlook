@@ -1,6 +1,6 @@
 # Companion data contract
 
-The companion needs public match data it can understand without parsing a webpage. This document defines the proposed contract between Soccer Outlook's existing publishing pipeline and its clients. It is for the people implementing the Python publisher, Dart repositories, browser adapter, and their compatibility tests.
+The companion needs structured match data it can understand without parsing a webpage. This document defines the proposed contract between Soccer Outlook's existing publishing pipeline and its clients. It is for the people implementing the Python publisher, Dart repositories, browser adapter, and their compatibility tests.
 
 This is a design specification; the feed and schemas described here have not been implemented.
 
@@ -10,7 +10,7 @@ Keep the existing website and its refresh mechanism working while adding a separ
 
 The new feed publishes source facts, normalized broadcast routes, canonical component scores, policy parameters, and editorial content. It never publishes a particular visitor's filtered schedule or final personalized picks. Those decisions belong to the shared domain implementation described in [Architecture](architecture.md).
 
-This public-feed design requires permission to distribute the included data in machine-readable form. A license for display inside a website/app may be narrower. Resolve the [licensing requirements](../data-licensing.md) in P0 before publishing; otherwise revise delivery, credentials and retention rather than treating the schema as authorization. A paid replacement may also change source namespaces and reference mappings.
+The initial feed is local or private, for the owner's personal companion prototype. Defining and implementing this contract does not depend on completing [source-permission research](../data-licensing.md). A new public feed or distribution to other users is deferred; review delivery, credentials and retention if that scope changes. A later source replacement may also change namespaces and reference mappings, without changing the separation between source facts and personal decisions.
 
 The existing owners remain authoritative during this work:
 
@@ -27,7 +27,7 @@ The publisher continues calculating the Outlook score. Dart consumes its total a
 
 ## Publication envelope
 
-The proposed endpoint is `api/v1/manifest.json`, relative to the existing GitHub Pages site. The path is a design choice, not a currently available endpoint.
+The proposed manifest path is `api/v1/manifest.json`, relative to a configured feed location. Initially that location is a local export directory or private development server, not the existing GitHub Pages deployment. Neither the feed nor a new public endpoint exists yet. In this contract, a “publication” means a complete versioned bundle, whether it is installed locally or served remotely.
 
 A manifest names immutable, content-addressed artifacts for:
 
@@ -36,7 +36,7 @@ A manifest names immutable, content-addressed artifacts for:
 - **Policy:** defaults, personalized scoring parameters, supported time windows, and freshness policy identifiers and values.
 - **Editorial:** automatic and shared AI records, when available.
 
-Use a relative artifact path such as `objects/<sha256>.json`. Each descriptor carries its schema version, SHA-256 digest, uncompressed byte count, and content revision. Artifact references must stay on the configured publication origin and inside its API directory. They must not redirect the client to arbitrary endpoints.
+Use a relative artifact path such as `objects/<sha256>.json`. Each descriptor carries its schema version, SHA-256 digest, uncompressed byte count, and content revision. Artifact references must stay inside the configured feed's API directory and, for HTTP delivery, on its configured origin. Reject traversal outside a local export directory and redirects to arbitrary endpoints.
 
 Every envelope has `schema_version`, a stable `kind`, and a `content_revision`. The manifest also carries a monotonically increasing `publication_revision`, `published_at`, and `producer_revision` (the source commit). Publication ordering is determined by the revision, not by device time, HTTP ETags, or an AI generation timestamp.
 
@@ -81,11 +81,11 @@ Before this contract ships, commit JSON Schemas and complete representative fixt
 
 ### Atomic publication and reading
 
-The serialized publisher builds and validates all referenced artifacts first, then publishes them with the manifest in one Pages deployment. It derives the next publication revision from durable published state and retains the existing check that a superseded source commit cannot publish. A rollback publishes a new, higher revision pointing to the previously validated content; it does not rewind the revision counter.
+The serialized publisher builds and validates all referenced artifacts first, installs the immutable objects, then atomically replaces the active manifest. The local/private exporter derives its next publication revision from durable state. If deployment is added later, retain the existing check that a superseded source commit cannot publish and deploy a complete bundle together. A rollback publishes a new, higher revision pointing to previously validated content; it does not rewind the revision counter.
 
 Clients fetch the manifest conditionally, then fetch only changed artifacts. They verify decoded size, digest, schema, IDs, and references before committing a new snapshot in one local transaction. They notify observers only after that transaction succeeds. A failed download or mismatched catalog must not create a frame containing half of the old snapshot and half of the new one.
 
-An older publication revision is ignored. An equal revision with identical manifest content does not replace the required snapshot; it may update request-check metadata and retry a pending optional editorial download. The same revision with different content is an integrity failure. A higher revision may replace the active snapshot only after validation and a second ordering check inside the commit transaction. This prevents an older concurrent download from winning merely because it finishes last. Hashes verify downloaded content against its manifest; they do not authenticate a source independently of the configured HTTPS origin.
+An older publication revision is ignored. An equal revision with identical manifest content does not replace the required snapshot; it may update request-check metadata and retry a pending optional editorial download. The same revision with different content is an integrity failure. A higher revision may replace the active snapshot only after validation and a second ordering check inside the commit transaction. This prevents an older concurrent download from winning merely because it finishes last. Hashes verify content against its manifest; they do not independently authenticate the configured source. Remote production delivery uses HTTPS; local development transport is configured separately.
 
 The catalog, schedule, and policy form the required transaction. Editorial is optional and cannot prevent a valid schedule update. The manifest must explicitly provide either its descriptor or `editorial: null`. Null is an intentional withdrawal and clears the previous published editorial content when that manifest is accepted; it does not erase a personal import. A missing manifest field is invalid, not another spelling of null.
 
@@ -93,7 +93,7 @@ When a descriptor exists but its download or validation fails, retain prior acce
 
 Inside the editorial commit transaction, check that the active manifest still expects the exact descriptor being installed. Discard superseded downloads, including a response that arrives after a newer manifest sets editorial to null. Fixture-reference validity alone cannot authorize restoring withdrawn content.
 
-Keep current and previous complete publications on the server, plus all objects referenced by manifests published within the previous seven days. This proposed retention period is an operational policy, not a promise that a week-old schedule is fresh. A client that encounters a collected object re-fetches the latest manifest once and retries that publication, rather than indefinitely retrying the old path. Installed clients retain their own last valid snapshot.
+Keep current and previous complete publications in the producer's local/private feed store, plus all objects referenced by manifests published within the previous seven days. This proposed retention period is an operational policy, not a promise that a week-old schedule is fresh. A client that encounters a collected object re-fetches the latest manifest once and retries that publication, rather than indefinitely retrying the old path. Installed clients retain their own last valid snapshot.
 
 A complete empty schedule is valid. Incomplete required fixture collection cannot replace the last complete published schedule with an apparently complete empty one. Broadcast-source failures may still allow publication, with their coverage limitations preserved.
 
@@ -185,7 +185,7 @@ Editorial records contain origin (`automatic` or `shared`), response/request ID,
 
 Automatic output retains its original `generated_at` and `focus_until` constraints; personal/shared output retains its original prompt time and 24-hour maximum validity. An editorial publication revision can change after a recalculation without renewing the underlying research. Converting current formats to this contract must preserve that distinction exactly.
 
-Personal AI responses stay in the user's local store and are not uploaded by reading this public feed. Their schema is validated through the same domain import boundary used by the browser. The AI text toggle applies to both headlines and match blurbs; it is independent of whether valid AI ratings participate in ranking.
+Personal AI responses stay in the user's local store and are not uploaded by reading the feed. Their schema is validated through the same domain import boundary used by the browser. The AI text toggle applies to both headlines and match blurbs; it is independent of whether valid AI ratings participate in ranking.
 
 Text is plain text, not HTML. Source URLs are validated HTTPS links. Unknown referenced fixtures cannot produce recommendations, and a headline that loses required eligible match references must disappear instead of referring to filtered-out or completed matches.
 
@@ -214,7 +214,7 @@ An HTTP 200 or 304 may validate cached content without making the underlying mat
 
 The current GitHub publication cadence is approximately twice hourly, subject to job delays. The browser also polls ESPN directly for live scores. A native application that reads only the aggregate feed cannot offer equivalent live freshness.
 
-The first implementation phase therefore validates an approved foreground live adapter on the target platforms. ESPN is the current-source candidate, conditional on permission; a licensed replacement may require a protected backend. The selected adapter emits typed deltas for known fixture IDs only:
+The first implementation phase therefore validates a foreground live adapter on the target platforms, starting with the current ESPN source for the personal prototype. Keep it replaceable: a future supplier may use different IDs, transport or server-held credentials. The selected adapter emits typed deltas for known fixture IDs only:
 
 ```text
 LiveDelta {
@@ -252,5 +252,7 @@ See [Engineering practices](engineering.md) for ownership and test discipline, a
 ## About this document
 
 Status: proposed contract for the first companion release. No public API or compatibility guarantee is created by this document alone.
+
+Scope updated October 23, 2026: personal use with local/private feed delivery; public distribution is deferred.
 
 Baseline: Soccer Outlook `cb0475e`, reviewed 20 October 2026. Current implementation references are [`schedule_data.py`](../../schedule_data.py), [`build.py`](../../build.py), [`rights.toml`](../../rights.toml), [`watch_links.py`](../../watch_links.py), [`story_state.py`](../../story_state.py), and [`web/live.js`](../../web/live.js). Existing source behavior is described in [Schedule data and coverage](../schedule-data.md) and [Scoring](../scoring.md).
